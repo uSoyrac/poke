@@ -16,6 +16,7 @@ class AppState:
     ev_loss_total: float = 0.0
     session_notes: list[str] = field(default_factory=list)
     selected_spot: dict[str, Any] | None = None
+    drill_filters: dict[str, Any] = field(default_factory=dict)
 
     @property
     def accuracy(self) -> float:

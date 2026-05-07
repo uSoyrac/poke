@@ -24,8 +24,10 @@ from app.ui.components.topbar import TopStatusBar
 from app.ui.screens.ai_coach import AiCoachScreen
 from app.ui.screens.combat_trainer import CombatTrainerScreen
 from app.ui.screens.dashboard import DashboardScreen
+from app.ui.screens.drill_builder import DrillBuilderScreen
 from app.ui.screens.fast_play_simulator import FastPlaySimulatorScreen
 from app.ui.screens.hand_analyzer import HandAnalyzerScreen
+from app.ui.screens.hands_list import HandsListScreen
 from app.ui.screens.icm_trainer import IcmTrainerScreen
 from app.ui.screens.knowledge_base import KnowledgeBaseScreen
 from app.ui.screens.leak_finder import LeakFinderScreen
@@ -70,6 +72,8 @@ def prepare_qt_platform_plugins() -> None:
 NAV_ITEMS = [
     "Dashboard",
     "Play Session",
+    "Hands",
+    "Drills",
     "GTO Study Library",
     "Spot Practice Trainer",
     "Hand History Analyzer",
@@ -91,6 +95,7 @@ NAV_ITEMS = [
 
 RESTRICTED_WHEN_LOCKED = {
     "Play Session",
+    "Drills",
     "GTO Study Library",
     "Spot Practice Trainer",
     "Hand History Analyzer",
@@ -168,6 +173,8 @@ class MainWindow(QMainWindow):
         factories = {
             "Dashboard": DashboardScreen,
             "Play Session": PlaySessionScreen,
+            "Hands": HandsListScreen,
+            "Drills": DrillBuilderScreen,
             "GTO Study Library": StudyLibraryScreen,
             "Spot Practice Trainer": SpotTrainerScreen,
             "Hand History Analyzer": HandAnalyzerScreen,
