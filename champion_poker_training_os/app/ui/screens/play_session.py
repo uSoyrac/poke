@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.app_state import AppState
+from app.ai.coach_engine import analyze_played_hand, session_summary
 from app.db.repository import save_played_hand
 from app.engine.game_loop import PokerGame, HandResult
 from app.engine.hand_state import ActionType, Street
@@ -171,12 +172,22 @@ class PlaySessionScreen(QWidget):
         self.history_layout.addWidget(_title("📜 Hand History"))
         game_layout.addWidget(self.history_frame)
 
-        # Next hand button
+        # Bottom buttons
+        bottom_btns = QHBoxLayout()
         self.next_btn = QPushButton("Deal Next Hand →")
         self.next_btn.setObjectName("PrimaryButton")
         self.next_btn.clicked.connect(self._deal_next)
         self.next_btn.hide()
-        game_layout.addWidget(self.next_btn)
+        self.review_btn = QPushButton("🔍 Review Last Hand")
+        self.review_btn.clicked.connect(self._review_last)
+        self.review_btn.hide()
+        self.end_btn = QPushButton("📊 End Session")
+        self.end_btn.clicked.connect(self._end_session)
+        self.end_btn.hide()
+        bottom_btns.addWidget(self.next_btn)
+        bottom_btns.addWidget(self.review_btn)
+        bottom_btns.addWidget(self.end_btn)
+        game_layout.addLayout(bottom_btns)
 
         self.layout_main.addWidget(self.game_frame)
 
@@ -387,6 +398,36 @@ class PlaySessionScreen(QWidget):
         )
 
         self.next_btn.show()
+        self.review_btn.show()
+        self.end_btn.show()
+
+    def _review_last(self) -> None:
+        """Send detailed hand analysis to AI coach."""
+        if not self.game or not self.game.hand_history:
+            return
+        result = self.game.hand_history[-1]
+        review = analyze_played_hand({
+            "hero_cards": result.hero_cards,
+            "community": result.community,
+            "hero_profit": result.hero_profit,
+            "hero_won": result.hero_won,
+            "hero_invested": result.hero_invested,
+            "pot": result.pot,
+            "winner_hand_name": result.winner_hand_name,
+        })
+        self.coach_message.emit(review)
+
+    def _end_session(self) -> None:
+        """Show session summary via AI coach."""
+        if not self.game:
+            return
+        stats = self.game.get_session_stats()
+        hands_data = [
+            {"hero_profit": h.hero_profit, "hero_won": h.hero_won, "streets_seen": h.streets_seen}
+            for h in self.game.hand_history
+        ]
+        summary = session_summary(stats, hands_data)
+        self.coach_message.emit(summary)
 
     def _update_sizing_label(self, value: int) -> None:
         self.sizing_label_display.setText(f"{value}% pot")
