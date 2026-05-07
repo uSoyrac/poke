@@ -258,3 +258,18 @@ CREATE TABLE IF NOT EXISTS app_settings (
   value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS played_hands (
+  id INTEGER PRIMARY KEY,
+  hand_id INTEGER NOT NULL,
+  hero_cards TEXT,
+  community TEXT,
+  pot REAL DEFAULT 0,
+  hero_invested REAL DEFAULT 0,
+  hero_profit REAL DEFAULT 0,
+  hero_won INTEGER DEFAULT 0,
+  winner_hand_name TEXT,
+  streets_seen INTEGER DEFAULT 0,
+  session_id INTEGER DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+

@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.app_state import AppState
+from app.db.repository import save_played_hand
 from app.engine.game_loop import PokerGame, HandResult
 from app.engine.hand_state import ActionType, Street
 from app.engine.bot_brain import BOT_ARCHETYPES
@@ -360,6 +361,22 @@ class PlaySessionScreen(QWidget):
         )
         entry.setObjectName("Green" if result.hero_won else "Muted")
         self.history_layout.addWidget(entry)
+
+        # Persist to DB
+        try:
+            save_played_hand({
+                "hand_id": result.hand_id,
+                "hero_cards": result.hero_cards,
+                "community": result.community,
+                "pot": result.pot,
+                "hero_invested": result.hero_invested,
+                "hero_profit": result.hero_profit,
+                "hero_won": result.hero_won,
+                "winner_hand_name": result.winner_hand_name,
+                "streets_seen": result.streets_seen,
+            })
+        except Exception:
+            pass  # Don't crash UI on DB errors
 
         # Coach message
         self.coach_message.emit(

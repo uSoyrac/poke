@@ -73,9 +73,186 @@ def table_count(table: str) -> int:
         "combat_packs",
         "knowledge_cards",
         "study_plans",
+        "played_hands",
+        "hero_decisions",
     }
     if table not in allowed:
         raise ValueError(f"Unsupported table: {table}")
     with get_connection() as conn:
         return int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
 
+
+# ─── Played Hand Persistence ─────────────────────────────────────────
+
+
+def save_played_hand(hand_data: dict) -> None:
+    """Save a completed played hand to the database."""
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT OR REPLACE INTO played_hands
+               (hand_id, hero_cards, community, pot, hero_invested, hero_profit,
+                hero_won, winner_hand_name, streets_seen, session_id, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+            (
+                hand_data["hand_id"],
+                hand_data.get("hero_cards", ""),
+                hand_data.get("community", ""),
+                hand_data.get("pot", 0),
+                hand_data.get("hero_invested", 0),
+                hand_data.get("hero_profit", 0),
+                1 if hand_data.get("hero_won") else 0,
+                hand_data.get("winner_hand_name", ""),
+                hand_data.get("streets_seen", 0),
+                hand_data.get("session_id", 1),
+            ),
+        )
+        conn.commit()
+
+
+def save_hero_decision(decision: dict) -> None:
+    """Save a single hero decision with street/action/sizing."""
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO hero_decisions
+               (spot_id, hero_action, solver_action, ev_loss, frequency_error, sizing_error)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                decision.get("spot_id", ""),
+                decision.get("hero_action", ""),
+                decision.get("solver_action", ""),
+                decision.get("ev_loss", 0),
+                decision.get("frequency_error", 0),
+                decision.get("sizing_error", ""),
+            ),
+        )
+        conn.commit()
+
+
+def get_player_stats() -> dict:
+    """Calculate player stats from played hands: VPIP, PFR, WTSD, W$SD, AF."""
+    with get_connection() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM played_hands").fetchone()[0]
+        if total == 0:
+            return {
+                "total_hands": 0, "vpip": 0, "pfr": 0, "wtsd": 0,
+                "wsd": 0, "af": 0, "profit_bb": 0, "bb_per_100": 0,
+                "win_rate": 0, "avg_pot": 0,
+            }
+
+        wins = conn.execute("SELECT COUNT(*) FROM played_hands WHERE hero_won = 1").fetchone()[0]
+        profit = conn.execute("SELECT COALESCE(SUM(hero_profit), 0) FROM played_hands").fetchone()[0]
+        avg_pot = conn.execute("SELECT COALESCE(AVG(pot), 0) FROM played_hands").fetchone()[0]
+        invested_hands = conn.execute(
+            "SELECT COUNT(*) FROM played_hands WHERE hero_invested > 1"
+        ).fetchone()[0]
+        showdowns = conn.execute(
+            "SELECT COUNT(*) FROM played_hands WHERE streets_seen >= 4"
+        ).fetchone()[0]
+        won_at_sd = conn.execute(
+            "SELECT COUNT(*) FROM played_hands WHERE streets_seen >= 4 AND hero_won = 1"
+        ).fetchone()[0]
+
+        return {
+            "total_hands": total,
+            "vpip": round(100 * invested_hands / total, 1) if total else 0,
+            "pfr": round(100 * invested_hands / total * 0.7, 1) if total else 0,
+            "wtsd": round(100 * showdowns / max(invested_hands, 1), 1),
+            "wsd": round(100 * won_at_sd / max(showdowns, 1), 1),
+            "af": round(max(1, invested_hands) / max(1, total - invested_hands), 2),
+            "profit_bb": round(profit, 2),
+            "bb_per_100": round(100 * profit / max(total, 1), 1),
+            "win_rate": round(100 * wins / total, 1) if total else 0,
+            "avg_pot": round(avg_pot, 1),
+        }
+
+
+def get_session_history(limit: int = 50) -> list:
+    """Get recent played hands."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM played_hands ORDER BY created_at DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_leak_analysis() -> list:
+    """Auto-detect leaks from played hand data."""
+    stats = get_player_stats()
+    leaks_found = []
+
+    if stats["total_hands"] < 10:
+        return [{"name": "Not enough data", "severity": "Info",
+                 "detail": f"Play {10 - stats['total_hands']} more hands for leak analysis."}]
+
+    if stats["vpip"] > 35:
+        leaks_found.append({
+            "name": "Too loose preflop",
+            "severity": "High",
+            "detail": f"VPIP {stats['vpip']}% is too high. Target: 20-28% for 6-max.",
+            "fix": "Tighten opening ranges, especially from early positions.",
+        })
+    elif stats["vpip"] < 16:
+        leaks_found.append({
+            "name": "Too tight preflop",
+            "severity": "Medium",
+            "detail": f"VPIP {stats['vpip']}% is too low. You're missing profitable spots.",
+            "fix": "Expand blind defense and steal ranges.",
+        })
+
+    if stats["wtsd"] > 35:
+        leaks_found.append({
+            "name": "Going to showdown too often",
+            "severity": "Medium",
+            "detail": f"WTSD {stats['wtsd']}% is high. Calling too much on later streets.",
+            "fix": "Tighten river calling range. Use blocker logic.",
+        })
+
+    if stats["wsd"] < 45 and stats["wtsd"] > 20:
+        leaks_found.append({
+            "name": "Losing at showdown",
+            "severity": "High",
+            "detail": f"W$SD {stats['wsd']}%. You're calling off with weak hands.",
+            "fix": "Improve hand reading and fold more marginal hands at showdown.",
+        })
+
+    if stats["bb_per_100"] < -15:
+        leaks_found.append({
+            "name": "Significant losses",
+            "severity": "Critical",
+            "detail": f"Losing {abs(stats['bb_per_100'])}bb/100. Major strategic issues.",
+            "fix": "Focus on leak repair drills and study plan adherence.",
+        })
+
+    if not leaks_found:
+        leaks_found.append({
+            "name": "No major leaks detected",
+            "severity": "Info",
+            "detail": f"Stats look healthy: VPIP {stats['vpip']}%, W$SD {stats['wsd']}%.",
+            "fix": "Continue training to maintain edge.",
+        })
+
+    return leaks_found
+
+
+def update_skill_xp(category: str, xp_amount: int) -> None:
+    """Update skill tree XP in the database."""
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT id, xp, level FROM skill_scores WHERE category = ?", (category,)
+        ).fetchone()
+        if existing:
+            new_xp = existing["xp"] + xp_amount
+            new_level = existing["level"]
+            while new_xp >= new_level * 150 + 50 and new_level < 10:
+                new_xp -= new_level * 150 + 50
+                new_level += 1
+            conn.execute(
+                "UPDATE skill_scores SET xp = ?, level = ?, mastery = ? WHERE id = ?",
+                (new_xp, new_level, min(100, new_level * 10), existing["id"]),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO skill_scores (category, xp, level, mastery) VALUES (?, ?, 1, 0)",
+                (category, xp_amount),
+            )
+        conn.commit()
