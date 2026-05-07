@@ -30,6 +30,7 @@ from app.ui.screens.icm_trainer import IcmTrainerScreen
 from app.ui.screens.knowledge_base import KnowledgeBaseScreen
 from app.ui.screens.leak_finder import LeakFinderScreen
 from app.ui.screens.math_lab import MathLabScreen
+from app.ui.screens.play_session import PlaySessionScreen
 from app.ui.screens.postflop_trainer import PostflopTrainerScreen
 from app.ui.screens.range_trainer import RangeTrainerScreen
 from app.ui.screens.reports import ReportsScreen
@@ -68,6 +69,7 @@ def prepare_qt_platform_plugins() -> None:
 
 NAV_ITEMS = [
     "Dashboard",
+    "Play Session",
     "GTO Study Library",
     "Spot Practice Trainer",
     "Hand History Analyzer",
@@ -88,6 +90,7 @@ NAV_ITEMS = [
 ]
 
 RESTRICTED_WHEN_LOCKED = {
+    "Play Session",
     "GTO Study Library",
     "Spot Practice Trainer",
     "Hand History Analyzer",
@@ -164,6 +167,7 @@ class MainWindow(QMainWindow):
     def _create_screens(self) -> None:
         factories = {
             "Dashboard": DashboardScreen,
+            "Play Session": PlaySessionScreen,
             "GTO Study Library": StudyLibraryScreen,
             "Spot Practice Trainer": SpotTrainerScreen,
             "Hand History Analyzer": HandAnalyzerScreen,
