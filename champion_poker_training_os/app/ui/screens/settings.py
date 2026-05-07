@@ -1,10 +1,25 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QCheckBox, QLabel, QPushButton, QVBoxLayout, QWidget
+from pathlib import Path
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
 from app.core.app_state import AppState
 from app.core.compliance import OFFLINE_COMPLIANCE_RULES
 from app.core.rta_guard import RtaGuard
+from app.solver.csv_importer import get_solver_library
 
 
 class SettingsScreen(QWidget):
@@ -12,29 +27,91 @@ class SettingsScreen(QWidget):
         super().__init__()
         self.state = state
         self.guard = RtaGuard(strict_mode=state.strict_rta_guard)
-        layout = QVBoxLayout(self)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        body = QWidget()
+        scroll.setWidget(body)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.addWidget(scroll)
+        layout = QVBoxLayout(body)
         layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(14)
+
         title = QLabel("Settings / Compliance Guard")
         title.setObjectName("Title")
+        layout.addWidget(title)
+
+        # --- RTA Guard card ---
+        rta_card = QFrame()
+        rta_card.setObjectName("Card")
+        rta_layout = QVBoxLayout(rta_card)
+        rta_layout.setContentsMargins(14, 12, 14, 12)
+        rta_title = QLabel("RTA Guard")
+        rta_title.setObjectName("SectionTitle")
+        rta_layout.addWidget(rta_title)
         self.strict = QCheckBox("RTA Guard Strict Mode")
         self.strict.setChecked(state.strict_rta_guard)
         self.strict.stateChanged.connect(self.update_strict)
-        self.status = QLabel()
-        self.status.setWordWrap(True)
-        self.status.setObjectName("Green")
+        rta_layout.addWidget(self.strict)
         scan = QPushButton("Scan Poker Clients")
         scan.setObjectName("PrimaryButton")
         scan.clicked.connect(self.scan)
-        layout.addWidget(title)
-        layout.addWidget(self.strict)
-        layout.addWidget(scan)
-        layout.addWidget(self.status)
-        rules = QLabel("\n".join(f"- {rule}" for rule in OFFLINE_COMPLIANCE_RULES))
+        rta_layout.addWidget(scan)
+        self.status = QLabel()
+        self.status.setWordWrap(True)
+        self.status.setObjectName("Green")
+        rta_layout.addWidget(self.status)
+        rules = QLabel("\n".join(f"• {rule}" for rule in OFFLINE_COMPLIANCE_RULES))
         rules.setObjectName("Muted")
-        layout.addWidget(rules)
+        rules.setWordWrap(True)
+        rta_layout.addWidget(rules)
+        layout.addWidget(rta_card)
+
+        # --- Solver Library card ---
+        solver_card = QFrame()
+        solver_card.setObjectName("Card")
+        solver_layout = QVBoxLayout(solver_card)
+        solver_layout.setContentsMargins(14, 12, 14, 12)
+        solver_title = QLabel("Solver Library  (PIO / GTO Wizard CSV)")
+        solver_title.setObjectName("SectionTitle")
+        solver_layout.addWidget(solver_title)
+        self.solver_status = QLabel(self._solver_status_text())
+        self.solver_status.setObjectName("Muted")
+        self.solver_status.setWordWrap(True)
+        solver_layout.addWidget(self.solver_status)
+
+        sl_buttons = QHBoxLayout()
+        import_btn = QPushButton("📥  Import solver CSV…")
+        import_btn.setStyleSheet(
+            "QPushButton { background: #10B981; color: #04110D; font-weight: 800; "
+            "padding: 8px 16px; border-radius: 7px; border: none; }"
+            "QPushButton:hover { background: #34D399; }"
+        )
+        import_btn.setCursor(Qt.PointingHandCursor)
+        import_btn.clicked.connect(self._import_solver)
+        clear_btn = QPushButton("Clear library")
+        clear_btn.clicked.connect(self._clear_library)
+        sl_buttons.addWidget(import_btn)
+        sl_buttons.addWidget(clear_btn)
+        sl_buttons.addStretch(1)
+        solver_layout.addLayout(sl_buttons)
+
+        format_help = QLabel(
+            "CSV format: spot_id, action, frequency (0-1 or 0-100), ev, sizing (optional), "
+            "best (optional 0/1), source (optional). Frequencies normalised per spot. "
+            "Imported rows replace mock-solver output for matching spot ids."
+        )
+        format_help.setWordWrap(True)
+        format_help.setObjectName("Muted")
+        solver_layout.addWidget(format_help)
+        layout.addWidget(solver_card)
+
         layout.addStretch(1)
         self.scan()
 
+    # --- handlers --------------------------------------------------------
     def update_strict(self) -> None:
         self.state.strict_rta_guard = self.strict.isChecked()
         self.guard.strict_mode = self.state.strict_rta_guard
@@ -48,3 +125,36 @@ class SettingsScreen(QWidget):
         self.status.style().polish(self.status)
         self.status.setText(status.message)
 
+    def _solver_status_text(self) -> str:
+        lib = get_solver_library()
+        size = lib.size()
+        if size == 0:
+            return "No solver CSV imported. Trainers fall back to mock solver baseline."
+        sources = ", ".join(lib.sources()) or "—"
+        return f"{size} solver entries loaded from: {sources}."
+
+    def _import_solver(self) -> None:
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Import solver CSV (PIO / GTO Wizard)",
+            "", "CSV (*.csv);;All files (*)",
+        )
+        if not paths:
+            return
+        lib = get_solver_library()
+        total = 0
+        for p in paths:
+            try:
+                total += lib.import_csv_file(p)
+            except Exception:
+                continue
+        self.solver_status.setText(self._solver_status_text())
+        QMessageBox.information(
+            self, "Solver import complete",
+            f"Imported {total} solver row(s) across {len(paths)} file(s)."
+            f"\nLibrary size: {lib.size()}.",
+        )
+
+    def _clear_library(self) -> None:
+        lib = get_solver_library()
+        lib.clear()
+        self.solver_status.setText(self._solver_status_text())

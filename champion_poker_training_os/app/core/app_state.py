@@ -17,6 +17,15 @@ class AppState:
     session_notes: list[str] = field(default_factory=list)
     selected_spot: dict[str, Any] | None = None
     drill_filters: dict[str, Any] = field(default_factory=dict)
+    # Singleton adaptive engine — lazily created so unit tests don't pay setup cost
+    _adaptive_engine: Any = None
+
+    def adaptive_engine(self):
+        """Lazy accessor for the AdaptiveEngine singleton (avoids circular import)."""
+        if self._adaptive_engine is None:
+            from app.training.adaptive_engine import AdaptiveEngine
+            self._adaptive_engine = AdaptiveEngine()
+        return self._adaptive_engine
 
     @property
     def accuracy(self) -> float:

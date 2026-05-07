@@ -154,6 +154,7 @@ class EquityChart(QWidget):
 
 class RangeViewerScreen(QWidget):
     coach_message = Signal(str)
+    navigate_requested = Signal(str)
 
     def __init__(self, state: AppState):
         super().__init__()
@@ -290,12 +291,44 @@ class RangeViewerScreen(QWidget):
         c_layout.addWidget(self.action)
         c_layout.addStretch(1)
         update_btn = QPushButton("Update")
-        update_btn.setObjectName("PrimaryButton")
         update_btn.clicked.connect(
             lambda: self.coach_message.emit(
                 f"Range güncellendi: {self.hero_pos.currentText()} {self.stack.currentText()} {self.action.currentText()}. "
                 "Solver verisi mock; gerçek import için Settings > Solver Library kullan."
             )
         )
+        practice_btn = QPushButton("▶  Practice this spot")
+        practice_btn.setObjectName("PrimaryButton")
+        practice_btn.setStyleSheet(
+            "QPushButton { background: #10B981; color: #04110D; font-weight: 800; "
+            "padding: 8px 18px; border-radius: 7px; border: none; }"
+            "QPushButton:hover { background: #34D399; }"
+        )
+        practice_btn.clicked.connect(self._launch_practice)
         c_layout.addWidget(update_btn)
+        c_layout.addWidget(practice_btn)
         layout.addWidget(controls)
+
+    def _launch_practice(self) -> None:
+        """Hand off the current Range Viewer selection to the Spot Trainer."""
+        pos = self.hero_pos.currentText()
+        stack = self.stack.currentText()
+        action = self.action.currentText()
+        # Map Action selector to Drill Builder's preflop pills
+        action_map = {
+            "RFI": "SRP",
+            "vs RFI": "SRP",
+            "vs 3bet": "3-bet",
+            "4bet": "4-bet",
+            "Squeeze": "Squeeze",
+        }
+        self.state.drill_filters = {
+            "positions": [pos],
+            "solution": "MTT • ChipEV",
+            "starting_spot": "Preflop",
+            "preflop_action": action_map.get(action, "Any"),
+        }
+        self.coach_message.emit(
+            f"Practice modu başladı — {pos} {stack} {action}. Spot Trainer ilgili spotları yükleyecek."
+        )
+        self.navigate_requested.emit("Spot Practice Trainer")

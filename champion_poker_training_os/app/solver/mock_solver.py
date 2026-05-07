@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import asdict
 
+from app.solver.csv_importer import get_solver_library
 from app.solver.solver_schema import SolverAction, SolverResult
 
 
@@ -15,6 +16,17 @@ def _stable_number(text: str, modulo: int) -> int:
 
 
 def solve_spot(spot: dict) -> SolverResult:
+    # Prefer imported PIO/GTO Wizard CSV data when available
+    spot_id = spot.get("id")
+    if spot_id:
+        library = get_solver_library()
+        imported = library.get(str(spot_id))
+        if imported is not None:
+            return imported
+    return _mock_solve_spot(spot)
+
+
+def _mock_solve_spot(spot: dict) -> SolverResult:
     options = tuple(spot.get("options") or BASE_ACTIONS[:5])
     best = spot.get("best_action") or options[_stable_number(spot.get("id", "spot"), len(options))]
     source = spot.get("source_confidence", "Mock/demo solver")

@@ -265,9 +265,28 @@ class SpotTrainerScreen(QWidget):
             result["is_correct"], result["ev_loss"],
             f"{spot['id']} {action}: -{result['ev_loss']:.2f}bb",
         )
+        # Feed the adaptive engine so future drills prioritise this spot if it was a miss.
+        engine = self.state.adaptive_engine()
+        engine.record_attempt(
+            spot_id=spot["id"],
+            correct=result["is_correct"],
+            ev_loss=result["ev_loss"],
+            tags=(spot.get("street", ""), spot.get("position", ""), spot.get("pot_type", "")),
+        )
         self._show_feedback(spot, result, score)
         self.coach_message.emit(explain_spot(spot, action))
-        self.index += 1
+        # Adaptive next-pick instead of round-robin
+        candidates = [d["id"] for d in self.drills]
+        next_id = engine.next_drill(candidates, exclude=[spot["id"]])
+        if next_id:
+            for i, d in enumerate(self.drills):
+                if d["id"] == next_id:
+                    self.index = i
+                    break
+            else:
+                self.index += 1
+        else:
+            self.index += 1
 
     def _show_solver_preview(self, spot: dict) -> None:
         _clear_layout(self.feedback_layout)
