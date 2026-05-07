@@ -151,3 +151,40 @@ def test_mock_solver_ev_loss_non_negative() -> None:
         for action in spot["options"]:
             result = compare_action(spot, action)
             assert result["ev_loss"] >= 0, f"Negative EV loss for {spot['id']} {action}"
+
+
+# ===== SKILL TREE TESTS =====
+
+
+def test_skill_tree_xp_and_level_up() -> None:
+    """Adding XP should eventually trigger a level-up."""
+    from app.training.mastery_model import SkillTree
+    tree = SkillTree()
+    node = tree.nodes["preflop"]
+    assert node.level == 1
+    result = tree.grant_xp("preflop", 500)
+    assert result["leveled_up"]
+    assert node.level > 1
+
+
+def test_skill_tree_achievement_unlock() -> None:
+    """Achievements should unlock when conditions are met."""
+    from app.training.mastery_model import SkillTree
+    tree = SkillTree()
+    stats = {"drills": 150, "streak": 8, "preflop_accuracy": 90}
+    unlocked = tree.check_achievements(stats)
+    ids = {a.id for a in unlocked}
+    assert "drills_100" in ids
+    assert "streak_7" in ids
+    assert "preflop_85" in ids
+
+
+def test_demo_skill_tree_consistency() -> None:
+    """Demo skill tree should have valid state."""
+    from app.training.mastery_model import demo_skill_tree
+    tree = demo_skill_tree()
+    summary = tree.get_summary()
+    assert summary["overall_level"] >= 1
+    assert len(summary["categories"]) == 12
+    assert summary["achievements_total"] == 15
+    assert summary["total_xp"] > 0
