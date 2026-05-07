@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -18,6 +20,57 @@ from app.ai.coach_engine import explain_spot
 from app.core.app_state import AppState
 from app.simulator.mtt_engine import TournamentEngine
 from app.ui.components.poker_table import PokerTableView
+
+
+class StackBar(QWidget):
+    """Visualize hero chip stack vs field average."""
+
+    def __init__(self):
+        super().__init__()
+        self.hero = 0
+        self.avg = 0
+        self.setMinimumHeight(40)
+
+    def set_values(self, hero: int, avg: int) -> None:
+        self.hero = hero
+        self.avg = avg
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        w = self.width()
+        h = self.height()
+        track_h = 14
+        y_track = (h - track_h) // 2
+        max_chips = max(self.hero, self.avg, 1) * 1.4
+
+        # Track
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor("#1F2937"))
+        painter.drawRoundedRect(0, y_track, w, track_h, 4, 4)
+
+        # Hero bar
+        hero_w = int(w * self.hero / max_chips)
+        if self.hero >= self.avg:
+            color = QColor("#10B981")
+        elif self.hero >= self.avg * 0.6:
+            color = QColor("#22D3EE")
+        else:
+            color = QColor("#F59E0B")
+        painter.setBrush(color)
+        painter.drawRoundedRect(0, y_track, hero_w, track_h, 4, 4)
+
+        # Average marker
+        avg_x = int(w * self.avg / max_chips)
+        painter.setPen(QColor("#9CA3AF"))
+        painter.drawLine(avg_x, y_track - 3, avg_x, y_track + track_h + 3)
+
+        # Labels
+        painter.setPen(QColor("#E5E7EB"))
+        painter.drawText(4, y_track - 4, f"Hero {self.hero:,}")
+        painter.drawText(max(0, avg_x - 20), y_track + track_h + 14, f"Avg {self.avg:,}")
+        painter.end()
 
 
 class TournamentSimulatorScreen(QWidget):
@@ -40,54 +93,195 @@ class TournamentSimulatorScreen(QWidget):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(14)
 
+        # Title row
+        title_row = QHBoxLayout()
         title = QLabel("Tournament Simulator")
         title.setObjectName("Title")
-        layout.addWidget(title)
+        title_row.addWidget(title)
+        title_row.addStretch(1)
+        self.reset_btn = QPushButton("Reset tournament")
+        self.reset_btn.clicked.connect(self._reset)
+        title_row.addWidget(self.reset_btn)
+        layout.addLayout(title_row)
 
-        controls = QHBoxLayout()
+        # Setup row
+        setup = QFrame()
+        setup.setObjectName("Card")
+        setup_layout = QHBoxLayout(setup)
+        setup_layout.setContentsMargins(14, 10, 14, 10)
+        setup_layout.addWidget(QLabel("Field"))
         self.field = QSpinBox()
         self.field.setRange(9, 8000)
         self.field.setValue(self.engine.field_size)
         self.field.valueChanged.connect(self._update_settings)
+        setup_layout.addWidget(self.field)
+
+        setup_layout.addWidget(QLabel("Buy-in $"))
+        self.buyin = QSpinBox()
+        self.buyin.setRange(1, 10000)
+        self.buyin.setValue(int(self.engine.buyin))
+        self.buyin.valueChanged.connect(self._update_settings)
+        setup_layout.addWidget(self.buyin)
+
+        setup_layout.addWidget(QLabel("Speed"))
         self.speed = QComboBox()
         self.speed.addItems(["regular", "turbo", "hyper"])
         self.speed.currentTextChanged.connect(self._update_settings)
-        self.pko = QCheckBox("PKO on")
+        setup_layout.addWidget(self.speed)
+
+        self.pko = QCheckBox("PKO bounties")
         self.pko.setChecked(True)
         self.pko.stateChanged.connect(self._update_settings)
-        for label, widget in [("Field", self.field), ("Speed", self.speed), ("", self.pko)]:
-            if label:
-                controls.addWidget(QLabel(label))
-            controls.addWidget(widget)
-        controls.addStretch(1)
-        layout.addLayout(controls)
+        setup_layout.addWidget(self.pko)
+        setup_layout.addStretch(1)
+        layout.addWidget(setup)
 
-        top = QHBoxLayout()
+        # MTT context (blind / stack / players)
+        ctx = QFrame()
+        ctx.setObjectName("Card")
+        ctx_layout = QGridLayout(ctx)
+        ctx_layout.setContentsMargins(14, 12, 14, 12)
+        ctx_layout.setHorizontalSpacing(20)
+        self.label_blinds = self._ctx_metric(ctx_layout, 0, 0, "Blinds", "L1 100/200")
+        self.label_stack = self._ctx_metric(ctx_layout, 0, 1, "Hero stack", "30,000")
+        self.label_stack_bb = self._ctx_metric(ctx_layout, 0, 2, "Stack (bb)", "150")
+        self.label_m = self._ctx_metric(ctx_layout, 0, 3, "M-ratio", "100")
+        self.label_avg = self._ctx_metric(ctx_layout, 0, 4, "Avg stack", "30,000")
+        self.label_left = self._ctx_metric(ctx_layout, 0, 5, "Players left", "800")
+        self.label_paid = self._ctx_metric(ctx_layout, 0, 6, "Paid places", "120")
+        self.label_pool = self._ctx_metric(ctx_layout, 0, 7, "Prize pool", "$74,400")
+        self.stack_bar = StackBar()
+        ctx_layout.addWidget(self.stack_bar, 1, 0, 1, 8)
+        layout.addWidget(ctx)
+
+        # Main row: poker table + decision panel + payout ladder
+        body_row = QHBoxLayout()
+        body_row.setSpacing(14)
+
         self.table = PokerTableView()
-        top.addWidget(self.table, 2)
-        panel = QFrame()
-        panel.setObjectName("DataPanel")
-        panel_layout = QVBoxLayout(panel)
+        body_row.addWidget(self.table, 3)
+
+        # Decision panel
+        decision = QFrame()
+        decision.setObjectName("DataPanel")
+        d_layout = QVBoxLayout(decision)
+        d_layout.setContentsMargins(14, 14, 14, 14)
         self.spot_title = QLabel()
         self.spot_title.setObjectName("SectionTitle")
+        self.spot_title.setWordWrap(True)
         self.spot_info = QLabel()
         self.spot_info.setWordWrap(True)
         self.spot_info.setObjectName("Muted")
         self.report = QLabel()
         self.report.setWordWrap(True)
         self.report.setObjectName("Cyan")
-        panel_layout.addWidget(self.spot_title)
-        panel_layout.addWidget(self.spot_info)
-        panel_layout.addWidget(self.report)
-        panel_layout.addLayout(self.action_layout)
-        top.addWidget(panel, 1)
-        layout.addLayout(top)
+        d_layout.addWidget(self.spot_title)
+        d_layout.addWidget(self.spot_info)
+        d_layout.addWidget(self.report)
+        d_layout.addLayout(self.action_layout)
+        d_layout.addStretch(1)
+        body_row.addWidget(decision, 2)
+
+        # Payout ladder
+        ladder = QFrame()
+        ladder.setObjectName("Card")
+        ladder_layout = QVBoxLayout(ladder)
+        ladder_layout.setContentsMargins(14, 14, 14, 14)
+        ladder_title = QLabel("Payout Ladder")
+        ladder_title.setObjectName("SectionTitle")
+        ladder_layout.addWidget(ladder_title)
+        self.ladder_grid = QGridLayout()
+        self.ladder_grid.setHorizontalSpacing(16)
+        ladder_layout.addLayout(self.ladder_grid)
+        ladder_layout.addStretch(1)
+        self.label_finish = QLabel("Projected finish: —")
+        self.label_finish.setObjectName("Amber")
+        ladder_layout.addWidget(self.label_finish)
+        body_row.addWidget(ladder, 2)
+
+        layout.addLayout(body_row)
+
+        # Performance stats
+        perf = QFrame()
+        perf.setObjectName("Card")
+        perf_layout = QHBoxLayout(perf)
+        perf_layout.setContentsMargins(14, 10, 14, 10)
+        self.label_acc = QLabel("Accuracy: 0%")
+        self.label_acc.setObjectName("Green")
+        self.label_punts = QLabel("ICM punts: 0")
+        self.label_punts.setObjectName("Red")
+        self.label_roi = QLabel("ROI projection: 0.0")
+        self.label_roi.setObjectName("Cyan")
+        self.label_decisions = QLabel("Decisions: 0")
+        for w in (self.label_acc, self.label_punts, self.label_roi, self.label_decisions):
+            perf_layout.addWidget(w)
+        perf_layout.addStretch(1)
+        layout.addWidget(perf)
+
+        layout.addStretch(1)
+        self._refresh_context()
         self.load_spot()
+
+    # --- helpers ---------------------------------------------------------
+    def _ctx_metric(self, grid: QGridLayout, row: int, col: int, label: str, value: str) -> QLabel:
+        wrap = QVBoxLayout()
+        wrap.setSpacing(2)
+        name = QLabel(label)
+        name.setObjectName("Muted")
+        val = QLabel(value)
+        val.setObjectName("MetricValue")
+        wrap.addWidget(name)
+        wrap.addWidget(val)
+        container = QWidget()
+        container.setLayout(wrap)
+        grid.addWidget(container, row, col)
+        return val
 
     def _update_settings(self) -> None:
         self.engine.field_size = self.field.value()
+        self.engine.buyin = float(self.buyin.value())
         self.engine.speed = self.speed.currentText()
         self.engine.pko = self.pko.isChecked()
+        self._refresh_context()
+
+    def _reset(self) -> None:
+        self.engine.reset()
+        self._refresh_context()
+        self.load_spot()
+        self.report.setText("Turnuva sıfırlandı. Yeniden başla.")
+
+    def _refresh_context(self) -> None:
+        e = self.engine
+        self.label_blinds.setText(e.blinds_label)
+        self.label_stack.setText(f"{e.chip_stack:,}")
+        self.label_stack_bb.setText(f"{e.stack_in_bb}bb")
+        self.label_m.setText(str(e.m_ratio))
+        self.label_avg.setText(f"{e.avg_stack:,}")
+        self.label_left.setText(f"{e.players_left:,} / {e.field_size:,}")
+        self.label_paid.setText(str(e.paid_places))
+        self.label_pool.setText(f"${e.prize_pool:,.0f}")
+        self.stack_bar.set_values(e.chip_stack, e.avg_stack)
+        self.label_finish.setText(f"Projected finish: {e.finish_position or '—'} of {e.field_size}")
+        self.label_acc.setText(f"Accuracy: {e.accuracy()}%")
+        self.label_punts.setText(f"ICM punts: {e.icm_punts}")
+        self.label_roi.setText(f"ROI projection: {e.roi_projection:+.2f}")
+        self.label_decisions.setText(f"Decisions: {e.decisions_made}")
+        # Refresh payout ladder
+        for i in reversed(range(self.ladder_grid.count())):
+            item = self.ladder_grid.itemAt(i)
+            if item and item.widget():
+                item.widget().deleteLater()
+        for r, (place, amount) in enumerate(e.payout_ladder()):
+            place_lbl = QLabel(f"{place}.")
+            place_lbl.setFixedWidth(28)
+            amount_lbl = QLabel(f"${amount:,.0f}")
+            amount_lbl.setObjectName("Cyan" if place > 3 else "Green")
+            self.ladder_grid.addWidget(place_lbl, r, 0)
+            self.ladder_grid.addWidget(amount_lbl, r, 1)
+            if e.finish_position == place:
+                marker = QLabel("◀ projected")
+                marker.setObjectName("Amber")
+                self.ladder_grid.addWidget(marker, r, 2)
 
     def load_spot(self) -> None:
         spot = self.engine.current_spot
@@ -95,14 +289,11 @@ class TournamentSimulatorScreen(QWidget):
         self.table.set_hand(spot["hero_cards"], spot["board"], spot["pot_bb"])
         self.spot_title.setText(f"{spot['id']} | {spot['title']}")
         self.spot_info.setText(
-            f"Players left {spot['players_left']} / paid {spot['paid_places']} | "
-            f"Risk premium {spot['risk_premium']:.1%} | Bubble factor {spot['bubble_factor']} | "
-            f"Bounty EV {spot['bounty_ev']:+.2f}"
+            f"Stage: {spot.get('stage', '—')} · Risk premium {spot['risk_premium']:.1%} · "
+            f"Bubble factor {spot['bubble_factor']} · Bounty EV {spot['bounty_ev']:+.2f}"
         )
-        self.report.setText(
-            f"ROI projection {self.engine.roi_projection:+.2f}% | ICM punts {self.engine.icm_punts} | "
-            f"Finish projection {self.engine.finish_position or 'live'}"
-        )
+        if not self.report.text():
+            self.report.setText("İlk kararı ver: chipEV mi, $EV mi öncelikli? Bubble pressure'ı yorumla.")
         _clear_layout(self.action_layout)
         for action in spot["options"]:
             button = QPushButton(action)
@@ -112,12 +303,15 @@ class TournamentSimulatorScreen(QWidget):
     def decide(self, action: str) -> None:
         spot = self.engine.current_spot
         result = self.engine.decide(action)
+        chip_change = result["chip_stack"] - (self.engine.starting_stack if self.engine.decisions_made == 1 else self.engine.chip_stack)
         self.report.setText(
-            f"Hero {action}; chipEV best {result['best_action']}. "
-            f"$EV loss {result['dollar_ev_loss']:.2f}, risk premium {result['risk_premium']:.1%}, "
-            f"ROI projection {result['roi_projection']:+.2f}, ICM punts {result['icm_punts']}."
+            f"Hero {action} | chipEV best {result['best_action']} | "
+            f"$EV loss {result['dollar_ev_loss']:.2f} | "
+            f"Stack now {result['chip_stack']:,} | "
+            f"Risk premium {result['risk_premium']:.1%}"
         )
         self.coach_message.emit(explain_spot(spot, action))
+        self._refresh_context()
         self.load_spot()
 
 
@@ -127,4 +321,3 @@ def _clear_layout(layout) -> None:
         widget = item.widget()
         if widget:
             widget.deleteLater()
-
