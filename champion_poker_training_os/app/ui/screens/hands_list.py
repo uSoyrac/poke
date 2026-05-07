@@ -4,17 +4,21 @@ from __future__ import annotations
 import random
 from typing import Any
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
     QDateEdit,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QTableWidget,
@@ -24,8 +28,14 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.app_state import AppState
-from app.db.repository import get_session_history
+from app.db.repository import (
+    get_imported_hands,
+    get_session_history,
+    imported_hands_count,
+    save_imported_hands,
+)
 from app.db.seed_data import generate_hands
+from app.parsers.hand_history_parser import parse_hand_history
 from app.ui.components.mini_card import MiniCardRow
 
 
@@ -254,11 +264,20 @@ class HandsListScreen(QWidget):
                 "QPushButton { background: #131A24; border: 1px solid #1E2733; border-radius: 7px; "
                 "color: #8B95A7; padding: 8px 14px; }"
             )
+        import_btn = QPushButton("📥  Import Hand History")
+        import_btn.setStyleSheet(
+            "QPushButton { background: #10B981; color: #04110D; font-weight: 800; "
+            "padding: 8px 16px; border-radius: 7px; border: none; }"
+            "QPushButton:hover { background: #34D399; }"
+        )
+        import_btn.setCursor(Qt.PointingHandCursor)
+        import_btn.clicked.connect(self._import_hand_history)
         title_row.addSpacing(10)
         title_row.addWidget(site_btn)
         title_row.addWidget(all_reports)
         title_row.addWidget(new_report)
         title_row.addWidget(save_report)
+        title_row.addWidget(import_btn)
         title_row.addStretch(1)
 
         # Date range pickers
@@ -380,34 +399,99 @@ class HandsListScreen(QWidget):
 
     # --- data ------------------------------------------------------------
     def _load_hands(self) -> list[dict[str, Any]]:
-        """Try DB first, fall back to demo seed data."""
+        """Prefer imported hands, fall back to played, then to demo seed data."""
         hands: list[dict[str, Any]] = []
+        # 1) Imported (parsed) hands — richest data
         try:
-            for h in get_session_history(50):
+            for h in get_imported_hands(200):
                 hands.append({
-                    "id": f"H{h.get('hand_id', '?')}",
+                    "id": str(h.get("external_id") or h.get("id")),
                     "tag": "—",
-                    "status": "done" if h.get("hero_won") else "review",
-                    "date": str(h.get("played_at", "today"))[:10] or "—",
-                    "format": h.get("format", "Cash 6-max"),
-                    "site": "Champion OS",
+                    "status": h.get("status", "review"),
+                    "date": (h.get("date") or h.get("imported_at", ""))[:10],
+                    "format": (h.get("format") or "")[:30],
+                    "site": h.get("site", "—"),
                     "position": h.get("hero_position", "—"),
-                    "hand": (h.get("hero_cards", "??") or "").replace(" ", "")[:6],
-                    "board": (h.get("community", "") or "").replace(" ", "")[:10],
-                    "pot_type": "SRP",
-                    "preflop": "RC",
-                    "flop": "BC" if h.get("streets_seen", 0) >= 2 else "",
-                    "turn": "BC" if h.get("streets_seen", 0) >= 3 else "",
-                    "river": "BF" if h.get("streets_seen", 0) >= 4 else "",
-                    "pot": float(h.get("pot", 0)),
-                    "win_loss": float(h.get("hero_profit", 0)),
-                    "ev_loss": 0.0,
+                    "hand": (h.get("hero_cards") or "").replace(" ", "")[:6],
+                    "board": (h.get("board") or "").replace(" ", "")[:10],
+                    "pot_type": h.get("pot_type", "—"),
+                    "preflop": h.get("preflop_actions", ""),
+                    "flop": h.get("flop_actions", ""),
+                    "turn": h.get("turn_actions", ""),
+                    "river": h.get("river_actions", ""),
+                    "pot": float(h.get("pot_bb") or 0),
+                    "win_loss": float(h.get("hero_profit_bb") or 0),
+                    "ev_loss": float(h.get("ev_loss") or 0),
                 })
         except Exception:
             pass
+
+        # 2) Played hands (Play Session output)
+        if not hands:
+            try:
+                for h in get_session_history(50):
+                    hands.append({
+                        "id": f"H{h.get('hand_id', '?')}",
+                        "tag": "—",
+                        "status": "done" if h.get("hero_won") else "review",
+                        "date": str(h.get("created_at", "today"))[:10] or "—",
+                        "format": h.get("format", "Cash 6-max"),
+                        "site": "Champion OS",
+                        "position": h.get("hero_position", "—"),
+                        "hand": (h.get("hero_cards", "??") or "").replace(" ", "")[:6],
+                        "board": (h.get("community", "") or "").replace(" ", "")[:10],
+                        "pot_type": "SRP",
+                        "preflop": "RC",
+                        "flop": "BC" if h.get("streets_seen", 0) >= 2 else "",
+                        "turn": "BC" if h.get("streets_seen", 0) >= 3 else "",
+                        "river": "BF" if h.get("streets_seen", 0) >= 4 else "",
+                        "pot": float(h.get("pot", 0)),
+                        "win_loss": float(h.get("hero_profit", 0)),
+                        "ev_loss": 0.0,
+                    })
+            except Exception:
+                pass
         if not hands:
             hands = _seed_demo_hands()
         return hands
+
+    def _import_hand_history(self) -> None:
+        """Open file dialog, parse selected file(s), persist to DB, reload table."""
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Import PokerStars / GG Hand History",
+            "", "Hand history files (*.txt *.log *.hh);;All files (*)",
+        )
+        if not paths:
+            return
+        total_parsed = 0
+        total_failed = 0
+        for path in paths:
+            try:
+                text = Path(path).read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                total_failed += 1
+                continue
+            parsed = parse_hand_history(text)
+            if not parsed:
+                total_failed += 1
+                continue
+            saved = save_imported_hands(parsed)
+            total_parsed += saved
+
+        # Reload from DB and refresh table
+        self.all_hands = self._load_hands()
+        self._populate()
+
+        QMessageBox.information(
+            self, "Import complete",
+            f"Imported {total_parsed} hand(s).\n"
+            + (f"{total_failed} file(s) had no recognisable hands.\n" if total_failed else "")
+            + f"Total in database: {imported_hands_count()}.",
+        )
+        self.coach_message.emit(
+            f"Hand history import: {total_parsed} new hands. Şimdi her birini analiz edebilir, "
+            "Hand History Analyzer'da replay açabilirsin."
+        )
 
     def _filtered(self) -> list[dict[str, Any]]:
         out = list(self.all_hands)

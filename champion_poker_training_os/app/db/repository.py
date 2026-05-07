@@ -175,6 +175,86 @@ def get_session_history(limit: int = 50) -> list:
         return [dict(row) for row in rows]
 
 
+# ─── Imported Hands (PokerStars / GG) ────────────────────────────────
+
+
+def save_imported_hand(hand: dict) -> int:
+    """Insert (or replace) one parsed hand and return its row id."""
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """INSERT OR REPLACE INTO imported_hands
+               (external_id, site, format, date, hero_position, hero_cards, board,
+                pot_bb, hero_profit_bb, ev_loss, pot_type,
+                preflop_actions, flop_actions, turn_actions, river_actions,
+                status, raw_text, imported_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+            (
+                hand.get("external_id"),
+                hand.get("site"),
+                hand.get("format"),
+                hand.get("date"),
+                hand.get("hero_position"),
+                hand.get("hero_cards"),
+                hand.get("board"),
+                hand.get("pot_bb", 0.0),
+                hand.get("hero_profit_bb", 0.0),
+                hand.get("ev_loss", 0.0),
+                hand.get("pot_type"),
+                hand.get("preflop_actions", ""),
+                hand.get("flop_actions", ""),
+                hand.get("turn_actions", ""),
+                hand.get("river_actions", ""),
+                hand.get("status", "review"),
+                hand.get("raw_text", ""),
+            ),
+        )
+        conn.commit()
+        return cursor.lastrowid
+
+
+def save_imported_hands(hands: list[dict]) -> int:
+    """Bulk-save parsed hands. Returns number persisted."""
+    saved = 0
+    for hand in hands:
+        try:
+            save_imported_hand(hand)
+            saved += 1
+        except Exception:
+            continue
+    return saved
+
+
+def get_imported_hands(limit: int = 200) -> list[dict]:
+    """Return imported hands ordered newest first."""
+    with get_connection() as conn:
+        try:
+            rows = conn.execute(
+                "SELECT * FROM imported_hands ORDER BY imported_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return []
+        return [dict(r) for r in rows]
+
+
+def imported_hands_count() -> int:
+    with get_connection() as conn:
+        try:
+            return conn.execute("SELECT COUNT(*) FROM imported_hands").fetchone()[0]
+        except sqlite3.OperationalError:
+            return 0
+
+
+def clear_imported_hands() -> int:
+    with get_connection() as conn:
+        try:
+            cursor = conn.execute("DELETE FROM imported_hands")
+            conn.commit()
+            return cursor.rowcount
+        except sqlite3.OperationalError:
+            return 0
+
+
 def get_leak_analysis() -> list:
     """Auto-detect leaks from played hand data."""
     stats = get_player_stats()

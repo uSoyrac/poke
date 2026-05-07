@@ -1,0 +1,96 @@
+PokerStars Hand #240999000111: Tournament #2244668800, $5+$0.50 USD Hold'em No Limit - Level VIII (75/150) - 2024/06/01 19:35:21 ET
+Table '2244668800 23' 6-max Seat #5 is the button
+Seat 1: Player1 (3500 in chips)
+Seat 2: Player2 (4200 in chips)
+Seat 3: Hero (5100 in chips)
+Seat 4: Player4 (2800 in chips)
+Seat 5: Player5 (6700 in chips)
+Seat 6: Player6 (3900 in chips)
+Player6: posts small blind 75
+Player1: posts big blind 150
+*** HOLE CARDS ***
+Dealt to Hero [As Kh]
+Player2: folds
+Hero: raises 300 to 450
+Player4: folds
+Player5: folds
+Player6: folds
+Player1: calls 300
+*** FLOP *** [Ah 7c 2d]
+Player1: checks
+Hero: bets 600
+Player1: calls 600
+*** TURN *** [Ah 7c 2d] [9s]
+Player1: checks
+Hero: bets 1500
+Player1: folds
+Uncalled bet (1500) returned to Hero
+Hero collected 2100 from pot
+*** SUMMARY ***
+Total pot 2100 | Rake 0
+Board [Ah 7c 2d 9s]
+Seat 3: Hero showed [As Kh] and won (2100)
+
+PokerStars Hand #240999000222: Tournament #2244668800, $5+$0.50 USD Hold'em No Limit - Level VIII (75/150) - 2024/06/01 19:36:42 ET
+Table '2244668800 23' 6-max Seat #6 is the button
+Seat 1: Player1 (4250 in chips)
+Seat 2: Player2 (4200 in chips)
+Seat 3: Hero (4350 in chips)
+Seat 4: Player4 (2800 in chips)
+Seat 5: Player5 (6700 in chips)
+Seat 6: Player6 (3300 in chips)
+Player1: posts small blind 75
+Player2: posts big blind 150
+*** HOLE CARDS ***
+Dealt to Hero [Qd Js]
+Hero: raises 300 to 450
+Player4: folds
+Player5: calls 450
+Player6: folds
+Player1: folds
+Player2: folds
+*** FLOP *** [Td 9c 8h]
+Hero: bets 525
+Player5: raises 1050 to 1575
+Hero: calls 1050
+*** TURN *** [Td 9c 8h] [2c]
+Hero: checks
+Player5: bets 2100
+Hero: folds
+Uncalled bet (2100) returned to Player5
+Player5 collected 4275 from pot
+*** SUMMARY ***
+Total pot 4275 | Rake 0
+Board [Td 9c 8h 2c]
+Seat 3: Hero folded on the Turn
+
+PokerStars Hand #240999000333: Tournament #2244668800, $5+$0.50 USD Hold'em No Limit - Level IX (100/200) - 2024/06/01 19:42:11 ET
+Table '2244668800 23' 6-max Seat #2 is the button
+Seat 1: Player1 (4475 in chips)
+Seat 2: Player2 (4200 in chips)
+Seat 3: Hero (2325 in chips)
+Seat 5: Player5 (8950 in chips)
+Seat 6: Player6 (3300 in chips)
+Hero: posts small blind 100
+Player5: posts big blind 200
+*** HOLE CARDS ***
+Dealt to Hero [Ks Kc]
+Player6: folds
+Player1: folds
+Player2: raises 400 to 600
+Hero: raises 1100 to 1700
+Player5: folds
+Player2: calls 1100
+*** FLOP *** [7s 4d 2h]
+Hero: bets 625 and is all-in
+Player2: calls 625
+*** TURN *** [7s 4d 2h] [3c]
+*** RIVER *** [7s 4d 2h 3c] [9d]
+*** SHOW DOWN ***
+Hero: shows [Ks Kc] (a pair of Kings)
+Player2: shows [Ah Th] (high card Ace)
+Hero collected 4850 from pot
+*** SUMMARY ***
+Total pot 4850 | Rake 0
+Board [7s 4d 2h 3c 9d]
+Seat 3: Hero (small blind) showed [Ks Kc] and won (4850) with a pair of Kings

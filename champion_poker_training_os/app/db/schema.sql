@@ -258,6 +258,28 @@ CREATE TABLE IF NOT EXISTS app_settings (
   value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS imported_hands (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  external_id TEXT UNIQUE,
+  site TEXT,
+  format TEXT,
+  date TEXT,
+  hero_position TEXT,
+  hero_cards TEXT,
+  board TEXT,
+  pot_bb REAL DEFAULT 0,
+  hero_profit_bb REAL DEFAULT 0,
+  ev_loss REAL DEFAULT 0,
+  pot_type TEXT,
+  preflop_actions TEXT,
+  flop_actions TEXT,
+  turn_actions TEXT,
+  river_actions TEXT,
+  status TEXT DEFAULT 'review',
+  raw_text TEXT,
+  imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS played_hands (
   id INTEGER PRIMARY KEY,
   hand_id INTEGER NOT NULL,
