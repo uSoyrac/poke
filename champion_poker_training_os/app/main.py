@@ -21,6 +21,7 @@ from app.db.repository import initialize_database
 from app.ui.components.coach_panel import CoachPanel
 from app.ui.components.sidebar import SidebarNav
 from app.ui.components.topbar import TopStatusBar
+from app.ui.screens.aggregated_reports import AggregatedReportsScreen
 from app.ui.screens.ai_coach import AiCoachScreen
 from app.ui.screens.combat_trainer import CombatTrainerScreen
 from app.ui.screens.dashboard import DashboardScreen
@@ -35,7 +36,9 @@ from app.ui.screens.math_lab import MathLabScreen
 from app.ui.screens.play_session import PlaySessionScreen
 from app.ui.screens.postflop_trainer import PostflopTrainerScreen
 from app.ui.screens.range_trainer import RangeTrainerScreen
+from app.ui.screens.range_viewer import RangeViewerScreen
 from app.ui.screens.reports import ReportsScreen
+from app.ui.screens.table_settings import TableSettingsScreen
 from app.ui.screens.river_trainer import RiverTrainerScreen
 from app.ui.screens.settings import SettingsScreen
 from app.ui.screens.spot_trainer import SpotTrainerScreen
@@ -90,6 +93,9 @@ NAV_ITEMS = [
     "Knowledge Base",
     "Study Planner",
     "Reports",
+    "Aggregated Reports",
+    "Range Viewer",
+    "Table Settings",
     "Settings / Compliance Guard",
 ]
 
@@ -191,6 +197,9 @@ class MainWindow(QMainWindow):
             "Knowledge Base": KnowledgeBaseScreen,
             "Study Planner": StudyPlannerScreen,
             "Reports": ReportsScreen,
+            "Aggregated Reports": AggregatedReportsScreen,
+            "Range Viewer": RangeViewerScreen,
+            "Table Settings": TableSettingsScreen,
             "Settings / Compliance Guard": SettingsScreen,
         }
         for name in NAV_ITEMS:
