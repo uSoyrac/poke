@@ -1,0 +1,7 @@
+PokerStars Hand #DEMO-0001: Tournament #ChampionLab, Hold'em No Limit - Level IX
+Hero (BTN) dealt As Kh
+CO opens 2.2bb, Hero raises 6.5bb, blinds fold, CO calls
+Flop Ah 7c 2d. CO checks, Hero bets 33%, CO calls
+Turn 9s. CO checks, Hero bets 66%, CO calls
+River 4c. CO checks, Hero decides.
+

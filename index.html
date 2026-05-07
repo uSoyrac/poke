@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IELTS Flow Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="bg-noise" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <button id="menuBtn" class="icon-btn" aria-label="Menu">☰</button>
+      <h1>IELTS Flow Studio</h1>
+      <p id="sourceBadge" class="source-badge">Kaynak: Henüz yüklenmedi</p>
+    </header>
+
+    <aside id="drawer" class="drawer">
+      <div class="drawer-head">
+        <h2>Study Pages</h2>
+        <button id="closeDrawerBtn" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <nav class="drawer-nav">
+        <button class="nav-link active" data-page="sourcePage">Source</button>
+        <button class="nav-link" data-page="readingPage">Reading</button>
+        <button class="nav-link" data-page="listeningPage">Listening</button>
+        <button class="nav-link" data-page="writingPage">Writing</button>
+      </nav>
+    </aside>
+    <div id="drawerBackdrop" class="drawer-backdrop"></div>
+
+    <main class="page-shell">
+      <section id="sourcePage" class="page active">
+        <div class="card">
+          <h2>Kaynak Yukle</h2>
+          <p class="muted">PDF/TXT veya YouTube linkinden tum calisma sayfalarini otomatik olustur.</p>
+
+          <div class="field">
+            <label for="fileInput">Dosya (PDF/TXT)</label>
+            <input id="fileInput" type="file" accept=".pdf,.txt,text/plain,application/pdf" />
+          </div>
+
+          <div class="field">
+            <label for="youtubeInput">YouTube Link</label>
+            <input id="youtubeInput" type="url" placeholder="https://www.youtube.com/watch?v=..." />
+          </div>
+
+          <div class="actions">
+            <button id="loadYoutubeBtn">YouTube'dan Cek</button>
+            <button id="loadSampleBtn" class="ghost">Ornek Icerik</button>
+          </div>
+
+          <p id="sourceStatus" class="status">Durum: Kaynak bekleniyor.</p>
+        </div>
+
+        <div class="card">
+          <h3>Akis</h3>
+          <ul class="clean-list">
+            <li>1. Kaynak yukle</li>
+            <li>2. Reading sayfasinda metin analizi + soru</li>
+            <li>3. Listening sayfasinda transcript + task</li>
+            <li>4. Writing sayfasinda topic bazli prompt + rubric</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="readingPage" class="page">
+        <div class="split">
+          <div class="card">
+            <div class="row-between">
+              <h2>Reading Workspace</h2>
+              <button id="analyzeReadingBtn">Analiz</button>
+            </div>
+            <textarea id="readingInput" placeholder="Reading metni burada..." spellcheck="false"></textarea>
+            <p id="readingStats" class="muted">Henüz analiz yapılmadı.</p>
+            <article id="readingArea" class="reading-area">
+              <p class="muted">Analiz için metin girin.</p>
+            </article>
+          </div>
+
+          <aside class="stack">
+            <div class="card">
+              <div class="row-between">
+                <h3>Cumle Analizi</h3>
+              </div>
+              <ul id="sentenceList" class="clean-list"></ul>
+            </div>
+            <div class="card">
+              <div class="row-between">
+                <h3>IELTS Reading Questions</h3>
+                <button id="generateReadingQuestionsBtn" class="ghost">Uret</button>
+              </div>
+              <ul id="readingQuestionList" class="clean-list"></ul>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="listeningPage" class="page">
+        <div class="split">
+          <div class="card">
+            <div class="row-between">
+              <h2>Listening Workspace</h2>
+              <button id="generateListeningTasksBtn">Task Uret</button>
+            </div>
+            <textarea id="listeningInput" placeholder="Transcript burada..." spellcheck="false"></textarea>
+            <div class="actions">
+              <button id="playTtsBtn">TTS Oynat</button>
+              <button id="stopTtsBtn" class="ghost">Dur</button>
+            </div>
+          </div>
+
+          <aside class="card">
+            <h3>Listening Tasks</h3>
+            <ul id="listeningTaskList" class="clean-list"></ul>
+          </aside>
+        </div>
+      </section>
+
+      <section id="writingPage" class="page">
+        <div class="split">
+          <div class="card">
+            <div class="row-between">
+              <h2>Writing Workspace</h2>
+              <button id="generateWritingPromptBtn">Prompt Uret</button>
+            </div>
+            <p id="writingPrompt" class="prompt-box">Prompt henüz oluşmadı.</p>
+            <textarea id="writingInput" placeholder="Essay cevabınızı yazın..." spellcheck="false"></textarea>
+            <button id="evaluateWritingBtn">Rubric Degerlendir</button>
+          </div>
+
+          <aside class="card">
+            <h3>Band Rubric (0-9)</h3>
+            <ul id="writingFeedbackList" class="clean-list"></ul>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <div id="wordMenu" class="word-menu hidden" role="dialog">
+      <div class="row-between">
+        <h3 id="menuWord">Word</h3>
+        <button id="closeWordMenuBtn" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <p id="menuPos" class="chip"></p>
+      <p id="menuCefr" class="chip alt"></p>
+      <p id="menuMeaning"></p>
+      <p id="menuHint" class="muted"></p>
+    </div>
+
+    <script src="game.js"></script>
+  </body>
+</html>

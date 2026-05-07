@@ -1,0 +1,13 @@
+[project]
+name = "champion-poker-training-os"
+version = "0.1.0"
+description = "Offline poker training desktop app prototype with PySide6."
+requires-python = ">=3.11"
+dependencies = [
+  "PySide6-Essentials>=6.6",
+  "psutil>=5.9",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
