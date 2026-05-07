@@ -1,0 +1,104 @@
+CoinPoker Hand #5500001234: Tournament #2024061501, $5+$0.50 USDT Hold'em No Limit - Level VI (50/100) - 2024/06/15 19:00:00 UTC
+Table 'Tournament 2024061501 7' 6-max Seat #4 is the button
+Seat 1: GrindMaster (4825)
+Seat 2: BluffMonkey (3950)
+Seat 3: Hero (5200)
+Seat 4: SolverBot (6100)
+Seat 5: NitNitNit (2700)
+Seat 6: ChipShark (4200)
+ChipShark: posts small blind 50
+GrindMaster: posts big blind 100
+*** HOLE CARDS ***
+Dealt to Hero [Ah Qd]
+BluffMonkey: folds
+Hero: raises 200 to 300
+SolverBot: folds
+NitNitNit: folds
+ChipShark: calls 250
+GrindMaster: folds
+*** FLOP *** [Qh 7s 4d]
+ChipShark: checks
+Hero: bets 350
+ChipShark: calls 350
+*** TURN *** [Qh 7s 4d] [Ks]
+ChipShark: checks
+Hero: bets 800
+ChipShark: folds
+Uncalled bet (800) returned to Hero
+Hero collected 1400 from pot
+*** SUMMARY ***
+Total pot 1400 | Rake 0
+Board [Qh 7s 4d Ks]
+Seat 3: Hero showed [Ah Qd] and won (1400)
+
+CoinPoker Hand #5500001235: Tournament #2024061501, $5+$0.50 USDT Hold'em No Limit - Level VII (75/150) - 2024/06/15 19:04:11 UTC
+Table 'Tournament 2024061501 7' 6-max Seat #5 is the button
+Seat 1: GrindMaster (5125)
+Seat 2: BluffMonkey (3800)
+Seat 3: Hero (6100)
+Seat 4: SolverBot (5950)
+Seat 5: NitNitNit (2400)
+Seat 6: ChipShark (3625)
+ChipShark: posts small blind 75
+GrindMaster: posts big blind 150
+*** HOLE CARDS ***
+Dealt to Hero [9s 9c]
+BluffMonkey: raises 300 to 450
+Hero: calls 450
+SolverBot: folds
+NitNitNit: folds
+ChipShark: folds
+GrindMaster: folds
+*** FLOP *** [Td 9h 2c]
+BluffMonkey: bets 525
+Hero: raises 1075 to 1600
+BluffMonkey: calls 1075
+*** TURN *** [Td 9h 2c] [3s]
+BluffMonkey: checks
+Hero: bets 2100
+BluffMonkey: calls 1750 and is all-in
+Uncalled bet (350) returned to Hero
+*** RIVER *** [Td 9h 2c 3s] [Jh]
+*** SHOW DOWN ***
+Hero: shows [9s 9c] (three of a kind, Nines)
+BluffMonkey: shows [Tc Th] (three of a kind, Tens)
+BluffMonkey collected 7800 from pot
+*** SUMMARY ***
+Total pot 7800 | Rake 0
+Board [Td 9h 2c 3s Jh]
+Seat 3: Hero showed [9s 9c] and lost with three of a kind, Nines
+
+CoinPoker Hand #5500001236: Hold'em No Limit (CHP $0.05/$0.10) - 2024/06/15 20:11:42 UTC
+Table 'CHP Cash Lab 14' 6-max Seat #2 is the button
+Seat 1: NewbieNeil (10.50)
+Seat 2: Hero (12.30)
+Seat 3: GrinderGus (9.85)
+Seat 4: ScaredCarl (11.10)
+Seat 5: BluffyBob (8.40)
+Seat 6: SteadyStu (13.20)
+GrinderGus: posts small blind 0.05
+ScaredCarl: posts big blind 0.10
+*** HOLE CARDS ***
+Dealt to Hero [Kc Kh]
+BluffyBob: raises 0.30 to 0.40
+SteadyStu: folds
+NewbieNeil: calls 0.40
+Hero: raises 1.20 to 1.60
+GrinderGus: folds
+ScaredCarl: folds
+BluffyBob: folds
+NewbieNeil: calls 1.20
+*** FLOP *** [9d 6c 2s]
+NewbieNeil: checks
+Hero: bets 2.40
+NewbieNeil: calls 2.40
+*** TURN *** [9d 6c 2s] [3h]
+NewbieNeil: checks
+Hero: bets 8.30 and is all-in
+NewbieNeil: folds
+Uncalled bet (8.30) returned to Hero
+Hero collected 8.55 from pot
+*** SUMMARY ***
+Total pot 8.55 | Rake 0
+Board [9d 6c 2s 3h]
+Seat 2: Hero showed [Kc Kh] and won (8.55)

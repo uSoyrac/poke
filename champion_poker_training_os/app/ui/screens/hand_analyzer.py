@@ -17,9 +17,10 @@ from PySide6.QtWidgets import (
 
 from app.ai.coach_engine import analyze_played_hand, explain_spot
 from app.core.app_state import AppState
-from app.db.repository import get_session_history, get_player_stats, get_leak_analysis
+from app.db.repository import get_imported_hands, get_session_history, get_player_stats, get_leak_analysis
 from app.db.seed_data import generate_hands
 from app.ui.components.card_view import CardView
+from app.ui.components.hand_replay import HandReplay
 from app.ui.components.hand_timeline import HandTimeline
 from app.ui.components.metric_card import MetricCard
 from app.ui.components.poker_table import PokerTableView
@@ -53,7 +54,7 @@ class HandAnalyzerScreen(QWidget):
         header.addWidget(title)
 
         self.source_combo = QComboBox()
-        self.source_combo.addItems(["Played Hands (DB)", "Demo Hands"])
+        self.source_combo.addItems(["Imported Hands (DB)", "Played Hands (DB)", "Demo Hands"])
         self.source_combo.currentTextChanged.connect(self._source_changed)
         header.addWidget(self.source_combo)
 
@@ -81,8 +82,18 @@ class HandAnalyzerScreen(QWidget):
 
         # Main area
         top = QHBoxLayout()
-        self.table_view = PokerTableView()
-        top.addWidget(self.table_view, 2)
+        # Replace static table view with the rich HandReplay widget on the left
+        self.replay = HandReplay()
+        self.replay.coach_message.connect(self.coach_message)
+        self.replay.practice_requested.connect(
+            lambda hand: (
+                setattr(self.state, "selected_spot", hand),
+                self.navigate_requested.emit("Spot Practice Trainer"),
+            )
+        )
+        top.addWidget(self.replay, 3)
+        self.table_view = PokerTableView()  # kept for legacy, hidden under replay
+        self.table_view.setVisible(False)
 
         panel = QFrame()
         panel.setObjectName("DataPanel")
@@ -143,12 +154,28 @@ class HandAnalyzerScreen(QWidget):
 
         self._load_played_hands()
 
+    def showEvent(self, event):  # type: ignore[override]
+        """If we were navigated here with an imported hand selected, auto-load the replay."""
+        super().showEvent(event)
+        spot = getattr(self.state, "selected_spot", None)
+        if spot and isinstance(spot, dict) and spot.get("external_id") and spot.get("preflop_actions") is not None:
+            # Switch source to imported and show this hand in the replay
+            for i in range(self.source_combo.count()):
+                if "Imported" in self.source_combo.itemText(i):
+                    self.source_combo.setCurrentIndex(i)
+                    break
+            self._show_imported_hand(spot)
+
     def _load_played_hands(self) -> None:
-        """Load played hands from SQLite."""
+        """Load played + imported hands from SQLite."""
         try:
             self.played_hands = get_session_history(100)
         except Exception:
             self.played_hands = []
+        try:
+            self.imported_hands_cache = get_imported_hands(200)
+        except Exception:
+            self.imported_hands_cache = []
         self._populate_table()
         self._update_stats()
         self._update_leaks()
@@ -158,14 +185,19 @@ class HandAnalyzerScreen(QWidget):
         self._update_stats()
 
     def _get_active_hands(self) -> list[dict]:
-        if "Demo" in self.source_combo.currentText():
+        text = self.source_combo.currentText()
+        if "Imported" in text:
+            return getattr(self, "imported_hands_cache", []) or []
+        if "Demo" in text:
             return self.demo_hands
         return self.played_hands
 
     def _populate_table(self) -> None:
         hands = self._get_active_hands()
         filt = self.filter.currentText() if hasattr(self, "filter") else "All"
-        is_played = "Played" in self.source_combo.currentText()
+        text = self.source_combo.currentText()
+        is_imported = "Imported" in text
+        is_played = "Played" in text
 
         if is_played:
             if "Wins" in filt:
@@ -176,12 +208,31 @@ class HandAnalyzerScreen(QWidget):
                 hands = [h for h in hands if abs(h.get("pot", 0)) > 20]
             elif "Showdown" in filt:
                 hands = [h for h in hands if h.get("streets_seen", 0) >= 4]
+        elif is_imported:
+            if "Wins" in filt:
+                hands = [h for h in hands if (h.get("hero_profit_bb") or 0) > 0]
+            elif "Losses" in filt:
+                hands = [h for h in hands if (h.get("hero_profit_bb") or 0) < 0]
+            elif "Big" in filt:
+                hands = [h for h in hands if abs(h.get("pot_bb") or 0) > 20]
+            elif "Showdown" in filt:
+                hands = [h for h in hands if (h.get("river_actions") or "")]
 
         self.table.setRowCount(len(hands))
         self.table.setProperty("rows", hands)
 
         for row, hand in enumerate(hands):
-            if is_played:
+            if is_imported:
+                items = [
+                    str(hand.get("external_id", row + 1)),
+                    hand.get("hero_cards", "??"),
+                    hand.get("board", ""),
+                    f"{hand.get('pot_bb', 0):.1f}",
+                    f"{hand.get('hero_profit_bb', 0):+.1f}",
+                    hand.get("hero_position", ""),
+                    hand.get("pot_type", ""),
+                ]
+            elif is_played:
                 items = [
                     str(hand.get("hand_id", row + 1)),
                     hand.get("hero_cards", "??"),
@@ -209,12 +260,32 @@ class HandAnalyzerScreen(QWidget):
         if row >= len(rows):
             return
         hand = rows[row]
-        is_played = "Played" in self.source_combo.currentText()
+        text = self.source_combo.currentText()
 
-        if is_played:
+        if "Imported" in text:
+            self._show_imported_hand(hand)
+        elif "Played" in text:
             self._show_played_hand(hand)
         else:
             self._show_demo_hand(hand)
+
+    def _show_imported_hand(self, hand: dict) -> None:
+        """Open the rich replay for a parsed PokerStars / CoinPoker hand."""
+        self.state.selected_spot = hand
+        self.replay.load_hand(hand)
+        profit = float(hand.get("hero_profit_bb", 0) or 0)
+        won = profit >= 0
+        self.summary.setText(
+            f"#{hand.get('external_id', '?')} | {hand.get('hero_cards', '??')} | "
+            f"{hand.get('hero_position', '?')} | {'WON' if won else 'LOST'} {profit:+.1f}bb | "
+            f"{hand.get('pot_type', '?')} pot {float(hand.get('pot_bb') or 0):.1f}bb"
+        )
+        self.summary.setObjectName("Green" if won else "Red")
+        self.summary.style().unpolish(self.summary)
+        self.summary.style().polish(self.summary)
+        self.analysis_label.setText(
+            "Replay yüklendi. Street tab'ları ile gez, 🤖 Full AI Review ile tüm el için yorum al."
+        )
 
     def _show_played_hand(self, hand: dict) -> None:
         hero_cards = hand.get("hero_cards", "??")

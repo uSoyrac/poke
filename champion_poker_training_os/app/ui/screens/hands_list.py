@@ -368,6 +368,7 @@ class HandsListScreen(QWidget):
         h.setSectionResizeMode(QHeaderView.ResizeToContents)
         h.setStretchLastSection(False)
         self.table.cellClicked.connect(self._on_row_clicked)
+        self.table.cellDoubleClicked.connect(self._on_row_double_clicked)
         layout.addWidget(self.table, 1)
 
         # --- Footer summary ---
@@ -568,8 +569,27 @@ class HandsListScreen(QWidget):
         self.coach_message.emit(
             f"Selected {hand['id']}: {hand['hand']} {hand['position']} {hand['format']} | "
             f"Pot {hand['pot']:.2f}bb | Win/Loss {hand['win_loss']:+.2f}bb | "
-            f"EV loss {hand['ev_loss']:.2f}bb. Detaylı analiz için Hand History Analyzer'a geç."
+            f"EV loss {hand['ev_loss']:.2f}bb. Çift tıkla ↦ Hand Analyzer'da street-by-street replay."
         )
+
+    def _on_row_double_clicked(self, row: int, _col: int) -> None:
+        """Open the imported hand in Hand Analyzer with the rich replay loaded."""
+        rows = self.table.property("rows") or []
+        if row >= len(rows):
+            return
+        hand = rows[row]
+        # Locate the original imported_hands record by external_id (the table holds a normalized
+        # view, but the analyzer needs the full row including raw_text + action codes per street).
+        try:
+            full = next(
+                (h for h in get_imported_hands(500)
+                 if str(h.get("external_id")) == str(hand.get("id"))),
+                None,
+            )
+        except Exception:
+            full = None
+        self.state.selected_spot = full or hand
+        self.navigate_requested.emit("Hand History Analyzer")
 
     # --- filters ---------------------------------------------------------
     def _render_active_filters(self) -> None:
