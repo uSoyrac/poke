@@ -118,9 +118,36 @@ class Action:
 
 # ─── Player Seat ─────────────────────────────────────────────────────
 
-POSITIONS_6MAX = ["SB", "BB", "UTG", "HJ", "CO", "BTN"]
 POSITIONS_HU = ["SB", "BB"]
+POSITIONS_3MAX = ["SB", "BB", "BTN"]
+POSITIONS_4MAX = ["SB", "BB", "UTG", "BTN"]
+POSITIONS_5MAX = ["SB", "BB", "UTG", "CO", "BTN"]
+POSITIONS_6MAX = ["SB", "BB", "UTG", "HJ", "CO", "BTN"]
+POSITIONS_7MAX = ["SB", "BB", "UTG", "LJ", "HJ", "CO", "BTN"]
+POSITIONS_8MAX = ["SB", "BB", "UTG", "UTG+1", "LJ", "HJ", "CO", "BTN"]
 POSITIONS_9MAX = ["SB", "BB", "UTG", "UTG+1", "MP", "MP+1", "HJ", "CO", "BTN"]
+POSITIONS_10MAX = ["SB", "BB", "UTG", "UTG+1", "UTG+2", "MP", "MP+1", "HJ", "CO", "BTN"]
+POSITIONS_11MAX = ["SB", "BB", "UTG", "UTG+1", "UTG+2", "MP", "MP+1", "MP+2", "HJ", "CO", "BTN"]
+
+
+_POSITIONS_BY_SIZE = {
+    2: POSITIONS_HU,
+    3: POSITIONS_3MAX,
+    4: POSITIONS_4MAX,
+    5: POSITIONS_5MAX,
+    6: POSITIONS_6MAX,
+    7: POSITIONS_7MAX,
+    8: POSITIONS_8MAX,
+    9: POSITIONS_9MAX,
+    10: POSITIONS_10MAX,
+    11: POSITIONS_11MAX,
+}
+
+
+def positions_for(num_players: int) -> list[str]:
+    """Return the ordered position labels for a given table size (2-11)."""
+    n = max(2, min(num_players, 11))
+    return list(_POSITIONS_BY_SIZE[n])
 
 
 @dataclass

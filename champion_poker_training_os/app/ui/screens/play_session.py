@@ -3,7 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
-    QPushButton, QScrollArea, QSlider, QVBoxLayout, QWidget,
+    QPushButton, QScrollArea, QSlider, QSpinBox, QVBoxLayout, QWidget,
 )
 
 from app.core.app_state import AppState
@@ -13,6 +13,7 @@ from app.engine.game_loop import PokerGame, HandResult
 from app.engine.hand_state import ActionType, Street
 from app.engine.bot_brain import BOT_ARCHETYPES
 from app.ui.components.card_view import CardView
+from app.ui.components.live_poker_table import LivePokerTable
 from app.ui.components.metric_card import MetricCard
 
 
@@ -43,9 +44,11 @@ class PlaySessionScreen(QWidget):
         setup.addWidget(_title("🎮 Play Session — Texas Hold'em Simulator"))
 
         controls = QGridLayout()
-        self.players_combo = QComboBox()
-        self.players_combo.addItems(["2 (Heads-Up)", "6 (6-max)", "9 (Full Ring)"])
-        self.players_combo.setCurrentIndex(1)
+        self.players_spin = QSpinBox()
+        self.players_spin.setRange(2, 11)
+        self.players_spin.setValue(6)
+        self.players_spin.setSuffix(" players")
+        self.players_spin.setSingleStep(1)
         self.bot_combo = QComboBox()
         self.bot_combo.addItems(list(BOT_ARCHETYPES.keys()))
         self.bot_combo.setCurrentIndex(list(BOT_ARCHETYPES.keys()).index("Balanced Reg"))
@@ -53,7 +56,7 @@ class PlaySessionScreen(QWidget):
         self.stack_combo.addItems(["20bb", "50bb", "100bb", "200bb"])
         self.stack_combo.setCurrentIndex(2)
 
-        for col, (lbl, w) in enumerate([("Players", self.players_combo), ("Bot Type", self.bot_combo), ("Stack", self.stack_combo)]):
+        for col, (lbl, w) in enumerate([("Players (2-11)", self.players_spin), ("Bot Type", self.bot_combo), ("Stack", self.stack_combo)]):
             controls.addWidget(QLabel(lbl), 0, col)
             controls.addWidget(w, 1, col)
 
@@ -81,26 +84,28 @@ class PlaySessionScreen(QWidget):
             self.stats_row.addWidget(w, 0, i)
         game_layout.addLayout(self.stats_row)
 
-        # Community cards
+        # === Real poker table view (oval, all seats with positions/stacks/cards) ===
+        self.live_table = LivePokerTable()
+        game_layout.addWidget(self.live_table, 1)
+
+        # Compact community/pot status (kept for legacy stats summary line)
         self.community_frame = QFrame()
         self.community_frame.setObjectName("Elevated")
-        comm_layout = QVBoxLayout(self.community_frame)
+        comm_layout = QHBoxLayout(self.community_frame)
+        comm_layout.setContentsMargins(14, 8, 14, 8)
         self.street_label = QLabel("Preflop")
         self.street_label.setObjectName("SectionTitle")
-        self.street_label.setAlignment(Qt.AlignCenter)
         self.community_row = QHBoxLayout()
-        self.community_row.setAlignment(Qt.AlignCenter)
         self.pot_label = QLabel("Pot: 0")
         self.pot_label.setObjectName("Cyan")
-        self.pot_label.setAlignment(Qt.AlignCenter)
         comm_layout.addWidget(self.street_label)
         comm_layout.addLayout(self.community_row)
+        comm_layout.addStretch(1)
         comm_layout.addWidget(self.pot_label)
         game_layout.addWidget(self.community_frame)
 
-        # Players display
+        # Legacy players_row kept hidden — LivePokerTable replaces it visually
         self.players_row = QHBoxLayout()
-        game_layout.addLayout(self.players_row)
 
         # Hero cards + actions
         hero_frame = QFrame()
@@ -192,9 +197,8 @@ class PlaySessionScreen(QWidget):
         self.layout_main.addWidget(self.game_frame)
 
     def _start_session(self) -> None:
-        players_map = {0: 2, 1: 6, 2: 9}
         stack_map = {0: 20, 1: 50, 2: 100, 3: 200}
-        num = players_map.get(self.players_combo.currentIndex(), 6)
+        num = self.players_spin.value()
         stack = stack_map.get(self.stack_combo.currentIndex(), 100)
         bot_name = self.bot_combo.currentText()
 
@@ -246,6 +250,9 @@ class PlaySessionScreen(QWidget):
             return
         hand = self.game.current_hand
         hero = hand.hero
+
+        # Push the entire hand snapshot to the live oval table
+        self.live_table.update_state(hand)
 
         # Street + pot
         self.street_label.setText(f"🃏 {hand.street_name}")

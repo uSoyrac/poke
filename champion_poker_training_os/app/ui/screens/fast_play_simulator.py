@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QScrollArea,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -21,6 +22,7 @@ from app.engine.game_loop import PokerGame
 from app.engine.hand_state import ActionType
 from app.engine.bot_brain import BOT_ARCHETYPES
 from app.ui.components.card_view import CardView
+from app.ui.components.live_poker_table import LivePokerTable
 from app.ui.components.metric_card import MetricCard
 
 
@@ -57,10 +59,12 @@ class FastPlaySimulatorScreen(QWidget):
         header.addWidget(subtitle, 1)
         layout.addLayout(header)
 
-        # Setup row
+        # Setup row — players spinbox supports 2-11
         setup = QHBoxLayout()
-        self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["6-max Cash", "Heads-Up Cash", "9-max Cash"])
+        self.players_spin = QSpinBox()
+        self.players_spin.setRange(2, 11)
+        self.players_spin.setValue(6)
+        self.players_spin.setSuffix(" players")
         self.bot_combo = QComboBox()
         self.bot_combo.addItems(list(BOT_ARCHETYPES.keys()))
         self.bot_combo.setCurrentIndex(list(BOT_ARCHETYPES.keys()).index("Balanced Reg"))
@@ -68,7 +72,7 @@ class FastPlaySimulatorScreen(QWidget):
         self.stack_combo.addItems(["20bb Short", "50bb Mid", "100bb Deep"])
         self.stack_combo.setCurrentIndex(2)
 
-        for lbl, w in [("Mode", self.mode_combo), ("Opponent", self.bot_combo), ("Stack", self.stack_combo)]:
+        for lbl, w in [("Players (2-11)", self.players_spin), ("Opponent", self.bot_combo), ("Stack", self.stack_combo)]:
             setup.addWidget(QLabel(lbl))
             setup.addWidget(w)
 
@@ -111,7 +115,12 @@ class FastPlaySimulatorScreen(QWidget):
         self.game_frame.hide()
         game_layout = QVBoxLayout(self.game_frame)
 
-        # Board + cards row
+        # Live oval poker table — shows all 2-11 seats with action chips, dealer, etc.
+        self.live_table = LivePokerTable()
+        self.live_table.setMinimumHeight(380)
+        game_layout.addWidget(self.live_table, 1)
+
+        # Compact hero / community summary row (kept for legacy lookup)
         board_row = QHBoxLayout()
         board_row.setAlignment(Qt.AlignCenter)
 
@@ -184,9 +193,8 @@ class FastPlaySimulatorScreen(QWidget):
         self._session_start = time.time()
 
     def _start(self) -> None:
-        mode_map = {0: 6, 1: 2, 2: 9}
         stack_map = {0: 20, 1: 50, 2: 100}
-        num = mode_map.get(self.mode_combo.currentIndex(), 6)
+        num = self.players_spin.value()
         stack = stack_map.get(self.stack_combo.currentIndex(), 100)
 
         self.game = PokerGame(
@@ -303,7 +311,10 @@ class FastPlaySimulatorScreen(QWidget):
         hand = self.game.current_hand
         hero = hand.hero
 
-        # Hero cards
+        # Push hand state into the live oval table
+        self.live_table.update_state(hand)
+
+        # Hero cards (legacy compact row)
         _clear(self.hero_cards_row)
         if hero and hero.hole_cards:
             for c in hero.hole_cards:

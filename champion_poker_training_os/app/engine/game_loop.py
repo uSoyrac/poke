@@ -7,7 +7,7 @@ from app.engine.bot_brain import BotBrain, BotProfile, BOT_ARCHETYPES
 from app.engine.evaluator import determine_winners
 from app.engine.hand_state import (
     Action, ActionType, Card, Deck, HandState, PlayerSeat,
-    Street, POSITIONS_6MAX, POSITIONS_HU,
+    Street, POSITIONS_6MAX, POSITIONS_HU, positions_for,
 )
 
 
@@ -39,7 +39,7 @@ class PokerGame:
         hero_seat: int = 0,
         bot_archetype: str = "Balanced Reg",
     ):
-        self.num_players = min(max(num_players, 2), 9)
+        self.num_players = min(max(num_players, 2), 11)
         self.starting_stack = starting_stack
         self.small_blind = small_blind
         self.big_blind = big_blind
@@ -49,7 +49,7 @@ class PokerGame:
         self.deck = Deck()
 
         # Create players
-        positions = POSITIONS_HU if num_players == 2 else POSITIONS_6MAX[:num_players]
+        positions = positions_for(num_players)
         bot_profiles = list(BOT_ARCHETYPES.values())
 
         self.players: List[PlayerSeat] = []
@@ -88,8 +88,8 @@ class PokerGame:
         for p in self.players:
             p.reset_for_hand()
 
-        # Assign positions
-        positions = POSITIONS_HU if self.num_players == 2 else POSITIONS_6MAX[:self.num_players]
+        # Assign positions: positions_for() returns SB-first ordered list.
+        positions = positions_for(self.num_players)
         for i in range(self.num_players):
             idx = (self.dealer_idx + i) % self.num_players
             self.players[idx].position = positions[i]
