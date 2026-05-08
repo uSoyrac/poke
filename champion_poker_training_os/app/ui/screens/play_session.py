@@ -54,13 +54,13 @@ class PlaySessionScreen(QWidget):
         self.hero_seat_spin.setRange(1, 11)
         self.hero_seat_spin.setValue(1)
         self.hero_seat_spin.setPrefix("Seat ")
-        # Clamp hero seat upper bound when player count changes
-        self.players_spin.valueChanged.connect(
-            lambda n: self.hero_seat_spin.setMaximum(n)
-        )
+        self.players_spin.valueChanged.connect(self._on_player_count_changed)
+        self.hero_seat_spin.valueChanged.connect(lambda _: self._refresh_per_seat_combos())
+        # Default archetype applied to all bots (override per-seat below)
         self.bot_combo = QComboBox()
         self.bot_combo.addItems(list(BOT_ARCHETYPES.keys()))
         self.bot_combo.setCurrentIndex(list(BOT_ARCHETYPES.keys()).index("Balanced Reg"))
+        self.bot_combo.currentTextChanged.connect(lambda _: self._refresh_per_seat_combos())
         self.stack_combo = QComboBox()
         self.stack_combo.addItems(["20bb", "50bb", "100bb", "200bb"])
         self.stack_combo.setCurrentIndex(2)
@@ -68,7 +68,7 @@ class PlaySessionScreen(QWidget):
         for col, (lbl, w) in enumerate([
             ("Players (2-11)", self.players_spin),
             ("Hero seat", self.hero_seat_spin),
-            ("Bot Type", self.bot_combo),
+            ("Default bot", self.bot_combo),
             ("Stack", self.stack_combo),
         ]):
             controls.addWidget(QLabel(lbl), 0, col)
@@ -77,8 +77,19 @@ class PlaySessionScreen(QWidget):
         start_btn = QPushButton("▶ Start Session")
         start_btn.setObjectName("PrimaryButton")
         start_btn.clicked.connect(self._start_session)
-        controls.addWidget(start_btn, 1, 3)
+        controls.addWidget(start_btn, 1, 4)
         setup.addLayout(controls)
+
+        # Per-seat bot archetype customisation (one combo per non-hero seat)
+        per_seat_label = QLabel("Per-seat opponent archetype (override default):")
+        per_seat_label.setObjectName("Muted")
+        setup.addWidget(per_seat_label)
+        self.per_seat_grid = QGridLayout()
+        self.per_seat_grid.setHorizontalSpacing(8)
+        self.per_seat_combos: dict[int, QComboBox] = {}
+        setup.addLayout(self.per_seat_grid)
+        self._refresh_per_seat_combos()
+
         self.layout_main.addWidget(self.setup_frame)
 
         # === GAME AREA (hidden until session starts) ===
@@ -210,6 +221,41 @@ class PlaySessionScreen(QWidget):
 
         self.layout_main.addWidget(self.game_frame)
 
+    def _on_player_count_changed(self, n: int) -> None:
+        self.hero_seat_spin.setMaximum(n)
+        self._refresh_per_seat_combos()
+
+    def _refresh_per_seat_combos(self) -> None:
+        """Rebuild the per-seat bot combo grid based on current player count + hero seat."""
+        # Wipe existing combos
+        while self.per_seat_grid.count():
+            item = self.per_seat_grid.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+        self.per_seat_combos.clear()
+
+        n = self.players_spin.value()
+        hero_seat = max(0, min(n - 1, self.hero_seat_spin.value() - 1))
+        default_archetype = self.bot_combo.currentText()
+        archetype_names = list(BOT_ARCHETYPES.keys())
+
+        col = 0
+        for seat in range(n):
+            if seat == hero_seat:
+                continue
+            label = QLabel(f"Seat {seat + 1}")
+            label.setObjectName("Muted")
+            combo = QComboBox()
+            combo.addItems(archetype_names)
+            combo.setCurrentText(default_archetype)
+            self.per_seat_combos[seat] = combo
+            row = (col // 4) * 2
+            grid_col = col % 4
+            self.per_seat_grid.addWidget(label, row, grid_col)
+            self.per_seat_grid.addWidget(combo, row + 1, grid_col)
+            col += 1
+
     def _start_session(self) -> None:
         stack_map = {0: 20, 1: 50, 2: 100, 3: 200}
         num = self.players_spin.value()
@@ -217,11 +263,17 @@ class PlaySessionScreen(QWidget):
         bot_name = self.bot_combo.currentText()
         # 1-indexed in the UI, 0-indexed for the engine
         hero_seat = max(0, min(num - 1, self.hero_seat_spin.value() - 1))
+        # Snapshot per-seat overrides (only those that differ from default)
+        per_seat = {
+            seat: combo.currentText()
+            for seat, combo in self.per_seat_combos.items()
+        }
 
         self.game = PokerGame(
             num_players=num, starting_stack=float(stack),
             small_blind=0.5, big_blind=1.0,
             hero_seat=hero_seat, bot_archetype=bot_name,
+            bot_archetypes=per_seat,
         )
         self.setup_frame.hide()
         self.game_frame.show()

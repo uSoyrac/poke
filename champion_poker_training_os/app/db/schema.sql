@@ -258,6 +258,18 @@ CREATE TABLE IF NOT EXISTS app_settings (
   value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS user_drill_packs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  positions_json TEXT DEFAULT '[]',
+  solution TEXT,
+  starting_spot TEXT,
+  preflop_action TEXT,
+  notes TEXT DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS adaptive_spots (
   spot_id TEXT PRIMARY KEY,
   last_attempt_ts REAL DEFAULT 0,

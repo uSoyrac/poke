@@ -15,8 +15,11 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.app_state import AppState
+from app.db.repository import get_imported_hands, get_session_history
 from app.db.seed_data import dashboard_metrics, leaks
+from app.training.position_breakdown import compute_position_breakdown_from_rows
 from app.ui.components.metric_card import MetricCard
+from app.ui.components.weekly_progress import WeeklyProgressChart
 
 
 class MiniChart(QWidget):
@@ -212,6 +215,65 @@ class ReportsScreen(QWidget):
             bd_layout.addLayout(row)
         layout.addWidget(breakdown)
 
+        # 7-day progress chart (live from played_hands + adaptive_spots)
+        weekly_card = QFrame()
+        weekly_card.setObjectName("DataPanel")
+        weekly_layout = QVBoxLayout(weekly_card)
+        weekly_title = QLabel("📈 Last 7 Days — Hands & Drills")
+        weekly_title.setObjectName("SectionTitle")
+        weekly_layout.addWidget(weekly_title)
+        weekly_layout.addWidget(WeeklyProgressChart())
+        layout.addWidget(weekly_card)
+
+        # Position-by-position win rate breakdown
+        pos_card = QFrame()
+        pos_card.setObjectName("DataPanel")
+        pos_layout = QVBoxLayout(pos_card)
+        pos_title_row = QHBoxLayout()
+        pos_title = QLabel("🎯 Position Breakdown — Win Rate")
+        pos_title.setObjectName("SectionTitle")
+        pos_title_row.addWidget(pos_title)
+        pos_title_row.addStretch(1)
+        pos_meta = QLabel("(from imported + played hands)")
+        pos_meta.setObjectName("Muted")
+        pos_title_row.addWidget(pos_meta)
+        pos_layout.addLayout(pos_title_row)
+
+        breakdown = self._compute_position_breakdown()
+        if not breakdown:
+            empty = QLabel("Henüz pozisyon verisi yok — Play Session'da oyna veya Hands sayfasından el import et.")
+            empty.setObjectName("Muted")
+            empty.setWordWrap(True)
+            pos_layout.addWidget(empty)
+        else:
+            for entry in breakdown:
+                row = QHBoxLayout()
+                pos_lbl = QLabel(entry["position"])
+                pos_lbl.setObjectName("Cyan")
+                pos_lbl.setFixedWidth(70)
+                pos_lbl.setStyleSheet("font-weight: 800;")
+                count_lbl = QLabel(f"{entry['count']} hands")
+                count_lbl.setObjectName("Muted")
+                count_lbl.setFixedWidth(80)
+                wr_bar = _PercentBar(int(entry["win_rate"]))
+                wr_pct = QLabel(f"{entry['win_rate']:.0f}%")
+                wr_pct.setObjectName(
+                    "Green" if entry["win_rate"] >= 55
+                    else "Cyan" if entry["win_rate"] >= 45
+                    else "Red"
+                )
+                wr_pct.setFixedWidth(50)
+                profit_lbl = QLabel(f"{entry['profit_bb']:+.1f}bb")
+                profit_lbl.setObjectName("Green" if entry["profit_bb"] >= 0 else "Red")
+                profit_lbl.setFixedWidth(70)
+                row.addWidget(pos_lbl)
+                row.addWidget(count_lbl)
+                row.addWidget(wr_bar, 1)
+                row.addWidget(wr_pct)
+                row.addWidget(profit_lbl)
+                pos_layout.addLayout(row)
+        layout.addWidget(pos_card)
+
         # Active leaks
         leak_frame = QFrame()
         leak_frame.setObjectName("DataPanel")
@@ -256,6 +318,17 @@ class ReportsScreen(QWidget):
             label.setObjectName("Cyan")
             rec_layout.addWidget(label)
         layout.addWidget(rec)
+
+    def _compute_position_breakdown(self) -> list[dict]:
+        try:
+            imported = get_imported_hands(500)
+        except Exception:
+            imported = []
+        try:
+            played = get_session_history(500)
+        except Exception:
+            played = []
+        return compute_position_breakdown_from_rows(imported, played)
 
 
 class _PercentBar(QWidget):

@@ -38,6 +38,7 @@ class PokerGame:
         big_blind: float = 1.0,
         hero_seat: int = 0,
         bot_archetype: str = "Balanced Reg",
+        bot_archetypes: Optional[Dict[int, str]] = None,
     ):
         self.num_players = min(max(num_players, 2), 11)
         self.starting_stack = starting_stack
@@ -51,6 +52,12 @@ class PokerGame:
         # Create players
         positions = positions_for(num_players)
         bot_profiles = list(BOT_ARCHETYPES.values())
+        # Resolve the default archetype profile if it exists, otherwise use index 0
+        default_profile = BOT_ARCHETYPES.get(bot_archetype) or bot_profiles[0]
+
+        # bot_archetypes maps seat_idx → archetype name; falls back to bot_archetype
+        # for any unspecified seat. None means "use the default for every bot".
+        per_seat_archetypes = bot_archetypes or {}
 
         self.players: List[PlayerSeat] = []
         self.bots: Dict[int, BotBrain] = {}
@@ -63,7 +70,8 @@ class PokerGame:
                     position=pos, is_hero=True,
                 ))
             else:
-                profile = bot_profiles[i % len(bot_profiles)]
+                arch_name = per_seat_archetypes.get(i, bot_archetype)
+                profile = BOT_ARCHETYPES.get(arch_name) or default_profile
                 self.players.append(PlayerSeat(
                     name=profile.name, stack=starting_stack,
                     position=pos, is_hero=False,

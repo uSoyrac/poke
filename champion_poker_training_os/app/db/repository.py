@@ -237,6 +237,89 @@ def get_imported_hands(limit: int = 200) -> list[dict]:
         return [dict(r) for r in rows]
 
 
+# ─── User Drill Packs ────────────────────────────────────────────────
+
+
+def save_drill_pack(pack: dict) -> int:
+    """Insert (or update if id given) a user-saved drill pack. Returns row id."""
+    with get_connection() as conn:
+        try:
+            if pack.get("id"):
+                conn.execute(
+                    """UPDATE user_drill_packs SET name=?, positions_json=?, solution=?,
+                       starting_spot=?, preflop_action=?, notes=?, updated_at=datetime('now')
+                       WHERE id=?""",
+                    (
+                        pack.get("name", "Untitled"),
+                        json.dumps(list(pack.get("positions", []))),
+                        pack.get("solution", ""),
+                        pack.get("starting_spot", ""),
+                        pack.get("preflop_action", ""),
+                        pack.get("notes", ""),
+                        pack["id"],
+                    ),
+                )
+                conn.commit()
+                return int(pack["id"])
+            cur = conn.execute(
+                """INSERT INTO user_drill_packs
+                   (name, positions_json, solution, starting_spot, preflop_action, notes,
+                    created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+                (
+                    pack.get("name", "Untitled"),
+                    json.dumps(list(pack.get("positions", []))),
+                    pack.get("solution", ""),
+                    pack.get("starting_spot", ""),
+                    pack.get("preflop_action", ""),
+                    pack.get("notes", ""),
+                ),
+            )
+            conn.commit()
+            return int(cur.lastrowid)
+        except sqlite3.OperationalError:
+            return 0
+
+
+def list_drill_packs() -> list[dict]:
+    with get_connection() as conn:
+        try:
+            rows = conn.execute(
+                "SELECT id, name, positions_json, solution, starting_spot, preflop_action, "
+                "notes, created_at, updated_at FROM user_drill_packs ORDER BY updated_at DESC"
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return []
+    out: list[dict] = []
+    for r in rows:
+        try:
+            positions = json.loads(r["positions_json"] or "[]")
+        except Exception:
+            positions = []
+        out.append({
+            "id": r["id"],
+            "name": r["name"],
+            "positions": positions,
+            "solution": r["solution"] or "",
+            "starting_spot": r["starting_spot"] or "",
+            "preflop_action": r["preflop_action"] or "",
+            "notes": r["notes"] or "",
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"],
+        })
+    return out
+
+
+def delete_drill_pack(pack_id: int) -> bool:
+    with get_connection() as conn:
+        try:
+            cur = conn.execute("DELETE FROM user_drill_packs WHERE id=?", (pack_id,))
+            conn.commit()
+            return (cur.rowcount or 0) > 0
+        except sqlite3.OperationalError:
+            return False
+
+
 # ─── Adaptive Engine Persistence ─────────────────────────────────────
 
 
