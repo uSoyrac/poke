@@ -17,7 +17,9 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.app_state import AppState
+from app.db.repository import get_imported_hands
 from app.db.seed_data import leaks
+from app.leaks.imported_leak_detector import detect_leaks
 from app.ui.components.leak_card import LeakCard
 from app.ui.components.metric_card import MetricCard
 
@@ -145,6 +147,7 @@ class LeakFinderScreen(QWidget):
         super().__init__()
         self.state = state
         self.all_leaks = EXTENDED_LEAKS
+        self.real_leaks: list[dict] = []
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -162,6 +165,13 @@ class LeakFinderScreen(QWidget):
         title = QLabel("Leak Finder")
         title.setObjectName("Title")
         header.addWidget(title)
+        self.source_combo = QComboBox()
+        self.source_combo.addItems(["Real leaks (imported hands)", "Demo catalogue"])
+        self.source_combo.currentTextChanged.connect(self._source_changed)
+        header.addWidget(self.source_combo)
+        refresh_btn = QPushButton("🔄 Refresh")
+        refresh_btn.clicked.connect(self._refresh_real_leaks)
+        header.addWidget(refresh_btn)
         self.sort_combo = QComboBox()
         self.sort_combo.addItems(["Sort by EV Lost", "Sort by Severity", "Sort by Category", "Sort by Sample Size"])
         self.sort_combo.currentTextChanged.connect(self._render)
@@ -231,11 +241,49 @@ class LeakFinderScreen(QWidget):
 
         self._render()
 
+    def _refresh_real_leaks(self) -> None:
+        """Re-run leak detection on whatever is currently in imported_hands."""
+        try:
+            hands = get_imported_hands(500)
+        except Exception:
+            hands = []
+        self.real_leaks = []
+        for leak in detect_leaks(hands):
+            # Normalise to the schema the table expects (add category + repair_days)
+            self.real_leaks.append({
+                **leak,
+                "category": _categorise(leak["name"]),
+                "why": leak.get("detail", ""),
+                "fix": leak.get("fix", ""),
+                "repair_days": _repair_days(leak["severity"]),
+            })
+        self._render()
+        self.coach_message.emit(
+            f"Leak Finder yenilendi — {len(self.real_leaks)} leak tespit edildi "
+            f"({len(hands)} elden). 'Real leaks' modunda inceleyebilirsin."
+        )
+
+    def _source_changed(self) -> None:
+        if "Real" in self.source_combo.currentText() and not self.real_leaks:
+            self._refresh_real_leaks()
+        else:
+            self._render()
+
+    def _active_source(self) -> list[dict]:
+        if "Real" in self.source_combo.currentText():
+            return self.real_leaks if self.real_leaks else self._lazy_load_real()
+        return self.all_leaks
+
+    def _lazy_load_real(self) -> list[dict]:
+        # First-time call: try to load
+        self._refresh_real_leaks()
+        return self.real_leaks
+
     def _get_filtered_leaks(self) -> list[dict]:
         category = self.category_filter.currentText()
-        filtered = self.all_leaks
+        filtered = self._active_source()
         if category != "All Categories":
-            filtered = [l for l in filtered if l["category"] == category]
+            filtered = [l for l in filtered if l.get("category") == category]
 
         sort_key = self.sort_combo.currentText()
         if "EV" in sort_key:
@@ -257,19 +305,25 @@ class LeakFinderScreen(QWidget):
             self.table.setItem(row, 0, QTableWidgetItem(leak["name"]))
             severity_item = QTableWidgetItem(leak["severity"])
             self.table.setItem(row, 1, severity_item)
-            self.table.setItem(row, 2, QTableWidgetItem(leak["category"]))
-            self.table.setItem(row, 3, QTableWidgetItem(f"{leak['ev_lost']:.1f}bb"))
-            self.table.setItem(row, 4, QTableWidgetItem(leak["frequency_deviation"]))
-            self.table.setItem(row, 5, QTableWidgetItem(f"{leak['repair_days']} days"))
+            self.table.setItem(row, 2, QTableWidgetItem(leak.get("category", "—")))
+            self.table.setItem(row, 3, QTableWidgetItem(f"{leak.get('ev_lost', 0):.1f}bb"))
+            self.table.setItem(row, 4, QTableWidgetItem(leak.get("frequency_deviation", "—")))
+            self.table.setItem(row, 5, QTableWidgetItem(f"{leak.get('repair_days', 0)} days"))
 
     def _select_leak(self, row: int, _col: int) -> None:
         filtered = self.table.property("filtered_leaks") or self.all_leaks
         if row < len(filtered):
             leak = filtered[row]
-            self.detail_title.setText(f"{leak['name']} | {leak['severity']} | {leak['category']}")
-            self.detail_why.setText(f"Why: {leak['why']}\n\nSample size: {leak['sample_size']} decisions | EV lost: {leak['ev_lost']:.1f}bb")
-            self.detail_fix.setText(f"Fix: {leak['fix']}")
-            self.repair_bar.setFormat(f"Repair plan: {leak['repair_days']} days")
+            self.detail_title.setText(
+                f"{leak['name']} | {leak['severity']} | {leak.get('category', '—')}"
+            )
+            self.detail_why.setText(
+                f"Why: {leak.get('why', leak.get('detail', '—'))}\n\n"
+                f"Sample size: {leak.get('sample_size', 0)} decisions | "
+                f"EV lost: {leak.get('ev_lost', 0):.1f}bb"
+            )
+            self.detail_fix.setText(f"Fix: {leak.get('fix', '—')}")
+            self.repair_bar.setFormat(f"Repair plan: {leak.get('repair_days', 0)} days")
             self.repair_bar.setValue(0)
 
     def _create_drill(self) -> None:
@@ -284,3 +338,22 @@ class LeakFinderScreen(QWidget):
             "Öncelik sırası: 1) River bluff disiplini 2) BB defend genişletme 3) ICM call-off sıkılaştırma. "
             "7 günlük repair planı önerisi: günde 30dk leak-specific drill + 20dk hand review."
         )
+
+
+def _categorise(name: str) -> str:
+    n = name.lower()
+    if "river" in n:
+        return "River"
+    if "turn" in n:
+        return "Turn"
+    if "flop" in n or "cbet" in n:
+        return "Flop"
+    if "preflop" in n or "sb" in n or "bb" in n or "3bet pot" in n:
+        return "Preflop"
+    if "icm" in n or "bubble" in n or "final" in n:
+        return "ICM"
+    return "Postflop"
+
+
+def _repair_days(severity: str) -> int:
+    return {"Critical": 7, "High": 5, "Medium": 3, "Info": 0}.get(severity, 3)

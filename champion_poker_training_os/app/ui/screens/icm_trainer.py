@@ -170,6 +170,22 @@ class IcmTrainerScreen(QWidget):
         main.addWidget(panel, 1)
         layout.addLayout(main)
 
+        # ICM equity panel — real Malmuth-Harville math for current spot
+        self.equity_card = QFrame()
+        self.equity_card.setObjectName("Card")
+        eq_layout = QVBoxLayout(self.equity_card)
+        eq_layout.setContentsMargins(14, 12, 14, 12)
+        eq_title = QLabel("📊 ICM Equity (Malmuth-Harville)")
+        eq_title.setObjectName("SectionTitle")
+        eq_layout.addWidget(eq_title)
+        self.equity_grid = QGridLayout()
+        eq_layout.addLayout(self.equity_grid)
+        self.equity_summary = QLabel("")
+        self.equity_summary.setWordWrap(True)
+        self.equity_summary.setObjectName("Cyan")
+        eq_layout.addWidget(self.equity_summary)
+        layout.addWidget(self.equity_card)
+
         # Feedback
         self.feedback = QFrame()
         self.feedback.setObjectName("DataPanel")
@@ -195,10 +211,61 @@ class IcmTrainerScreen(QWidget):
             self.index = 0
             self.load_spot()
 
+    def _render_icm_equity(self, spot: dict) -> None:
+        """Compute and display real Malmuth-Harville $-equities for the current stack distribution."""
+        # Clear existing rows
+        while self.equity_grid.count():
+            item = self.equity_grid.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+        stacks = list(spot.get("stacks") or [])
+        payouts = list(spot.get("payouts") or [])
+        if not stacks or not payouts:
+            self.equity_summary.setText("Stack/payout data missing — equity unavailable.")
+            return
+        # Cap to first 8 players for performance
+        if len(stacks) > 8:
+            stacks = stacks[:8]
+        equities = malmuth_harville(stacks, payouts)
+        prize_pool = sum(payouts)
+        hero_eq = equities[0] if equities else 0.0
+
+        # Header row
+        for col, txt in enumerate(["Seat", "Stack", "ICM $", "% of pool"]):
+            lbl = QLabel(txt)
+            lbl.setObjectName("Muted")
+            self.equity_grid.addWidget(lbl, 0, col)
+        for r, (stack, eq) in enumerate(zip(stacks, equities), start=1):
+            seat_lbl = QLabel(f"Seat {r}" + (" (Hero)" if r == 1 else ""))
+            seat_lbl.setObjectName("Cyan" if r == 1 else "Muted")
+            stack_lbl = QLabel(f"{int(stack):,}")
+            eq_lbl = QLabel(f"${eq:.2f}")
+            eq_lbl.setObjectName("Green" if r == 1 else "Muted")
+            pct_lbl = QLabel(f"{(eq / prize_pool * 100) if prize_pool else 0:.1f}%")
+            pct_lbl.setObjectName("Amber")
+            for col, w in enumerate([seat_lbl, stack_lbl, eq_lbl, pct_lbl]):
+                self.equity_grid.addWidget(w, r, col)
+
+        # Hero summary
+        chip_share = stacks[0] / sum(stacks) if sum(stacks) else 0
+        eq_share = hero_eq / prize_pool if prize_pool else 0
+        compression = (eq_share - chip_share) * 100
+        comp_label = (
+            f"chipEV {chip_share*100:.1f}% / $EV {eq_share*100:.1f}% "
+            f"({compression:+.1f}pp)"
+        )
+        if compression < -3:
+            comp_label += " ← ICM compresses your chip lead — call-offs need extra equity."
+        elif compression > 3:
+            comp_label += " ← Short stack ICM premium working in your favour for jam decisions."
+        self.equity_summary.setText(comp_label)
+
     def load_spot(self) -> None:
         spot = self.drills[self.index % len(self.drills)]
         self.state.selected_spot = spot
         self.table.set_hand(spot["hero_cards"], spot["board"], spot["pot_bb"])
+        self._render_icm_equity(spot)
         self.spot_title.setText(f"{spot['id']} | {spot['title']}")
         self.spot_info.setText(
             f"Players left: {spot['players_left']} | Paid: {spot['paid_places']} | "

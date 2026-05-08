@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.app_state import AppState
+from app.db.repository import imported_hands_count
 from app.db.seed_data import dashboard_metrics, leaks, study_plan
 from app.training.mastery_model import demo_skill_tree
 from app.ui.components.leak_card import LeakCard
@@ -275,6 +276,76 @@ class DashboardScreen(QWidget):
         middle.addWidget(skill_panel, 2)
 
         layout.addLayout(middle)
+
+        # === ADAPTIVE ENGINE PANEL ===
+        engine = state.adaptive_engine()
+        sizes = engine.queue_size()
+        weakness = engine.weakness_summary(top_n=5)
+        try:
+            imp_count = imported_hands_count()
+        except Exception:
+            imp_count = 0
+
+        ae_card = QFrame()
+        ae_card.setObjectName("DataPanel")
+        ae_layout = QVBoxLayout(ae_card)
+        ae_layout.setContentsMargins(14, 12, 14, 12)
+        ae_title_row = QHBoxLayout()
+        ae_title = QLabel("🧠 Adaptive Training Queue")
+        ae_title.setObjectName("SectionTitle")
+        ae_title_row.addWidget(ae_title)
+        ae_title_row.addStretch(1)
+        ae_practice_btn = QPushButton("Tackle next mistake →")
+        ae_practice_btn.setObjectName("PrimaryButton")
+        ae_practice_btn.clicked.connect(lambda: self.navigate_requested.emit("Spot Practice Trainer"))
+        ae_title_row.addWidget(ae_practice_btn)
+        ae_layout.addLayout(ae_title_row)
+
+        ae_metrics = QHBoxLayout()
+        for label, value, color in [
+            ("Tracked spots", str(sizes["tracked"]), "Cyan"),
+            ("Mistakes pending", str(sizes["mistakes_pending"]), "Red" if sizes["mistakes_pending"] else "Muted"),
+            ("Due for review", str(sizes["due_for_review"]), "Amber" if sizes["due_for_review"] else "Muted"),
+            ("Imported hands", str(imp_count), "Green" if imp_count else "Muted"),
+        ]:
+            cell = QFrame()
+            cell.setObjectName("Card")
+            cell_layout = QVBoxLayout(cell)
+            cell_layout.setContentsMargins(12, 8, 12, 8)
+            l1 = QLabel(label)
+            l1.setObjectName("Muted")
+            l2 = QLabel(value)
+            l2.setObjectName(color)
+            l2.setStyleSheet("font-size: 22px; font-weight: 800;")
+            cell_layout.addWidget(l1)
+            cell_layout.addWidget(l2)
+            ae_metrics.addWidget(cell)
+        ae_layout.addLayout(ae_metrics)
+
+        if weakness:
+            weak_title = QLabel("Top weaknesses (rolling EV loss):")
+            weak_title.setObjectName("Muted")
+            ae_layout.addWidget(weak_title)
+            for w in weakness:
+                row = QHBoxLayout()
+                spot_lbl = QLabel(w["spot_id"])
+                spot_lbl.setObjectName("Cyan")
+                spot_lbl.setFixedWidth(120)
+                acc_lbl = QLabel(f"{w['accuracy']:.0f}% acc · {w['attempts']} att")
+                acc_lbl.setObjectName("Muted")
+                ev_lbl = QLabel(f"-{w['rolling_ev_loss']:.2f}bb")
+                ev_lbl.setObjectName("Red")
+                ev_lbl.setStyleSheet("font-weight: 800;")
+                row.addWidget(spot_lbl)
+                row.addWidget(acc_lbl, 1)
+                row.addWidget(ev_lbl)
+                ae_layout.addLayout(row)
+        else:
+            empty = QLabel("Henüz drill çözülmedi. Spot Practice Trainer'a git ve birkaç soruya cevap ver — burada zayıflıkların listelenecek.")
+            empty.setObjectName("Muted")
+            empty.setWordWrap(True)
+            ae_layout.addWidget(empty)
+        layout.addWidget(ae_card)
 
         # === COMPLIANCE STATUS ===
         compliance = QFrame()

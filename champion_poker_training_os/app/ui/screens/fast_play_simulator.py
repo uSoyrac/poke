@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import QTimer, Signal, Qt
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -71,11 +72,28 @@ class FastPlaySimulatorScreen(QWidget):
             setup.addWidget(QLabel(lbl))
             setup.addWidget(w)
 
+        # Shot-clock control
+        self.timer_combo = QComboBox()
+        self.timer_combo.addItems(["Shot clock: Off", "8s", "15s", "30s"])
+        setup.addWidget(QLabel("Pressure"))
+        setup.addWidget(self.timer_combo)
+
         self.start_btn = QPushButton("▶ Start Fast Play")
         self.start_btn.setObjectName("PrimaryButton")
         self.start_btn.clicked.connect(self._start)
         setup.addWidget(self.start_btn)
         layout.addLayout(setup)
+
+        # Shot-clock countdown bar (hidden until session starts)
+        self.shot_clock = ShotClockBar()
+        self.shot_clock.setVisible(False)
+        layout.addWidget(self.shot_clock)
+        self._shot_clock_timer = QTimer(self)
+        self._shot_clock_timer.setInterval(100)
+        self._shot_clock_timer.timeout.connect(self._tick_shot_clock)
+        self._shot_deadline: float | None = None
+        self._shot_total: float = 0.0
+        self._shot_clock_misses = 0
 
         # Stats bar
         stats = QGridLayout()
@@ -180,6 +198,15 @@ class FastPlaySimulatorScreen(QWidget):
         self.end_btn.show()
         self.start_btn.setEnabled(False)
 
+        # Activate shot clock if user picked one
+        choice = self.timer_combo.currentText()
+        if choice.startswith("Shot clock"):
+            self._shot_total = 0.0
+            self.shot_clock.setVisible(False)
+        else:
+            self._shot_total = float(choice.replace("s", "").strip())
+            self.shot_clock.setVisible(True)
+
         import time
         self._session_start = time.time()
         self._deal()
@@ -226,6 +253,50 @@ class FastPlaySimulatorScreen(QWidget):
         if hand.is_complete:
             self._on_complete()
 
+    def _start_shot_clock(self) -> None:
+        """Reset & start the per-decision countdown."""
+        if self._shot_total <= 0:
+            return
+        import time as _t
+        self._shot_deadline = _t.monotonic() + self._shot_total
+        self.shot_clock.set_remaining(self._shot_total, self._shot_total)
+        self._shot_clock_timer.start()
+
+    def _stop_shot_clock(self) -> None:
+        self._shot_clock_timer.stop()
+        self._shot_deadline = None
+        if self._shot_total > 0:
+            self.shot_clock.set_remaining(self._shot_total, self._shot_total)
+
+    def _tick_shot_clock(self) -> None:
+        if self._shot_deadline is None:
+            return
+        import time as _t
+        remaining = self._shot_deadline - _t.monotonic()
+        if remaining <= 0:
+            # Time's up — auto-fold (or check if check is free) and count miss
+            self._shot_clock_misses += 1
+            self._shot_clock_timer.stop()
+            self._shot_deadline = None
+            self.shot_clock.set_remaining(0.0, self._shot_total)
+            self.feedback.setText(
+                f"⏰ Shot clock expired — auto-folded. ({self._shot_clock_misses} miss this session)"
+            )
+            self.feedback.setObjectName("Red")
+            self.feedback.style().unpolish(self.feedback)
+            self.feedback.style().polish(self.feedback)
+            # Try check first (free), else fold
+            if self.game and self.game.is_waiting_for_hero:
+                hand = self.game.current_hand
+                if hand:
+                    valid = {v[0] for v in hand.get_valid_actions(hand.hero_idx)}
+                    if ActionType.CHECK in valid:
+                        self._act(ActionType.CHECK)
+                    else:
+                        self._act(ActionType.FOLD)
+        else:
+            self.shot_clock.set_remaining(remaining, self._shot_total)
+
     def _refresh(self) -> None:
         if not self.game or not self.game.current_hand:
             return
@@ -258,6 +329,13 @@ class FastPlaySimulatorScreen(QWidget):
             f"To call: {to_call:.1f}bb | Stack: {hero.stack:.1f}bb | "
             f"Position: {hero.position}"
         )
+
+        # Shot clock: start fresh on hero's turn, stop otherwise
+        if self.game.is_waiting_for_hero and self._shot_total > 0:
+            if self._shot_deadline is None:
+                self._start_shot_clock()
+        else:
+            self._stop_shot_clock()
 
         # Button visibility
         waiting = self.game.is_waiting_for_hero
@@ -346,3 +424,48 @@ def _update_mc(card: MetricCard, value: str) -> None:
         if child.objectName() == "MetricValue":
             child.setText(value)
             break
+
+
+class ShotClockBar(QWidget):
+    """Visual countdown bar — green (>50%) → amber (>25%) → red (<25%)."""
+
+    def __init__(self):
+        super().__init__()
+        self.remaining = 0.0
+        self.total = 0.0
+        self.setFixedHeight(34)
+        self.setMinimumWidth(300)
+
+    def set_remaining(self, remaining: float, total: float) -> None:
+        self.remaining = max(0.0, remaining)
+        self.total = total
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        w = self.width()
+        h = self.height()
+        # Track
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor("#1F2937"))
+        painter.drawRoundedRect(0, 6, w, h - 12, 4, 4)
+        # Filled portion
+        ratio = (self.remaining / self.total) if self.total > 0 else 0
+        fill_w = int(w * ratio)
+        if ratio > 0.5:
+            color = QColor("#10B981")
+        elif ratio > 0.25:
+            color = QColor("#F59E0B")
+        else:
+            color = QColor("#EF4444")
+        painter.setBrush(color)
+        painter.drawRoundedRect(0, 6, fill_w, h - 12, 4, 4)
+        # Time text
+        painter.setPen(QColor("#F3F4F6"))
+        from PySide6.QtGui import QFont
+        font = QFont(); font.setPointSize(11); font.setBold(True)
+        painter.setFont(font)
+        text = f"⏱  {self.remaining:0.1f}s / {self.total:0.0f}s"
+        painter.drawText(self.rect(), Qt.AlignCenter, text)
+        painter.end()
