@@ -20,6 +20,7 @@ from app.db.seed_data import dashboard_metrics, leaks, study_plan
 from app.training.mastery_model import demo_skill_tree
 from app.ui.components.leak_card import LeakCard
 from app.ui.components.metric_card import MetricCard
+from app.ui.components.weekly_progress import WeeklyProgressChart
 
 
 class MiniSparkline(QWidget):
@@ -295,9 +296,9 @@ class DashboardScreen(QWidget):
         ae_title.setObjectName("SectionTitle")
         ae_title_row.addWidget(ae_title)
         ae_title_row.addStretch(1)
-        ae_practice_btn = QPushButton("Tackle next mistake →")
+        ae_practice_btn = QPushButton("▶ Resume training (next mistake)")
         ae_practice_btn.setObjectName("PrimaryButton")
-        ae_practice_btn.clicked.connect(lambda: self.navigate_requested.emit("Spot Practice Trainer"))
+        ae_practice_btn.clicked.connect(self._resume_training)
         ae_title_row.addWidget(ae_practice_btn)
         ae_layout.addLayout(ae_title_row)
 
@@ -321,6 +322,12 @@ class DashboardScreen(QWidget):
             cell_layout.addWidget(l2)
             ae_metrics.addWidget(cell)
         ae_layout.addLayout(ae_metrics)
+
+        # 7-day progress chart (drills + hands + accuracy)
+        chart_title = QLabel("📈 Last 7 days")
+        chart_title.setObjectName("Muted")
+        ae_layout.addWidget(chart_title)
+        ae_layout.addWidget(WeeklyProgressChart())
 
         if weakness:
             weak_title = QLabel("Top weaknesses (rolling EV loss):")
@@ -361,3 +368,16 @@ class DashboardScreen(QWidget):
         comp_layout.addWidget(comp_text, 1)
         comp_layout.addWidget(comp_btn)
         layout.addWidget(compliance)
+
+    def _resume_training(self) -> None:
+        """Pick the top of the adaptive mistake queue (or top weakness) and route to Spot Trainer."""
+        engine = self.state.adaptive_engine()
+        target: str | None = None
+        if engine.mistake_queue:
+            target = engine.mistake_queue[0]
+        elif engine.spots:
+            weak = engine.weakness_summary(top_n=1)
+            target = weak[0]["spot_id"] if weak else None
+        if target:
+            self.state.pending_spot_id = target
+        self.navigate_requested.emit("Spot Practice Trainer")

@@ -49,6 +49,15 @@ class PlaySessionScreen(QWidget):
         self.players_spin.setValue(6)
         self.players_spin.setSuffix(" players")
         self.players_spin.setSingleStep(1)
+        # Hero seat selector — can sit anywhere from seat 1 to N
+        self.hero_seat_spin = QSpinBox()
+        self.hero_seat_spin.setRange(1, 11)
+        self.hero_seat_spin.setValue(1)
+        self.hero_seat_spin.setPrefix("Seat ")
+        # Clamp hero seat upper bound when player count changes
+        self.players_spin.valueChanged.connect(
+            lambda n: self.hero_seat_spin.setMaximum(n)
+        )
         self.bot_combo = QComboBox()
         self.bot_combo.addItems(list(BOT_ARCHETYPES.keys()))
         self.bot_combo.setCurrentIndex(list(BOT_ARCHETYPES.keys()).index("Balanced Reg"))
@@ -56,7 +65,12 @@ class PlaySessionScreen(QWidget):
         self.stack_combo.addItems(["20bb", "50bb", "100bb", "200bb"])
         self.stack_combo.setCurrentIndex(2)
 
-        for col, (lbl, w) in enumerate([("Players (2-11)", self.players_spin), ("Bot Type", self.bot_combo), ("Stack", self.stack_combo)]):
+        for col, (lbl, w) in enumerate([
+            ("Players (2-11)", self.players_spin),
+            ("Hero seat", self.hero_seat_spin),
+            ("Bot Type", self.bot_combo),
+            ("Stack", self.stack_combo),
+        ]):
             controls.addWidget(QLabel(lbl), 0, col)
             controls.addWidget(w, 1, col)
 
@@ -201,16 +215,20 @@ class PlaySessionScreen(QWidget):
         num = self.players_spin.value()
         stack = stack_map.get(self.stack_combo.currentIndex(), 100)
         bot_name = self.bot_combo.currentText()
+        # 1-indexed in the UI, 0-indexed for the engine
+        hero_seat = max(0, min(num - 1, self.hero_seat_spin.value() - 1))
 
         self.game = PokerGame(
             num_players=num, starting_stack=float(stack),
             small_blind=0.5, big_blind=1.0,
-            hero_seat=0, bot_archetype=bot_name,
+            hero_seat=hero_seat, bot_archetype=bot_name,
         )
         self.setup_frame.hide()
         self.game_frame.show()
         self.feedback_label.setText("Session started! Dealing first hand...")
-        self.coach_message.emit(f"Yeni session: {num}-max, {stack}bb, bot: {bot_name}. İyi eller!")
+        self.coach_message.emit(
+            f"Yeni session: {num}-max, hero seat {hero_seat + 1}, {stack}bb, bot: {bot_name}. İyi eller!"
+        )
         self._deal_next()
 
     def _deal_next(self) -> None:

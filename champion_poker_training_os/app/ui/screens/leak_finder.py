@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.app_state import AppState
-from app.db.repository import get_imported_hands
+from app.db.repository import get_imported_hands, get_session_history
 from app.db.seed_data import leaks
 from app.leaks.imported_leak_detector import detect_leaks
 from app.ui.components.leak_card import LeakCard
@@ -166,7 +166,12 @@ class LeakFinderScreen(QWidget):
         title.setObjectName("Title")
         header.addWidget(title)
         self.source_combo = QComboBox()
-        self.source_combo.addItems(["Real leaks (imported hands)", "Demo catalogue"])
+        self.source_combo.addItems([
+            "Real leaks (imported + played)",
+            "Imported hands only",
+            "Played hands only",
+            "Demo catalogue",
+        ])
         self.source_combo.currentTextChanged.connect(self._source_changed)
         header.addWidget(self.source_combo)
         refresh_btn = QPushButton("🔄 Refresh")
@@ -242,9 +247,16 @@ class LeakFinderScreen(QWidget):
         self._render()
 
     def _refresh_real_leaks(self) -> None:
-        """Re-run leak detection on whatever is currently in imported_hands."""
+        """Re-run leak detection on imported_hands, played_hands, or both based on the source toggle."""
+        text = self.source_combo.currentText() if hasattr(self, "source_combo") else "Real"
+        hands: list[dict] = []
         try:
-            hands = get_imported_hands(500)
+            if "Imported" in text and "Played" not in text:
+                hands = get_imported_hands(500)
+            elif "Played hands only" in text:
+                hands = self._played_hands_normalised()
+            else:  # combined
+                hands = list(get_imported_hands(500)) + self._played_hands_normalised()
         except Exception:
             hands = []
         self.real_leaks = []
@@ -264,10 +276,45 @@ class LeakFinderScreen(QWidget):
         )
 
     def _source_changed(self) -> None:
-        if "Real" in self.source_combo.currentText() and not self.real_leaks:
+        text = self.source_combo.currentText()
+        if "Demo" not in text:
             self._refresh_real_leaks()
         else:
             self._render()
+
+    def _played_hands_normalised(self) -> list[dict]:
+        """Map played_hands rows into the imported_hands shape so detect_leaks can read them."""
+        out: list[dict] = []
+        try:
+            played = get_session_history(500)
+        except Exception:
+            return []
+        for h in played:
+            streets = h.get("streets_seen", 0) or 0
+            # Without action history per street we can only infer crude codes:
+            # any streets reached implies hero played; lost = "F" near end.
+            preflop = "RC" if h.get("hero_invested", 0) > 1 else "F"
+            flop = "BC" if streets >= 2 else ""
+            turn = "BC" if streets >= 3 else ""
+            river = "BC" if streets >= 4 else ""
+            out.append({
+                "external_id": str(h.get("hand_id", "?")),
+                "site": "Champion OS",
+                "format": "Cash",
+                "date": str(h.get("created_at", ""))[:10],
+                "hero_position": "BTN",  # not tracked in played_hands
+                "hero_cards": h.get("hero_cards", "") or "",
+                "board": h.get("community", "") or "",
+                "pot_bb": float(h.get("pot", 0)),
+                "hero_profit_bb": float(h.get("hero_profit", 0)),
+                "ev_loss": 0.0,
+                "pot_type": "SRP",
+                "preflop_actions": preflop,
+                "flop_actions": flop,
+                "turn_actions": turn,
+                "river_actions": river,
+            })
+        return out
 
     def _active_source(self) -> list[dict]:
         if "Real" in self.source_combo.currentText():

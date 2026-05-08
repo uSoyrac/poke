@@ -17,6 +17,8 @@ class AppState:
     session_notes: list[str] = field(default_factory=list)
     selected_spot: dict[str, Any] | None = None
     drill_filters: dict[str, Any] = field(default_factory=dict)
+    # When set, Spot Trainer will jump to this spot id on next load
+    pending_spot_id: str | None = None
     # Singleton adaptive engine — lazily created so unit tests don't pay setup cost
     _adaptive_engine: Any = None
 

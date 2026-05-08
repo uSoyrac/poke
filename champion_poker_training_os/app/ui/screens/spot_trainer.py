@@ -183,7 +183,28 @@ class SpotTrainerScreen(QWidget):
         layout.addWidget(feedback)
 
         self._apply_drill_filters()
+        self._jump_to_pending()
         self.load_spot()
+
+    def showEvent(self, event):  # type: ignore[override]
+        """Honour pending_spot_id from Dashboard 'Resume training' click."""
+        super().showEvent(event)
+        if self._jump_to_pending():
+            self.load_spot()
+
+    def _jump_to_pending(self) -> bool:
+        """If state has a pending_spot_id, set self.index to that spot. Return True if matched."""
+        target = getattr(self.state, "pending_spot_id", None)
+        if not target:
+            return False
+        for i, d in enumerate(self.drills):
+            if d.get("id") == target:
+                self.index = i
+                self.state.pending_spot_id = None
+                return True
+        # Not in the current drill set — clear it but show nothing special
+        self.state.pending_spot_id = None
+        return False
 
     # --- helpers ---------------------------------------------------------
     def _apply_drill_filters(self) -> None:
@@ -328,10 +349,12 @@ class SpotTrainerScreen(QWidget):
         title.setObjectName("SectionTitle")
         self.feedback_layout.addWidget(title)
         result = solve_spot(spot)
+        is_imported = get_solver_library().has(str(spot.get("id", "")))
         grid = QGridLayout()
         for idx, action in enumerate(result.actions):
             grid.addWidget(
-                SolverFrequencyBar(action.action, action.frequency, action.ev, action.sizing),
+                SolverFrequencyBar(action.action, action.frequency, action.ev,
+                                   action.sizing, imported=is_imported),
                 idx // 4, idx % 4,
             )
         self.feedback_layout.addLayout(grid)
@@ -362,11 +385,13 @@ class SpotTrainerScreen(QWidget):
         row.addWidget(next_button)
         self.feedback_layout.addLayout(row)
         self.feedback_layout.addWidget(QLabel(result["sizing_feedback"]))
+        is_imported = get_solver_library().has(str(spot.get("id", "")))
         grid = QGridLayout()
         for idx, action in enumerate(result["solver"]["actions"]):
             grid.addWidget(
                 SolverFrequencyBar(
-                    action["action"], action["frequency"], action["ev"], action.get("sizing", "")
+                    action["action"], action["frequency"], action["ev"],
+                    action.get("sizing", ""), imported=is_imported,
                 ),
                 idx // 4, idx % 4,
             )
