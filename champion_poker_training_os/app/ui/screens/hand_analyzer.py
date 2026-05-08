@@ -85,12 +85,7 @@ class HandAnalyzerScreen(QWidget):
         # Replace static table view with the rich HandReplay widget on the left
         self.replay = HandReplay()
         self.replay.coach_message.connect(self.coach_message)
-        self.replay.practice_requested.connect(
-            lambda hand: (
-                setattr(self.state, "selected_spot", hand),
-                self.navigate_requested.emit("Spot Practice Trainer"),
-            )
-        )
+        self.replay.practice_requested.connect(self._practice_from_replay)
         top.addWidget(self.replay, 3)
         self.table_view = PokerTableView()  # kept for legacy, hidden under replay
         self.table_view.setVisible(False)
@@ -268,6 +263,29 @@ class HandAnalyzerScreen(QWidget):
             self._show_played_hand(hand)
         else:
             self._show_demo_hand(hand)
+
+    def _practice_from_replay(self, hand: dict) -> None:
+        """When user clicks 'Practice similar' on the replay, register the hand as a
+        mistake-priority drill in the adaptive engine and navigate to Spot Trainer."""
+        self.state.selected_spot = hand
+        try:
+            engine = self.state.adaptive_engine()
+            spot_id = hand.get("_replay_spot_id") or f"REPLAY-{hand.get('external_id', '?')}"
+            # Register with a synthetic miss so it goes to the front of the queue.
+            engine.record_attempt(
+                spot_id=spot_id,
+                correct=False,
+                ev_loss=0.5,
+                tags=("replay", hand.get("hero_position", ""), hand.get("pot_type", "")),
+            )
+            engine.save_to_db()
+        except Exception:
+            pass
+        self.navigate_requested.emit("Spot Practice Trainer")
+        self.coach_message.emit(
+            f"Replay → Drill: {hand.get('external_id', '?')} adaptive engine'e mistake-öncelikli "
+            "olarak eklendi. Spot Practice Trainer'da çalışacaksın."
+        )
 
     def _show_imported_hand(self, hand: dict) -> None:
         """Open the rich replay for a parsed PokerStars / CoinPoker hand."""

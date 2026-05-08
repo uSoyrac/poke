@@ -18,8 +18,11 @@ from PySide6.QtWidgets import (
 
 from app.ai.coach_engine import explain_spot
 from app.core.app_state import AppState
+from app.engine.hand_state import positions_for
 from app.simulator.mtt_engine import TournamentEngine
+from app.ui.components.live_poker_table import LivePokerTable
 from app.ui.components.poker_table import PokerTableView
+from app.ui.components.spot_snapshot import build_spot_snapshot
 
 
 class StackBar(QWidget):
@@ -133,6 +136,16 @@ class TournamentSimulatorScreen(QWidget):
         self.pko.setChecked(True)
         self.pko.stateChanged.connect(self._update_settings)
         setup_layout.addWidget(self.pko)
+
+        # Table size selector — 2-11 players seated at the active table
+        setup_layout.addWidget(QLabel("Table size"))
+        self.table_size_spin = QSpinBox()
+        self.table_size_spin.setRange(2, 11)
+        self.table_size_spin.setValue(9)
+        self.table_size_spin.setSuffix(" seats")
+        self.table_size_spin.valueChanged.connect(self._refresh_live_table)
+        setup_layout.addWidget(self.table_size_spin)
+
         setup_layout.addStretch(1)
         layout.addWidget(setup)
 
@@ -154,12 +167,17 @@ class TournamentSimulatorScreen(QWidget):
         ctx_layout.addWidget(self.stack_bar, 1, 0, 1, 8)
         layout.addWidget(ctx)
 
-        # Main row: poker table + decision panel + payout ladder
+        # Main row: live oval table + decision panel + payout ladder
         body_row = QHBoxLayout()
         body_row.setSpacing(14)
 
+        # Real oval poker table — shows up to 11 seats with positions, stacks, dealer, action chips
+        self.live_table = LivePokerTable()
+        self.live_table.setMinimumHeight(380)
+        body_row.addWidget(self.live_table, 3)
+        # Legacy PokerTableView kept hidden — LivePokerTable replaces it
         self.table = PokerTableView()
-        body_row.addWidget(self.table, 3)
+        self.table.setVisible(False)
 
         # Decision panel
         decision = QFrame()
@@ -283,10 +301,24 @@ class TournamentSimulatorScreen(QWidget):
                 marker.setObjectName("Amber")
                 self.ladder_grid.addWidget(marker, r, 2)
 
+    def _refresh_live_table(self) -> None:
+        """Re-render the oval table for the current spot + table size."""
+        spot = self.engine.current_spot
+        n = self.table_size_spin.value() if hasattr(self, "table_size_spin") else 9
+        snap = build_spot_snapshot(
+            spot=spot,
+            num_players=n,
+            hero_chip_stack=self.engine.chip_stack,
+            avg_stack=self.engine.avg_stack,
+            blind_size_chips=self.engine._current_blinds()[1],
+        )
+        self.live_table.update_state(snap)
+
     def load_spot(self) -> None:
         spot = self.engine.current_spot
         self.state.selected_spot = spot
         self.table.set_hand(spot["hero_cards"], spot["board"], spot["pot_bb"])
+        self._refresh_live_table()
         self.spot_title.setText(f"{spot['id']} | {spot['title']}")
         self.spot_info.setText(
             f"Stage: {spot.get('stage', '—')} · Risk premium {spot['risk_premium']:.1%} · "

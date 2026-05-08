@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from app.ai.coach_engine import explain_spot
 from app.core.app_state import AppState
 from app.db.seed_data import generate_spot_drills
+from app.solver.csv_importer import get_solver_library
 from app.solver.mock_solver import compare_action, solve_spot
 from app.training.trainer_scoring import score_decision, skill_label
 from app.ui.components.action_chip import parse_action_string
@@ -88,6 +89,14 @@ class SpotTrainerScreen(QWidget):
         title = QLabel("Spot Practice Trainer")
         title.setObjectName("Title")
         header.addWidget(title)
+
+        # Solver-source badge (live: shows whether current spot uses imported PIO/GTO data or mock)
+        self.source_badge = QLabel("⚙ Mock solver")
+        self.source_badge.setStyleSheet(
+            "QLabel { background: #5C1F22; color: #F87171; font-weight: 800; "
+            "padding: 5px 12px; border-radius: 11px; }"
+        )
+        header.addWidget(self.source_badge)
         header.addStretch(1)
         for mode in ["Quick drill", "Timed mode", "Mistakes-only", "Boss battle"]:
             button = QPushButton(mode)
@@ -222,9 +231,29 @@ class SpotTrainerScreen(QWidget):
         )
 
     # --- core flow -------------------------------------------------------
+    def _refresh_source_badge(self, spot: dict) -> None:
+        """Show ✓ Imported / ⚙ Mock badge based on whether SolverLibrary has this spot."""
+        lib = get_solver_library()
+        sid = str(spot.get("id", ""))
+        if lib.has(sid):
+            result = lib.get(sid)
+            label = (result.source_confidence if result else "Imported solver") or "Imported solver"
+            self.source_badge.setText(f"✓ {label}")
+            self.source_badge.setStyleSheet(
+                "QLabel { background: #0E2A1E; color: #10B981; font-weight: 800; "
+                "padding: 5px 12px; border-radius: 11px; }"
+            )
+        else:
+            self.source_badge.setText("⚙ Mock solver (import PIO/GTO CSV in Settings)")
+            self.source_badge.setStyleSheet(
+                "QLabel { background: #5C1F22; color: #F87171; font-weight: 800; "
+                "padding: 5px 12px; border-radius: 11px; }"
+            )
+
     def load_spot(self) -> None:
         spot = self.drills[self.index % len(self.drills)]
         self.state.selected_spot = spot
+        self._refresh_source_badge(spot)
         self.spot_title.setText(f"{spot['id']} | {spot['title']}")
         self.spot_meta.setText(
             f"{spot['format']} · {spot['table']} · {spot['pot_type']} · "
@@ -273,6 +302,11 @@ class SpotTrainerScreen(QWidget):
             ev_loss=result["ev_loss"],
             tags=(spot.get("street", ""), spot.get("position", ""), spot.get("pot_type", "")),
         )
+        # Persist after each attempt so progress survives app restart.
+        try:
+            engine.save_to_db()
+        except Exception:
+            pass
         self._show_feedback(spot, result, score)
         self.coach_message.emit(explain_spot(spot, action))
         # Adaptive next-pick instead of round-robin

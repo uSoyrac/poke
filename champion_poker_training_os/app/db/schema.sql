@@ -258,6 +258,26 @@ CREATE TABLE IF NOT EXISTS app_settings (
   value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS adaptive_spots (
+  spot_id TEXT PRIMARY KEY,
+  last_attempt_ts REAL DEFAULT 0,
+  next_due_ts REAL DEFAULT 0,
+  interval_idx INTEGER DEFAULT 0,
+  correct_streak INTEGER DEFAULT 0,
+  total_attempts INTEGER DEFAULT 0,
+  total_correct INTEGER DEFAULT 0,
+  last_ev_loss REAL DEFAULT 0,
+  rolling_ev_loss REAL DEFAULT 0,
+  tags TEXT DEFAULT '[]',
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS adaptive_mistake_queue (
+  position INTEGER PRIMARY KEY AUTOINCREMENT,
+  spot_id TEXT NOT NULL,
+  added_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS imported_hands (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   external_id TEXT UNIQUE,

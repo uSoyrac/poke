@@ -237,6 +237,96 @@ def get_imported_hands(limit: int = 200) -> list[dict]:
         return [dict(r) for r in rows]
 
 
+# ─── Adaptive Engine Persistence ─────────────────────────────────────
+
+
+def save_adaptive_state(spots: list[dict], mistake_queue: list[str]) -> int:
+    """Replace all adaptive engine state with the given snapshot."""
+    written = 0
+    with get_connection() as conn:
+        try:
+            conn.execute("DELETE FROM adaptive_spots")
+            conn.execute("DELETE FROM adaptive_mistake_queue")
+            for s in spots:
+                conn.execute(
+                    """INSERT OR REPLACE INTO adaptive_spots
+                       (spot_id, last_attempt_ts, next_due_ts, interval_idx,
+                        correct_streak, total_attempts, total_correct,
+                        last_ev_loss, rolling_ev_loss, tags, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+                    (
+                        s["spot_id"],
+                        s.get("last_attempt_ts", 0),
+                        s.get("next_due_ts", 0),
+                        s.get("interval_idx", 0),
+                        s.get("correct_streak", 0),
+                        s.get("total_attempts", 0),
+                        s.get("total_correct", 0),
+                        s.get("last_ev_loss", 0),
+                        s.get("rolling_ev_loss", 0),
+                        json.dumps(list(s.get("tags", []))),
+                    ),
+                )
+                written += 1
+            for sid in mistake_queue:
+                conn.execute(
+                    "INSERT INTO adaptive_mistake_queue (spot_id) VALUES (?)",
+                    (sid,),
+                )
+            conn.commit()
+        except sqlite3.OperationalError:
+            return 0
+    return written
+
+
+def load_adaptive_state() -> dict:
+    """Load saved adaptive engine state. Returns {spots, mistake_queue} dicts."""
+    with get_connection() as conn:
+        try:
+            spot_rows = conn.execute(
+                "SELECT spot_id, last_attempt_ts, next_due_ts, interval_idx, "
+                "correct_streak, total_attempts, total_correct, last_ev_loss, "
+                "rolling_ev_loss, tags FROM adaptive_spots"
+            ).fetchall()
+            queue_rows = conn.execute(
+                "SELECT spot_id FROM adaptive_mistake_queue ORDER BY position"
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return {"spots": [], "mistake_queue": []}
+    spots: list[dict] = []
+    for r in spot_rows:
+        try:
+            tags = json.loads(r["tags"] or "[]")
+        except Exception:
+            tags = []
+        spots.append({
+            "spot_id": r["spot_id"],
+            "last_attempt_ts": r["last_attempt_ts"],
+            "next_due_ts": r["next_due_ts"],
+            "interval_idx": r["interval_idx"],
+            "correct_streak": r["correct_streak"],
+            "total_attempts": r["total_attempts"],
+            "total_correct": r["total_correct"],
+            "last_ev_loss": r["last_ev_loss"],
+            "rolling_ev_loss": r["rolling_ev_loss"],
+            "tags": tags,
+        })
+    return {
+        "spots": spots,
+        "mistake_queue": [r["spot_id"] for r in queue_rows],
+    }
+
+
+def clear_adaptive_state() -> None:
+    with get_connection() as conn:
+        try:
+            conn.execute("DELETE FROM adaptive_spots")
+            conn.execute("DELETE FROM adaptive_mistake_queue")
+            conn.commit()
+        except sqlite3.OperationalError:
+            return
+
+
 def imported_hands_count() -> int:
     with get_connection() as conn:
         try:

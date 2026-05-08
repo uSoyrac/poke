@@ -172,3 +172,53 @@ class AdaptiveEngine:
         # Older intervals = lower urgency (well-mastered material), shorter = high
         interval_penalty = -state.interval_idx * 0.5
         return miss_weight + accuracy_penalty + interval_penalty
+
+    # --- persistence ----------------------------------------------------
+    def to_dicts(self) -> tuple[list[dict], list[str]]:
+        """Snapshot the engine into JSON-friendly dicts for DB persistence."""
+        spots = []
+        for s in self.spots.values():
+            spots.append({
+                "spot_id": s.spot_id,
+                "last_attempt_ts": s.last_attempt_ts,
+                "next_due_ts": s.next_due_ts,
+                "interval_idx": s.interval_idx,
+                "correct_streak": s.correct_streak,
+                "total_attempts": s.total_attempts,
+                "total_correct": s.total_correct,
+                "last_ev_loss": s.last_ev_loss,
+                "rolling_ev_loss": s.rolling_ev_loss,
+                "tags": list(s.tags),
+            })
+        return spots, list(self.mistake_queue)
+
+    def load_from_dicts(self, spots: list[dict], mistake_queue: list[str]) -> None:
+        """Hydrate the engine from previously-saved dicts."""
+        self.spots = {}
+        for d in spots:
+            self.spots[d["spot_id"]] = SpotState(
+                spot_id=d["spot_id"],
+                last_attempt_ts=d.get("last_attempt_ts", 0),
+                next_due_ts=d.get("next_due_ts", 0),
+                interval_idx=d.get("interval_idx", 0),
+                correct_streak=d.get("correct_streak", 0),
+                total_attempts=d.get("total_attempts", 0),
+                total_correct=d.get("total_correct", 0),
+                last_ev_loss=d.get("last_ev_loss", 0),
+                rolling_ev_loss=d.get("rolling_ev_loss", 0),
+                tags=tuple(d.get("tags", [])),
+            )
+        self.mistake_queue = list(mistake_queue)
+
+    def save_to_db(self) -> int:
+        """Persist current state to the DB. Returns number of spot rows written."""
+        from app.db.repository import save_adaptive_state
+        spots, queue = self.to_dicts()
+        return save_adaptive_state(spots, queue)
+
+    def load_from_db(self) -> int:
+        """Populate from DB (called once on app start). Returns spots loaded."""
+        from app.db.repository import load_adaptive_state
+        snap = load_adaptive_state()
+        self.load_from_dicts(snap["spots"], snap["mistake_queue"])
+        return len(snap["spots"])

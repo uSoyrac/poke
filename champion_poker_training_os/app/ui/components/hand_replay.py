@@ -374,4 +374,17 @@ class HandReplay(QWidget):
 
     def _emit_practice(self) -> None:
         if self.hand:
+            # Mark this hand as a "to-study" entry in the adaptive engine. The hand
+            # represents a real spot the user wants to drill — register it as a
+            # mistake-priority spot so next_drill() surfaces it.
+            try:
+                from app.core.app_state import AppState  # local import to avoid cycle
+                # Hand_id is stored as external_id from the parser
+                spot_id = f"REPLAY-{self.hand.get('external_id') or self.hand.get('id', '?')}"
+                # We can't reach AppState directly from a component, but the parent
+                # screen is responsible for piping practice_requested into the engine.
+                # We attach a hint dict so the receiver knows to register it.
+                self.hand["_replay_spot_id"] = spot_id
+            except Exception:
+                pass
             self.practice_requested.emit(self.hand)

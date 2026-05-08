@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QScrollArea,
+    QSpinBox,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -19,8 +20,10 @@ from app.core.app_state import AppState
 from app.db.seed_data import combat_packs, generate_spot_drills
 from app.solver.mock_solver import compare_action
 from app.ui.components.drill_card import DrillCard
+from app.ui.components.live_poker_table import LivePokerTable
 from app.ui.components.poker_table import PokerTableView
 from app.ui.components.solver_bar import EVLossBadge, SolverFrequencyBar
+from app.ui.components.spot_snapshot import build_spot_snapshot
 
 
 class CombatTrainerScreen(QWidget):
@@ -100,18 +103,30 @@ class CombatTrainerScreen(QWidget):
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
+        # Table size spinner (2-11)
+        self.table_size_spin = QSpinBox()
+        self.table_size_spin.setRange(2, 11)
+        self.table_size_spin.setValue(6)
+        self.table_size_spin.setSuffix(" seats")
+        self.table_size_spin.valueChanged.connect(lambda _: self._refresh_live_table())
         back_btn = QPushButton("← Back to Packs")
         back_btn.clicked.connect(self._back_to_select)
         top_bar.addWidget(self.pack_title)
         top_bar.addWidget(self.progress_label)
         top_bar.addWidget(self.progress_bar, 1)
+        top_bar.addWidget(QLabel("Table size"))
+        top_bar.addWidget(self.table_size_spin)
         top_bar.addWidget(back_btn)
         layout.addLayout(top_bar)
 
-        # Table + spot info
+        # Table + spot info — real oval table replaces grid view
         main = QHBoxLayout()
+        self.live_table = LivePokerTable()
+        self.live_table.setMinimumHeight(360)
+        main.addWidget(self.live_table, 2)
+        # Legacy table kept hidden for compat with answer flow
         self.table = PokerTableView()
-        main.addWidget(self.table, 2)
+        self.table.setVisible(False)
 
         panel = QFrame()
         panel.setObjectName("DataPanel")
@@ -225,6 +240,7 @@ class CombatTrainerScreen(QWidget):
         self.progress_bar.setValue(pct)
 
         self.table.set_hand(spot["hero_cards"], spot["board"], spot["pot_bb"])
+        self._refresh_live_table()
         is_boss = self.pack_index == total - 1
         boss_tag = " 🏆 BOSS HAND" if is_boss else ""
         self.spot_label.setText(f"{spot['id']}{boss_tag} | {spot['title']}")
@@ -245,6 +261,20 @@ class CombatTrainerScreen(QWidget):
         self.feedback_text.style().unpolish(self.feedback_text)
         self.feedback_text.style().polish(self.feedback_text)
 
+    def _refresh_live_table(self) -> None:
+        if self.pack_index >= len(self.pack_drills):
+            return
+        spot = self.pack_drills[self.pack_index]
+        n = self.table_size_spin.value() if hasattr(self, "table_size_spin") else 6
+        snap = build_spot_snapshot(
+            spot=spot,
+            num_players=n,
+            hero_chip_stack=int(spot.get("stack_bb", 100)),
+            avg_stack=int(spot.get("stack_bb", 100)),
+            blind_size_chips=1,
+        )
+        self.live_table.update_state(snap)
+
     def _answer(self, action: str) -> None:
         spot = self.pack_drills[self.pack_index]
         result = compare_action(spot, action)
@@ -252,6 +282,19 @@ class CombatTrainerScreen(QWidget):
 
         if result["is_correct"]:
             self.pack_correct += 1
+
+        # Feed the adaptive engine so misses go into the SR queue
+        try:
+            engine = self.state.adaptive_engine()
+            engine.record_attempt(
+                spot_id=spot["id"],
+                correct=result["is_correct"],
+                ev_loss=result["ev_loss"],
+                tags=("combat", spot.get("street", ""), spot.get("position", "")),
+            )
+            engine.save_to_db()
+        except Exception:
+            pass
 
         is_boss = self.pack_index == len(self.pack_drills) - 1
         color = "Green" if result["is_correct"] else "Red"

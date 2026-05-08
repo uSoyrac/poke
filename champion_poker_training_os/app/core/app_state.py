@@ -21,10 +21,19 @@ class AppState:
     _adaptive_engine: Any = None
 
     def adaptive_engine(self):
-        """Lazy accessor for the AdaptiveEngine singleton (avoids circular import)."""
+        """Lazy accessor for the AdaptiveEngine singleton (avoids circular import).
+
+        On first access we hydrate from SQLite so drill history persists across
+        app restarts.
+        """
         if self._adaptive_engine is None:
             from app.training.adaptive_engine import AdaptiveEngine
-            self._adaptive_engine = AdaptiveEngine()
+            engine = AdaptiveEngine()
+            try:
+                engine.load_from_db()
+            except Exception:
+                pass
+            self._adaptive_engine = engine
         return self._adaptive_engine
 
     @property
