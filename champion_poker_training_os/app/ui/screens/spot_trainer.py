@@ -330,9 +330,19 @@ class SpotTrainerScreen(QWidget):
             pass
         self._show_feedback(spot, result, score)
         self.coach_message.emit(explain_spot(spot, action))
-        # Adaptive next-pick instead of round-robin
-        candidates = [d["id"] for d in self.drills]
-        next_id = engine.next_drill(candidates, exclude=[spot["id"]])
+        # Pop the next pending spot from the queue if we have one (e.g. replay → similar 5)
+        next_id: str | None = None
+        queue = getattr(self.state, "pending_spot_queue", None) or []
+        # Drop the current spot from the queue head if it matches
+        if queue and queue[0] == spot["id"]:
+            queue.pop(0)
+        if queue:
+            next_id = queue[0]
+            self.state.pending_spot_id = next_id
+        else:
+            # Empty queue → fall back to adaptive next-pick
+            candidates = [d["id"] for d in self.drills]
+            next_id = engine.next_drill(candidates, exclude=[spot["id"]])
         if next_id:
             for i, d in enumerate(self.drills):
                 if d["id"] == next_id:

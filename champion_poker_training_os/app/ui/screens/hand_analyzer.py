@@ -265,27 +265,56 @@ class HandAnalyzerScreen(QWidget):
             self._show_demo_hand(hand)
 
     def _practice_from_replay(self, hand: dict) -> None:
-        """When user clicks 'Practice similar' on the replay, register the hand as a
-        mistake-priority drill in the adaptive engine and navigate to Spot Trainer."""
+        """When user clicks 'Practice similar' on the replay, find 5 similar spots
+        from the drill pool, register each in the adaptive engine as a mistake-
+        priority drill, queue them via state.pending_spot_queue, and navigate to
+        Spot Trainer (which will pop them one by one)."""
+        from app.training.similar_spots import find_similar_spots
+
         self.state.selected_spot = hand
         try:
             engine = self.state.adaptive_engine()
-            spot_id = hand.get("_replay_spot_id") or f"REPLAY-{hand.get('external_id', '?')}"
-            # Register with a synthetic miss so it goes to the front of the queue.
+            replay_id = hand.get("_replay_spot_id") or f"REPLAY-{hand.get('external_id', '?')}"
+            # Register the original replay anchor first
             engine.record_attempt(
-                spot_id=spot_id,
+                spot_id=replay_id,
                 correct=False,
                 ev_loss=0.5,
                 tags=("replay", hand.get("hero_position", ""), hand.get("pot_type", "")),
             )
+
+            # Build a similar-spots drill pack from the seed pool
+            from app.db.seed_data import generate_spot_drills
+            similar = find_similar_spots(hand, generate_spot_drills(120), n=5)
+            queue = []
+            for spot in similar:
+                sid = str(spot.get("id", ""))
+                if not sid:
+                    continue
+                queue.append(sid)
+                # Pre-register as a mistake so adaptive engine surfaces them first
+                engine.record_attempt(
+                    spot_id=sid,
+                    correct=False,
+                    ev_loss=0.4,
+                    tags=("replay-similar", spot.get("position", ""), spot.get("pot_type", "")),
+                )
+
+            self.state.pending_spot_queue = queue
+            if queue:
+                # First spot drives the immediate jump; the rest pop after each answer
+                self.state.pending_spot_id = queue[0]
+
             engine.save_to_db()
+
+            self.coach_message.emit(
+                f"Replay → Drill set: {hand.get('external_id', '?')} hand'inden {len(similar)} benzer spot "
+                f"adaptive engine'e mistake-öncelikli olarak eklendi. Spot Practice Trainer'da sırayla "
+                f"çözeceksin: {', '.join(queue) if queue else '(no matches)'}"
+            )
         except Exception:
             pass
         self.navigate_requested.emit("Spot Practice Trainer")
-        self.coach_message.emit(
-            f"Replay → Drill: {hand.get('external_id', '?')} adaptive engine'e mistake-öncelikli "
-            "olarak eklendi. Spot Practice Trainer'da çalışacaksın."
-        )
 
     def _show_imported_hand(self, hand: dict) -> None:
         """Open the rich replay for a parsed PokerStars / CoinPoker hand."""

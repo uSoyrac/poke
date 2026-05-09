@@ -19,6 +19,8 @@ class AppState:
     drill_filters: dict[str, Any] = field(default_factory=dict)
     # When set, Spot Trainer will jump to this spot id on next load
     pending_spot_id: str | None = None
+    # FIFO queue of upcoming spot ids — Spot Trainer pops from this on each load
+    pending_spot_queue: list[str] = field(default_factory=list)
     # Singleton adaptive engine — lazily created so unit tests don't pay setup cost
     _adaptive_engine: Any = None
 
