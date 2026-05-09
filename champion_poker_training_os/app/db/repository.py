@@ -75,6 +75,7 @@ def table_count(table: str) -> int:
         "study_plans",
         "played_hands",
         "hero_decisions",
+        "decision_reviews",
     }
     if table not in allowed:
         raise ValueError(f"Unsupported table: {table}")
@@ -126,6 +127,92 @@ def save_hero_decision(decision: dict) -> None:
             ),
         )
         conn.commit()
+
+
+def save_decision_review(review: dict) -> int:
+    """Persist one post-decision GTO/exploit review row."""
+    with get_connection() as conn:
+        cur = conn.execute(
+            """INSERT INTO decision_reviews
+               (hand_id, spot_id, street, position, hero_cards, board, pot_bb,
+                hero_action, solver_action, hero_ev, best_ev, ev_loss,
+                solver_frequency, best_frequency, is_correct, verdict, severity,
+                sizing_feedback, exploit_note, drill_target, source_confidence,
+                created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+            (
+                review.get("hand_id", 0),
+                review.get("spot_id", ""),
+                review.get("street", ""),
+                review.get("position", ""),
+                review.get("hero_cards", ""),
+                review.get("board", ""),
+                review.get("pot_bb", 0.0),
+                review.get("hero_action", ""),
+                review.get("solver_action", ""),
+                review.get("hero_ev", 0.0),
+                review.get("best_ev", 0.0),
+                review.get("ev_loss", 0.0),
+                review.get("solver_frequency", 0.0),
+                review.get("best_frequency", 0.0),
+                1 if review.get("is_correct") else 0,
+                review.get("verdict", ""),
+                review.get("severity", ""),
+                review.get("sizing_feedback", ""),
+                review.get("exploit_note", ""),
+                review.get("drill_target", ""),
+                review.get("source_confidence", "Rule-based heuristic"),
+            ),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def get_decision_reviews(hand_id: int | None = None, limit: int = 200) -> list[dict]:
+    """Return recent persisted GTO/exploit decision reviews."""
+    with get_connection() as conn:
+        try:
+            if hand_id is None:
+                rows = conn.execute(
+                    "SELECT * FROM decision_reviews ORDER BY created_at DESC, id DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM decision_reviews WHERE hand_id=? ORDER BY id",
+                    (hand_id,),
+                ).fetchall()
+        except sqlite3.OperationalError:
+            return []
+    out = [dict(row) for row in rows]
+    for row in out:
+        row["is_correct"] = bool(row.get("is_correct"))
+    return out
+
+
+def get_decision_review_summary(limit: int = 500) -> dict:
+    """Aggregate decision correctness, EV loss and worst spots."""
+    reviews = get_decision_reviews(limit=limit)
+    if not reviews:
+        return {
+            "count": 0,
+            "correct": 0,
+            "mistakes": 0,
+            "accuracy": 0.0,
+            "ev_loss": 0.0,
+            "worst": [],
+        }
+    correct = sum(1 for row in reviews if row.get("is_correct"))
+    ev_loss = round(sum(float(row.get("ev_loss") or 0.0) for row in reviews), 2)
+    worst = sorted(reviews, key=lambda row: float(row.get("ev_loss") or 0.0), reverse=True)[:10]
+    return {
+        "count": len(reviews),
+        "correct": correct,
+        "mistakes": len(reviews) - correct,
+        "accuracy": round(100 * correct / len(reviews), 1),
+        "ev_loss": ev_loss,
+        "worst": worst,
+    }
 
 
 def get_player_stats() -> dict:

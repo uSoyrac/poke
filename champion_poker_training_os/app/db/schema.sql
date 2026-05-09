@@ -327,3 +327,28 @@ CREATE TABLE IF NOT EXISTS played_hands (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS decision_reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  hand_id INTEGER NOT NULL,
+  spot_id TEXT NOT NULL,
+  street TEXT NOT NULL,
+  position TEXT,
+  hero_cards TEXT,
+  board TEXT,
+  pot_bb REAL DEFAULT 0,
+  hero_action TEXT NOT NULL,
+  solver_action TEXT NOT NULL,
+  hero_ev REAL DEFAULT 0,
+  best_ev REAL DEFAULT 0,
+  ev_loss REAL DEFAULT 0,
+  solver_frequency REAL DEFAULT 0,
+  best_frequency REAL DEFAULT 0,
+  is_correct INTEGER DEFAULT 0,
+  verdict TEXT,
+  severity TEXT,
+  sizing_feedback TEXT,
+  exploit_note TEXT,
+  drill_target TEXT,
+  source_confidence TEXT NOT NULL DEFAULT 'Rule-based heuristic',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

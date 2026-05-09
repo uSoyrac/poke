@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 
 from app.core.app_state import AppState
 from app.db.repository import (
+    get_decision_reviews,
     get_imported_hands,
     get_session_history,
     imported_hands_count,
@@ -431,6 +432,8 @@ class HandsListScreen(QWidget):
         if not hands:
             try:
                 for h in get_session_history(50):
+                    reviews = get_decision_reviews(hand_id=int(h.get("hand_id") or 0))
+                    ev_loss = round(sum(float(r.get("ev_loss") or 0.0) for r in reviews), 2)
                     hands.append({
                         "id": f"H{h.get('hand_id', '?')}",
                         "tag": "—",
@@ -448,7 +451,7 @@ class HandsListScreen(QWidget):
                         "river": "BF" if h.get("streets_seen", 0) >= 4 else "",
                         "pot": float(h.get("pot", 0)),
                         "win_loss": float(h.get("hero_profit", 0)),
-                        "ev_loss": 0.0,
+                        "ev_loss": ev_loss,
                     })
             except Exception:
                 pass

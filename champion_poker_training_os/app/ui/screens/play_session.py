@@ -8,10 +8,11 @@ from PySide6.QtWidgets import (
 
 from app.core.app_state import AppState
 from app.ai.coach_engine import analyze_played_hand, session_summary
-from app.db.repository import save_played_hand
+from app.db.repository import save_decision_review, save_played_hand
 from app.engine.game_loop import PokerGame, HandResult
 from app.engine.hand_state import ActionType, Street
 from app.engine.bot_brain import BOT_ARCHETYPES
+from app.training.decision_review import analyze_hero_decision, format_decision_review, summarize_decision_reviews
 from app.ui.components.card_view import CardView
 from app.ui.components.live_poker_table import LivePokerTable
 from app.ui.components.metric_card import MetricCard
@@ -24,6 +25,8 @@ class PlaySessionScreen(QWidget):
         super().__init__()
         self.state = state
         self.game: PokerGame | None = None
+        self._current_decision_reviews: list[dict] = []
+        self._completed_hand_ids: set[int] = set()
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -287,6 +290,7 @@ class PlaySessionScreen(QWidget):
         if not self.game:
             return
         self.next_btn.hide()
+        self._current_decision_reviews = []
         self.game.start_hand()
         self._refresh_ui()
 
@@ -308,8 +312,19 @@ class PlaySessionScreen(QWidget):
         elif action_type == ActionType.ALL_IN:
             amount = hero.stack
 
+        review = None
+        try:
+            review = analyze_hero_decision(hand, action_type, amount)
+            self._current_decision_reviews.append(review)
+        except Exception:
+            review = None
+
         self.game.hero_act(action_type, amount)
         self._refresh_ui()
+
+        if review and not hand.is_complete:
+            self.feedback_label.setText(format_decision_review(review))
+            self.coach_message.emit(_decision_coach_message(review))
 
         # Coach feedback after hero action
         if hand.is_complete:
@@ -427,6 +442,10 @@ class PlaySessionScreen(QWidget):
         if not self.game or not self.game.hand_history:
             return
         result = self.game.hand_history[-1]
+        if result.hand_id in self._completed_hand_ids:
+            return
+        self._completed_hand_ids.add(result.hand_id)
+        decision_summary = summarize_decision_reviews(self._current_decision_reviews)
 
         color = "Green" if result.hero_won else "Red"
         self.feedback_label.setObjectName(color)
@@ -439,13 +458,16 @@ class PlaySessionScreen(QWidget):
             f"{'✓ YOU WON' if result.hero_won else '✗ Lost'} | "
             f"Profit: {result.hero_profit:+.1f}bb | Pot: {result.pot:.1f}bb | "
             f"Winner: {winner_names} ({result.winner_hand_name}) | "
-            f"Hero cards: {result.hero_cards} | Board: {result.community}"
+            f"Hero cards: {result.hero_cards} | Board: {result.community}\n"
+            f"Decision review: {decision_summary['accuracy']:.0f}% correct | "
+            f"{decision_summary['mistakes']} mistake(s) | EV loss {decision_summary['ev_loss']:.2f}bb"
         )
 
         # Add to history
         entry = QLabel(
             f"#{result.hand_id} | {result.hero_cards} | {result.community} | "
-            f"{'W' if result.hero_won else 'L'} {result.hero_profit:+.1f}bb | {result.winner_hand_name}"
+            f"{'W' if result.hero_won else 'L'} {result.hero_profit:+.1f}bb | "
+            f"Decisions {decision_summary['accuracy']:.0f}% | EV loss {decision_summary['ev_loss']:.2f}bb"
         )
         entry.setObjectName("Green" if result.hero_won else "Muted")
         self.history_layout.addWidget(entry)
@@ -463,15 +485,29 @@ class PlaySessionScreen(QWidget):
                 "winner_hand_name": result.winner_hand_name,
                 "streets_seen": result.streets_seen,
             })
+            for review in self._current_decision_reviews:
+                save_decision_review(review)
         except Exception:
             pass  # Don't crash UI on DB errors
 
         # Coach message
+        worst = decision_summary.get("worst")
+        if worst:
+            decision_line = (
+                f"En pahalı karar: {worst['street']} {worst['position']} "
+                f"{worst['hero_action']} yerine {worst['solver_action']} "
+                f"({worst['ev_loss']:.2f}bb). Drill: {worst['drill_target']}."
+            )
+        else:
+            decision_line = "Karar analizi için bu elde hero aksiyonu kaydedilmedi."
         self.coach_message.emit(
             f"El #{result.hand_id}: Hero {result.hero_cards}, Board {result.community}. "
             f"{'Kazandın' if result.hero_won else 'Kaybettin'} ({result.hero_profit:+.1f}bb). "
             f"Kazanan: {result.winner_hand_name}. "
-            f"Session: {self.game.get_session_stats()['profit_bb']:+.1f}bb toplam."
+            f"Session: {self.game.get_session_stats()['profit_bb']:+.1f}bb toplam.\n\n"
+            f"GTO/Exploit karar özeti: {decision_summary['accuracy']:.0f}% doğru, "
+            f"{decision_summary['mistakes']} hata, EV loss {decision_summary['ev_loss']:.2f}bb.\n"
+            f"{decision_line}"
         )
 
         self.next_btn.show()
@@ -492,6 +528,18 @@ class PlaySessionScreen(QWidget):
             "pot": result.pot,
             "winner_hand_name": result.winner_hand_name,
         })
+        decision_summary = summarize_decision_reviews(self._current_decision_reviews)
+        if self._current_decision_reviews:
+            decision_lines = "\n".join(
+                f"  • {format_decision_review(item)}"
+                for item in self._current_decision_reviews
+            )
+            review += (
+                "\n\n🎯 GTO / Exploit Karar Review\n"
+                f"  Doğruluk: {decision_summary['accuracy']:.0f}% | "
+                f"Hata: {decision_summary['mistakes']} | EV loss: {decision_summary['ev_loss']:.2f}bb\n"
+                f"{decision_lines}"
+            )
         self.coach_message.emit(review)
 
     def _end_session(self) -> None:
@@ -530,3 +578,18 @@ def _update_card(card: MetricCard, value: str, detail: str) -> None:
             child.setText(value)
         elif child.objectName() in ("Cyan", "Green", "Amber", "Red"):
             child.setText(detail)
+
+
+def _decision_coach_message(review: dict) -> str:
+    return (
+        "Offline karar review:\n"
+        f"Spot: {review['street'].title()} {review['position']} | "
+        f"Hero {review['hero_cards']} board {review['board'] or 'preflop'}\n"
+        f"Hero aksiyonu: {review['hero_action']} | Baseline: {review['solver_action']} | "
+        f"EV loss: {review['ev_loss']:.2f}bb | Verdict: {review['verdict']}\n"
+        f"Solver frequency: {review['solver_frequency']:.0%} | Best frequency: {review['best_frequency']:.0%}\n"
+        f"{review['sizing_feedback']}\n"
+        f"{review['exploit_note']}\n"
+        f"Drill önerisi: {review['drill_target']}\n"
+        f"Kaynak güveni: {review['source_confidence']}"
+    )

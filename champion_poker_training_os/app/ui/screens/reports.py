@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.app_state import AppState
-from app.db.repository import get_imported_hands, get_session_history
+from app.db.repository import get_decision_review_summary, get_imported_hands, get_session_history
 from app.db.seed_data import dashboard_metrics, leaks
 from app.training.position_breakdown import compute_position_breakdown_from_rows
 from app.ui.components.metric_card import MetricCard
@@ -140,6 +140,13 @@ class ReportsScreen(QWidget):
         stats.addWidget(MetricCard("Fixed Leaks", "2", "SB overflat, delayed cbet", "Green"), 0, 3)
         layout.addLayout(stats)
 
+        decision_summary = get_decision_review_summary()
+        decision_stats = QGridLayout()
+        decision_stats.addWidget(MetricCard("Decision Accuracy", f"{decision_summary['accuracy']:.0f}%", f"{decision_summary['count']} reviewed actions", "Cyan"), 0, 0)
+        decision_stats.addWidget(MetricCard("Decision EV Loss", f"{decision_summary['ev_loss']:.2f}bb", "played simulations", "Amber"), 0, 1)
+        decision_stats.addWidget(MetricCard("Wrong Decisions", str(decision_summary["mistakes"]), "auto drill candidates", "Red" if decision_summary["mistakes"] else "Green"), 0, 2)
+        layout.addLayout(decision_stats)
+
         # Charts row
         charts = QHBoxLayout()
 
@@ -214,6 +221,36 @@ class ReportsScreen(QWidget):
             row.addWidget(pct)
             bd_layout.addLayout(row)
         layout.addWidget(breakdown)
+
+        decision_card = QFrame()
+        decision_card.setObjectName("DataPanel")
+        decision_layout = QVBoxLayout(decision_card)
+        decision_title = QLabel("🎯 Recent GTO / Exploit Decision Review")
+        decision_title.setObjectName("SectionTitle")
+        decision_layout.addWidget(decision_title)
+        if not decision_summary["worst"]:
+            empty = QLabel("Henüz oynanmış karar review yok — Play Session'da el oyna, her hero aksiyonu burada EV loss ve doğru/yanlış olarak görünecek.")
+            empty.setWordWrap(True)
+            empty.setObjectName("Muted")
+            decision_layout.addWidget(empty)
+        else:
+            for item in decision_summary["worst"][:5]:
+                row = QHBoxLayout()
+                spot = QLabel(f"H{item['hand_id']} {item['street'].title()} {item['position']}")
+                spot.setObjectName("Cyan")
+                spot.setFixedWidth(130)
+                action = QLabel(f"Hero {item['hero_action']} → baseline {item['solver_action']}")
+                action.setObjectName("Muted")
+                ev = QLabel(f"{float(item['ev_loss'] or 0):.2f}bb")
+                ev.setObjectName("Red" if float(item["ev_loss"] or 0) >= 0.45 else "Amber")
+                drill = QLabel(item.get("drill_target") or "")
+                drill.setObjectName("Green")
+                row.addWidget(spot)
+                row.addWidget(action, 1)
+                row.addWidget(ev)
+                row.addWidget(drill, 1)
+                decision_layout.addLayout(row)
+        layout.addWidget(decision_card)
 
         # 7-day progress chart (live from played_hands + adaptive_spots)
         weekly_card = QFrame()
