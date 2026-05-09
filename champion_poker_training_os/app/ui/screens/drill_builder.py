@@ -14,9 +14,12 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
+from PySide6.QtGui import QColor
 
 from app.core.app_state import AppState
 from app.db.repository import delete_drill_pack, list_drill_packs, save_drill_pack
@@ -35,6 +38,55 @@ SOLUTIONS = [
 
 PREFLOP_ACTIONS = ["Any", "SRP", "3-bet", "4-bet", "5-bet", "Squeeze", "Limp", "Iso"]
 STARTING_SPOTS = ["Preflop", "Flop", "Turn", "River", "Custom"]
+
+TRAINING_PACKS = [
+    {"name": "Bread & Butter MTT Spots (Common)", "type": "MTT", "street": "All", "hands": None, "elo": None, "group": True},
+    {"name": "25bb LJ RFI vs BB", "type": "MTT", "street": "Preflop", "hands": None, "elo": None},
+    {"name": "25bb BTN vs LJ RFI", "type": "MTT", "street": "Preflop", "hands": 46, "elo": -23.7},
+    {"name": "25bb LJ RFI vs BTN", "type": "MTT", "street": "Preflop", "hands": 43, "elo": -147.8},
+    {"name": "40bb BTN vs LJ RFI", "type": "MTT", "street": "Preflop", "hands": 218, "elo": 297.0},
+    {"name": "40bb LJ RFI vs BTN", "type": "MTT", "street": "Preflop", "hands": 57, "elo": -15.2},
+    {"name": "40bb BB vs LJ RFI", "type": "MTT", "street": "Preflop", "hands": 7, "elo": -13.5},
+    {"name": "40bb LJ RFI vs BB", "type": "MTT", "street": "Preflop", "hands": 297, "elo": -80.8},
+    {"name": "Board Specific Training MTT", "type": "MTT", "street": "Postflop", "hands": None, "elo": None, "group": True},
+    {"name": "Playing Dry Boards", "type": "MTT", "street": "Postflop", "hands": 104, "elo": -116.7},
+    {"name": "Playing Connected Boards", "type": "MTT", "street": "Postflop", "hands": 19, "elo": 114.1},
+    {"name": "3Bet Pot OOP Survival", "type": "Cash 6-Max", "street": "Postflop", "hands": 88, "elo": -44.0},
+    {"name": "Cash 100bb BTN vs BB SRP", "type": "Cash 6-Max", "street": "Postflop", "hands": 162, "elo": 61.4},
+    {"name": "Tournament Bubble Call/Fold", "type": "Tournament ICM", "street": "Preflop", "hands": 73, "elo": -92.5},
+    {"name": "PKO Bounty Jam/Call", "type": "Tournament Explo", "street": "Preflop", "hands": 55, "elo": 18.6},
+    {"name": "River Bluffcatch MDF", "type": "Cash Games Explo", "street": "Postflop", "hands": 91, "elo": -64.2},
+]
+
+
+def _positions_from_pack(name: str) -> list[str]:
+    """Infer seat filters from a pack title like '40bb BTN vs LJ RFI'."""
+    aliases = {
+        "UTG+1": "UTG1",
+        "UTG1": "UTG1",
+        "UTG": "UTG",
+        "LJ": "LJ",
+        "HJ": "HJ",
+        "CO": "CO",
+        "BTN": "BTN",
+        "BU": "BTN",
+        "SB": "SB",
+        "BB": "BB",
+    }
+    positions: list[str] = []
+    for token in name.replace("-", " ").replace("/", " ").split():
+        normalized = aliases.get(token.upper())
+        if normalized and normalized not in positions:
+            positions.append(normalized)
+    return positions or ["BTN", "BB"]
+
+
+def _starting_spot_from_pack_street(street: str) -> str:
+    if street == "Postflop":
+        return "Flop"
+    if street in STARTING_SPOTS:
+        return street
+    return "Preflop"
 
 
 class PillToggleButton(QPushButton):
@@ -255,10 +307,69 @@ class DrillBuilderScreen(QWidget):
         self.summary.setAlignment(Qt.AlignCenter)
         right_layout.addWidget(self.summary)
 
+        library = QFrame()
+        library.setObjectName("Card")
+        library_layout = QVBoxLayout(library)
+        library_layout.setContentsMargins(16, 14, 16, 16)
+        library_layout.setSpacing(10)
+
+        library_header = QHBoxLayout()
+        library_title = QLabel("Training Pack Library")
+        library_title.setObjectName("SectionTitle")
+        library_header.addWidget(library_title)
+        library_header.addStretch(1)
+        self.pack_format_filter = QComboBox()
+        self.pack_format_filter.addItems([
+            "All",
+            "Tournaments 8-Max",
+            "Cash Games 8-Max",
+            "Tournaments ICM",
+            "Tournaments Explo",
+            "Cash Games Explo",
+            "Cash Games 6-Max",
+        ])
+        self.pack_street_filter = QComboBox()
+        self.pack_street_filter.addItems(["All", "Preflop", "Postflop"])
+        library_header.addWidget(self.pack_format_filter)
+        library_header.addWidget(self.pack_street_filter)
+        library_layout.addLayout(library_header)
+
+        self.training_library = QTableWidget(0, 4)
+        self.training_library.setHorizontalHeaderLabels(["Name", "Type", "Hands", "Elo"])
+        self.training_library.verticalHeader().setVisible(False)
+        self.training_library.setShowGrid(False)
+        self.training_library.setAlternatingRowColors(True)
+        self.training_library.setSelectionBehavior(QTableWidget.SelectRows)
+        self.training_library.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.training_library.setMinimumHeight(260)
+        self.training_library.setColumnWidth(0, 420)
+        self.training_library.setColumnWidth(1, 140)
+        self.training_library.setColumnWidth(2, 80)
+        self.training_library.setColumnWidth(3, 80)
+        self.training_library.setStyleSheet(
+            "QTableWidget { background: #111827; border: 1px solid #2D3748; border-radius: 8px; "
+            "color: #E5E7EB; alternate-background-color: #0F151D; }"
+            "QHeaderView::section { background: #1F2937; color: #E5E7EB; border: none; "
+            "padding: 8px; font-weight: 800; }"
+            "QTableWidget::item { padding: 7px; border-bottom: 1px solid #2D3748; }"
+            "QTableWidget::item:selected { background: #1B2A3D; color: #22D3EE; }"
+        )
+        self.training_library.cellClicked.connect(self._on_training_pack_selected)
+        self.training_library.cellDoubleClicked.connect(self._start_training_from_pack)
+        library_layout.addWidget(self.training_library)
+
+        hint = QLabel("Tek tık: pack filtrelerini yükler. Çift tık: Spot Practice Trainer'da başlatır.")
+        hint.setObjectName("Muted")
+        library_layout.addWidget(hint)
+        right_layout.addWidget(library)
+
         layout.addWidget(right, 1)
         self._update_badge()
         self._on_selection_changed(set())
         self._populate_my_drills()
+        self.pack_format_filter.currentTextChanged.connect(self._populate_training_library)
+        self.pack_street_filter.currentTextChanged.connect(self._populate_training_library)
+        self._populate_training_library()
 
     # --- helpers ---------------------------------------------------------
     def _switch_tab(self, which: str) -> None:
@@ -308,15 +419,7 @@ class DrillBuilderScreen(QWidget):
         if not isinstance(pack, dict):
             return
         # Restore the GUI to this pack's filter state
-        self.table.clear_selection()
-        for pos in pack.get("positions", []):
-            cell = self.table.cells.get(pos) if hasattr(self.table, "cells") else None
-            if cell is not None:
-                # OvalTable seats hold selectable state on each Seat object — toggle by clicking
-                seat = self.table.seats.get(pos) if hasattr(self.table, "seats") else None
-                if seat is not None:
-                    seat.selected = True
-        self.table.update()
+        self._apply_positions_to_table(pack.get("positions", []))
         # Update solution combo
         sol_text = pack.get("solution", "")
         idx = self.solution.findText(sol_text)
@@ -333,6 +436,115 @@ class DrillBuilderScreen(QWidget):
         self.coach_message.emit(
             f"Drill pack '{pack.get('name', '?')}' yüklendi. ▶ START TRAINING ile çalışmaya başlayabilirsin."
         )
+
+    def _apply_positions_to_table(self, positions: list[str]) -> None:
+        selected = set(positions)
+        for pos, seat in self.table.seats.items():
+            seat.selected = pos in selected
+        self.table.update()
+        self.table.selection_changed.emit(self.table.selection())
+
+    def _filtered_training_packs(self) -> list[dict]:
+        format_filter = self.pack_format_filter.currentText()
+        street_filter = self.pack_street_filter.currentText()
+
+        def matches_format(pack: dict) -> bool:
+            if format_filter == "All":
+                return True
+            pack_type = pack.get("type", "")
+            if format_filter == "Tournaments 8-Max":
+                return pack_type == "MTT"
+            if format_filter == "Cash Games 8-Max":
+                return pack_type.startswith("Cash")
+            if format_filter == "Tournaments ICM":
+                return pack_type == "Tournament ICM"
+            if format_filter == "Tournaments Explo":
+                return pack_type == "Tournament Explo"
+            if format_filter == "Cash Games Explo":
+                return pack_type == "Cash Games Explo"
+            if format_filter == "Cash Games 6-Max":
+                return pack_type == "Cash 6-Max"
+            return True
+
+        def matches_street(pack: dict) -> bool:
+            return street_filter == "All" or pack.get("street") in {street_filter, "All"}
+
+        return [pack for pack in TRAINING_PACKS if matches_format(pack) and matches_street(pack)]
+
+    def _populate_training_library(self) -> None:
+        packs = self._filtered_training_packs()
+        self.training_library.setRowCount(0)
+        for pack in packs:
+            row = self.training_library.rowCount()
+            self.training_library.insertRow(row)
+            if pack.get("group"):
+                item = QTableWidgetItem(pack["name"])
+                item.setData(Qt.UserRole, pack)
+                item.setFlags(item.flags() & ~Qt.ItemIsSelectable)
+                item.setForeground(QColor("#C7CED8"))
+                item.setBackground(QColor("#2B3037"))
+                self.training_library.setItem(row, 0, item)
+                self.training_library.setSpan(row, 0, 1, 4)
+                self.training_library.setRowHeight(row, 34)
+                continue
+
+            values = [
+                pack["name"],
+                pack.get("type", "-"),
+                "-" if pack.get("hands") is None else str(pack["hands"]),
+                "-" if pack.get("elo") is None else f"{pack['elo']:+.1f}",
+            ]
+            for column, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                item.setData(Qt.UserRole, pack)
+                if column in {2, 3}:
+                    item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                if column == 3 and pack.get("elo") is not None:
+                    item.setForeground(QColor("#10B981" if pack["elo"] >= 0 else "#EF4444"))
+                elif column == 0:
+                    item.setForeground(QColor("#E5E7EB"))
+                else:
+                    item.setForeground(QColor("#9CA3AF"))
+                self.training_library.setItem(row, column, item)
+
+    def _pack_at_row(self, row: int) -> dict | None:
+        item = self.training_library.item(row, 0)
+        if item is None:
+            return None
+        pack = item.data(Qt.UserRole)
+        return pack if isinstance(pack, dict) and not pack.get("group") else None
+
+    def _on_training_pack_selected(self, row: int, column: int) -> None:
+        pack = self._pack_at_row(row)
+        if pack is None:
+            return
+        positions = _positions_from_pack(pack["name"])
+        starting_spot = _starting_spot_from_pack_street(pack.get("street", "Preflop"))
+        self._apply_positions_to_table(positions)
+        self._set_button_group(self.starting_buttons, starting_spot)
+        self._set_button_group(self.preflop_buttons, "Any")
+        self.state.drill_filters = {
+            "pack_name": pack["name"],
+            "positions": positions,
+            "solution": pack.get("type", "MTT"),
+            "starting_spot": starting_spot,
+            "preflop_action": "Any",
+        }
+        self.coach_message.emit(
+            f"{pack['name']} yüklendi — {pack.get('hands') or 0} el, Elo {pack.get('elo', '-')}. "
+            "Çift tıkla doğrudan trainer'a geçebilirsin."
+        )
+
+    def _start_training_from_pack(self, row: int, column: int) -> None:
+        self._on_training_pack_selected(row, column)
+        if self._pack_at_row(row) is not None:
+            self.navigate_requested.emit("Spot Practice Trainer")
+
+    def _set_button_group(self, group: QButtonGroup, label: str) -> None:
+        fallback = "Preflop" if group is self.starting_buttons else "Any"
+        target = label if label != "All" else fallback
+        for btn in group.buttons():
+            btn.setChecked(btn.text() == target)
 
     def _save_pack(self) -> None:
         positions = sorted(self.table.selection())

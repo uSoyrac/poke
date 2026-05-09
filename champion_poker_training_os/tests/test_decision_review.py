@@ -68,3 +68,17 @@ def test_decision_review_persistence_round_trip(monkeypatch, tmp_path) -> None:
     assert summary["ev_loss"] == 0.8
     assert summary["worst"][0]["drill_target"].startswith("Repair drill")
 
+
+def test_training_spot_decision_review_uses_spot_shape() -> None:
+    from app.db.seed_data import generate_spot_drills
+    from app.training.decision_review import analyze_training_spot_decision
+
+    spot = generate_spot_drills(1)[0]
+    review = analyze_training_spot_decision(spot, spot["options"][0], 20001, context="tournament")
+
+    assert review["hand_id"] == 20001
+    assert review["spot_id"] == spot["id"]
+    assert review["hero_action"] == spot["options"][0]
+    assert review["solver_action"] in spot["options"]
+    assert review["source_confidence"] == spot["source_confidence"]
+    assert review["drill_target"]

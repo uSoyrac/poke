@@ -17,10 +17,11 @@ from PySide6.QtWidgets import (
 
 from app.ai.coach_engine import analyze_played_hand, session_summary
 from app.core.app_state import AppState
-from app.db.repository import save_played_hand
+from app.db.repository import save_decision_review, save_played_hand
 from app.engine.game_loop import PokerGame
 from app.engine.hand_state import ActionType
 from app.engine.bot_brain import BOT_ARCHETYPES
+from app.training.decision_review import analyze_hero_decision, format_decision_review, summarize_decision_reviews
 from app.ui.components.card_view import CardView
 from app.ui.components.live_poker_table import LivePokerTable
 from app.ui.components.metric_card import MetricCard
@@ -37,6 +38,8 @@ class FastPlaySimulatorScreen(QWidget):
         self.state = state
         self.game: PokerGame | None = None
         self.auto_fold_weak = False
+        self._current_decision_reviews: list[dict] = []
+        self._completed_hand_ids: set[int] = set()
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -222,6 +225,7 @@ class FastPlaySimulatorScreen(QWidget):
     def _deal(self) -> None:
         if not self.game:
             return
+        self._current_decision_reviews = []
         self.game.start_hand()
         self._refresh()
 
@@ -236,8 +240,23 @@ class FastPlaySimulatorScreen(QWidget):
         elif action_type == ActionType.ALL_IN:
             amount = hero.stack
 
+        review = None
+        try:
+            review = analyze_hero_decision(hand, action_type, amount)
+            review["hand_id"] = review["hand_id"] + 10000
+            review["spot_id"] = f"FAST-{review['spot_id']}"
+            self._current_decision_reviews.append(review)
+        except Exception:
+            review = None
+
         self.game.hero_act(action_type, amount)
         self._refresh()
+
+        if review and not hand.is_complete:
+            self.feedback.setText(format_decision_review(review))
+            self.feedback.setObjectName("Green" if review["is_correct"] else "Red")
+            self.feedback.style().unpolish(self.feedback)
+            self.feedback.style().polish(self.feedback)
 
         if hand.is_complete:
             self._on_complete()
@@ -252,11 +271,26 @@ class FastPlaySimulatorScreen(QWidget):
         amount = max(hand.big_blind, min(amount, hero.stack))
 
         to_call = hand.current_bet - hero.current_bet
+        action_type = ActionType.RAISE if to_call > 0 else ActionType.BET
+        review = None
+        try:
+            review = analyze_hero_decision(hand, action_type, amount)
+            review["hand_id"] = review["hand_id"] + 10000
+            review["spot_id"] = f"FAST-{review['spot_id']}"
+            self._current_decision_reviews.append(review)
+        except Exception:
+            review = None
         if to_call > 0:
             self.game.hero_act(ActionType.RAISE, amount)
         else:
             self.game.hero_act(ActionType.BET, amount)
         self._refresh()
+
+        if review and not hand.is_complete:
+            self.feedback.setText(format_decision_review(review))
+            self.feedback.setObjectName("Green" if review["is_correct"] else "Red")
+            self.feedback.style().unpolish(self.feedback)
+            self.feedback.style().polish(self.feedback)
 
         if hand.is_complete:
             self._on_complete()
@@ -374,11 +408,16 @@ class FastPlaySimulatorScreen(QWidget):
         if not self.game or not self.game.hand_history:
             return
         result = self.game.hand_history[-1]
+        persisted_hand_id = result.hand_id + 10000
+        if persisted_hand_id in self._completed_hand_ids:
+            return
+        self._completed_hand_ids.add(persisted_hand_id)
+        decision_summary = summarize_decision_reviews(self._current_decision_reviews)
 
         # Save to DB
         try:
             save_played_hand({
-                "hand_id": result.hand_id + 10000,  # Offset to avoid collision
+                "hand_id": persisted_hand_id,  # Offset to avoid collision
                 "hero_cards": result.hero_cards,
                 "community": result.community,
                 "pot": result.pot,
@@ -388,20 +427,26 @@ class FastPlaySimulatorScreen(QWidget):
                 "winner_hand_name": result.winner_hand_name,
                 "streets_seen": result.streets_seen,
             })
+            for review in self._current_decision_reviews:
+                save_decision_review(review)
         except Exception:
             pass
 
         icon = "✓" if result.hero_won else "✗"
         self.feedback.setText(
             f"{icon} #{result.hand_id} | {result.hero_cards} vs {result.community} | "
-            f"{result.hero_profit:+.1f}bb | {result.winner_hand_name}"
+            f"{result.hero_profit:+.1f}bb | {result.winner_hand_name} | "
+            f"Decisions {decision_summary['accuracy']:.0f}% | EV loss {decision_summary['ev_loss']:.2f}bb"
         )
         self.feedback.setObjectName("Green" if result.hero_won else "Red")
         self.feedback.style().unpolish(self.feedback)
         self.feedback.style().polish(self.feedback)
 
         # Compact history entry
-        entry = QLabel(f"#{result.hand_id} {result.hero_cards} | {result.hero_profit:+.1f}bb")
+        entry = QLabel(
+            f"#{result.hand_id} {result.hero_cards} | {result.hero_profit:+.1f}bb | "
+            f"{decision_summary['mistakes']} mistake(s)"
+        )
         entry.setObjectName("Green" if result.hero_won else "Muted")
         self.history_layout.addWidget(entry)
 

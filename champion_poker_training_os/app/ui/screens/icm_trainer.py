@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from app.ai.coach_engine import explain_spot
 from app.core.app_state import AppState
+from app.db.repository import save_decision_review
 from app.poker.icm import (
     bubble_factor,
     chip_ev_vs_dollar_ev,
@@ -24,6 +25,7 @@ from app.poker.icm import (
 )
 from app.db.seed_data import generate_spot_drills
 from app.solver.mock_solver import compare_action
+from app.training.decision_review import analyze_training_spot_decision
 from app.ui.components.poker_table import PokerTableView
 from app.ui.components.metric_card import MetricCard
 
@@ -300,6 +302,17 @@ class IcmTrainerScreen(QWidget):
         self.total += 1
 
         dollar_ev_loss = round(result["ev_loss"] * (1.0 + spot["risk_premium"] * 5), 2)
+        review = analyze_training_spot_decision(
+            spot,
+            action,
+            30000 + self.total,
+            dollar_ev_loss=dollar_ev_loss,
+            context="icm",
+        )
+        try:
+            save_decision_review(review)
+        except Exception:
+            pass
         is_punt = dollar_ev_loss > 0.7
 
         if result["is_correct"]:
@@ -327,11 +340,18 @@ class IcmTrainerScreen(QWidget):
 
         self.feedback_label.setText(
             f"Hero {action} | {chip_ev_text} | $EV loss: {dollar_ev_loss:.2f} | "
-            f"{'✓ Good ICM decision' if not is_punt else '✗ ICM PUNT — review risk premium'}"
+            f"{'✓ Good ICM decision' if not is_punt else '✗ ICM PUNT — review risk premium'} | "
+            f"{review['verdict']} | Drill: {review['drill_target']}"
             f"{icm_note}"
         )
 
-        self.coach_message.emit(explain_spot(spot, action))
+        self.coach_message.emit(
+            explain_spot(spot, action)
+            + "\n\nICM decision review:\n"
+            + f"Hero {review['hero_action']} vs baseline {review['solver_action']} | "
+            + f"$EV loss {review['ev_loss']:.2f} | Risk premium {spot['risk_premium']:.1%} | "
+            + f"Drill: {review['drill_target']}"
+        )
         self.index += 1
         self.load_spot()
 

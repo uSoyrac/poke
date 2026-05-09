@@ -46,6 +46,45 @@ def analyze_hero_decision(hand: HandState, hero_action: ActionType, amount: floa
     }
 
 
+def analyze_training_spot_decision(
+    spot: dict,
+    hero_action: str,
+    hand_id: int,
+    *,
+    dollar_ev_loss: float | None = None,
+    context: str = "training",
+) -> dict:
+    """Score a non-engine trainer/simulator spot and return a persisted review shape."""
+    comparison = compare_action(spot, hero_action)
+    ev_loss = float(dollar_ev_loss if dollar_ev_loss is not None else comparison["ev_loss"])
+    severity = severity_from_ev_loss(ev_loss)
+    verdict = "Correct" if comparison["is_correct"] else ("Close" if ev_loss <= 0.18 else "Mistake")
+    street = str(spot.get("street") or spot.get("stage") or context).lower()
+    return {
+        "hand_id": hand_id,
+        "spot_id": spot.get("id", f"{context.upper()}-{hand_id}"),
+        "street": street,
+        "position": spot.get("position", "Hero"),
+        "hero_cards": spot.get("hero_cards", ""),
+        "board": spot.get("board", ""),
+        "pot_bb": float(spot.get("pot_bb", 0.0) or 0.0),
+        "hero_action": hero_action,
+        "solver_action": comparison["best_action"],
+        "hero_ev": comparison["hero_ev"],
+        "best_ev": comparison["best_ev"],
+        "ev_loss": round(ev_loss, 2),
+        "solver_frequency": comparison["solver_frequency"],
+        "best_frequency": comparison["best_frequency"],
+        "is_correct": comparison["is_correct"],
+        "verdict": verdict,
+        "severity": severity,
+        "sizing_feedback": comparison["sizing_feedback"],
+        "exploit_note": exploit_note_for_spot(spot, hero_action),
+        "drill_target": drill_target_for_spot(spot, severity),
+        "source_confidence": spot.get("source_confidence", "Rule-based heuristic"),
+    }
+
+
 def build_decision_spot(hand: HandState, hero_action: ActionType, amount: float = 0.0) -> dict:
     hero = hand.hero
     hero_cards = "".join(card.code for card in (hero.hole_cards if hero else []))
@@ -300,4 +339,3 @@ def severity_from_ev_loss(ev_loss: float) -> str:
     if ev_loss >= 0.15:
         return "Medium"
     return "Low"
-

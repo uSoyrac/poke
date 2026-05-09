@@ -18,8 +18,10 @@ from PySide6.QtWidgets import (
 
 from app.ai.coach_engine import explain_spot
 from app.core.app_state import AppState
+from app.db.repository import save_decision_review
 from app.engine.hand_state import positions_for
 from app.simulator.mtt_engine import TournamentEngine
+from app.training.decision_review import analyze_training_spot_decision
 from app.ui.components.live_poker_table import LivePokerTable
 from app.ui.components.poker_table import PokerTableView
 from app.ui.components.spot_snapshot import build_spot_snapshot
@@ -335,14 +337,32 @@ class TournamentSimulatorScreen(QWidget):
     def decide(self, action: str) -> None:
         spot = self.engine.current_spot
         result = self.engine.decide(action)
+        review = analyze_training_spot_decision(
+            spot,
+            action,
+            20000 + self.engine.decisions_made,
+            dollar_ev_loss=result["dollar_ev_loss"],
+            context="tournament",
+        )
+        try:
+            save_decision_review(review)
+        except Exception:
+            pass
         chip_change = result["chip_stack"] - (self.engine.starting_stack if self.engine.decisions_made == 1 else self.engine.chip_stack)
         self.report.setText(
             f"Hero {action} | chipEV best {result['best_action']} | "
             f"$EV loss {result['dollar_ev_loss']:.2f} | "
             f"Stack now {result['chip_stack']:,} | "
-            f"Risk premium {result['risk_premium']:.1%}"
+            f"Risk premium {result['risk_premium']:.1%} | "
+            f"{review['verdict']} ({review['source_confidence']})"
         )
-        self.coach_message.emit(explain_spot(spot, action))
+        self.coach_message.emit(
+            explain_spot(spot, action)
+            + "\n\nTournament decision review:\n"
+            + f"Hero {review['hero_action']} vs baseline {review['solver_action']} | "
+            + f"$EV loss {review['ev_loss']:.2f} | {review['exploit_note']} | "
+            + f"Drill: {review['drill_target']}"
+        )
         self._refresh_context()
         self.load_spot()
 
