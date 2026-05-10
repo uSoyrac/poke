@@ -318,6 +318,8 @@ class DrillBuilderScreen(QWidget):
         library_title.setObjectName("SectionTitle")
         library_header.addWidget(library_title)
         library_header.addStretch(1)
+
+        # Format filter
         self.pack_format_filter = QComboBox()
         self.pack_format_filter.addItems([
             "All",
@@ -328,10 +330,27 @@ class DrillBuilderScreen(QWidget):
             "Cash Games Explo",
             "Cash Games 6-Max",
         ])
+        library_header.addWidget(QLabel("Type:"))
+        library_header.addWidget(self.pack_format_filter)
+
+        # Street filter
         self.pack_street_filter = QComboBox()
         self.pack_street_filter.addItems(["All", "Preflop", "Postflop"])
-        library_header.addWidget(self.pack_format_filter)
+        library_header.addWidget(QLabel("Street:"))
         library_header.addWidget(self.pack_street_filter)
+
+        # Elo filter
+        self.pack_elo_filter = QComboBox()
+        self.pack_elo_filter.addItems(["All", "Positive Elo", "Negative Elo", "High Impact (>50)", "Low Impact (<-50)"])
+        library_header.addWidget(QLabel("Elo:"))
+        library_header.addWidget(self.pack_elo_filter)
+
+        # Hands filter
+        self.pack_hands_filter = QComboBox()
+        self.pack_hands_filter.addItems(["All", "50+ hands", "100+ hands", "200+ hands"])
+        library_header.addWidget(QLabel("Hands:"))
+        library_header.addWidget(self.pack_hands_filter)
+
         library_layout.addLayout(library_header)
 
         self.training_library = QTableWidget(0, 4)
@@ -369,6 +388,8 @@ class DrillBuilderScreen(QWidget):
         self._populate_my_drills()
         self.pack_format_filter.currentTextChanged.connect(self._populate_training_library)
         self.pack_street_filter.currentTextChanged.connect(self._populate_training_library)
+        self.pack_elo_filter.currentTextChanged.connect(self._populate_training_library)
+        self.pack_hands_filter.currentTextChanged.connect(self._populate_training_library)
         self._populate_training_library()
 
     # --- helpers ---------------------------------------------------------
@@ -447,6 +468,8 @@ class DrillBuilderScreen(QWidget):
     def _filtered_training_packs(self) -> list[dict]:
         format_filter = self.pack_format_filter.currentText()
         street_filter = self.pack_street_filter.currentText()
+        elo_filter = self.pack_elo_filter.currentText()
+        hands_filter = self.pack_hands_filter.currentText()
 
         def matches_format(pack: dict) -> bool:
             if format_filter == "All":
@@ -469,7 +492,38 @@ class DrillBuilderScreen(QWidget):
         def matches_street(pack: dict) -> bool:
             return street_filter == "All" or pack.get("street") in {street_filter, "All"}
 
-        return [pack for pack in TRAINING_PACKS if matches_format(pack) and matches_street(pack)]
+        def matches_elo(pack: dict) -> bool:
+            if elo_filter == "All":
+                return True
+            elo = pack.get("elo")
+            if elo is None:
+                return False
+            if elo_filter == "Positive Elo":
+                return elo >= 0
+            if elo_filter == "Negative Elo":
+                return elo < 0
+            if elo_filter == "High Impact (>50)":
+                return elo > 50
+            if elo_filter == "Low Impact (<-50)":
+                return elo < -50
+            return True
+
+        def matches_hands(pack: dict) -> bool:
+            if hands_filter == "All":
+                return True
+            hands = pack.get("hands")
+            if hands is None:
+                return False
+            if hands_filter == "50+ hands":
+                return hands >= 50
+            if hands_filter == "100+ hands":
+                return hands >= 100
+            if hands_filter == "200+ hands":
+                return hands >= 200
+            return True
+
+        return [pack for pack in TRAINING_PACKS
+                if matches_format(pack) and matches_street(pack) and matches_elo(pack) and matches_hands(pack)]
 
     def _populate_training_library(self) -> None:
         packs = self._filtered_training_packs()

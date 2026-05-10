@@ -27,6 +27,167 @@ from app.poker.ranges import demo_frequency, range_matrix
 from app.ui.components.oval_table import DEFAULT_POSITIONS_9, OvalTable
 
 
+class ActionFrequencyMatrix(QWidget):
+    """Action-frequency matrix showing fold/check/call/bet/raise frequencies per hand.
+
+    Mirrors GTO Wizard's action-frequency matrix where each cell shows action distribution.
+    """
+
+    def __init__(self, mode: str = "BTN RFI"):
+        super().__init__()
+        self.mode = mode
+        self.setMinimumSize(280, 200)
+        # Action colors matching GTO Wizard style
+        self.action_colors = {
+            "fold": QColor("#EF4444"),      # Red
+            "check": QColor("#6B7280"),     # Gray
+            "call": QColor("#3B82F6"),      # Blue
+            "bet": QColor("#10B981"),       # Green
+            "raise": QColor("#F59E0B"),     # Orange
+            "jam": QColor("#8B5CF6"),       # Purple
+        }
+
+    def set_mode(self, mode: str) -> None:
+        self.mode = mode
+        self.update()
+
+    def _get_action_distribution(self, hand: str) -> dict[str, float]:
+        """Get mock action distribution for a hand based on mode."""
+        # This is a simplified mock - in production this would come from solver data
+        rng = random.Random(hash(hand + self.mode) % 10000)
+
+        # Base distribution varies by hand strength and mode
+        hand_strength = self._hand_strength(hand)
+
+        if "RFI" in self.mode:
+            if hand_strength > 80:
+                return {"raise": 70 + rng.randint(-10, 10), "fold": 30 + rng.randint(-10, 10)}
+            elif hand_strength > 50:
+                return {"raise": 40 + rng.randint(-10, 10), "fold": 60 + rng.randint(-10, 10)}
+            else:
+                return {"fold": 90 + rng.randint(-5, 5), "raise": 10 + rng.randint(-5, 5)}
+        elif "vs RFI" in self.mode:
+            if hand_strength > 75:
+                return {"call": 50 + rng.randint(-10, 10), "raise": 30 + rng.randint(-10, 10), "fold": 20 + rng.randint(-5, 5)}
+            elif hand_strength > 40:
+                return {"call": 60 + rng.randint(-10, 10), "fold": 40 + rng.randint(-10, 10)}
+            else:
+                return {"fold": 85 + rng.randint(-5, 5), "call": 15 + rng.randint(-5, 5)}
+        elif "vs 3bet" in self.mode:
+            if hand_strength > 85:
+                return {"call": 40 + rng.randint(-10, 10), "raise": 40 + rng.randint(-10, 10), "fold": 20 + rng.randint(-5, 5)}
+            elif hand_strength > 50:
+                return {"call": 50 + rng.randint(-10, 10), "fold": 50 + rng.randint(-10, 10)}
+            else:
+                return {"fold": 90 + rng.randint(-5, 5), "call": 10 + rng.randint(-5, 5)}
+        else:
+            # Default distribution
+            return {"fold": 50, "call": 30, "raise": 20}
+
+    def _hand_strength(self, hand: str) -> int:
+        """Simple hand strength estimation (0-100)."""
+        if not hand or len(hand) < 2:
+            return 50
+
+        ranks = hand[::2]
+        suits = hand[1::2]
+        is_pair = ranks[0] == ranks[1]
+        is_suited = len(suits) >= 2 and suits[0] == suits[1]
+
+        rank_order = "23456789TJQKA"
+        high_card = max(rank_order.index(r) for r in ranks) if ranks else 0
+
+        strength = 30  # Base strength
+
+        if is_pair:
+            strength += 40 + high_card * 2
+        elif is_suited:
+            strength += 15 + high_card
+        else:
+            strength += high_card
+
+        return min(100, strength)
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        w = self.width()
+        h = self.height()
+        cols = 13
+        rows = 13
+        cell_w = (w - 16) / cols
+        cell_h = (h - 16) / rows
+
+        # Draw grid background
+        painter.setPen(QPen(QColor("#1E2733"), 1))
+        for i in range(rows + 1):
+            y = 8 + i * cell_h
+            painter.drawLine(8, int(y), w - 8, int(y))
+        for j in range(cols + 1):
+            x = 8 + j * cell_w
+            painter.drawLine(int(x), 8, int(x), h - 8)
+
+        # Fill cells with action distribution
+        matrix = range_matrix()
+        for r, row_hands in enumerate(matrix):
+            for c, hand in enumerate(row_hands):
+                if not hand or len(hand) < 2:
+                    continue
+
+                x = 8 + c * cell_w
+                y = 8 + r * cell_h
+
+                # Get action distribution
+                actions = self._get_action_distribution(hand)
+
+                # Sort actions by frequency
+                sorted_actions = sorted(actions.items(), key=lambda x: x[1], reverse=True)
+
+                # Draw action segments
+                total = sum(actions.values())
+                if total == 0:
+                    continue
+
+                current_x = x + 1
+                remaining_w = cell_w - 2
+
+                for action, freq in sorted_actions:
+                    if freq < 5:  # Skip very small frequencies
+                        continue
+
+                    segment_w = int(remaining_w * freq / total)
+                    if segment_w < 1:
+                        continue
+
+                    color = self.action_colors.get(action, QColor("#6B7280"))
+                    painter.setPen(Qt.NoPen)
+                    painter.setBrush(color)
+                    painter.drawRoundedRect(int(current_x), int(y + 1), segment_w, int(cell_h - 2), 1, 1)
+
+                    current_x += segment_w
+                    remaining_w -= segment_w
+
+        # Draw action legend at bottom
+        legend_y = h - 20
+        legend_x = 8
+        legend_spacing = 70
+
+        for action, color in self.action_colors.items():
+            painter.setBrush(color)
+            painter.setPen(Qt.NoPen)
+            painter.drawRoundedRect(int(legend_x), int(legend_y), 12, 12, 2, 2)
+
+            painter.setPen(QColor("#9CA3AF"))
+            font = QFont()
+            font.setPointSize(8)
+            painter.setFont(font)
+            painter.drawText(int(legend_x + 16), int(legend_y + 10), action.capitalize())
+
+            legend_x += legend_spacing
+
+        painter.end()
+
+
 class RangeMosaic(QWidget):
     """Compact orange/colored heat-mosaic representation of a range, like the screenshot.
 
@@ -224,8 +385,8 @@ class RangeViewerScreen(QWidget):
         bb_lbl.addWidget(bb_eye)
         bb_box.addLayout(bb_lbl)
 
-        sb_box.addWidget(RangeMosaic("SB strategy", color="#F59E0B"))
-        bb_box.addWidget(RangeMosaic("BB defend", color="#F59E0B"))
+        sb_box.addWidget(ActionFrequencyMatrix("SB RFI"))
+        bb_box.addWidget(ActionFrequencyMatrix("BB vs RFI"))
 
         lbl_row.addLayout(sb_box)
         lbl_row.addLayout(bb_box)
