@@ -46,6 +46,7 @@ from app.ui.screens.study_library import StudyLibraryScreen
 from app.ui.screens.study_planner import StudyPlannerScreen
 from app.ui.screens.tournament_simulator import TournamentSimulatorScreen
 from app.ui.screens.tournament_play import TournamentPlayScreen
+from app.ui.screens.gto_trainer import GTOTrainerScreen
 from app.ui.screens.heads_up_trainer import HeadsUpTrainerScreen
 from app.ui.theme.theme_manager import apply_dark_theme
 
@@ -79,6 +80,7 @@ NAV_ITEMS = [
     "Play Session",
     "Hands",
     "Drills",
+    "GTO Trainer (Range View)",
     "GTO Study Library",
     "Spot Practice Trainer",
     "Hand History Analyzer",
@@ -106,6 +108,7 @@ NAV_ITEMS = [
 RESTRICTED_WHEN_LOCKED = {
     "Play Session",
     "Drills",
+    "GTO Trainer (Range View)",
     "GTO Study Library",
     "Spot Practice Trainer",
     "Hand History Analyzer",
@@ -131,7 +134,9 @@ class MainWindow(QMainWindow):
         initialize_database()
 
         self.setWindowTitle(APP_NAME)
-        self.resize(1500, 920)
+        # Larger default; minimum size ensures content fits without clipping
+        self.resize(1680, 1000)
+        self.setMinimumSize(1200, 760)
         root = QWidget()
         root.setObjectName("RootWindow")
         self.setCentralWidget(root)
@@ -163,8 +168,8 @@ class MainWindow(QMainWindow):
         content_row.setSpacing(10)
         content_row.addWidget(self.stack, 1)
         content_row.addWidget(self.coach, 0)
-        self.coach.setMinimumWidth(330)
-        self.coach.setMaximumWidth(390)
+        self.coach.setMinimumWidth(260)
+        self.coach.setMaximumWidth(320)
         main_col.addLayout(content_row, 1)
         main_col.addWidget(bottom)
 
@@ -172,7 +177,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.sidebar)
-        self.sidebar.setFixedWidth(250)
+        self.sidebar.setFixedWidth(210)
         layout.addLayout(main_col, 1)
 
         self.scan_compliance()
@@ -187,6 +192,7 @@ class MainWindow(QMainWindow):
             "Play Session": PlaySessionScreen,
             "Hands": HandsListScreen,
             "Drills": DrillBuilderScreen,
+            "GTO Trainer (Range View)": GTOTrainerScreen,
             "GTO Study Library": StudyLibraryScreen,
             "Spot Practice Trainer": SpotTrainerScreen,
             "Hand History Analyzer": HandAnalyzerScreen,
