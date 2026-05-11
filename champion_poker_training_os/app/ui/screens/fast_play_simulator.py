@@ -154,21 +154,61 @@ class FastPlaySimulatorScreen(QWidget):
         self.call_btn.setObjectName("PrimaryButton")
         self.call_btn.setFixedHeight(50)
         self.call_btn.clicked.connect(lambda: self._act(ActionType.CALL))
-        self.bet_half_btn = QPushButton("BET ½ (B)")
+        # Multiple bet sizing buttons — covers all real-world sizings
+        self.bet_third_btn = QPushButton("BET ⅓ (1)")
+        self.bet_third_btn.setObjectName("PrimaryButton")
+        self.bet_third_btn.setFixedHeight(50)
+        self.bet_third_btn.setToolTip("Bet 33% of the pot")
+        self.bet_third_btn.clicked.connect(lambda: self._bet_pct(0.33))
+
+        self.bet_half_btn = QPushButton("BET ½ (2)")
         self.bet_half_btn.setObjectName("PrimaryButton")
         self.bet_half_btn.setFixedHeight(50)
+        self.bet_half_btn.setToolTip("Bet 50% of the pot")
         self.bet_half_btn.clicked.connect(lambda: self._bet_pct(0.5))
-        self.bet_pot_btn = QPushButton("BET POT (P)")
+
+        self.bet_threequart_btn = QPushButton("BET ¾ (3)")
+        self.bet_threequart_btn.setObjectName("PrimaryButton")
+        self.bet_threequart_btn.setFixedHeight(50)
+        self.bet_threequart_btn.setToolTip("Bet 75% of the pot")
+        self.bet_threequart_btn.clicked.connect(lambda: self._bet_pct(0.75))
+
+        self.bet_pot_btn = QPushButton("BET POT (4)")
         self.bet_pot_btn.setObjectName("PrimaryButton")
         self.bet_pot_btn.setFixedHeight(50)
+        self.bet_pot_btn.setToolTip("Bet 100% of the pot")
         self.bet_pot_btn.clicked.connect(lambda: self._bet_pct(1.0))
+
+        self.bet_overbet_btn = QPushButton("OVERBET (5)")
+        self.bet_overbet_btn.setObjectName("PrimaryButton")
+        self.bet_overbet_btn.setFixedHeight(50)
+        self.bet_overbet_btn.setToolTip("Bet 150% of the pot")
+        self.bet_overbet_btn.clicked.connect(lambda: self._bet_pct(1.5))
+
+        # Custom sizing input — type any %, BB, or multiplier
+        from PySide6.QtWidgets import QLineEdit
+        self.custom_size_input = QLineEdit()
+        self.custom_size_input.setPlaceholderText("50% / 2.5x / 3bb")
+        self.custom_size_input.setFixedWidth(110)
+        self.custom_size_input.setFixedHeight(50)
+        self.custom_size_input.setToolTip("Type any sizing: 67%, 2.2x pot, 3.5bb")
+        self.bet_custom_btn = QPushButton("BET CUSTOM")
+        self.bet_custom_btn.setObjectName("PrimaryButton")
+        self.bet_custom_btn.setFixedHeight(50)
+        self.bet_custom_btn.clicked.connect(self._bet_custom)
+
         self.allin_btn = QPushButton("ALL-IN (A)")
         self.allin_btn.setObjectName("DangerButton")
         self.allin_btn.setFixedHeight(50)
         self.allin_btn.clicked.connect(lambda: self._act(ActionType.ALL_IN))
 
-        for btn in [self.fold_btn, self.check_btn, self.call_btn, self.bet_half_btn, self.bet_pot_btn, self.allin_btn]:
+        for btn in [self.fold_btn, self.check_btn, self.call_btn,
+                    self.bet_third_btn, self.bet_half_btn, self.bet_threequart_btn,
+                    self.bet_pot_btn, self.bet_overbet_btn]:
             action_row.addWidget(btn)
+        action_row.addWidget(self.custom_size_input)
+        action_row.addWidget(self.bet_custom_btn)
+        action_row.addWidget(self.allin_btn)
         game_layout.addLayout(action_row)
 
         # Feedback
@@ -268,8 +308,43 @@ class FastPlaySimulatorScreen(QWidget):
         hero = hand.hero
         pot = max(hand.pot, 1)
         amount = round(pot * pct, 1)
-        amount = max(hand.big_blind, min(amount, hero.stack))
+        self._fire_bet(amount)
 
+    def _bet_custom(self) -> None:
+        """Custom bet sizing — parse user input as %, x (pot multiplier), bb, or absolute."""
+        if not self.game or not self.game.is_waiting_for_hero:
+            return
+        raw = (self.custom_size_input.text() or "").strip()
+        if not raw:
+            self.feedback.setText("Custom sizing: önce input'a yaz (örn '67%', '2.2x', '5bb', '12').")
+            return
+        hand = self.game.current_hand
+        hero = hand.hero
+        pot  = max(hand.pot, 1)
+        amount = None
+        try:
+            if raw.endswith("%"):
+                amount = pot * float(raw[:-1]) / 100.0
+            elif raw.lower().endswith("x"):
+                amount = pot * float(raw[:-1])
+            elif raw.lower().endswith("bb"):
+                amount = float(raw[:-2]) * hand.big_blind
+            else:
+                amount = float(raw)
+        except ValueError:
+            self.feedback.setText(f"Geçersiz sizing: '{raw}'. Örnek: 67% / 2.2x / 5bb / 12")
+            return
+        if amount is None or amount <= 0:
+            return
+        self._fire_bet(round(amount, 1))
+
+    def _fire_bet(self, amount: float) -> None:
+        """Execute a bet/raise with the resolved amount (shared by all sizing buttons)."""
+        if not self.game or not self.game.is_waiting_for_hero:
+            return
+        hand = self.game.current_hand
+        hero = hand.hero
+        amount = max(hand.big_blind, min(amount, hero.stack))
         to_call = hand.current_bet - hero.current_bet
         action_type = ActionType.RAISE if to_call > 0 else ActionType.BET
         review = None
@@ -285,7 +360,6 @@ class FastPlaySimulatorScreen(QWidget):
         else:
             self.game.hero_act(ActionType.BET, amount)
         self._refresh()
-
         if review and not hand.is_complete:
             self.feedback.setText(format_decision_review(review))
             self.feedback.setObjectName("Green" if review["is_correct"] else "Red")
@@ -390,8 +464,11 @@ class FastPlaySimulatorScreen(QWidget):
         self.check_btn.setEnabled(ActionType.CHECK in valid_types)
         self.call_btn.setEnabled(ActionType.CALL in valid_types)
         self.call_btn.setText(f"CALL {to_call:.1f}" if to_call > 0 else "CALL")
-        self.bet_half_btn.setEnabled(ActionType.BET in valid_types or ActionType.RAISE in valid_types)
-        self.bet_pot_btn.setEnabled(ActionType.BET in valid_types or ActionType.RAISE in valid_types)
+        can_bet_or_raise = ActionType.BET in valid_types or ActionType.RAISE in valid_types
+        for b in (self.bet_third_btn, self.bet_half_btn, self.bet_threequart_btn,
+                  self.bet_pot_btn, self.bet_overbet_btn, self.bet_custom_btn):
+            b.setEnabled(can_bet_or_raise)
+        self.custom_size_input.setEnabled(can_bet_or_raise)
         self.allin_btn.setEnabled(waiting)
 
         # Update stats

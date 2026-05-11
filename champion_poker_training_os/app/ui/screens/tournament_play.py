@@ -34,6 +34,7 @@ from app.engine.game_loop import PokerGame
 from app.engine.hand_state import ActionType, HandState, Street, positions_for
 from app.solver.mock_solver import compare_action, solve_spot
 from app.training.trainer_scoring import score_decision, skill_label
+from app.ui.components.card_view import CardView
 from app.ui.components.live_poker_table import LivePokerTable
 
 # ── colour constants ───────────────────────────────────────────────────────
@@ -248,16 +249,38 @@ class TournamentPlayScreen(QWidget):
         self.live_table.setMinimumHeight(360)
         lv.addWidget(self.live_table, 1)
 
-        # Cards bar
+        # Cards bar: hero hole cards (CardView) + community + context
         cards_bar = QFrame()
-        cards_bar.setFixedHeight(68)
+        cards_bar.setFixedHeight(96)
         cards_bar.setStyleSheet(f"background:#0A0F16;border-top:1px solid {_C_BORDER};")
-        cbr = QHBoxLayout(cards_bar); cbr.setContentsMargins(16,6,16,6); cbr.setSpacing(10)
-        self._hand_info = QLabel("—  waiting for deal  —")
-        self._hand_info.setStyleSheet(f"color:{_C_MUTED};font-size:13px;")
-        cbr.addWidget(QLabel("Your cards:"))
-        cbr.addWidget(self._hand_info, 1)
+        cbr = QHBoxLayout(cards_bar); cbr.setContentsMargins(16,8,16,8); cbr.setSpacing(12)
+
+        # Hero cards on the left
+        hero_block = QVBoxLayout(); hero_block.setSpacing(2)
+        hero_lbl = QLabel("Your hand"); hero_lbl.setStyleSheet(f"color:{_C_MUTED};font-size:10px;")
+        hero_block.addWidget(hero_lbl)
+        self._hero_cards_row = QHBoxLayout(); self._hero_cards_row.setSpacing(4)
+        hero_cards_w = QWidget(); hero_cards_w.setLayout(self._hero_cards_row)
+        hero_block.addWidget(hero_cards_w)
+        cbr.addLayout(hero_block)
+
+        # Vertical separator
+        sep = QFrame(); sep.setFixedWidth(1); sep.setStyleSheet(f"background:{_C_BORDER};")
+        cbr.addWidget(sep)
+
+        # Board cards
+        board_block = QVBoxLayout(); board_block.setSpacing(2)
+        board_lbl = QLabel("Board"); board_lbl.setStyleSheet(f"color:{_C_MUTED};font-size:10px;")
+        board_block.addWidget(board_lbl)
+        self._board_row = QHBoxLayout(); self._board_row.setSpacing(4)
+        board_w = QWidget(); board_w.setLayout(self._board_row)
+        board_block.addWidget(board_w)
+        cbr.addLayout(board_block)
+
+        # Context label on the right
+        cbr.addStretch(1)
         self._spot_ctx = QLabel()
+        self._spot_ctx.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self._spot_ctx.setStyleSheet(f"color:{_C_MUTED};font-size:11px;")
         cbr.addWidget(self._spot_ctx)
         lv.addWidget(cards_bar)
@@ -412,20 +435,36 @@ class TournamentPlayScreen(QWidget):
         self.live_table.update_state(hand)
 
     def _show_hand_cards(self, hand: HandState) -> None:
+        # Hero hole cards
+        _clear_layout(self._hero_cards_row)
         hero = hand.hero
         if hero and hero.hole_cards:
-            cards_str = "  ".join(c.display for c in hero.hole_cards)
-            self._hand_info.setText(cards_str)
-            self._hand_info.setStyleSheet(f"color:{_C_CYAN};font-size:15px;font-weight:700;")
+            for c in hero.hole_cards:
+                self._hero_cards_row.addWidget(CardView(c.display))
         else:
-            self._hand_info.setText("?? ??")
-            self._hand_info.setStyleSheet(f"color:{_C_MUTED};font-size:13px;")
+            for _ in range(2):
+                self._hero_cards_row.addWidget(CardView("", face_down=True))
+
+        # Board / community cards
+        _clear_layout(self._board_row)
+        community = list(hand.community) if hand.community else []
+        for c in community:
+            self._board_row.addWidget(CardView(c.display))
+        # Pad with placeholders so the board area shows what's coming
+        for _ in range(5 - len(community)):
+            placeholder = QLabel("⬚")
+            placeholder.setFixedSize(52, 72)
+            placeholder.setAlignment(Qt.AlignCenter)
+            placeholder.setStyleSheet(f"color:#374151;font-size:28px;background:#0A0F16;border:1px dashed #1F2937;border-radius:6px;")
+            self._board_row.addWidget(placeholder)
+
         # Context label
         sb, bb, _ = self._blinds()
         hero_pos = hand.hero.position if hand.hero else "??"
         self._spot_ctx.setText(
             f"L{self.session.level} · {sb}/{bb}  ·  {hero_pos}  ·  "
-            f"Stack {self.session.hero_stack:,}  ·  Hand #{self.session.hands_played}"
+            f"Stack {self.session.hero_stack:,}  ·  Hand #{self.session.hands_played}\n"
+            f"Street: {hand.street.name.title()}  ·  Pot: {hand.pot:.0f}"
         )
 
     # ── action buttons ─────────────────────────────────────────────────────
@@ -500,6 +539,8 @@ class TournamentPlayScreen(QWidget):
         # Apply action to engine and finish hand
         hand_after = self.game.hero_act(action_type)
         self._refresh_table(hand_after)
+        # Refresh hero cards + board after streets advance so flop/turn/river show up
+        self._show_hand_cards(hand_after)
 
         if hand_after.is_complete or not self.game.is_waiting_for_hero:
             self._on_hand_done(hand_after)
