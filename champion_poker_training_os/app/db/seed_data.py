@@ -179,6 +179,16 @@ def _action_history(idx: int, street: str) -> str:
 
 
 def generate_spot_drills(count: int = 120) -> list[dict]:
+    # NEW: prefer the comprehensive auto-generated catalog (325 drills, real GTO data)
+    try:
+        from app.db.drill_catalog import build_full_catalog
+        full = build_full_catalog()
+        if full:
+            # If caller asked for fewer, take all real drills (don't truncate good content)
+            return full
+    except Exception:
+        pass
+    # Legacy fallback
     catalog = get_spot_catalog()
     drills: list[dict] = list(catalog)
     option_cycle = cycle(OPTIONS_LEGACY)

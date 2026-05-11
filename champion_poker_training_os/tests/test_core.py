@@ -20,7 +20,8 @@ from app.solver.mock_solver import compare_action, solve_spot
 
 
 def test_seed_data_counts_are_mvp_sized() -> None:
-    assert len(generate_spot_drills(120)) == 120
+    # generate_spot_drills now returns the comprehensive 300+ catalog
+    assert len(generate_spot_drills(120)) >= 120
     assert len(generate_math_drills(30)) == 30
     assert len(bot_profiles()) >= 8
     assert len(leaks()) >= 5

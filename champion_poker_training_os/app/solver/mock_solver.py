@@ -150,6 +150,9 @@ def _chart_to_solver_result(spot: dict, chart: dict) -> SolverResult:
 def _mock_solve_spot(spot: dict) -> SolverResult:
     options = tuple(spot.get("options") or BASE_ACTIONS[:5])
     best = spot.get("best_action") or options[_stable_number(spot.get("id", "spot"), len(options))]
+    # Defensive: if best_action isn't in options, pick a middle option
+    if best not in options:
+        best = options[len(options) // 2] if options else "fold"
     source = spot.get("source_confidence", "Mock/demo solver")
     base_ev = float(spot.get("base_ev", 1.35))
     actions: list[SolverAction] = []
