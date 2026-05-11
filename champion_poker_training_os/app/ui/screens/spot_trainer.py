@@ -1,62 +1,193 @@
+"""Spot Practice Trainer — GTO Wizard-style interactive quiz.
+
+Layout:
+  ┌─────────────────────────────────────────────────────────────┐
+  │ [UTG fold] [LJ fold] [HJ fold] [CO fold] [BTN 2bb] [BB ●]  │  ← position strip
+  ├───────────────────────────┬─────────────────────────────────┤
+  │  [Spot List sidebar]      │  [Oval Poker Table]             │
+  │  • 25bb LJ RFI vs BB     │  25bb 8Max MTT                  │
+  │  • 40bb BTN vs LJ RFI    │  BB vs BTN Open Raise Ante 12.5%│
+  │  …                        │  Hero cards + POT label          │
+  ├───────────────────────────┴─────────────────────────────────┤
+  │   [FOLD]   [CALL]   [RAISE 7.2bb]   [ALL-IN 25bb]          │  ← before answer
+  │  After → [CHECK 95.4%] [BET 1.4 4.4%] [BET 23.0 0.1%]     │
+  └─────────────────────────────────────────────────────────────┘
+"""
 from __future__ import annotations
 
 import random
 from typing import Any
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
-    QButtonGroup,
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
+    QSplitter,
     QVBoxLayout,
     QWidget,
 )
 
 from app.ai.coach_engine import explain_spot
 from app.core.app_state import AppState
-from app.db.seed_data import generate_spot_drills
+from app.db.seed_data import generate_spot_drills, get_spot_categories
 from app.solver.csv_importer import get_solver_library
 from app.solver.mock_solver import compare_action, solve_spot
 from app.training.trainer_scoring import score_decision, skill_label
 from app.ui.components.action_chip import parse_action_string
 from app.ui.components.oval_table import DEFAULT_POSITIONS_9, OvalTable
-from app.ui.components.poker_table import PokerTableView
-from app.ui.components.solver_bar import EVLossBadge, SolverFrequencyBar
 
 
-SIZING_PRESETS = ["33%", "50%", "75%", "130%"]
+# ── colour constants ──────────────────────────────────────────────────────
+_C_BG       = "#0C1117"
+_C_CARD     = "#131A24"
+_C_BORDER   = "#1E2733"
+_C_MUTED    = "#6B7280"
+_C_TEXT     = "#E5E7EB"
+_C_CYAN     = "#22D3EE"
+_C_GREEN    = "#10B981"
+_C_RED      = "#EF4444"
+_C_AMBER    = "#F59E0B"
+
+# Action button colour palettes: (background, border, text)
+_BTN_FOLD   = ("#1B2D4A", "#3B82F6", "#93C5FD")
+_BTN_CALL   = ("#0E2A1E", "#10B981", "#6EE7B7")
+_BTN_RAISE  = ("#2A1B1B", "#EF4444", "#FCA5A5")
+_BTN_JAM    = ("#1A0E0E", "#7F1D1D", "#FCA5A5")
+_BTN_CHECK  = ("#0E2A1E", "#10B981", "#6EE7B7")
+_BTN_BET    = ("#2A1B1B", "#EF4444", "#FCA5A5")
 
 
-def _spread_actions_for_spot(spot: dict[str, Any], rng: random.Random) -> dict[str, list[str]]:
-    """Make a plausible action map per position from the spot's action_history string."""
-    positions = ["LJ", "HJ", "CO", "BTN", "SB", "BB", "UTG", "UTG1"]
-    history = spot.get("action_history", "") or ""
-    tokens = parse_action_string(history)[:8]
-    hero_pos = spot.get("position") or "BTN"
-    if hero_pos not in positions:
-        hero_pos = "BTN"
+def _action_palette(action: str) -> tuple[str, str, str]:
+    a = action.lower()
+    if "fold" in a:       return _BTN_FOLD
+    if "call" in a:       return _BTN_CALL
+    if "check" in a:      return _BTN_CHECK
+    if "jam" in a or "all" in a: return _BTN_JAM
+    if "raise" in a or "3bet" in a or "4bet" in a: return _BTN_RAISE
+    if "bet" in a:        return _BTN_BET
+    return (_C_CARD, _C_BORDER, _C_TEXT)
 
-    layout: dict[str, list[str]] = {p: [] for p in positions}
-    # Most positions fold preflop
-    for p in positions:
-        if p == hero_pos:
-            continue
-        layout[p] = ["F"] if rng.random() < 0.65 else []
 
-    # Distribute the parsed history across hero + a few villains
-    villain = rng.choice([p for p in positions if p != hero_pos and not layout[p]] or [hero_pos])
-    if tokens:
-        layout[hero_pos] = tokens
-    else:
-        layout[hero_pos] = ["R 2.3"]
-    if villain != hero_pos:
-        layout[villain] = ["C", "X", "B 25%", "C"][: max(1, len(tokens) - 1)]
-    return {k: v for k, v in layout.items() if v}
+def _action_display(action: str, spot: dict) -> str:
+    """Human-readable label: CALL, RAISE 7.2bb, BET 1.4bb, etc."""
+    a = action.lower()
+    pot = float(spot.get("pot_bb", 10))
+    stk = float(spot.get("stack_bb", 40))
+    if "small" in a:   return f"BET {pot * 0.33:.1f}bb"
+    if "medium" in a:  return f"BET {pot * 0.66:.1f}bb"
+    if "large" in a:   return f"BET {pot * 1.10:.1f}bb"
+    if "jam" in a or "all-in" in a: return f"ALL-IN {stk:.0f}bb"
+    if "raise" in a:   return f"RAISE {pot * 2.4:.1f}bb"
+    if "3bet" in a:    return f"3-BET {pot * 3:.1f}bb"
+    if "4bet" in a:    return f"4-BET {pot * 4:.1f}bb"
+    return action.upper()
+
+
+class _GtoActionButton(QPushButton):
+    """Action button that optionally shows a GTO frequency bar."""
+
+    def __init__(self, label: str, action: str, parent=None):
+        super().__init__(label, parent)
+        self._action = action
+        self._freq: float | None = None
+        bg, border, fg = _action_palette(action)
+        self._bg = bg; self._border = border; self._fg = fg
+        self.setMinimumHeight(64)
+        self.setMinimumWidth(120)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self._apply_style(False)
+
+    def set_frequency(self, freq: float) -> None:
+        """Show GTO % on button after user answers."""
+        self._freq = freq
+        self._apply_style(True)
+        pct = f"{freq * 100:.1f}%"
+        self.setText(f"{self.text().split(chr(10))[0]}\n{pct}")
+        self.update()
+
+    def _apply_style(self, answered: bool) -> None:
+        opacity = "ff" if answered else "cc"
+        self.setStyleSheet(f"""
+            QPushButton {{
+                background: {self._bg};
+                border: 2px solid {self._border};
+                border-radius: 10px;
+                color: {self._fg};
+                font-size: 15px;
+                font-weight: 800;
+                padding: 8px 16px;
+            }}
+            QPushButton:hover {{
+                border-color: {self._cyan_or_border()};
+                background: {self._bg}dd;
+            }}
+        """)
+
+    def _cyan_or_border(self) -> str:
+        return _C_CYAN if self._freq is not None else self._border
+
+    def paintEvent(self, event):  # type: ignore[override]
+        super().paintEvent(event)
+        if self._freq is not None and self._freq > 0:
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.Antialiasing)
+            r = self.rect()
+            bar_w = max(4, int(r.width() * self._freq))
+            bar_h = 4
+            bar_y = r.height() - 8
+            painter.setPen(Qt.NoPen)
+            col = QColor(self._border)
+            col.setAlphaF(0.8)
+            painter.setBrush(col)
+            painter.drawRoundedRect(8, bar_y, bar_w - 16, bar_h, 2, 2)
+            painter.end()
+
+
+class _PositionChip(QLabel):
+    """Small chip showing a position + last action."""
+
+    def __init__(self, position: str, action: str = "", is_hero: bool = False):
+        super().__init__()
+        self._pos = position
+        self._action = action
+        self._is_hero = is_hero
+        self._refresh()
+        self.setAlignment(Qt.AlignCenter)
+        self.setFixedHeight(48)
+        self.setMinimumWidth(64)
+
+    def update_action(self, action: str, is_hero: bool = False) -> None:
+        self._action = action
+        self._is_hero = is_hero
+        self._refresh()
+
+    def _refresh(self) -> None:
+        a = self._action.lower()
+        if self._is_hero:
+            bg, border, ac_color = "#1B2D4A", _C_CYAN, _C_CYAN
+            action_text = "Action"
+        elif "fold" in a or a == "f":
+            bg, border, ac_color = "#0C1117", "#374151", _C_MUTED
+            action_text = "Fold"
+        elif a:
+            bg, border, ac_color = "#0E2A1E", _C_GREEN, _C_GREEN
+            action_text = self._action[:6]
+        else:
+            bg, border, ac_color = _C_CARD, _C_BORDER, _C_TEXT
+            action_text = ""
+
+        pos_html = f'<span style="color:{_C_TEXT};font-size:12px;font-weight:700;">{self._pos}</span>'
+        act_html = f'<br><span style="color:{ac_color};font-size:11px;font-weight:600;">{action_text}</span>'
+        self.setText(pos_html + (act_html if action_text else ""))
+        self.setTextFormat(Qt.RichText)
+        self.setStyleSheet(
+            f"QLabel {{ background:{bg}; border:1.5px solid {border}; border-radius:8px; padding:4px 8px; }}"
+        )
 
 
 class SpotTrainerScreen(QWidget):
@@ -66,134 +197,200 @@ class SpotTrainerScreen(QWidget):
         super().__init__()
         self.state = state
         self.drills = generate_spot_drills(120)
-        self.index = 0
-        self.seed = random.randint(1, 99)
-        self._rng = random.Random(self.seed)
-        self.feedback_layout = QVBoxLayout()
-        self.action_layout = QHBoxLayout()
-        self.sizing_buttons: list[QPushButton] = []
+        self.index  = 0
+        self.seed   = random.randint(1, 99)
+        self._rng   = random.Random(self.seed)
+        self._answered = False
+        self._current_action_buttons: list[_GtoActionButton] = []
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        body = QWidget()
-        scroll.setWidget(body)
+        # ── root layout ──────────────────────────────────────────────────
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.addWidget(scroll)
-        layout = QVBoxLayout(body)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(14)
+        root.setSpacing(0)
 
-        # --- Header ---
-        header = QHBoxLayout()
-        title = QLabel("Spot Practice Trainer")
-        title.setObjectName("Title")
-        header.addWidget(title)
+        # ── position strip (top bar) ─────────────────────────────────────
+        pos_bar = QFrame()
+        pos_bar.setObjectName("Card")
+        pos_bar.setFixedHeight(62)
+        pos_bar.setStyleSheet(f"QFrame#Card {{ background:{_C_CARD}; border-bottom:1px solid {_C_BORDER}; border-radius:0; }}")
+        pos_row = QHBoxLayout(pos_bar)
+        pos_row.setContentsMargins(12, 6, 12, 6)
+        pos_row.setSpacing(6)
 
-        # Solver-source badge (live: shows whether current spot uses imported PIO/GTO data or mock)
-        self.source_badge = QLabel("⚙ Mock solver")
-        self.source_badge.setStyleSheet(
-            "QLabel { background: #5C1F22; color: #F87171; font-weight: 800; "
-            "padding: 5px 12px; border-radius: 11px; }"
-        )
-        header.addWidget(self.source_badge)
-        header.addStretch(1)
-        for mode in ["Quick drill", "Timed mode", "Mistakes-only", "Boss battle"]:
-            button = QPushButton(mode)
-            button.clicked.connect(
-                lambda checked=False, m=mode: self.coach_message.emit(
-                    f"{m} aktif. Feedback demo solver ile üretilecek."
-                )
+        # Mode buttons (left side of strip)
+        for mode, icon in [("Quick", "⚡"), ("Timed", "⏱"), ("Mistakes", "❌"), ("Boss", "👑")]:
+            b = QPushButton(f"{icon} {mode}")
+            b.setFixedHeight(34)
+            b.setStyleSheet(
+                f"QPushButton{{background:{_C_BG};border:1px solid {_C_BORDER};border-radius:7px;"
+                f"padding:4px 10px;color:{_C_MUTED};font-size:12px;}}"
+                f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
             )
-            header.addWidget(button)
-        reroll = QPushButton("🎲 Reroll seed")
+            b.clicked.connect(lambda _, m=mode: self.coach_message.emit(f"{m} modu aktif."))
+            pos_row.addWidget(b)
+
+        pos_row.addSpacing(16)
+        pos_row.addWidget(_VSep())
+
+        # Position chips (will be updated per spot)
+        self._pos_chips: dict[str, _PositionChip] = {}
+        positions_8max = ["UTG", "UTG+1", "LJ", "HJ", "CO", "BTN", "SB", "BB"]
+        for p in positions_8max:
+            chip = _PositionChip(p, "Fold")
+            self._pos_chips[p] = chip
+            pos_row.addWidget(chip)
+
+        pos_row.addStretch(1)
+
+        # Source badge + reroll
+        self.source_badge = QLabel("⚙ Mock")
+        self.source_badge.setStyleSheet(
+            f"QLabel{{background:#5C1F22;color:#F87171;font-weight:800;padding:4px 10px;border-radius:8px;font-size:11px;}}"
+        )
+        reroll = QPushButton("🎲")
+        reroll.setFixedSize(36, 36)
+        reroll.setToolTip("Reroll seed")
+        reroll.setStyleSheet(
+            f"QPushButton{{background:{_C_BG};border:1px solid {_C_BORDER};border-radius:8px;font-size:16px;}}"
+            f"QPushButton:hover{{border-color:{_C_CYAN};}}"
+        )
         reroll.clicked.connect(self._reroll)
-        header.addWidget(reroll)
-        layout.addLayout(header)
+        pos_row.addWidget(self.source_badge)
+        pos_row.addWidget(reroll)
+        root.addWidget(pos_bar)
 
-        # --- Top row: oval preview (left) + decision panel (right) ---
-        top = QHBoxLayout()
-        top.setSpacing(14)
+        # ── main splitter ────────────────────────────────────────────────
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setHandleWidth(2)
+        splitter.setStyleSheet("QSplitter::handle { background: #1E2733; }")
 
-        # Oval preview card
-        preview_card = QFrame()
-        preview_card.setObjectName("Card")
-        pc_layout = QVBoxLayout(preview_card)
-        pc_layout.setContentsMargins(14, 14, 14, 14)
-        preview_label = QLabel("Preview")
-        preview_label.setObjectName("Muted")
-        pc_layout.addWidget(preview_label)
+        # ── LEFT: spot list ──────────────────────────────────────────────
+        left_widget = QWidget()
+        left_widget.setFixedWidth(260)
+        left_widget.setStyleSheet(f"background:{_C_CARD}; border-right:1px solid {_C_BORDER};")
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(0)
+
+        # Format tab filters
+        self._fmt_filter = "All"
+        fmt_scroll = QScrollArea()
+        fmt_scroll.setFixedHeight(44)
+        fmt_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        fmt_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        fmt_scroll.setWidgetResizable(True)
+        fmt_inner = QWidget()
+        fmt_row = QHBoxLayout(fmt_inner)
+        fmt_row.setContentsMargins(8, 6, 8, 6)
+        fmt_row.setSpacing(4)
+        self._fmt_tab_buttons: dict[str, QPushButton] = {}
+        for tag in ["All", "MTT", "Cash", "ICM", "Explo"]:
+            b = QPushButton(tag)
+            b.setFixedHeight(28)
+            b.setCheckable(True)
+            b.setChecked(tag == "All")
+            b.clicked.connect(lambda _, t=tag: self._set_fmt_filter(t))
+            b.setStyleSheet(_tab_btn_style(tag == "All"))
+            self._fmt_tab_buttons[tag] = b
+            fmt_row.addWidget(b)
+        fmt_scroll.setWidget(fmt_inner)
+        left_layout.addWidget(fmt_scroll)
+
+        # Street filter
+        street_row = QHBoxLayout()
+        street_row.setContentsMargins(8, 4, 8, 4)
+        street_row.setSpacing(4)
+        self._street_filter = "All"
+        self._street_btns: dict[str, QPushButton] = {}
+        for tag in ["All", "Preflop", "Postflop"]:
+            b = QPushButton(tag)
+            b.setFixedHeight(26)
+            b.setCheckable(True)
+            b.setChecked(tag == "All")
+            b.clicked.connect(lambda _, t=tag: self._set_street_filter(t))
+            b.setStyleSheet(_tab_btn_style(tag == "All", small=True))
+            self._street_btns[tag] = b
+            street_row.addWidget(b)
+        left_layout.addLayout(street_row)
+
+        # Spot list scroll
+        spot_scroll = QScrollArea()
+        spot_scroll.setWidgetResizable(True)
+        spot_scroll.setStyleSheet(
+            f"QScrollArea{{border:none;background:{_C_BG};}}"
+            "QScrollBar:vertical{width:6px;background:transparent;}"
+            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:3px;}"
+        )
+        self._spot_list_widget = QWidget()
+        self._spot_list_widget.setStyleSheet(f"background:{_C_BG};")
+        self._spot_list_layout = QVBoxLayout(self._spot_list_widget)
+        self._spot_list_layout.setContentsMargins(0, 0, 0, 0)
+        self._spot_list_layout.setSpacing(0)
+        spot_scroll.setWidget(self._spot_list_widget)
+        left_layout.addWidget(spot_scroll, 1)
+        splitter.addWidget(left_widget)
+
+        # ── RIGHT: table + actions ────────────────────────────────────────
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
+
+        # Oval table
         self.oval = OvalTable(positions=DEFAULT_POSITIONS_9, selectable=False)
         self.oval.set_dealer("BTN")
         self.oval.set_seed(self.seed)
-        pc_layout.addWidget(self.oval, 1)
-        # Sizing strip
-        sz_row = QHBoxLayout()
-        sz_row.addStretch(1)
-        self.custom_sizing = QLineEdit()
-        self.custom_sizing.setPlaceholderText("150")
-        self.custom_sizing.setFixedWidth(70)
-        sz_row.addWidget(QLabel("Custom %"))
-        sz_row.addWidget(self.custom_sizing)
-        sz_row.addSpacing(12)
-        for s in SIZING_PRESETS:
-            b = QPushButton(s)
-            b.setStyleSheet(
-                "QPushButton { background: #131A24; border: 1px solid #1E2733; "
-                "border-radius: 7px; padding: 6px 12px; color: #E5E7EB; font-weight: 700; }"
-                "QPushButton:hover { border-color: #22D3EE; color: #22D3EE; }"
-            )
-            b.clicked.connect(lambda _checked=False, val=s: self._sizing_clicked(val))
-            sz_row.addWidget(b)
-            self.sizing_buttons.append(b)
-        pc_layout.addLayout(sz_row)
-        top.addWidget(preview_card, 3)
+        self.oval.setMinimumHeight(400)
+        right_layout.addWidget(self.oval, 1)
 
-        # Decision panel
-        info = QFrame()
-        info.setObjectName("DataPanel")
-        info_layout = QVBoxLayout(info)
-        info_layout.setContentsMargins(14, 14, 14, 14)
-        self.spot_title = QLabel()
-        self.spot_title.setObjectName("SectionTitle")
-        self.spot_title.setWordWrap(True)
-        self.spot_meta = QLabel()
-        self.spot_meta.setWordWrap(True)
-        self.spot_meta.setObjectName("Muted")
-        self.action_history = QLabel()
-        self.action_history.setWordWrap(True)
-        self.action_history.setObjectName("Cyan")
+        # Spot context label (overlayed feel via bottom of table area)
+        self.spot_ctx = QLabel()
+        self.spot_ctx.setAlignment(Qt.AlignCenter)
+        self.spot_ctx.setStyleSheet(
+            f"QLabel{{color:{_C_MUTED};font-size:12px;padding:4px 16px;"
+            f"background:{_C_BG};border-top:1px solid {_C_BORDER};}}"
+        )
+        right_layout.addWidget(self.spot_ctx)
 
-        # Hero cards mini display via existing PokerTableView (kept for cards)
-        self.cards_view = PokerTableView()
-        self.cards_view.setMinimumHeight(160)
+        # ── Action buttons row ─────────────────────────────────────────
+        self._action_frame = QFrame()
+        self._action_frame.setStyleSheet(
+            f"QFrame{{background:{_C_BG};border-top:1px solid {_C_BORDER};"
+            "padding:12px 16px;}}"
+        )
+        self._action_layout = QHBoxLayout(self._action_frame)
+        self._action_layout.setContentsMargins(16, 10, 16, 10)
+        self._action_layout.setSpacing(10)
+        right_layout.addWidget(self._action_frame)
 
-        info_layout.addWidget(self.spot_title)
-        info_layout.addWidget(self.spot_meta)
-        info_layout.addWidget(self.action_history)
-        info_layout.addWidget(self.cards_view)
-        info_layout.addLayout(self.action_layout)
-        top.addWidget(info, 2)
-        layout.addLayout(top)
+        # ── Feedback panel ──────────────────────────────────────────────
+        self._feedback_frame = QFrame()
+        self._feedback_frame.setStyleSheet(
+            f"QFrame{{background:{_C_CARD};border-top:1px solid {_C_BORDER};}}"
+        )
+        self._feedback_layout = QVBoxLayout(self._feedback_frame)
+        self._feedback_layout.setContentsMargins(16, 10, 16, 10)
+        self._feedback_layout.setSpacing(6)
+        self._feedback_frame.setMaximumHeight(0)  # hidden until answered
+        right_layout.addWidget(self._feedback_frame)
 
-        # --- Solver feedback area ---
-        feedback = QFrame()
-        feedback.setObjectName("DataPanel")
-        feedback.setLayout(self.feedback_layout)
-        layout.addWidget(feedback)
+        splitter.addWidget(right_widget)
+        splitter.setSizes([260, 900])
+        root.addWidget(splitter, 1)
 
+        # ── Populate ──────────────────────────────────────────────────
         self._apply_drill_filters()
         self._jump_to_pending()
+        self._rebuild_spot_list()
         self.load_spot()
 
+    # ── show event ───────────────────────────────────────────────────────
     def showEvent(self, event):  # type: ignore[override]
-        """Honour pending_spot_id from Dashboard 'Resume training' click."""
         super().showEvent(event)
         if self._jump_to_pending():
             self.load_spot()
 
     def _jump_to_pending(self) -> bool:
-        """If state has a pending_spot_id, set self.index to that spot. Return True if matched."""
         target = getattr(self.state, "pending_spot_id", None)
         if not target:
             return False
@@ -202,18 +399,17 @@ class SpotTrainerScreen(QWidget):
                 self.index = i
                 self.state.pending_spot_id = None
                 return True
-        # Not in the current drill set — clear it but show nothing special
         self.state.pending_spot_id = None
         return False
 
-    # --- helpers ---------------------------------------------------------
+    # ── filters ──────────────────────────────────────────────────────────
     def _apply_drill_filters(self) -> None:
         filt = getattr(self.state, "drill_filters", None)
         if not filt:
             return
         positions = set(filt.get("positions") or [])
-        starting = filt.get("starting_spot")
-        preflop = filt.get("preflop_action")
+        starting  = filt.get("starting_spot")
+        preflop   = filt.get("preflop_action")
         if positions:
             self.drills = [d for d in self.drills if d.get("position") in positions] or self.drills
         if starting and starting != "Custom":
@@ -223,13 +419,8 @@ class SpotTrainerScreen(QWidget):
                 self.drills = filtered
         if preflop and preflop != "Any":
             mapped = {
-                "SRP": "single raised pot",
-                "3-bet": "3bet pot",
-                "4-bet": "4bet pot",
-                "5-bet": "4bet pot",
-                "Squeeze": "squeezed pot",
-                "Limp": "limped pot",
-                "Iso": "iso pot",
+                "SRP": "single raised pot", "3-bet": "3bet pot", "4-bet": "4bet pot",
+                "Squeeze": "squeezed pot", "Limp": "limped pot", "Iso": "iso pot",
             }
             tag = mapped.get(preflop, "").lower()
             if tag:
@@ -237,85 +428,159 @@ class SpotTrainerScreen(QWidget):
                 if filtered:
                     self.drills = filtered
 
-    def _reroll(self) -> None:
-        self.seed = random.randint(1, 99)
-        self._rng = random.Random(self.seed)
-        self.oval.set_seed(self.seed)
-        # Jump to a random spot
-        self.index = self._rng.randint(0, len(self.drills) - 1)
-        self.load_spot()
-        self.coach_message.emit(f"Seed {self.seed}: yeni rastgele spot yüklendi. RNG ile sapmaları test ediyoruz.")
+    def _set_fmt_filter(self, tag: str) -> None:
+        self._fmt_filter = tag
+        for t, b in self._fmt_tab_buttons.items():
+            b.setChecked(t == tag)
+            b.setStyleSheet(_tab_btn_style(t == tag))
+        self._rebuild_spot_list()
 
-    def _sizing_clicked(self, value: str) -> None:
-        self.coach_message.emit(
-            f"Sizing tercih: {value} — solver bu sizing'in EV/Frequency dağılımını yan panelde gösteriyor."
+    def _set_street_filter(self, tag: str) -> None:
+        self._street_filter = tag
+        for t, b in self._street_btns.items():
+            b.setChecked(t == tag)
+            b.setStyleSheet(_tab_btn_style(t == tag, small=True))
+        self._rebuild_spot_list()
+
+    def _filtered_drills(self) -> list[dict]:
+        result = self.drills
+        if self._fmt_filter != "All":
+            tag = self._fmt_filter
+            if tag == "MTT":
+                result = [d for d in result if d.get("format", "").upper() in ("MTT", "SNG", "PKO")]
+            elif tag == "Cash":
+                result = [d for d in result if d.get("format", "").lower() in ("cash", "heads-up")]
+            elif tag == "ICM":
+                result = [d for d in result if "ICM" in d.get("category", "") or "Bubble" in d.get("category", "") or d.get("icm", "off") != "off"]
+            elif tag == "Explo":
+                result = [d for d in result if "Explo" in d.get("category", "")]
+        if self._street_filter == "Preflop":
+            result = [d for d in result if d.get("street") == "preflop"]
+        elif self._street_filter == "Postflop":
+            result = [d for d in result if d.get("street") != "preflop"]
+        return result
+
+    # ── spot list rebuild ─────────────────────────────────────────────────
+    def _rebuild_spot_list(self) -> None:
+        _clear_layout(self._spot_list_layout)
+        drills = self._filtered_drills()
+        # Group by category
+        categories: dict[str, list[dict]] = {}
+        for d in drills:
+            cat = d.get("category", "General Spots")
+            categories.setdefault(cat, []).append(d)
+
+        current_id = self.drills[self.index % len(self.drills)].get("id") if self.drills else ""
+        for cat, spots in categories.items():
+            # Category header
+            hdr = QLabel(cat)
+            hdr.setStyleSheet(
+                f"QLabel{{background:#0C1117;color:{_C_MUTED};font-size:11px;font-weight:700;"
+                "padding:6px 12px;border-bottom:1px solid #1E2733;letter-spacing:0.5px;}}"
+            )
+            self._spot_list_layout.addWidget(hdr)
+            for spot in spots:
+                row = _SpotRow(spot, is_active=(spot.get("id") == current_id))
+                row.clicked.connect(lambda s=spot: self._jump_to_spot(s))
+                self._spot_list_layout.addWidget(row)
+
+        self._spot_list_layout.addStretch(1)
+
+    def _jump_to_spot(self, spot: dict) -> None:
+        for i, d in enumerate(self.drills):
+            if d.get("id") == spot.get("id"):
+                self.index = i
+                break
+        self._answered = False
+        self._feedback_frame.setMaximumHeight(0)
+        self._rebuild_spot_list()
+        self.load_spot()
+
+    # ── core: load spot ───────────────────────────────────────────────────
+    def load_spot(self) -> None:
+        spot = self.drills[self.index % len(self.drills)]
+        self.state.selected_spot = spot
+        self._answered = False
+        self._feedback_frame.setMaximumHeight(0)
+        self._refresh_source_badge(spot)
+
+        # Context label
+        stack   = spot.get("stack_bb", 40)
+        fmt     = spot.get("format", "MTT")
+        table   = spot.get("table", "8-max")
+        pos     = spot.get("position", "BTN")
+        pot_t   = spot.get("pot_type", "SRP")
+        street  = spot.get("street", "preflop").title()
+        name    = spot.get("name") or spot.get("title", spot.get("id", ""))
+        self.spot_ctx.setText(
+            f"{stack}bb {table} {fmt}  ·  {pos}  ·  {pot_t}  ·  {street}  —  {name}"
         )
 
-    # --- core flow -------------------------------------------------------
+        # Update oval table
+        self.oval.set_actions(_spread_actions_for_spot(spot, self._rng))
+        self.oval.set_hero(pos)
+        comm: list[str] = []
+        if spot.get("street") == "flop":   comm = ["W", "W", "W"]
+        elif spot.get("street") == "turn":  comm = ["W", "W", "W", "W"]
+        elif spot.get("street") == "river": comm = ["W", "W", "W", "W", "W"]
+        self.oval.set_community_cards(comm)
+        spr = round(stack / max(spot.get("pot_bb", 1), 1), 1)
+        po  = round(100 * 0.33 / (1 + 2 * 0.33), 1)
+        self.oval.set_spr_po(spr=spr, po=po)
+
+        # Update position chips
+        all_pos = ["UTG", "UTG+1", "LJ", "HJ", "CO", "BTN", "SB", "BB"]
+        for p, chip in self._pos_chips.items():
+            if p == pos:
+                chip.update_action("Action", is_hero=True)
+            elif p in ("BTN",) and pos != "BTN":
+                chip.update_action(f"{stack:.0f}bb")
+            else:
+                chip.update_action("Fold")
+
+        # Action buttons (before answer: no frequencies)
+        _clear_layout(self._action_layout)
+        self._current_action_buttons = []
+        for action in spot["options"]:
+            label = _action_display(action, spot)
+            btn = _GtoActionButton(label, action)
+            btn.clicked.connect(lambda _, a=action: self.answer(a))
+            self._action_layout.addWidget(btn)
+            self._current_action_buttons.append(btn)
+
     def _refresh_source_badge(self, spot: dict) -> None:
-        """Show ✓ Imported / ⚙ Mock badge based on whether SolverLibrary has this spot."""
         lib = get_solver_library()
         sid = str(spot.get("id", ""))
         if lib.has(sid):
             result = lib.get(sid)
-            label = (result.source_confidence if result else "Imported solver") or "Imported solver"
+            label = (result.source_confidence if result else "Imported") or "Imported"
             self.source_badge.setText(f"✓ {label}")
             self.source_badge.setStyleSheet(
-                "QLabel { background: #0E2A1E; color: #10B981; font-weight: 800; "
-                "padding: 5px 12px; border-radius: 11px; }"
+                "QLabel{background:#0E2A1E;color:#10B981;font-weight:800;padding:4px 10px;"
+                "border-radius:8px;font-size:11px;}"
             )
         else:
-            self.source_badge.setText("⚙ Mock solver (import PIO/GTO CSV in Settings)")
+            self.source_badge.setText("⚙ Mock solver")
             self.source_badge.setStyleSheet(
-                "QLabel { background: #5C1F22; color: #F87171; font-weight: 800; "
-                "padding: 5px 12px; border-radius: 11px; }"
+                "QLabel{background:#5C1F22;color:#F87171;font-weight:800;padding:4px 10px;"
+                "border-radius:8px;font-size:11px;}"
             )
 
-    def load_spot(self) -> None:
-        spot = self.drills[self.index % len(self.drills)]
-        self.state.selected_spot = spot
-        self._refresh_source_badge(spot)
-        self.spot_title.setText(f"{spot['id']} | {spot['title']}")
-        self.spot_meta.setText(
-            f"{spot['format']} · {spot['table']} · {spot['pot_type']} · "
-            f"{spot['stack_bb']}bb · {spot['board_texture']} · ICM {spot['icm']}"
-        )
-        self.action_history.setText(spot["action_history"])
-        self.cards_view.set_hand(spot["hero_cards"], spot["board"], spot["pot_bb"])
-
-        # Update oval preview
-        self.oval.set_actions(_spread_actions_for_spot(spot, self._rng))
-        self.oval.set_hero(spot.get("position", "BTN"))
-        # Show face-down community on flop/turn/river
-        comm: list[str] = []
-        if spot.get("street") == "flop":
-            comm = ["W", "W", "W"]
-        elif spot.get("street") == "turn":
-            comm = ["W", "W", "W", "W"]
-        elif spot.get("street") == "river":
-            comm = ["W", "W", "W", "W", "W"]
-        self.oval.set_community_cards(comm)
-        # SPR / pot odds approximation
-        spr = round(spot.get("stack_bb", 100) / max(spot.get("pot_bb", 1), 1), 1)
-        po = round(100 * 0.33 / (1 + 2 * 0.33), 1)  # rough placeholder for default 33% bet pot odds
-        self.oval.set_spr_po(spr=spr, po=po)
-
-        _clear_layout(self.action_layout)
-        for action in spot["options"]:
-            button = QPushButton(action)
-            button.clicked.connect(lambda checked=False, a=action: self.answer(a))
-            self.action_layout.addWidget(button)
-        self._show_solver_preview(spot)
-
+    # ── answer + feedback ─────────────────────────────────────────────────
     def answer(self, action: str) -> None:
-        spot = self.drills[self.index % len(self.drills)]
+        if self._answered:
+            return
+        self._answered = True
+        spot   = self.drills[self.index % len(self.drills)]
         result = compare_action(spot, action)
-        score = score_decision(result["ev_loss"], result["solver_frequency"])
+        score  = score_decision(result["ev_loss"], result["solver_frequency"])
+
         self.state.record_decision(
             result["is_correct"], result["ev_loss"],
             f"{spot['id']} {action}: -{result['ev_loss']:.2f}bb",
         )
-        # Feed the adaptive engine so future drills prioritise this spot if it was a miss.
+
+        # Adaptive engine
         engine = self.state.adaptive_engine()
         engine.record_attempt(
             spot_id=spot["id"],
@@ -323,25 +588,151 @@ class SpotTrainerScreen(QWidget):
             ev_loss=result["ev_loss"],
             tags=(spot.get("street", ""), spot.get("position", ""), spot.get("pot_type", "")),
         )
-        # Persist after each attempt so progress survives app restart.
         try:
             engine.save_to_db()
         except Exception:
             pass
-        self._show_feedback(spot, result, score)
+
+        # ── Show GTO frequencies on buttons ──────────────────────────
+        solver_actions = result["solver"]["actions"]
+        freq_map = {a["action"]: a["frequency"] for a in solver_actions}
+        for btn in self._current_action_buttons:
+            freq = freq_map.get(btn._action, 0.0)
+            btn.set_frequency(freq)
+            # Disable further clicks (keep visual)
+            btn.setEnabled(False)
+
+        # ── Feedback panel ────────────────────────────────────────────
+        self._feedback_frame.setMaximumHeight(9999)
+        _clear_layout(self._feedback_layout)
+
+        is_correct = result["is_correct"]
+        ev_loss    = result["ev_loss"]
+        best_act   = result["best_action"]
+        hero_ev    = result["hero_ev"]
+        best_ev    = result["best_ev"]
+
+        # Verdict row
+        verdict_row = QHBoxLayout()
+        if is_correct:
+            icon = QLabel("✅")
+            icon.setStyleSheet("font-size:22px;")
+            msg = QLabel(f"Correct!  EV loss: {ev_loss:.2f}bb  —  {skill_label(score)}")
+            msg.setStyleSheet(f"color:{_C_GREEN};font-size:14px;font-weight:700;")
+        else:
+            icon = QLabel("❌")
+            icon.setStyleSheet("font-size:22px;")
+            msg = QLabel(f"Wrong  —  Hero: {action}  |  GTO best: {best_act}  |  EV lost: {ev_loss:.2f}bb")
+            msg.setStyleSheet(f"color:{_C_RED};font-size:14px;font-weight:700;")
+        verdict_row.addWidget(icon)
+        verdict_row.addWidget(msg, 1)
+        next_btn = QPushButton("Next Spot →")
+        next_btn.setFixedHeight(38)
+        next_btn.setStyleSheet(
+            f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:8px;"
+            "font-weight:800;font-size:13px;padding:4px 18px;}}"
+            f"QPushButton:hover{{background:#06B6D4;}}"
+        )
+        next_btn.clicked.connect(self._next_spot)
+        verdict_row.addWidget(next_btn)
+        self._feedback_layout.addLayout(verdict_row)
+
+        # ── WHY explanation (only when wrong) ─────────────────────────
+        if not is_correct:
+            why = self._build_why_explanation(spot, action, result)
+            why_label = QLabel(why)
+            why_label.setWordWrap(True)
+            why_label.setStyleSheet(
+                f"QLabel{{background:#0C1117;color:{_C_TEXT};font-size:13px;"
+                "padding:10px 14px;border-radius:8px;border:1px solid #1E2733;"
+                "line-height:1.5;}}"
+            )
+            self._feedback_layout.addWidget(why_label)
+
+        # GTO frequency summary
+        freq_row = QHBoxLayout()
+        for a_dict in solver_actions:
+            freq = a_dict["frequency"]
+            ev   = a_dict["ev"]
+            act  = a_dict["action"]
+            pct  = f"{freq * 100:.1f}%"
+            bg, border, fg = _action_palette(act)
+            pill = QLabel(f"{_action_display(act, spot)}\n{pct} | EV {ev:+.2f}bb")
+            pill.setAlignment(Qt.AlignCenter)
+            pill.setStyleSheet(
+                f"QLabel{{background:{bg};border:2px solid {border};"
+                f"color:{fg};border-radius:8px;padding:6px 12px;font-size:12px;"
+                "font-weight:700;}}"
+            )
+            freq_row.addWidget(pill)
+        self._feedback_layout.addLayout(freq_row)
+
         self.coach_message.emit(explain_spot(spot, action))
-        # Pop the next pending spot from the queue if we have one (e.g. replay → similar 5)
+
+        # Queue next
+        self._advance_queue(spot)
+
+    def _build_why_explanation(self, spot: dict, hero_action: str, result: dict) -> str:
+        best   = result["best_action"]
+        ev_loss = result["ev_loss"]
+        hero_ev = result["hero_ev"]
+        best_ev = result["best_ev"]
+        best_freq = result["best_frequency"]
+        street  = spot.get("street", "preflop")
+        pos     = spot.get("position", "BTN")
+        pot_t   = spot.get("pot_type", "SRP")
+        texture = spot.get("board_texture", "dynamic")
+        stack   = spot.get("stack_bb", 40)
+        r_adv   = spot.get("range_advantage", "neutral")
+        nut_adv = spot.get("nut_advantage", "neutral")
+
+        lines = [f"💡  GTO Analysis — Why '{best}' ({best_freq*100:.0f}%) is better:"]
+
+        # Action class mismatch explanation
+        hero_a = hero_action.lower()
+        best_a = best.lower()
+
+        if "fold" in hero_a and "fold" not in best_a:
+            lines.append(f"• Overfold: You folded in a spot where GTO calls/raises {best_freq*100:.0f}% of the time.")
+            lines.append(f"  At {stack}bb effective, your range has sufficient equity to continue here.")
+        elif "call" in hero_a and ("bet" in best_a or "raise" in best_a or "jam" in best_a):
+            lines.append(f"• Missed value / too passive: GTO prefers aggression ({best}) {best_freq*100:.0f}% here.")
+            lines.append(f"  Your hand is strong enough to build the pot and deny equity.")
+        elif ("bet" in hero_a or "raise" in hero_a) and ("check" in best_a or "call" in best_a):
+            lines.append(f"• Over-bluffing / thin value: GTO prefers {best} {best_freq*100:.0f}% on this texture.")
+            lines.append(f"  On a {texture} board your range advantage doesn't justify this aggression.")
+        elif "check" in hero_a and ("bet" in best_a or "raise" in best_a):
+            lines.append(f"• Under-betting: GTO wants to be betting {best_freq*100:.0f}% here on {texture} texture.")
+            lines.append(f"  Checking allows villain to realise equity for free.")
+        else:
+            lines.append(f"• Action mismatch: GTO prefers '{best}' {best_freq*100:.0f}% of the time.")
+
+        # EV context
+        lines.append(f"• EV difference: Your action ({hero_action}) = {hero_ev:+.2f}bb vs GTO ({best}) = {best_ev:+.2f}bb → {ev_loss:.2f}bb EV loss.")
+
+        # Positional / range context
+        if street != "preflop":
+            lines.append(f"• Board: {texture}  |  Range advantage: {r_adv}  |  Nut advantage: {nut_adv}")
+        lines.append(f"• Position: {pos}  ·  Pot type: {pot_t}  ·  Stack: {stack}bb")
+
+        if ev_loss > 1.0:
+            lines.append("⚠️  This is a high-EV-loss spot — add to your drill queue and revisit regularly.")
+        elif ev_loss > 0.3:
+            lines.append("📌  Moderate EV loss — worth reviewing the GTO frequency breakdown above.")
+
+        return "\n".join(lines)
+
+    def _advance_queue(self, spot: dict) -> None:
         next_id: str | None = None
         queue = getattr(self.state, "pending_spot_queue", None) or []
-        # Drop the current spot from the queue head if it matches
         if queue and queue[0] == spot["id"]:
             queue.pop(0)
         if queue:
             next_id = queue[0]
             self.state.pending_spot_id = next_id
         else:
-            # Empty queue → fall back to adaptive next-pick
             candidates = [d["id"] for d in self.drills]
+            engine = self.state.adaptive_engine()
             next_id = engine.next_drill(candidates, exclude=[spot["id"]])
         if next_id:
             for i, d in enumerate(self.drills):
@@ -353,67 +744,135 @@ class SpotTrainerScreen(QWidget):
         else:
             self.index += 1
 
-    def _show_solver_preview(self, spot: dict) -> None:
-        _clear_layout(self.feedback_layout)
-        title = QLabel("Solver Baseline Preview")
-        title.setObjectName("SectionTitle")
-        self.feedback_layout.addWidget(title)
-        result = solve_spot(spot)
-        is_imported = get_solver_library().has(str(spot.get("id", "")))
-        grid = QGridLayout()
-        for idx, action in enumerate(result.actions):
-            grid.addWidget(
-                SolverFrequencyBar(action.action, action.frequency, action.ev,
-                                   action.sizing, imported=is_imported),
-                idx // 4, idx % 4,
-            )
-        self.feedback_layout.addLayout(grid)
-        confidence = QLabel(f"Source confidence: {result.source_confidence}")
-        confidence.setObjectName("Amber" if "Mock" in result.source_confidence else "Green")
-        self.feedback_layout.addWidget(confidence)
+    def _next_spot(self) -> None:
+        self._rebuild_spot_list()
+        self.load_spot()
 
-    def _show_feedback(self, spot: dict, result: dict, score: int) -> None:
-        _clear_layout(self.feedback_layout)
-        row = QHBoxLayout()
-        row.addWidget(EVLossBadge(result["ev_loss"]))
-        verdict = QLabel(
-            f"Hero {result['hero_action']} | Best {result['best_action']} | "
-            f"Hero EV {result['hero_ev']:+.2f} | Score {score} ({skill_label(score)})"
+    def _reroll(self) -> None:
+        self.seed = random.randint(1, 99)
+        self._rng = random.Random(self.seed)
+        self.oval.set_seed(self.seed)
+        self.index = self._rng.randint(0, len(self.drills) - 1)
+        self._answered = False
+        self._feedback_frame.setMaximumHeight(0)
+        self._rebuild_spot_list()
+        self.load_spot()
+        self.coach_message.emit(f"Seed {self.seed}: yeni rastgele spot.")
+
+
+# ── Study Library redesign ─────────────────────────────────────────────────
+
+class _SpotRow(QFrame):
+    """Single clickable row in the spot list."""
+    clicked = Signal()
+
+    def __init__(self, spot: dict, is_active: bool = False):
+        super().__init__()
+        self._spot = spot
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedHeight(46)
+        h = QHBoxLayout(self)
+        h.setContentsMargins(12, 0, 8, 0)
+        h.setSpacing(6)
+
+        name = spot.get("name") or spot.get("title", spot.get("id", ""))
+        tag  = spot.get("format_tag", spot.get("format", "MTT"))
+
+        name_lbl = QLabel(name)
+        name_lbl.setStyleSheet(
+            f"color:{'#E5E7EB' if is_active else '#C9D1DC'};font-size:13px;"
+            f"font-weight:{'700' if is_active else '400'};"
         )
-        verdict.setObjectName("Green" if result["is_correct"] else "Red")
-        row.addWidget(verdict, 1)
-        next_button = QPushButton("Next Spot")
-        next_button.setObjectName("PrimaryButton")
-        next_button.clicked.connect(self.load_spot)
-        retry_button = QPushButton("Retry Similar 5")
-        retry_button.clicked.connect(
-            lambda: self.coach_message.emit(
-                "Benzer 5 spot drill pack'e eklendi: aynı street, benzer pot type, farklı blocker."
+        h.addWidget(name_lbl, 1)
+
+        played = spot.get("hands_played", 0)
+        ev     = spot.get("ev_delta", 0.0)
+
+        if played:
+            p_lbl = QLabel(str(played))
+            p_lbl.setStyleSheet(f"color:{_C_MUTED};font-size:12px;min-width:30px;")
+            p_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            h.addWidget(p_lbl)
+
+            color = _C_GREEN if ev >= 0 else _C_RED
+            sign  = "+" if ev >= 0 else ""
+            ev_lbl = QLabel(f"{sign}{ev:.1f}")
+            ev_lbl.setStyleSheet(f"color:{color};font-size:12px;font-weight:700;min-width:50px;")
+            ev_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            h.addWidget(ev_lbl)
+        else:
+            dash = QLabel("—")
+            dash.setStyleSheet(f"color:{_C_MUTED};font-size:12px;min-width:80px;")
+            dash.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            h.addWidget(dash)
+
+        # Active indicator
+        if is_active:
+            self.setStyleSheet(
+                f"QFrame{{background:#1B2D4A;border-left:3px solid {_C_CYAN};}}"
             )
+        else:
+            self.setStyleSheet(
+                f"QFrame{{background:transparent;border-left:3px solid transparent;}}"
+                f"QFrame:hover{{background:#131A24;border-left:3px solid {_C_BORDER};}}"
+            )
+
+    def mousePressEvent(self, event):  # type: ignore[override]
+        self.clicked.emit()
+        super().mousePressEvent(event)
+
+
+class _VSep(QFrame):
+    def __init__(self):
+        super().__init__()
+        self.setFixedWidth(1)
+        self.setFixedHeight(36)
+        self.setStyleSheet(f"background:{_C_BORDER};")
+
+
+# ── helpers ───────────────────────────────────────────────────────────────
+
+def _tab_btn_style(active: bool, small: bool = False) -> str:
+    h = "26px" if small else "28px"
+    px = "8px 12px" if small else "4px 14px"
+    fs = "11px" if small else "12px"
+    if active:
+        return (
+            f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:6px;"
+            f"font-weight:700;font-size:{fs};padding:{px};border:none;height:{h};}}"
         )
-        row.addWidget(retry_button)
-        row.addWidget(next_button)
-        self.feedback_layout.addLayout(row)
-        self.feedback_layout.addWidget(QLabel(result["sizing_feedback"]))
-        is_imported = get_solver_library().has(str(spot.get("id", "")))
-        grid = QGridLayout()
-        for idx, action in enumerate(result["solver"]["actions"]):
-            grid.addWidget(
-                SolverFrequencyBar(
-                    action["action"], action["frequency"], action["ev"],
-                    action.get("sizing", ""), imported=is_imported,
-                ),
-                idx // 4, idx % 4,
-            )
-        self.feedback_layout.addLayout(grid)
+    return (
+        f"QPushButton{{background:{_C_CARD};color:{_C_MUTED};border-radius:6px;"
+        f"font-weight:500;font-size:{fs};padding:{px};border:1px solid {_C_BORDER};height:{h};}}"
+        f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_TEXT};}}"
+    )
+
+
+def _spread_actions_for_spot(spot: dict, rng: random.Random) -> dict[str, list[str]]:
+    positions = ["LJ", "HJ", "CO", "BTN", "SB", "BB", "UTG", "UTG1"]
+    history   = spot.get("action_history", "") or ""
+    tokens    = parse_action_string(history)[:8]
+    hero_pos  = spot.get("position") or "BTN"
+    if hero_pos not in positions:
+        hero_pos = "BTN"
+    layout: dict[str, list[str]] = {p: [] for p in positions}
+    for p in positions:
+        if p == hero_pos:
+            continue
+        layout[p] = ["F"] if rng.random() < 0.65 else []
+    villain = rng.choice([p for p in positions if p != hero_pos and not layout[p]] or [hero_pos])
+    layout[hero_pos] = tokens if tokens else ["R 2.3"]
+    if villain != hero_pos:
+        layout[villain] = ["C", "X", "B 25%", "C"][: max(1, len(tokens) - 1)]
+    return {k: v for k, v in layout.items() if v}
 
 
 def _clear_layout(layout) -> None:
     while layout.count():
         item = layout.takeAt(0)
-        widget = item.widget()
-        child_layout = item.layout()
-        if widget:
-            widget.deleteLater()
-        if child_layout:
-            _clear_layout(child_layout)
+        w = item.widget()
+        cl = item.layout()
+        if w:
+            w.deleteLater()
+        if cl:
+            _clear_layout(cl)
