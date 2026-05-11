@@ -70,7 +70,10 @@ class HeadsUpTrainerScreen(QWidget):
         self.stack_combo.setCurrentIndex(1)
         self.bot_combo = QComboBox()
         self.bot_combo.addItems(list(BOT_ARCHETYPES.keys()))
-        self.bot_combo.setCurrentIndex(list(BOT_ARCHETYPES.keys()).index("Aggressive LAG"))
+        # Pick first available LAG-like archetype, fall back to first item
+        _arch_keys = list(BOT_ARCHETYPES.keys())
+        _default_arch = next((a for a in ("LAG", "Aggro Fish", "Maniac", "Reg") if a in _arch_keys), _arch_keys[0])
+        self.bot_combo.setCurrentIndex(_arch_keys.index(_default_arch))
         self.position_combo = QComboBox()
         self.position_combo.addItems(["Hero on BTN", "Hero on BB"])
         self.position_combo.setCurrentIndex(0)
