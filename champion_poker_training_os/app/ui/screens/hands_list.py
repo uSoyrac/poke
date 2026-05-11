@@ -565,14 +565,24 @@ class HandsListScreen(QWidget):
         self.lbl_ev_total.setText(f"{ev_sum:.2f}")
 
     def _on_row_clicked(self, row: int, _col: int) -> None:
+        """Single-click → open selected hand in Hand Analyzer immediately."""
         rows = self.table.property("rows") or []
         if row >= len(rows):
             return
         hand = rows[row]
+        try:
+            full = next(
+                (h for h in get_imported_hands(500)
+                 if str(h.get("external_id")) == str(hand.get("id"))),
+                None,
+            )
+        except Exception:
+            full = None
+        self.state.selected_spot = full or hand
+        self.navigate_requested.emit("Hand History Analyzer")
         self.coach_message.emit(
-            f"Selected {hand['id']}: {hand['hand']} {hand['position']} {hand['format']} | "
-            f"Pot {hand['pot']:.2f}bb | Win/Loss {hand['win_loss']:+.2f}bb | "
-            f"EV loss {hand['ev_loss']:.2f}bb. Çift tıkla ↦ Hand Analyzer'da street-by-street replay."
+            f"Opening {hand['id']}: {hand['hand']} {hand['position']} — "
+            f"Hand Analyzer replay yüklendi."
         )
 
     def _on_row_double_clicked(self, row: int, _col: int) -> None:
