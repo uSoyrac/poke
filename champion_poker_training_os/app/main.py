@@ -177,7 +177,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.sidebar)
-        self.sidebar.setFixedWidth(210)
+        self.sidebar.setFixedWidth(240)
         layout.addLayout(main_col, 1)
 
         self.scan_compliance()

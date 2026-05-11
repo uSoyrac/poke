@@ -157,10 +157,12 @@ QPushButton#NavButton {
   text-align: left;
   background: transparent;
   border: 1px solid transparent;
-  padding: 10px 14px;
-  border-radius: 7px;
+  padding: 6px 10px;
+  border-radius: 6px;
   color: #8B95A7;
   font-weight: 600;
+  font-size: 12px;
+  min-height: 30px;
 }
 
 QPushButton#NavButton:hover {
