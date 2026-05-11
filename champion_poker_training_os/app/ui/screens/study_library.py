@@ -30,7 +30,9 @@ from app.ai.coach_engine import explain_spot
 from app.core.app_state import AppState
 from app.db.seed_data import generate_spot_drills, get_spot_categories
 from app.solver.mock_solver import solve_spot
+from app.solver.preflop_charts import chart_for_spot, hand_169_from_cards
 from app.ui.components.range_grid import RangeGrid
+from app.ui.components.range_matrix import RangeMatrix
 from app.ui.components.solver_bar import SolverFrequencyBar
 
 # colours
@@ -232,15 +234,15 @@ class StudyLibraryScreen(QWidget):
                     b.clicked.connect(lambda: self.coach_message.emit("Drill pack'e eklendi."))
             btn_row.addWidget(b)
 
-        # Range grid
-        self.range_grid = RangeGrid("BTN steal")
+        # Range matrix — real 13x13 grid driven by pre-solved chart
+        self.range_matrix = RangeMatrix()
 
         right_v.addWidget(self.node_title)
         right_v.addWidget(self.node_meta)
         right_v.addWidget(self.solver_frame)
         right_v.addLayout(btn_row)
-        right_v.addWidget(QLabel("Range Reference"))
-        right_v.addWidget(self.range_grid, 1)
+        right_v.addWidget(QLabel("GTO Range"))
+        right_v.addWidget(self.range_matrix, 1)
         splitter.addWidget(right)
 
         splitter.setSizes([420, 700])
@@ -338,9 +340,12 @@ class StudyLibraryScreen(QWidget):
             bar = SolverFrequencyBar(act.action, act.frequency, act.ev, act.sizing)
             self.solver_layout.addWidget(bar, idx // 2, idx % 2)
 
-        # Range grid
-        if pos in RANGE_MODE_BY_POSITION:
-            self.range_grid.set_mode(RANGE_MODE_BY_POSITION[pos])
+        # Range matrix — updates per selected spot
+        chart = chart_for_spot(spot)
+        self.range_matrix.set_strategy(chart)
+        h169 = hand_169_from_cards(spot.get("hero_cards", ""))
+        if h169:
+            self.range_matrix.highlight_hand(h169)
 
     def _launch_practice(self) -> None:
         spot = self.current

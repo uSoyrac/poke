@@ -4,6 +4,12 @@ import hashlib
 from dataclasses import asdict
 
 from app.solver.csv_importer import get_solver_library
+from app.solver.preflop_charts import (
+    aggregate_strategy,
+    chart_for_spot,
+    hand_169_from_cards,
+    strategy_for_hand,
+)
 from app.solver.solver_schema import SolverAction, SolverResult
 
 
@@ -16,14 +22,129 @@ def _stable_number(text: str, modulo: int) -> int:
 
 
 def solve_spot(spot: dict) -> SolverResult:
-    # Prefer imported PIO/GTO Wizard CSV data when available
+    """Return the GTO strategy for this spot.
+
+    Priority:
+      1. Imported PIO/GTO Wizard CSV (per-spot_id override)
+      2. Pre-solved preflop chart database (per position × stack × vs)
+      3. Heuristic fallback (_mock_solve_spot)
+    """
+    # 1) CSV override
     spot_id = spot.get("id")
     if spot_id:
         library = get_solver_library()
         imported = library.get(str(spot_id))
         if imported is not None:
             return imported
+
+    # 2) Pre-solved chart (only for preflop spots — postflop falls through)
+    street = (spot.get("street") or "preflop").lower()
+    if street == "preflop":
+        chart = chart_for_spot(spot)
+        if chart:
+            return _chart_to_solver_result(spot, chart)
+
+    # 3) Heuristic fallback
     return _mock_solve_spot(spot)
+
+
+def _chart_to_solver_result(spot: dict, chart: dict) -> SolverResult:
+    """Convert a 169-cell chart into a SolverResult.
+
+    If hero cards are known → use exact strategy for that hand.
+    Otherwise → aggregate strategy over the whole chart (avg frequencies).
+    """
+    hand_169 = hand_169_from_cards(spot.get("hero_cards", ""))
+    if hand_169:
+        strat = strategy_for_hand(chart, hand_169)
+        if not strat:
+            strat = aggregate_strategy(chart)
+    else:
+        strat = aggregate_strategy(chart)
+
+    # Build SolverAction list ordered as in spot options (if provided)
+    options = spot.get("options") or tuple(strat.keys())
+    base_ev = float(spot.get("base_ev", 1.0))
+    actions: list[SolverAction] = []
+
+    # Action group mapping — different chart labels map to the same option button
+    # so e.g. "3bet" / "4bet" / "raise" all match option "raise" or "3bet".
+    AGGRO   = {"raise", "3bet", "4bet", "5bet", "bet"}
+    SHOVE   = {"jam", "all_in", "all-in", "allin"}
+    PASSIVE = {"call", "check"}
+    PASS    = {"fold"}
+
+    def _group(a: str) -> str:
+        a = a.lower().replace("-", "_").replace(" ", "_")
+        if a in PASS:    return "fold"
+        if a in PASSIVE: return a  # keep call / check distinct
+        if a in SHOVE:   return "jam"
+        if a in AGGRO:   return "raise"
+        if "bet" in a:   return "raise"
+        return a
+
+    def _best_freq_for_option(opt: str) -> float:
+        """Sum chart frequencies of all chart-keys that map to opt's group."""
+        target = _group(opt)
+        total = 0.0
+        for ck, cf in strat.items():
+            if _group(ck) == target:
+                total += cf
+            # Special: "3bet" in BB defense maps to BOTH "raise" and "3bet" option labels
+            elif target == "3bet" and ck.lower() in ("3bet", "4bet", "raise"):
+                total += cf
+        # If option is "raise" and chart had a "3bet" → also count it
+        if target == "raise":
+            for ck, cf in strat.items():
+                if ck.lower() in ("3bet", "4bet") and _group(ck) != "raise":
+                    total += cf
+        return min(1.0, total)
+
+    for opt in options:
+        freq = _best_freq_for_option(opt)
+        # Convert freq to EV: higher freq → closer to base_ev; 0 freq → -ev cost
+        if freq >= 0.9:    ev = base_ev
+        elif freq >= 0.4:  ev = base_ev * 0.7
+        elif freq >= 0.05: ev = base_ev * 0.3
+        else:              ev = -abs(base_ev) * 0.5
+        actions.append(SolverAction(
+            action=opt, frequency=round(freq, 4),
+            ev=round(ev, 2), sizing=_sizing_label(opt, spot),
+        ))
+
+    # Best action = highest frequency
+    if actions:
+        best = max(actions, key=lambda a: a.frequency)
+    else:
+        best = SolverAction(action="fold", frequency=1.0, ev=0.0, sizing="")
+        actions = [best]
+
+    # Normalise — sum to 1.0 across listed options when possible
+    total = sum(a.frequency for a in actions)
+    if total > 0:
+        actions = [
+            SolverAction(
+                a.action,
+                round(a.frequency / total, 4) if total > 1.0 else round(a.frequency, 4),
+                a.ev, a.sizing,
+            )
+            for a in actions
+        ]
+
+    explanation = (
+        f"GTO chart match for {spot.get('position', '?')} "
+        f"{spot.get('stack_bb', '?')}bb {street if (street := spot.get('street', 'preflop')) else 'preflop'}. "
+        f"Hand {hand_169 or 'unknown'} → best {best.action} ({best.frequency*100:.0f}%)."
+    )
+    return SolverResult(
+        spot_id=spot.get("id", "demo"),
+        best_action=best.action,
+        actions=tuple(actions),
+        source_confidence="Pre-solved chart",
+        range_advantage=spot.get("range_advantage", ""),
+        nut_advantage=spot.get("nut_advantage", ""),
+        explanation=explanation,
+    )
 
 
 def _mock_solve_spot(spot: dict) -> SolverResult:

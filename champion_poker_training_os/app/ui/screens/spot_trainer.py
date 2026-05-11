@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -39,6 +40,7 @@ from app.solver.csv_importer import get_solver_library
 from app.solver.mock_solver import compare_action, solve_spot
 from app.training.trainer_scoring import score_decision, skill_label
 from app.ui.components.action_chip import parse_action_string
+from app.ui.components.card_view import CardView
 from app.ui.components.oval_table import DEFAULT_POSITIONS_9, OvalTable
 
 
@@ -343,7 +345,55 @@ class SpotTrainerScreen(QWidget):
         self.oval.setMinimumHeight(400)
         right_layout.addWidget(self.oval, 1)
 
-        # Spot context label (overlayed feel via bottom of table area)
+        # Hero cards bar — visible cards + sizing input
+        cards_bar = QFrame()
+        cards_bar.setFixedHeight(96)
+        cards_bar.setStyleSheet(f"background:#0A0F16;border-top:1px solid {_C_BORDER};")
+        cb_row = QHBoxLayout(cards_bar)
+        cb_row.setContentsMargins(16, 10, 16, 10)
+        cb_row.setSpacing(12)
+
+        cards_label = QLabel("Your hand:")
+        cards_label.setStyleSheet(f"color:{_C_MUTED};font-size:12px;")
+        cb_row.addWidget(cards_label)
+
+        self._hero_cards_row = QHBoxLayout()
+        self._hero_cards_row.setSpacing(6)
+        cards_widget = QWidget()
+        cards_widget.setLayout(self._hero_cards_row)
+        cb_row.addWidget(cards_widget)
+        cb_row.addSpacing(20)
+
+        # Sizing override input (overrides preset bet sizes for raise/bet buttons)
+        sizing_label = QLabel("Bet sizing:")
+        sizing_label.setStyleSheet(f"color:{_C_MUTED};font-size:12px;")
+        cb_row.addWidget(sizing_label)
+        self._sizing_input = QLineEdit()
+        self._sizing_input.setPlaceholderText("e.g. 50%, 2.5x, 3bb")
+        self._sizing_input.setFixedWidth(120)
+        self._sizing_input.setFixedHeight(28)
+        self._sizing_input.setStyleSheet(
+            f"QLineEdit{{background:{_C_CARD};border:1px solid {_C_BORDER};"
+            f"border-radius:5px;padding:2px 8px;color:{_C_TEXT};font-size:12px;}}"
+            f"QLineEdit:focus{{border-color:{_C_CYAN};}}"
+        )
+        cb_row.addWidget(self._sizing_input)
+
+        # Quick sizing pills
+        for pct in ["33%", "50%", "75%", "100%", "150%"]:
+            pill = QPushButton(pct)
+            pill.setFixedHeight(28)
+            pill.setStyleSheet(
+                f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};border:1px solid {_C_BORDER};"
+                "border-radius:5px;padding:2px 10px;font-size:11px;}}"
+                f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
+            )
+            pill.clicked.connect(lambda _, v=pct: self._sizing_input.setText(v))
+            cb_row.addWidget(pill)
+        cb_row.addStretch(1)
+        right_layout.addWidget(cards_bar)
+
+        # Spot context label
         self.spot_ctx = QLabel()
         self.spot_ctx.setAlignment(Qt.AlignCenter)
         self.spot_ctx.setStyleSheet(
@@ -516,6 +566,25 @@ class SpotTrainerScreen(QWidget):
             f"{stack}bb {table} {fmt}  ·  {pos}  ·  {pot_t}  ·  {street}  —  {name}"
         )
 
+        # Render hero cards (visible)
+        _clear_layout(self._hero_cards_row)
+        hero_cards_str = spot.get("hero_cards", "")
+        # Format: 'AsKh' → ['As', 'Kh']  (2-char tokens)
+        if hero_cards_str:
+            tokens: list[str] = []
+            i = 0
+            while i < len(hero_cards_str) - 1:
+                if hero_cards_str[i].isspace():
+                    i += 1; continue
+                tokens.append(hero_cards_str[i:i+2])
+                i += 2
+            for tok in tokens[:2]:
+                self._hero_cards_row.addWidget(CardView(tok))
+        # If no cards in spot, show face-down placeholders
+        if self._hero_cards_row.count() == 0:
+            for _ in range(2):
+                self._hero_cards_row.addWidget(CardView("", face_down=True))
+
         # Update oval table
         self.oval.set_actions(_spread_actions_for_spot(spot, self._rng))
         self.oval.set_hero(pos)
@@ -542,11 +611,37 @@ class SpotTrainerScreen(QWidget):
         _clear_layout(self._action_layout)
         self._current_action_buttons = []
         for action in spot["options"]:
-            label = _action_display(action, spot)
+            label = self._action_display_with_sizing(action, spot)
             btn = _GtoActionButton(label, action)
             btn.clicked.connect(lambda _, a=action: self.answer(a))
             self._action_layout.addWidget(btn)
             self._current_action_buttons.append(btn)
+
+    def _action_display_with_sizing(self, action: str, spot: dict) -> str:
+        """Like _action_display but respects user-entered sizing override."""
+        custom = (self._sizing_input.text() or "").strip() if hasattr(self, "_sizing_input") else ""
+        a = action.lower()
+        if not custom or a in ("fold", "check", "call"):
+            return _action_display(action, spot)
+        pot = float(spot.get("pot_bb", 10))
+        stk = float(spot.get("stack_bb", 40))
+        # Parse custom sizing
+        try:
+            if custom.endswith("%"):
+                pct = float(custom[:-1]) / 100.0
+                size = pot * pct
+            elif custom.lower().endswith("x"):
+                multiplier = float(custom[:-1])
+                size = pot * multiplier
+            elif custom.lower().endswith("bb"):
+                size = float(custom[:-2])
+            else:
+                size = float(custom)
+        except Exception:
+            return _action_display(action, spot)
+        size = min(size, stk)
+        verb = "ALL-IN" if size >= stk - 0.5 else ("RAISE" if "raise" in a or "3bet" in a or "4bet" in a else "BET")
+        return f"{verb} {size:.1f}"
 
     def _refresh_source_badge(self, spot: dict) -> None:
         lib = get_solver_library()

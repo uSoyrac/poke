@@ -34,9 +34,10 @@ from app.ai.coach_engine import explain_spot
 from app.core.app_state import AppState
 from app.db.seed_data import generate_spot_drills, get_spot_categories
 from app.solver.mock_solver import compare_action, solve_spot
+from app.solver.preflop_charts import chart_for_spot, hand_169_from_cards, strategy_for_hand
 from app.ui.components.action_chip import parse_action_string
 from app.ui.components.live_poker_table import LivePokerTable
-from app.ui.components.range_matrix import RangeMatrix, demo_range, spot_key_for
+from app.ui.components.range_matrix import RangeMatrix
 
 # colour constants
 _C_BG     = "#0A0E14"
@@ -691,15 +692,19 @@ class GTOTrainerScreen(QWidget):
             bar = _StrategyBar(a.action, a.frequency)
             self._strategy_box.addWidget(bar)
 
-        # Range matrix
-        ctx = spot.get("name", "") + " " + spot.get("action_history", "")
-        key = spot_key_for(spot.get("position", "BTN"), ctx, stack)
-        self._matrix.set_strategy(demo_range(key))
+        # Range matrix — driven by real pre-solved chart for this spot
+        chart = chart_for_spot(spot)
+        self._matrix.set_strategy(chart)
+        # Highlight hero hand on matrix
+        h169 = hand_169_from_cards(spot.get("hero_cards", ""))
+        if h169:
+            self._matrix.highlight_hand(h169)
 
-        # Hand combos for hero hand (or top hands)
+        # Hand combos for hero hand — strategy from the live chart, NOT hardcoded
         _clear_layout(self._combos_grid)
-        hero_hand = self._extract_grid_hand(spot.get("hero_cards", "AKs"))
-        combos = self._combos_for(hero_hand or "AKs")
+        hero_hand = h169 or "AKs"
+        hand_strat = strategy_for_hand(chart, hero_hand) if chart else {"fold": 1.0}
+        combos = self._combos_for(hero_hand, hand_strat)
         for i, (combo_str, strat) in enumerate(combos):
             card = _HandComboCard(combo_str, strat)
             self._combos_grid.addWidget(card, i // 2, i % 2)
@@ -855,25 +860,26 @@ class GTOTrainerScreen(QWidget):
         return c1 + c2 + ("s" if s1 == s2 else "o")
 
     @staticmethod
-    def _combos_for(grid_hand: str) -> list[tuple[str, dict[str, float]]]:
-        """Return up to 6 specific combos with strategy for the given grid hand."""
+    def _combos_for(grid_hand: str, strategy: dict[str, float]) -> list[tuple[str, dict[str, float]]]:
+        """Return up to 6 specific combos using the ACTUAL strategy for this hand."""
         suits = ["♠", "♥", "♦", "♣"]
         results: list[tuple[str, dict[str, float]]] = []
-        if len(grid_hand) == 2:  # Pair, e.g. AA
+        # All combos for the same 169-hand share the strategy
+        if len(grid_hand) == 2:  # Pair
             r = grid_hand[0]
             pairs = [(suits[i], suits[j]) for i in range(4) for j in range(i+1, 4)]
             for s1, s2 in pairs:
-                results.append((f"{r}{s1}{r}{s2}", {"raise": 1.0}))
+                results.append((f"{r}{s1}{r}{s2}", strategy))
         elif grid_hand.endswith("s"):
             r1, r2 = grid_hand[0], grid_hand[1]
             for s in suits:
-                results.append((f"{r1}{s}{r2}{s}", {"raise": 1.0}))
+                results.append((f"{r1}{s}{r2}{s}", strategy))
         else:  # offsuit
             r1, r2 = grid_hand[0], grid_hand[1]
             for s1 in suits:
                 for s2 in suits:
                     if s1 != s2:
-                        results.append((f"{r1}{s1}{r2}{s2}", {"raise": 0.7, "fold": 0.3}))
+                        results.append((f"{r1}{s1}{r2}{s2}", strategy))
                         if len(results) >= 6: break
                 if len(results) >= 6: break
         return results[:6]
