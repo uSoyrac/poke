@@ -45,6 +45,7 @@ from app.ui.screens.spot_trainer import SpotTrainerScreen
 from app.ui.screens.study_library import StudyLibraryScreen
 from app.ui.screens.study_planner import StudyPlannerScreen
 from app.ui.screens.tournament_simulator import TournamentSimulatorScreen
+from app.ui.screens.tournament_play import TournamentPlayScreen
 from app.ui.screens.heads_up_trainer import HeadsUpTrainerScreen
 from app.ui.theme.theme_manager import apply_dark_theme
 
@@ -83,6 +84,7 @@ NAV_ITEMS = [
     "Hand History Analyzer",
     "Fast Play Simulator",
     "Tournament Simulator",
+    "Tournament Play Mode",
     "Heads-Up Trainer",
     "ICM / PKO Trainer",
     "Preflop Range Trainer",
@@ -109,6 +111,7 @@ RESTRICTED_WHEN_LOCKED = {
     "Hand History Analyzer",
     "Fast Play Simulator",
     "Tournament Simulator",
+    "Tournament Play Mode",
     "Heads-Up Trainer",
     "ICM / PKO Trainer",
     "Preflop Range Trainer",
@@ -189,6 +192,7 @@ class MainWindow(QMainWindow):
             "Hand History Analyzer": HandAnalyzerScreen,
             "Fast Play Simulator": FastPlaySimulatorScreen,
             "Tournament Simulator": TournamentSimulatorScreen,
+            "Tournament Play Mode": TournamentPlayScreen,
             "Heads-Up Trainer": HeadsUpTrainerScreen,
             "ICM / PKO Trainer": IcmTrainerScreen,
             "Preflop Range Trainer": RangeTrainerScreen,
