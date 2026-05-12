@@ -96,11 +96,20 @@ class PokerGame:
         for p in self.players:
             p.reset_for_hand()
 
-        # Assign positions: positions_for() returns SB-first ordered list.
+        # Assign positions. dealer_idx is the BTN seat (player with the
+        # dealer button). Heads-up is special — in HU the dealer is the SB,
+        # so seat at dealer_idx posts SB and seat at dealer_idx+1 posts BB.
         positions = positions_for(self.num_players)
-        for i in range(self.num_players):
-            idx = (self.dealer_idx + i) % self.num_players
-            self.players[idx].position = positions[i]
+        n = self.num_players
+        if n == 2:
+            # HU: positions_for() returns ["SB","BB"]; dealer = SB = positions[0]
+            self.players[self.dealer_idx].position           = positions[0]  # SB (dealer)
+            self.players[(self.dealer_idx + 1) % n].position = positions[1]  # BB
+        else:
+            # Non-HU: positions[0]="SB" goes to dealer_idx+1, BTN wraps back to dealer_idx
+            for i in range(n):
+                idx = (self.dealer_idx + i + 1) % n
+                self.players[idx].position = positions[i]
 
         # Create hand state
         self.current_hand = HandState(

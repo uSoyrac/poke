@@ -264,18 +264,43 @@ class BotBrain:
         return max(min_bet, min(max_bet, round(preferred, 1)))
 
     def _pick_raise_sizing(self, min_raise: float, max_raise: float, strength: float, state: HandState) -> float:
-        """Choose raise sizing."""
-        pot = max(state.pot, 1)
-        base = state.current_bet
+        """Pick a realistic raise sizing using real-poker conventions.
+
+        Preflop:
+          • RFI (open, current bet = BB):  2.0–3.0× BB
+          • Facing an open (3-bet):        2.8–3.6× the open  (IP)
+          • Facing a 3-bet (4-bet):        2.2–2.7× the 3-bet
+
+        Postflop:
+          • Standard sizings: 33% / 50% / 66% / 75% / 100% pot
+          • Strong holdings polarise to bigger; weak/bluffs prefer smaller
+        """
+        pot     = max(state.pot, 1.0)
+        current = state.current_bet
+        bb      = max(state.big_blind, 1.0)
 
         if state.street == Street.PREFLOP:
-            # Standard raises
-            options = [base * 2.5, base * 3.0, base * 3.5]
+            is_rfi = abs(current - bb) < 0.01
+            if is_rfi:
+                multiplier = random.choice([2.0, 2.2, 2.3, 2.5, 2.8, 3.0])
+                target = bb * multiplier
+            else:
+                ratio_to_pot = current / pot if pot > 0 else 1.0
+                if ratio_to_pot > 0.4:        # already a 3-bet → 4-bet
+                    multiplier = random.choice([2.2, 2.4, 2.7])
+                else:                          # 3-bet
+                    multiplier = random.choice([2.8, 3.0, 3.3, 3.6])
+                target = current * multiplier
+            if strength > 0.85 and random.random() < 0.10:
+                return max_raise
         else:
-            options = [base + pot * 0.5, base + pot * 0.75, base + pot * 1.0]
+            if strength > 0.80:
+                pct = random.choice([0.66, 0.75, 1.0])
+            elif strength > 0.55:
+                pct = random.choice([0.5, 0.66, 0.75])
+            else:
+                pct = random.choice([0.33, 0.5])
+            target = current + pot * pct
 
-        if strength > 0.80 and random.random() < 0.15:
-            return max_raise  # All-in
-
-        preferred = random.choice(options)
-        return max(min_raise, min(max_raise, round(preferred, 1)))
+        target = round(target, 1)
+        return max(min_raise, min(max_raise, target))
