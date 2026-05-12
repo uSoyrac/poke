@@ -16,6 +16,7 @@ from app.agents.coach import CoachAgent
 from app.agents.drill_generator import DrillGeneratorAgent
 from app.agents.gto_master import GTOMasterAgent, MasterAnalysis
 from app.agents.leak_detector import LeakDetectionAgent
+from app.agents.master_auditor import AuditReport, CheckResult, MasterAuditorAgent
 from app.agents.orchestrator import AgentOrchestrator
 from app.agents.poker_player import PokerPlayingAgent
 from app.agents.review import ReviewAgent
@@ -30,5 +31,8 @@ __all__ = [
     "ReviewAgent",
     "GTOMasterAgent",
     "MasterAnalysis",
+    "MasterAuditorAgent",
+    "AuditReport",
+    "CheckResult",
     "AgentOrchestrator",
 ]

@@ -172,12 +172,18 @@ class OvalTable(QWidget):
 
     def _paint_seat(self, painter: QPainter, x: float, y: float, seat: SeatData, theta: float) -> None:
         r = self._seat_radius
-        # Circle
-        painter.setBrush(QColor("#0E141C"))
+        # Hero gets two glow halos so it's IMPOSSIBLE to miss
+        if seat.is_hero:
+            for halo_r, alpha in ((r + 14, 35), (r + 8, 70)):
+                halo = QColor("#10B981"); halo.setAlpha(alpha)
+                painter.setBrush(halo); painter.setPen(Qt.NoPen)
+                painter.drawEllipse(QPointF(x, y), halo_r, halo_r)
+        # Circle fill — hero gets a richer green background
+        painter.setBrush(QColor("#0F2A1E") if seat.is_hero else QColor("#0E141C"))
         if seat.selected:
-            pen = QPen(QColor("#22D3EE"), 2.5)
+            pen = QPen(QColor("#22D3EE"), 3)
         elif seat.is_hero:
-            pen = QPen(QColor("#10B981"), 2.5)
+            pen = QPen(QColor("#10B981"), 3.5)
         else:
             pen = QPen(QColor("#3A4659"), 1.5)
         painter.setPen(pen)
@@ -185,11 +191,19 @@ class OvalTable(QWidget):
 
         # Position label
         font = QFont()
-        font.setPointSize(11)
+        font.setPointSize(12 if seat.is_hero else 11)
         font.setBold(True)
         painter.setFont(font)
-        painter.setPen(QPen(QColor("#E5E7EB" if not seat.selected else "#22D3EE")))
-        painter.drawText(QRectF(x - r, y - 10, 2 * r, 20), Qt.AlignCenter, seat.position)
+        text_color = "#22D3EE" if seat.selected else ("#10B981" if seat.is_hero else "#E5E7EB")
+        painter.setPen(QPen(QColor(text_color)))
+        painter.drawText(QRectF(x - r, y - 14, 2 * r, 20), Qt.AlignCenter, seat.position)
+
+        # Hero "★ YOU" badge below position
+        if seat.is_hero:
+            badge_font = QFont(); badge_font.setPointSize(9); badge_font.setBold(True)
+            painter.setFont(badge_font)
+            painter.setPen(QPen(QColor("#6EE7B7")))
+            painter.drawText(QRectF(x - r, y + 4, 2 * r, 16), Qt.AlignCenter, "★ YOU")
 
         # Dealer button
         if seat.position == self._dealer:

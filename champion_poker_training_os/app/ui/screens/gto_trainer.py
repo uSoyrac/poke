@@ -563,6 +563,38 @@ class GTOTrainerScreen(QWidget):
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(0)
 
+        # ── FAR-LEFT: spot library (ALL 325 spots, scrollable, categorised) ──
+        library = QFrame()
+        library.setFixedWidth(240)
+        library.setStyleSheet(f"background:#0A0E14;border-right:1px solid {_C_BORDER};")
+        lib_v = QVBoxLayout(library)
+        lib_v.setContentsMargins(0, 0, 0, 0)
+        lib_v.setSpacing(0)
+
+        lib_header = QLabel("Spot Library")
+        lib_header.setStyleSheet(
+            f"color:{_C_TEXT};font-weight:700;font-size:13px;padding:12px 14px 8px;"
+            f"border-bottom:1px solid {_C_BORDER};"
+        )
+        lib_v.addWidget(lib_header)
+
+        from PySide6.QtWidgets import QListWidget, QListWidgetItem
+        self._spot_list = QListWidget()
+        self._spot_list.setStyleSheet(
+            f"QListWidget{{background:#0A0E14;border:none;color:{_C_TEXT};font-size:11px;}}"
+            f"QListWidget::item{{padding:6px 12px;border-bottom:1px solid #131A24;}}"
+            f"QListWidget::item:hover{{background:{_C_PANEL};}}"
+            f"QListWidget::item:selected{{background:#1B2A3D;color:{_C_CYAN};}}"
+            "QScrollBar:vertical{width:6px;background:transparent;}"
+            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:3px;min-height:20px;}"
+        )
+        # Populate from full catalog grouped by category
+        self._populate_spot_library()
+        self._spot_list.itemClicked.connect(self._on_library_item_clicked)
+        lib_v.addWidget(self._spot_list, 1)
+
+        h.addWidget(library)
+
         # LEFT panel — spot context + strategy bars + hand combos
         left = QFrame()
         left.setFixedWidth(280)
@@ -884,6 +916,42 @@ class GTOTrainerScreen(QWidget):
         self.coach_message.emit(explain_spot(spot, action))
 
     # ── next spot ──────────────────────────────────────────────────────
+    # ── spot library panel ────────────────────────────────────────────
+    def _populate_spot_library(self) -> None:
+        """Fill the left-side spot list with all 325 drills, grouped by category."""
+        from collections import defaultdict
+        from PySide6.QtWidgets import QListWidgetItem
+        from PySide6.QtCore import Qt as _Qt
+
+        groups: dict[str, list[dict]] = defaultdict(list)
+        for d in self.drills:
+            groups[d.get("category", "Other")].append(d)
+
+        for category in sorted(groups.keys()):
+            # Category header (non-selectable)
+            header = QListWidgetItem(f"━━ {category}  ({len(groups[category])})")
+            header.setFlags(header.flags() & ~_Qt.ItemIsSelectable & ~_Qt.ItemIsEnabled)
+            header.setData(_Qt.UserRole, None)
+            self._spot_list.addItem(header)
+            for d in groups[category]:
+                label = d.get("name") or d.get("title", d.get("id", "?"))
+                item = QListWidgetItem("   " + label)
+                item.setData(_Qt.UserRole, d.get("id"))
+                self._spot_list.addItem(item)
+
+    def _on_library_item_clicked(self, item) -> None:
+        """Load the spot whose id is stored on the clicked item."""
+        from PySide6.QtCore import Qt as _Qt
+        spot_id = item.data(_Qt.UserRole)
+        if not spot_id:
+            return  # category header
+        for i, d in enumerate(self.drills):
+            if d.get("id") == spot_id:
+                self.index = i
+                break
+        self.load_spot()
+        self.coach_message.emit(f"Loaded spot: {item.text().strip()}")
+
     def _next_spot(self) -> None:
         self.index = (self.index + 1) % len(self.drills)
         self._answered = False
