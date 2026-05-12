@@ -84,39 +84,35 @@ def _action_colour_qss(action: str) -> tuple[str, str, str]:
 # ── small reusable widgets ────────────────────────────────────────────────
 
 class _PositionChip(QFrame):
-    """Top strip chip: position name + stack + ALL strategy actions stacked.
+    """Top strip chip: position name + stack + strategy preview pills.
 
-    Like PeakGTO screenshot 1 where each chip shows e.g.
-       SB
-       39.5
-       [Fold]
-       [Call]
-       [Raise 3.2]
+    Clickable — emits `clicked(position)` so the main screen can re-fetch
+    the chart for that position. The hero (currently-selected) position
+    gets a green border; click any other to switch focus.
     """
-    def __init__(self, position: str, stack: float, actions: list[tuple[str, str]], is_hero: bool = False):
-        """actions = [(label, kind)]; kind ∈ {fold, call, raise}"""
+    clicked = Signal(str)  # emits the position string
+
+    def __init__(self, position: str, stack: float, actions: list[tuple[str, str]],
+                 is_hero: bool = False):
         super().__init__()
+        self._position = position
         self._is_hero = is_hero
         self.setFixedWidth(110)
         self.setFixedHeight(112)
-        border = _C_GREEN if is_hero else _C_BORDER
-        self.setStyleSheet(
-            f"QFrame{{background:{_C_PANEL};border:2px solid {border};border-radius:8px;}}"
-        )
+        self.setCursor(Qt.PointingHandCursor)
+        self._apply_style()
+
         v = QVBoxLayout(self)
         v.setContentsMargins(8, 6, 8, 6)
         v.setSpacing(3)
 
-        head = QHBoxLayout()
-        head.setSpacing(4)
+        head = QHBoxLayout(); head.setSpacing(4)
         name = QLabel(position)
         name.setStyleSheet(f"color:{_C_TEXT};font-weight:700;font-size:12px;")
         stk = QLabel(f"{stack:g}")
         stk.setStyleSheet(f"color:{_C_MUTED};font-size:11px;")
         stk.setAlignment(Qt.AlignRight)
-        head.addWidget(name)
-        head.addStretch(1)
-        head.addWidget(stk)
+        head.addWidget(name); head.addStretch(1); head.addWidget(stk)
         v.addLayout(head)
 
         for label, kind in actions[:3]:
@@ -124,15 +120,27 @@ class _PositionChip(QFrame):
             pill.setAlignment(Qt.AlignCenter)
             pill.setFixedHeight(20)
             k = kind.lower()
-            if "fold" in k:    bg, fg = "#1B2D4A", "#93C5FD"
+            if "fold" in k:                   bg, fg = "#1B2D4A", "#93C5FD"
             elif "call" in k or "check" in k: bg, fg = "#0E2A1E", "#6EE7B7"
-            else:              bg, fg = "#2A1B1B", "#FCA5A5"
+            else:                             bg, fg = "#2A1B1B", "#FCA5A5"
             pill.setStyleSheet(
                 f"QLabel{{background:{bg};color:{fg};border-radius:4px;"
                 "font-size:10px;font-weight:600;padding:2px 6px;}}"
             )
             v.addWidget(pill)
         v.addStretch(1)
+
+    def _apply_style(self) -> None:
+        border = _C_GREEN if self._is_hero else _C_BORDER
+        self.setStyleSheet(
+            f"QFrame{{background:{_C_PANEL};border:2px solid {border};border-radius:8px;}}"
+            f"QFrame:hover{{border-color:{_C_CYAN};}}"
+        )
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit(self._position)
+        super().mousePressEvent(event)
 
 
 class _StrategyBar(QFrame):
@@ -160,13 +168,26 @@ class _StrategyBar(QFrame):
 
 
 class _HandComboCard(QFrame):
-    """Specific 2-card combo card showing the strategy for THIS combo."""
+    """Specific 2-card combo card showing the strategy for THIS combo.
+
+    Clickable — emits clicked(combo_label) so the parent can highlight that
+    hand in the range matrix.
+    """
+    clicked = Signal(str)
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit(self._combo)
+        super().mousePressEvent(event)
 
     def __init__(self, combo: str, strategy: dict[str, float]):
         super().__init__()
+        self._combo = combo
         self.setFixedSize(130, 86)
+        self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet(
             f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:7px;}}"
+            f"QFrame:hover{{border-color:{_C_CYAN};}}"
         )
         v = QVBoxLayout(self)
         v.setContentsMargins(8, 6, 8, 6)
@@ -597,13 +618,24 @@ class GTOTrainerScreen(QWidget):
         rv.setContentsMargins(14, 14, 14, 14)
         rv.setSpacing(8)
 
-        # Tabs row
+        # Tabs row — actually switches RangeMatrix mode now
         tabs_row = QHBoxLayout()
         tabs_row.setSpacing(4)
-        for tab in ["Strategy", "Strategy + EV", "EV", "Equity", "Runout Comparison", "Aggregate Reports"]:
+        self._tab_buttons: dict[str, QPushButton] = {}
+        self._tab_to_mode = {
+            "Strategy":          "strategy",
+            "Strategy + EV":     "strategy_ev",
+            "EV":                "ev",
+            "Equity":            "equity",
+            "Runout Comparison": "runout",
+            "Aggregate Reports": "aggregate",
+        }
+        for tab in self._tab_to_mode.keys():
             tb = QPushButton(tab)
             tb.setFixedHeight(32)
             tb.setStyleSheet(_pill_style(active=(tab == "Strategy")))
+            tb.clicked.connect(lambda _checked=False, t=tab: self._switch_tab(t))
+            self._tab_buttons[tab] = tb
             tabs_row.addWidget(tb)
         tabs_row.addStretch(1)
         rv.addLayout(tabs_row)
@@ -614,6 +646,14 @@ class GTOTrainerScreen(QWidget):
         rv.addWidget(self._matrix, 1)
         h.addWidget(right, 1)
         return w
+
+    # ── tab switching ─────────────────────────────────────────────────
+    def _switch_tab(self, tab_name: str) -> None:
+        mode = self._tab_to_mode.get(tab_name, "strategy")
+        self._matrix.set_mode(mode)
+        for name, btn in self._tab_buttons.items():
+            btn.setStyleSheet(_pill_style(active=(name == tab_name)))
+        self.coach_message.emit(f"View mode: {tab_name}")
 
     # ── table view ─────────────────────────────────────────────────────
     def _build_table_view(self) -> QWidget:
@@ -707,6 +747,9 @@ class GTOTrainerScreen(QWidget):
         combos = self._combos_for(hero_hand, hand_strat)
         for i, (combo_str, strat) in enumerate(combos):
             card = _HandComboCard(combo_str, strat)
+            # Clicking a specific combo highlights the corresponding 169-cell
+            # in the matrix and emits a coach message describing the strategy.
+            card.clicked.connect(lambda combo, h=hero_hand, s=strat: self._on_combo_card_clicked(h, combo, s))
             self._combos_grid.addWidget(card, i // 2, i % 2)
 
         # If currently in table mode, also refresh that
@@ -722,8 +765,38 @@ class GTOTrainerScreen(QWidget):
             is_hero = (pos == hero_pos)
             actions = self._actions_for_position(pos, hero_pos)
             chip = _PositionChip(pos, stack, actions, is_hero=is_hero)
+            chip.clicked.connect(self._on_position_clicked)
             self._pos_row.addWidget(chip)
         self._pos_row.addStretch(1)
+
+    def _on_combo_card_clicked(self, hand_169: str, combo: str, strategy: dict) -> None:
+        """Highlight the clicked hand in the matrix + summarise strategy."""
+        self._matrix.highlight_hand(hand_169)
+        parts = ", ".join(f"{a} {f*100:.0f}%" for a, f in sorted(strategy.items(), key=lambda x: -x[1]) if f > 0.01)
+        self.coach_message.emit(f"{combo}  →  {parts}")
+
+    def _on_position_clicked(self, position: str) -> None:
+        """Switch hero to clicked position, reload chart for that position."""
+        current_spot = self.drills[self.index % len(self.drills)]
+        # Find a drill matching the clicked position with similar stack/format
+        target_stack = current_spot.get("stack_bb", 40)
+        candidates = [d for d in self.drills
+                      if d.get("position") == position
+                      and abs(d.get("stack_bb", 40) - target_stack) <= 10]
+        if not candidates:
+            candidates = [d for d in self.drills if d.get("position") == position]
+        if not candidates:
+            self.coach_message.emit(f"{position} pozisyonu için spot bulunamadı.")
+            return
+        # Pick the closest stack match
+        candidates.sort(key=lambda d: abs(d.get("stack_bb", 40) - target_stack))
+        new_spot = candidates[0]
+        for i, d in enumerate(self.drills):
+            if d["id"] == new_spot["id"]:
+                self.index = i
+                break
+        self.load_spot()
+        self.coach_message.emit(f"{position} pozisyonuna geçildi — chart yenilendi.")
 
     def _actions_for_position(self, pos: str, hero_pos: str) -> list[tuple[str, str]]:
         """Demo: most positions fold preflop, hero shows raise+fold strategy."""

@@ -53,6 +53,11 @@ class RangeMatrix(QWidget):
         super().__init__(parent)
         self._freq_map: dict[str, dict[str, float]] = {}
         self._highlighted: Optional[str] = None
+        # mode: "strategy" (default), "strategy_ev", "ev", "equity", "runout", "aggregate"
+        self._mode: str = "strategy"
+        # Per-hand EV / equity values (filled by set_strategy from chart aggregate)
+        self._ev_map: dict[str, float] = {}
+        self._equity_map: dict[str, float] = {}
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setMinimumSize(420, 420)
         self.setMouseTracking(True)
@@ -61,7 +66,31 @@ class RangeMatrix(QWidget):
     def set_strategy(self, freq_map: dict[str, dict[str, float]]) -> None:
         """{"AKs": {"raise": 0.7, "fold": 0.3}, …}"""
         self._freq_map = freq_map or {}
+        # Derive EV and equity proxies so EV/Equity tabs have data to paint:
+        # EV ≈ aggressive frequency × 2 - 1 (range −1 fold-only … +1 raise-only)
+        # Equity ≈ raise/call frequency (proxy for "how much this hand wants to play")
+        self._ev_map = {}
+        self._equity_map = {}
+        for hand, strat in (freq_map or {}).items():
+            aggr = sum(v for a, v in strat.items() if any(k in a.lower() for k in ("raise","3bet","4bet","bet","jam","all")))
+            passive = sum(v for a, v in strat.items() if any(k in a.lower() for k in ("call","check")))
+            fold = sum(v for a, v in strat.items() if "fold" in a.lower())
+            total = max(aggr + passive + fold, 0.001)
+            self._ev_map[hand]     = round(2.0 * aggr / total - 0.4 * fold / total, 3)
+            self._equity_map[hand] = round((aggr + 0.5 * passive) / total, 3)
         self.update()
+
+    def set_mode(self, mode: str) -> None:
+        """Switch matrix render mode.
+        Valid: 'strategy' | 'strategy_ev' | 'ev' | 'equity' | 'runout' | 'aggregate'
+        """
+        self._mode = mode if mode in ("strategy", "strategy_ev", "ev", "equity",
+                                       "runout", "aggregate") else "strategy"
+        self.update()
+
+    @property
+    def mode(self) -> str:
+        return self._mode
 
     def highlight_hand(self, hand: Optional[str]) -> None:
         self._highlighted = hand
@@ -69,6 +98,8 @@ class RangeMatrix(QWidget):
 
     def clear(self) -> None:
         self._freq_map = {}
+        self._ev_map = {}
+        self._equity_map = {}
         self._highlighted = None
         self.update()
 
@@ -115,8 +146,29 @@ class RangeMatrix(QWidget):
                 hand = _hand_at(row, col)
                 actions = self._freq_map.get(hand, {})
 
-                # Paint segments per action
-                if actions:
+                if self._mode in ("ev", "strategy_ev"):
+                    # EV heatmap: green = positive EV, red = negative
+                    val = self._ev_map.get(hand, 0.0)  # range roughly [-0.4, 2]
+                    intensity = max(-1.0, min(1.0, val / 1.5))
+                    if intensity >= 0:
+                        # green gradient
+                        g = int(60 + 180 * intensity)
+                        col_q = QColor(20, g, 60)
+                    else:
+                        b = int(60 + 180 * (-intensity))
+                        col_q = QColor(b, 30, 50)
+                    painter.fillRect(int(x), int(y), int(cell_w + 1), int(cell_h + 1), col_q)
+
+                elif self._mode == "equity":
+                    # Equity heatmap: yellow→green gradient
+                    eq = self._equity_map.get(hand, 0.0)
+                    g = int(60 + 180 * eq)
+                    r = int(180 * (1.0 - eq))
+                    col_q = QColor(max(30, r), g, 60)
+                    painter.fillRect(int(x), int(y), int(cell_w + 1), int(cell_h + 1), col_q)
+
+                elif actions:
+                    # Default Strategy mode — paint segments per action
                     total = sum(actions.values()) or 1.0
                     seg_x = x
                     for action, freq in actions.items():
@@ -138,10 +190,47 @@ class RangeMatrix(QWidget):
 
                 # Hand label
                 painter.setPen(QColor("#FFFFFF"))
-                painter.drawText(
-                    int(x), int(y), int(cell_w), int(cell_h),
-                    Qt.AlignCenter, hand,
-                )
+                if self._mode == "strategy_ev":
+                    # Smaller hand label on top, EV value below
+                    painter.drawText(
+                        int(x), int(y) + 2, int(cell_w), int(cell_h * 0.5),
+                        Qt.AlignCenter, hand,
+                    )
+                    ev = self._ev_map.get(hand, 0.0)
+                    sub_font = QFont(); sub_font.setBold(False)
+                    sub_font.setPixelSize(max(7, int(cell_w * 0.22)))
+                    painter.setFont(sub_font)
+                    painter.drawText(
+                        int(x), int(y + cell_h * 0.5), int(cell_w), int(cell_h * 0.5 - 2),
+                        Qt.AlignCenter, f"{ev:+.2f}",
+                    )
+                    painter.setFont(font)  # restore
+                elif self._mode == "equity":
+                    painter.drawText(
+                        int(x), int(y) + 2, int(cell_w), int(cell_h * 0.5),
+                        Qt.AlignCenter, hand,
+                    )
+                    eq = self._equity_map.get(hand, 0.0)
+                    sub_font = QFont(); sub_font.setBold(False)
+                    sub_font.setPixelSize(max(7, int(cell_w * 0.22)))
+                    painter.setFont(sub_font)
+                    painter.drawText(
+                        int(x), int(y + cell_h * 0.5), int(cell_w), int(cell_h * 0.5 - 2),
+                        Qt.AlignCenter, f"{eq*100:.0f}%",
+                    )
+                    painter.setFont(font)
+                elif self._mode == "ev":
+                    # Pure EV: show value only
+                    ev = self._ev_map.get(hand, 0.0)
+                    painter.drawText(
+                        int(x), int(y), int(cell_w), int(cell_h),
+                        Qt.AlignCenter, f"{ev:+.2f}",
+                    )
+                else:
+                    painter.drawText(
+                        int(x), int(y), int(cell_w), int(cell_h),
+                        Qt.AlignCenter, hand,
+                    )
 
         painter.end()
 
