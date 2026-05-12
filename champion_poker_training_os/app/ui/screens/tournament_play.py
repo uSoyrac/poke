@@ -412,14 +412,34 @@ class TournamentPlayScreen(QWidget):
             return
         sb, bb, ante = self._blinds()
         n = self.session.num_players
-        self.game = PokerGame(
-            num_players    = n,
-            starting_stack = float(self.session.hero_stack),
-            small_blind    = float(sb),
-            big_blind      = float(bb),
-            hero_seat      = 0,
-            bot_archetype  = "Balanced Reg",
+        # Reuse the same PokerGame instance across hands so dealer_idx
+        # auto-rotates and hero plays every position. Only re-create on
+        # player-count change, level change (blinds update) or first hand.
+        recreate = (
+            self.game is None
+            or getattr(self, "_last_blinds", None) != (sb, bb)
+            or self.game.num_players != n
         )
+        if recreate:
+            # Preserve hero's actual stack and dealer rotation across recreation
+            prev_dealer = getattr(self.game, "dealer_idx", -1) if self.game else -1
+            self.game = PokerGame(
+                num_players    = n,
+                starting_stack = float(self.session.hero_stack),
+                small_blind    = float(sb),
+                big_blind      = float(bb),
+                hero_seat      = 0,
+                bot_archetype  = "Balanced Reg",
+            )
+            # If we're recreating mid-tournament (blinds change), advance dealer
+            # to where it left off + 1, otherwise random start so first hand isn't always SB
+            import random
+            if prev_dealer >= 0:
+                self.game.dealer_idx = (prev_dealer + 1) % n
+            else:
+                # Pick a random starting button so the first hand isn't always BTN→SB hero
+                self.game.dealer_idx = random.randint(0, n - 1)
+            self._last_blinds = (sb, bb)
         hand = self.game.start_hand()
         self.session.hands_played += 1
         self._advance_level()

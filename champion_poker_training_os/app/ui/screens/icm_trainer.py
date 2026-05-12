@@ -103,7 +103,9 @@ class IcmTrainerScreen(QWidget):
         super().__init__()
         self.state = state
         self.drills = _generate_icm_drills(40)
-        self.index = 0
+        # Random start so each session opens on a different spot
+        import random as _rnd
+        self.index = _rnd.randint(0, max(0, len(self.drills) - 1))
         self.correct = 0
         self.total = 0
         self.icm_punts = 0

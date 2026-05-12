@@ -208,11 +208,13 @@ class DrillBuilderScreen(QWidget):
         right_layout.setContentsMargins(28, 22, 28, 22)
         right_layout.setSpacing(18)
 
-        # Oval table with selectable positions
+        # Oval table with selectable positions — default to ALL selected so
+        # users don't get stuck on disabled START TRAINING button
         self.table = OvalTable(positions=DEFAULT_POSITIONS_9, selectable=True)
         self.table.set_dealer("BTN")
         self.table.set_community_cards(["W", "W", "W", "W", "W"])
         self.table.selection_changed.connect(self._on_selection_changed)
+        self.table.select_all(True)  # all positions pre-selected so START works on landing
         right_layout.addWidget(self.table, 1)
 
         # Solutions dropdown

@@ -199,7 +199,8 @@ class SpotTrainerScreen(QWidget):
         super().__init__()
         self.state = state
         self.drills = generate_spot_drills(120)
-        self.index  = 0
+        # Random start index so every session opens on a different spot
+        self.index  = random.randint(0, max(0, len(self.drills) - 1))
         self.seed   = random.randint(1, 99)
         self._rng   = random.Random(self.seed)
         self._answered = False
@@ -468,13 +469,19 @@ class SpotTrainerScreen(QWidget):
             if filtered:
                 self.drills = filtered
         if preflop and preflop != "Any":
+            # New catalog uses short codes ("SRP", "3BP", "4BP", "Limp", "Squeeze")
             mapped = {
-                "SRP": "single raised pot", "3-bet": "3bet pot", "4-bet": "4bet pot",
-                "Squeeze": "squeezed pot", "Limp": "limped pot", "Iso": "iso pot",
+                "SRP":     ("SRP", "single raised pot"),
+                "3-bet":   ("3BP", "3bet pot"),
+                "4-bet":   ("4BP", "4bet pot"),
+                "Squeeze": ("SQZ", "squeezed pot"),
+                "Limp":    ("Limp", "limped pot"),
+                "Iso":     ("Iso", "iso pot"),
             }
-            tag = mapped.get(preflop, "").lower()
-            if tag:
-                filtered = [d for d in self.drills if tag in (d.get("pot_type", "") or "").lower()]
+            tags = mapped.get(preflop, ())
+            if tags:
+                filtered = [d for d in self.drills
+                            if any(t.lower() in (d.get("pot_type", "") or "").lower() for t in tags)]
                 if filtered:
                     self.drills = filtered
 
@@ -944,21 +951,82 @@ def _tab_btn_style(active: bool, small: bool = False) -> str:
 
 
 def _spread_actions_for_spot(spot: dict, rng: random.Random) -> dict[str, list[str]]:
-    positions = ["LJ", "HJ", "CO", "BTN", "SB", "BB", "UTG", "UTG1"]
-    history   = spot.get("action_history", "") or ""
-    tokens    = parse_action_string(history)[:8]
-    hero_pos  = spot.get("position") or "BTN"
-    if hero_pos not in positions:
+    """Derive per-position action chips from the spot's metadata.
+
+    Reads name/action_history to figure out preflop story:
+      • "RFI" / open spots          → all earlier positions fold, hero raises
+      • "vs BTN" / "vs LJ" defense  → that position raised, intermediate fold,
+                                      hero (BB/SB/BTN) faces decision
+      • "3-bet" defense             → opener raises, 3-bettor 3bets, hero decides
+    """
+    order = ["UTG", "UTG1", "LJ", "HJ", "CO", "BTN", "SB", "BB"]
+    hero_pos = spot.get("position") or "BTN"
+    if hero_pos == "UTG+1":
+        hero_pos = "UTG1"
+    if hero_pos not in order:
         hero_pos = "BTN"
-    layout: dict[str, list[str]] = {p: [] for p in positions}
-    for p in positions:
-        if p == hero_pos:
-            continue
-        layout[p] = ["F"] if rng.random() < 0.65 else []
-    villain = rng.choice([p for p in positions if p != hero_pos and not layout[p]] or [hero_pos])
-    layout[hero_pos] = tokens if tokens else ["R 2.3"]
-    if villain != hero_pos:
-        layout[villain] = ["C", "X", "B 25%", "C"][: max(1, len(tokens) - 1)]
+
+    name    = (spot.get("name", "") + " " + spot.get("action_history", "") + " " + spot.get("title", "")).upper()
+    street  = (spot.get("street", "preflop") or "preflop").lower()
+    pot_t   = (spot.get("pot_type", "") or "").upper()
+    layout: dict[str, list[str]] = {}
+
+    # Detect "vs X" pattern
+    vs_pos = None
+    for v in ("UTG1", "UTG", "LJ", "HJ", "CO", "BTN", "SB", "BB"):
+        if f"VS {v}" in name or f"VS {v} " in name:
+            vs_pos = v; break
+
+    # ── Preflop dynamics ──────────────────────────────────────────────
+    hero_idx = order.index(hero_pos)
+
+    if "3-BET" in name or pot_t == "3BP":
+        # Opener (some earlier pos) raised, hero 3bet target now defends/4bets
+        opener = vs_pos or order[max(0, hero_idx - 2)]
+        if opener not in order: opener = "BTN"
+        for p in order:
+            if p == opener:
+                layout[p] = ["R 2.3"]
+            elif p == hero_pos:
+                layout[p] = ["3B 8"]
+            elif order.index(p) < order.index(opener):
+                layout[p] = ["F"]
+            else:
+                # Folded between opener and 3-bettor
+                if order.index(p) < hero_idx and p != opener:
+                    layout[p] = ["F"]
+    elif vs_pos and hero_pos in ("BB", "SB"):
+        # Defense spot: villain raised, hero is in blind
+        for p in order:
+            if p == vs_pos:
+                layout[p] = ["R 2.3"]
+            elif p == hero_pos:
+                pass  # Hero acts now — no chip yet
+            elif order.index(p) < order.index(vs_pos):
+                layout[p] = ["F"]
+            else:
+                # Positions between villain and blinds fold
+                if p not in ("BB", "SB"):
+                    layout[p] = ["F"]
+        # SB folds if hero is BB and vs_pos != SB
+        if hero_pos == "BB" and vs_pos != "SB":
+            layout.setdefault("SB", ["F"])
+    elif street == "preflop":
+        # Open spot: hero RFI, all earlier positions fold
+        for p in order:
+            if p == hero_pos:
+                continue
+            if order.index(p) < hero_idx:
+                layout[p] = ["F"]
+        # Hero raises
+        layout[hero_pos] = ["R 2.3"]
+    else:
+        # Postflop: just mark dealer + hero
+        for p in order:
+            if p != hero_pos:
+                layout[p] = ["F"] if rng.random() < 0.7 else []
+        layout[hero_pos] = ["C"]
+
     return {k: v for k, v in layout.items() if v}
 
 

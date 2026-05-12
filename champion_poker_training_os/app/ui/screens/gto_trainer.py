@@ -468,7 +468,7 @@ class GTOTrainerScreen(QWidget):
         super().__init__()
         self.state = state
         self.drills = generate_spot_drills(120)
-        self.index = 0
+        self.index = random.randint(0, max(0, len(self.drills) - 1))
         self._mode = "range"  # "range" | "table"
         self._answered = False
         self._action_btns: list[tuple[QPushButton, str]] = []
