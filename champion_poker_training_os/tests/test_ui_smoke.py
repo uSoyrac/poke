@@ -30,6 +30,13 @@ def state():
 
 # ── individual screens ───────────────────────────────────────────────────
 
+def test_welcome_screen(qapp, state):
+    from app.ui.screens.welcome import WelcomeScreen
+    w = WelcomeScreen(state)
+    assert w is not None
+    w.close()
+
+
 def test_dashboard_screen(qapp, state):
     from app.ui.screens.dashboard import DashboardScreen
     w = DashboardScreen(state)

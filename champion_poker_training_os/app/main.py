@@ -48,6 +48,7 @@ from app.ui.screens.tournament_simulator import TournamentSimulatorScreen
 from app.ui.screens.tournament_play import TournamentPlayScreen
 from app.ui.screens.gto_trainer import GTOTrainerScreen
 from app.ui.screens.heads_up_trainer import HeadsUpTrainerScreen
+from app.ui.screens.welcome import WelcomeScreen
 from app.ui.theme.theme_manager import apply_dark_theme
 
 
@@ -76,6 +77,7 @@ def prepare_qt_platform_plugins() -> None:
 
 
 NAV_ITEMS = [
+    "Welcome",
     "Dashboard",
     "Play Session",
     "Hands",
@@ -181,13 +183,15 @@ class MainWindow(QMainWindow):
         layout.addLayout(main_col, 1)
 
         self.scan_compliance()
-        self.navigate("Dashboard")
+        # Open on the Welcome screen so users always know where to go first
+        self.navigate("Welcome")
         self.scan_timer = QTimer(self)
         self.scan_timer.timeout.connect(self.scan_compliance)
         self.scan_timer.start(10_000)
 
     def _create_screens(self) -> None:
         factories = {
+            "Welcome": WelcomeScreen,
             "Dashboard": DashboardScreen,
             "Play Session": PlaySessionScreen,
             "Hands": HandsListScreen,

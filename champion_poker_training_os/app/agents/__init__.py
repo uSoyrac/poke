@@ -14,6 +14,7 @@ independently. No GUI or Qt dependency in this module.
 from app.agents.base import Agent, AgentResult
 from app.agents.coach import CoachAgent
 from app.agents.drill_generator import DrillGeneratorAgent
+from app.agents.gto_master import GTOMasterAgent, MasterAnalysis
 from app.agents.leak_detector import LeakDetectionAgent
 from app.agents.orchestrator import AgentOrchestrator
 from app.agents.poker_player import PokerPlayingAgent
@@ -27,5 +28,7 @@ __all__ = [
     "LeakDetectionAgent",
     "DrillGeneratorAgent",
     "ReviewAgent",
+    "GTOMasterAgent",
+    "MasterAnalysis",
     "AgentOrchestrator",
 ]
