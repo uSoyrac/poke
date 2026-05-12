@@ -329,8 +329,14 @@ class TournamentSimulatorScreen(QWidget):
         if not self.report.text():
             self.report.setText("İlk kararı ver: chipEV mi, $EV mi öncelikli? Bubble pressure'ı yorumla.")
         _clear_layout(self.action_layout)
+        # Use the shared GTO action button so this screen looks identical
+        # to Spot Trainer, GTO Trainer, Tournament Play, etc.
+        from app.ui.components.action_buttons import GtoActionButton, action_display
+        pot_bb = float(spot.get("pot_bb", 10.0))
+        stack_bb = float(spot.get("stack_bb", 40.0))
         for action in spot["options"]:
-            button = QPushButton(action)
+            label = action_display(action, pot_bb, stack_bb)
+            button = GtoActionButton(label, action)
             button.clicked.connect(lambda checked=False, a=action: self.decide(a))
             self.action_layout.addWidget(button)
 

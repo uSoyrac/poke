@@ -176,8 +176,11 @@ class PostflopTrainerScreen(QWidget):
         self.spot_history.setText(spot["action_history"])
 
         _clear_layout(self.action_layout)
+        from app.ui.components.action_buttons import GtoActionButton, action_display
+        pot_bb = float(spot.get("pot_bb", 10.0))
+        stack_bb = float(spot.get("stack_bb", 40.0))
         for action in spot["options"]:
-            button = QPushButton(action)
+            button = GtoActionButton(action_display(action, pot_bb, stack_bb), action)
             button.clicked.connect(lambda checked=False, a=action: self._play_action(a))
             self.action_layout.addWidget(button)
 

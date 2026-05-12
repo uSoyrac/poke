@@ -287,15 +287,13 @@ class IcmTrainerScreen(QWidget):
         self.card_rp = _update_card_text(self.card_rp, f"{spot['risk_premium']:.1%}", f"{spot['hero_stack_bb']}bb vs {spot['avg_stack_bb']}bb avg")
 
         _clear_layout(self.action_layout)
+        # Unified GTO action buttons — same look as Spot Trainer / GTO Trainer
+        from app.ui.components.action_buttons import GtoActionButton, action_display
+        pot_bb = float(spot.get("pot_bb", 1.5))
+        stack_bb = float(spot.get("stack_bb", 25.0))
         for action in spot["options"]:
-            button = QPushButton(action.upper())
+            button = GtoActionButton(action_display(action, pot_bb, stack_bb), action)
             button.clicked.connect(lambda checked=False, a=action: self.decide(a))
-            if action == "jam":
-                button.setObjectName("DangerButton")
-            elif action == "fold":
-                button.setObjectName("")
-            else:
-                button.setObjectName("PrimaryButton")
             self.action_layout.addWidget(button)
 
     def decide(self, action: str) -> None:

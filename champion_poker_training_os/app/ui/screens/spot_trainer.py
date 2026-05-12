@@ -39,6 +39,7 @@ from app.db.seed_data import generate_spot_drills, get_spot_categories
 from app.solver.csv_importer import get_solver_library
 from app.solver.mock_solver import compare_action, solve_spot
 from app.training.trainer_scoring import score_decision, skill_label
+from app.ui.components.action_buttons import GtoActionButton as _SharedGtoButton
 from app.ui.components.action_chip import parse_action_string
 from app.ui.components.card_view import CardView
 from app.ui.components.oval_table import DEFAULT_POSITIONS_9, OvalTable

@@ -74,6 +74,9 @@ class LivePokerTable(QWidget):
         self.players_data = []
         last_actions = self._latest_actions(hand)
         for i, p in enumerate(hand.players):
+            # Live HandState provides actions via hand.actions; SpotSnapshot puts
+            # the chip info directly on each seat as .last_action — support both.
+            chip = last_actions.get(i) or getattr(p, "last_action", "") or None
             self.players_data.append({
                 "name": p.name,
                 "position": p.position or "",
@@ -83,7 +86,7 @@ class LivePokerTable(QWidget):
                 "is_hero": p.is_hero,
                 "is_folded": p.is_folded,
                 "is_all_in": p.is_all_in,
-                "last_action": last_actions.get(i),
+                "last_action": chip,
             })
         self.update()
 

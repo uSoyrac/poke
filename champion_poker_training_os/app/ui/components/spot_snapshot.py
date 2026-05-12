@@ -19,7 +19,7 @@ class SpotSeat:
     """Lightweight stand-in for engine.PlayerSeat for LivePokerTable rendering."""
     def __init__(self, name: str, position: str, stack: float, current_bet: float = 0,
                  is_hero: bool = False, is_folded: bool = False, is_all_in: bool = False,
-                 hole_cards: list | None = None):
+                 hole_cards: list | None = None, last_action: str = ""):
         self.name = name
         self.position = position
         self.stack = stack
@@ -28,6 +28,7 @@ class SpotSeat:
         self.is_folded = is_folded
         self.is_all_in = is_all_in
         self.hole_cards = hole_cards or []
+        self.last_action = last_action  # "fold"/"call"/"raise"/"check"/"bet"/"jam" or ""
 
 
 class SpotSnapshot:
@@ -76,13 +77,50 @@ def build_spot_snapshot(spot: dict, num_players: int = 6, hero_chip_stack: int =
 
     bb = max(1, blind_size_chips)
     seats: list[SpotSeat] = []
+
+    # Detect "vs X" / 3-bet context from spot name so we can wire proper chips
+    name_blob = (spot.get("name", "") + " " + spot.get("title", "") + " "
+                 + spot.get("action_history", "")).upper()
+    vs_pos = None
+    for v in ("UTG+1", "UTG1", "UTG", "LJ", "HJ", "CO", "BTN", "SB", "BB"):
+        if f"VS {v}" in name_blob:
+            vs_pos = v.replace("UTG1", "UTG+1"); break
+    is_3bp = "3-BET" in name_blob or (spot.get("pot_type", "") or "").upper() == "3BP"
+
     for i, pos in enumerate(positions):
         is_hero = (i == hero_seat_idx)
-        # Mark roughly half the table as folded preflop for visual realism
-        is_folded = (not is_hero) and (i not in {(hero_seat_idx + 1) % n, (hero_seat_idx - 1) % n})
         stack = hero_chip_stack if is_hero else max(1, int(avg_stack * (0.7 + 0.06 * i)))
         current_bet = bb if pos == "SB" else (bb * 2 if pos == "BB" else 0)
         hole = hero_cards(spot.get("hero_cards", "")) if is_hero else []
+
+        last_action = ""
+        is_folded   = False
+
+        # Build a realistic preflop story so the oval doesn't look empty
+        if is_3bp and vs_pos:
+            # opener raised, 3-bettor 3bet, hero faces 3-bet
+            opener_pos = "BTN" if hero_pos == "BTN" and vs_pos == "BB" else hero_pos
+            if pos == opener_pos and not is_hero:
+                last_action = "raise"; current_bet = bb * 2.3
+            elif pos == vs_pos:
+                last_action = "raise"; current_bet = bb * 7
+            elif not is_hero:
+                last_action = "fold"; is_folded = True
+        elif vs_pos and hero_pos in ("BB", "SB"):
+            # Defense spot: villain raised, others folded
+            if pos == vs_pos:
+                last_action = "raise"; current_bet = bb * 2.3
+            elif pos == "SB" and hero_pos == "BB":
+                # SB folded (visible chip stays small)
+                last_action = "fold"; is_folded = True
+            elif not is_hero:
+                last_action = "fold"; is_folded = True
+        elif spot.get("street", "preflop").lower() == "preflop" and not is_hero:
+            # Open spot — earlier positions fold
+            order = positions  # SB-first
+            if order.index(pos) < hero_seat_idx and pos not in ("SB", "BB"):
+                last_action = "fold"; is_folded = True
+
         seats.append(SpotSeat(
             name="Hero" if is_hero else f"Bot{i}",
             position=pos,
@@ -91,6 +129,7 @@ def build_spot_snapshot(spot: dict, num_players: int = 6, hero_chip_stack: int =
             is_hero=is_hero,
             is_folded=is_folded,
             hole_cards=hole,
+            last_action=last_action,
         ))
 
     board = spot.get("board") or ""
