@@ -2,14 +2,29 @@
 
 Used by Spot Trainer, GTO Trainer, Tournament Play/Simulator, ICM, etc.
 so every "fold / call / raise / jam" decision UI matches.
+
+Universal keyboard shortcuts (pro-player muscle memory):
+    1 → FOLD
+    2 → CHECK / CALL
+    3 → RAISE / BET
+    4 → ALL-IN / JAM
 """
 from __future__ import annotations
 
 from typing import Callable, Optional
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QPainter
-from PySide6.QtWidgets import QPushButton, QSizePolicy
+from PySide6.QtGui import QColor, QKeySequence, QPainter, QShortcut
+from PySide6.QtWidgets import QPushButton, QSizePolicy, QWidget
+
+
+# Map digit keys to action-class slots (lower-case action name fragment)
+SHORTCUT_KEYS = {
+    "1": ("fold",),
+    "2": ("check", "call"),
+    "3": ("raise", "bet", "3bet", "4bet"),
+    "4": ("jam", "all-in", "all_in", "allin"),
+}
 
 
 # Colour palette (matches Spot Trainer's existing scheme)
@@ -137,3 +152,22 @@ def build_action_row(
         btn.clicked.connect(lambda _, a=action: on_click(a))
         buttons.append(btn)
     return buttons
+
+
+def attach_action_shortcuts(parent: QWidget, buttons: list[GtoActionButton]) -> None:
+    """Wire 1/2/3/4 keyboard shortcuts to FOLD / CALL / RAISE / JAM buttons.
+
+    Maps each digit to the first button whose action matches the shortcut
+    family.  Call this AFTER building the action button row.  Safe to call
+    multiple times — old shortcuts on the parent get replaced.
+    """
+    for digit, action_keys in SHORTCUT_KEYS.items():
+        target = None
+        for btn in buttons:
+            aid = btn.action_id.lower()
+            if any(k in aid for k in action_keys):
+                target = btn; break
+        if target is None or not target.isEnabled():
+            continue
+        sc = QShortcut(QKeySequence(digit), parent)
+        sc.activated.connect(target.click)

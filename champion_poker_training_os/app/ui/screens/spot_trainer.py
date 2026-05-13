@@ -624,6 +624,12 @@ class SpotTrainerScreen(QWidget):
             btn.clicked.connect(lambda _, a=action: self.answer(a))
             self._action_layout.addWidget(btn)
             self._current_action_buttons.append(btn)
+        # Wire universal 1/2/3/4 keyboard shortcuts (pro player muscle memory)
+        try:
+            from app.ui.components.action_buttons import attach_action_shortcuts
+            attach_action_shortcuts(self, self._current_action_buttons)
+        except Exception:
+            pass
 
     def _action_display_with_sizing(self, action: str, spot: dict) -> str:
         """Like _action_display but respects user-entered sizing override."""

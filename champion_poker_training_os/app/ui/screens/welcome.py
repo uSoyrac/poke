@@ -204,6 +204,14 @@ class WelcomeScreen(QWidget):
         steps_row.addWidget(play_card, 1)
         layout.addLayout(steps_row)
 
+        # ── Drill of the Day ───────────────────────────────────────────
+        dod_title = QLabel("🎯  Drill of the Day")
+        dod_title.setStyleSheet(f"color:{_C_TEXT};font-size:18px;font-weight:700;")
+        layout.addWidget(dod_title)
+
+        dod_card = self._build_drill_of_the_day()
+        layout.addWidget(dod_card)
+
         # ── Personalized recommendation ────────────────────────────────
         reco_title = QLabel("💡  Recommended for you")
         reco_title.setStyleSheet(f"color:{_C_TEXT};font-size:18px;font-weight:700;")
@@ -247,6 +255,97 @@ class WelcomeScreen(QWidget):
             grid.addWidget(chip, i // 3, i % 3)
         layout.addWidget(grid_w)
         layout.addStretch(1)
+
+    # ── drill of the day card ─────────────────────────────────────────────
+    def _build_drill_of_the_day(self) -> QFrame:
+        """Pick a deterministic-by-date drill from the catalog and feature it."""
+        import datetime
+        from app.db.drill_catalog import build_full_catalog
+
+        catalog = build_full_catalog()
+        if not catalog:
+            empty = QFrame()
+            return empty
+
+        # Deterministic by date so the same drill stays "today's" until midnight
+        day_index = datetime.date.today().toordinal()
+        spot = catalog[day_index % len(catalog)]
+
+        frame = QFrame()
+        frame.setStyleSheet(
+            f"QFrame{{background:qlineargradient(x1:0,y1:0,x2:1,y2:0,"
+            f"stop:0 #0F2A1E, stop:1 #131A24);"
+            f"border:1px solid {_C_GREEN};border-radius:12px;}}"
+        )
+        v = QVBoxLayout(frame)
+        v.setContentsMargins(20, 18, 20, 18)
+        v.setSpacing(8)
+
+        # Title row
+        top_row = QHBoxLayout()
+        title = QLabel(spot.get("name", spot.get("id", "Today's Drill")))
+        title.setStyleSheet(f"color:{_C_TEXT};font-size:17px;font-weight:800;")
+        top_row.addWidget(title)
+        top_row.addStretch(1)
+        cat = QLabel(spot.get("category", ""))
+        cat.setStyleSheet(f"color:{_C_GREEN};font-size:12px;font-weight:700;"
+                          "padding:3px 10px;background:#0F2A1E;border:1px solid #10B981;border-radius:6px;")
+        top_row.addWidget(cat)
+        v.addLayout(top_row)
+
+        # Meta
+        meta = QLabel(
+            f"{spot.get('format', 'MTT')} · {spot.get('table', '8-max')} · "
+            f"{spot.get('stack_bb', '?')}bb · {spot.get('position', '?')} · "
+            f"{spot.get('pot_type', '?')} · {spot.get('street', 'preflop').title()}"
+        )
+        meta.setStyleSheet(f"color:{_C_MUTED};font-size:12px;")
+        v.addWidget(meta)
+
+        # Hero hand line
+        hero = spot.get("hero_cards", "")
+        if hero:
+            hand_line = QLabel(f"<b>Hero hand:</b> <span style='color:{_C_CYAN}'>{hero}</span>")
+            hand_line.setStyleSheet(f"color:{_C_TEXT};font-size:13px;")
+            v.addWidget(hand_line)
+
+        # CTA row
+        cta_row = QHBoxLayout()
+        start = QPushButton("▶  Start Drill")
+        start.setFixedHeight(38)
+        start.setStyleSheet(
+            f"QPushButton{{background:{_C_GREEN};color:#000;border:none;"
+            "border-radius:8px;font-weight:800;padding:6px 22px;font-size:13px;}}"
+            "QPushButton:hover{background:#0EA371;}"
+        )
+        # Set pending spot so Spot Trainer jumps straight to it on next load
+        start.clicked.connect(lambda _, sid=spot.get("id"): self._launch_drill(sid))
+        cta_row.addWidget(start)
+
+        ask_master = QPushButton("🎓  Ask Master Coach")
+        ask_master.setFixedHeight(38)
+        ask_master.setStyleSheet(
+            f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};"
+            f"border:1px solid {_C_BORDER};border-radius:8px;"
+            "font-weight:700;padding:6px 18px;}}"
+            f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
+        )
+        ask_master.clicked.connect(lambda _, s=spot: self._ask_master_about(s))
+        cta_row.addWidget(ask_master)
+        cta_row.addStretch(1)
+        v.addLayout(cta_row)
+        return frame
+
+    def _launch_drill(self, spot_id: str) -> None:
+        """Set pending spot id so Spot Trainer auto-loads it, then navigate."""
+        if spot_id:
+            self.state.pending_spot_id = spot_id
+        self.navigate_requested.emit("Spot Practice Trainer")
+
+    def _ask_master_about(self, spot: dict) -> None:
+        """Push spot to AppState.selected_spot so AI Coach's Master Review uses it."""
+        self.state.selected_spot = spot
+        self.navigate_requested.emit("AI Poker Coach")
 
     # ── personalized recommendation card ──────────────────────────────────
     def _build_recommendation_panel(self) -> QFrame:

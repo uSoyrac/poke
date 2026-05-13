@@ -573,12 +573,28 @@ class GTOTrainerScreen(QWidget):
 
         lib_header = QLabel("Spot Library")
         lib_header.setStyleSheet(
-            f"color:{_C_TEXT};font-weight:700;font-size:13px;padding:12px 14px 8px;"
-            f"border-bottom:1px solid {_C_BORDER};"
+            f"color:{_C_TEXT};font-weight:700;font-size:13px;padding:12px 14px 4px;"
         )
         lib_v.addWidget(lib_header)
 
-        from PySide6.QtWidgets import QListWidget, QListWidgetItem
+        # Search box — filters spot list as user types
+        from PySide6.QtWidgets import QLineEdit, QListWidget, QListWidgetItem
+        self._spot_search = QLineEdit()
+        self._spot_search.setPlaceholderText("🔍  Search spots… (e.g. 'BTN AKs', 'BB defense')")
+        self._spot_search.setStyleSheet(
+            f"QLineEdit{{background:#0A0E14;border:1px solid {_C_BORDER};"
+            f"border-radius:5px;color:{_C_TEXT};font-size:11px;padding:6px 10px;"
+            f"margin:0 14px 8px;}}"
+            f"QLineEdit:focus{{border-color:{_C_CYAN};}}"
+        )
+        self._spot_search.textChanged.connect(self._on_spot_search_changed)
+        lib_v.addWidget(self._spot_search)
+
+        sep_line = QFrame()
+        sep_line.setFixedHeight(1)
+        sep_line.setStyleSheet(f"background:{_C_BORDER};")
+        lib_v.addWidget(sep_line)
+
         self._spot_list = QListWidget()
         self._spot_list.setStyleSheet(
             f"QListWidget{{background:#0A0E14;border:none;color:{_C_TEXT};font-size:11px;}}"
@@ -879,6 +895,19 @@ class GTOTrainerScreen(QWidget):
             btn.clicked.connect(lambda _, a=action: self._table_answer(a))
             self._tbl_act_layout.addWidget(btn)
             self._action_btns.append((btn, action))
+        # Universal 1/2/3/4 keyboard shortcuts on the table-mode action row
+        try:
+            from app.ui.components.action_buttons import attach_action_shortcuts, GtoActionButton
+            # Wrap raw QPushButtons as a shim so attach_action_shortcuts can reach them
+            class _ButtonShim:
+                def __init__(self, btn, action):
+                    self._btn = btn; self.action_id = action
+                def isEnabled(self): return self._btn.isEnabled()
+                def click(self): self._btn.click()
+            shims = [_ButtonShim(b, a) for b, a in self._action_btns]
+            attach_action_shortcuts(self, shims)
+        except Exception:
+            pass
 
     def _table_answer(self, action: str) -> None:
         if self._answered:
@@ -938,6 +967,22 @@ class GTOTrainerScreen(QWidget):
                 item = QListWidgetItem("   " + label)
                 item.setData(_Qt.UserRole, d.get("id"))
                 self._spot_list.addItem(item)
+
+    def _on_spot_search_changed(self, text: str) -> None:
+        """Hide list rows that don't match the search query (case-insensitive)."""
+        from PySide6.QtCore import Qt as _Qt
+        query = (text or "").strip().lower()
+        for i in range(self._spot_list.count()):
+            item = self._spot_list.item(i)
+            label = item.text().lower()
+            # Always show category headers if any of their children match,
+            # but hide them if all children hidden — handled by showing them
+            # whenever the query is empty or the header text matches.
+            is_header = item.data(_Qt.UserRole) is None
+            if is_header:
+                item.setHidden(query != "" and query not in label)
+                continue
+            item.setHidden(query != "" and query not in label)
 
     def _on_library_item_clicked(self, item) -> None:
         """Load the spot whose id is stored on the clicked item."""
