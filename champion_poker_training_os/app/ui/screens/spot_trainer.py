@@ -593,9 +593,8 @@ class SpotTrainerScreen(QWidget):
             for _ in range(2):
                 self._hero_cards_row.addWidget(CardView("", face_down=True))
 
-        # Update oval table
-        self.oval.set_actions(_spread_actions_for_spot(spot, self._rng))
-        self.oval.set_hero(pos)
+        # Update oval table — full poker context (stacks, bets, chips, hero cards, pot)
+        self.oval.populate_from_spot(spot)
         comm: list[str] = []
         if spot.get("street") == "flop":   comm = ["W", "W", "W"]
         elif spot.get("street") == "turn":  comm = ["W", "W", "W", "W"]
