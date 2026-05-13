@@ -675,6 +675,7 @@ class GTOTrainerScreen(QWidget):
             "Strategy + EV":     "strategy_ev",
             "EV":                "ev",
             "Equity":            "equity",
+            "Solver Tree":       "tree",
             "Runout Comparison": "runout",
             "Aggregate Reports": "aggregate",
         }
@@ -688,20 +689,48 @@ class GTOTrainerScreen(QWidget):
         tabs_row.addStretch(1)
         rv.addLayout(tabs_row)
 
-        # Range matrix
+        # Stacked: range matrix OR solver tree (controlled by tab choice)
+        from app.ui.components.solver_tree import SolverTreeView
         self._matrix = RangeMatrix()
         self._matrix.hand_clicked.connect(self._on_hand_clicked)
-        rv.addWidget(self._matrix, 1)
+        self._tree_view = SolverTreeView()
+        self._tree_view.node_clicked.connect(self._on_tree_node_clicked)
+
+        self._right_stack = QStackedWidget()
+        self._right_stack.addWidget(self._matrix)
+        self._right_stack.addWidget(self._tree_view)
+        rv.addWidget(self._right_stack, 1)
+
         h.addWidget(right, 1)
         return w
 
     # ── tab switching ─────────────────────────────────────────────────
     def _switch_tab(self, tab_name: str) -> None:
         mode = self._tab_to_mode.get(tab_name, "strategy")
-        self._matrix.set_mode(mode)
+        # Solver Tree tab switches the right pane to the tree view
+        if mode == "tree":
+            spot = self.drills[self.index % len(self.drills)]
+            self._tree_view.set_from_spot(spot)
+            self._right_stack.setCurrentWidget(self._tree_view)
+        else:
+            self._matrix.set_mode(mode)
+            self._right_stack.setCurrentWidget(self._matrix)
         for name, btn in self._tab_buttons.items():
             btn.setStyleSheet(_pill_style(active=(name == tab_name)))
         self.coach_message.emit(f"View mode: {tab_name}")
+
+    def _on_tree_node_clicked(self, node) -> None:
+        """User clicked a node — describe the path in the coach panel."""
+        try:
+            actor = getattr(node, "actor", "?")
+            action = getattr(node, "action", "?")
+            freq = getattr(node, "frequency", 0)
+            ev = getattr(node, "ev", 0)
+            self.coach_message.emit(
+                f"Tree node → {actor}: {action}  ({freq*100:.0f}%  EV {ev:+.2f})"
+            )
+        except Exception:
+            pass
 
     # ── table view ─────────────────────────────────────────────────────
     def _build_table_view(self) -> QWidget:

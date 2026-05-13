@@ -21,6 +21,7 @@ from app.db.repository import get_imported_hands, get_session_history
 from app.db.seed_data import leaks
 from app.leaks.imported_leak_detector import detect_leaks
 from app.ui.components.leak_card import LeakCard
+from app.ui.components.leak_heatmap import LeakHeatmap, POSITIONS, POT_TYPES
 from app.ui.components.metric_card import MetricCard
 
 
@@ -199,6 +200,25 @@ class LeakFinderScreen(QWidget):
         stats.addWidget(MetricCard("Repair Progress", "0%", "start repair drills", "Green"), 0, 3)
         layout.addLayout(stats)
 
+        # ── Leak Heatmap (8 positions × 5 pot types) ──────────────────
+        heatmap_title = QLabel("🗺  Leak Heatmap — accuracy per position × pot type")
+        heatmap_title.setObjectName("SectionTitle")
+        layout.addWidget(heatmap_title)
+        legend = QLabel(
+            "<span style='color:#10B981'>■</span> ≥85% accuracy  "
+            "<span style='color:#0E7C61'>■</span> 70-85%  "
+            "<span style='color:#B45309'>■</span> 50-70%  "
+            "<span style='color:#991B1B'>■</span> &lt;50% leak  "
+            "<span style='color:#6B7280'>■</span> no data  "
+            "·  click any cell to drill that spot"
+        )
+        legend.setStyleSheet("color:#9CA3AF;font-size:11px;")
+        layout.addWidget(legend)
+
+        self.heatmap = LeakHeatmap()
+        self.heatmap.cell_clicked.connect(self._on_heatmap_cell_clicked)
+        layout.addWidget(self.heatmap)
+
         # Leak table
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(["Leak", "Severity", "Category", "EV Lost", "Deviation", "Repair Days"])
@@ -356,6 +376,77 @@ class LeakFinderScreen(QWidget):
             self.table.setItem(row, 3, QTableWidgetItem(f"{leak.get('ev_lost', 0):.1f}bb"))
             self.table.setItem(row, 4, QTableWidgetItem(leak.get("frequency_deviation", "—")))
             self.table.setItem(row, 5, QTableWidgetItem(f"{leak.get('repair_days', 0)} days"))
+        # Refresh the heatmap based on the same filtered set
+        self._update_heatmap(filtered)
+
+    def _update_heatmap(self, leaks_data: list[dict]) -> None:
+        """Populate the heatmap from a leak list — derives (pos, pot) cells."""
+        from app.ui.components.leak_heatmap import LeakCell
+        # Try to extract structured position + pot_type fields from each leak.
+        # Falls back to keyword-scanning the name when the leak dict doesn't
+        # carry them explicitly (legacy EXTENDED_LEAKS catalog format).
+        cells: dict[tuple[str, str], LeakCell] = {}
+        for leak in leaks_data:
+            pos = leak.get("position") or self._scan_position(leak.get("name", ""))
+            pot = leak.get("pot_type")  or self._scan_pot_type(leak.get("name", ""))
+            if pos not in POSITIONS or pot not in POT_TYPES:
+                continue
+            sample = int(leak.get("sample_size", leak.get("sample", 0)))
+            ev_lost = float(leak.get("ev_lost", leak.get("total_ev_loss", 0.0)))
+            severity = (leak.get("severity") or "Medium").lower()
+            # Estimate accuracy from severity — proper Spot Trainer history would
+            # override this with real correct/sample counts later.
+            sev_acc = {"critical": 0.30, "high": 0.50, "medium": 0.65, "low": 0.80}
+            acc = sev_acc.get(severity, 0.60)
+            sample = max(sample, 3)
+            correct = int(round(sample * acc))
+            cells[(pos, pot)] = LeakCell(sample=sample, correct=correct, ev_loss=ev_lost)
+        self.heatmap.set_data(cells)
+
+    @staticmethod
+    def _scan_position(name: str) -> str:
+        n = name.upper()
+        for p in ("UTG+1", "UTG", "LJ", "HJ", "CO", "BTN", "SB", "BB"):
+            if p in n:
+                return p
+        return ""
+
+    @staticmethod
+    def _scan_pot_type(name: str) -> str:
+        n = name.lower()
+        if "3-bet" in n or "3bet" in n or "3bp" in n: return "3BP"
+        if "4-bet" in n or "4bet" in n or "4bp" in n: return "4BP"
+        if "squeeze" in n:                            return "Squeeze"
+        if "limp" in n:                               return "Limped"
+        return "SRP"
+
+    def _on_heatmap_cell_clicked(self, position: str, pot_type: str) -> None:
+        """User clicked a heatmap cell — build a drill pack for that spot."""
+        # Build a small drill queue from the catalog matching this (pos, pot_type)
+        try:
+            from app.db.drill_catalog import build_full_catalog
+            catalog = build_full_catalog()
+            # Match drill pot_type loosely (e.g. SRP ≈ "single raised pot")
+            pot_keys = {"SRP": ["SRP"], "3BP": ["3BP", "3bet"],
+                        "4BP": ["4BP", "4bet"], "Squeeze": ["squeeze"],
+                        "Limped": ["limp", "Limp"]}.get(pot_type, [pot_type])
+            picks = [d for d in catalog
+                     if d.get("position") == position
+                     and any(k.lower() in (d.get("pot_type", "") or "").lower() for k in pot_keys)]
+            if not picks:
+                self.coach_message.emit(
+                    f"{position} {pot_type} için catalog'da spot bulunamadı."
+                )
+                return
+            self.state.pending_spot_queue = [d["id"] for d in picks[:10]]
+            self.state.pending_spot_id    = picks[0]["id"]
+            self.coach_message.emit(
+                f"🎯 {position} {pot_type} → {len(picks[:10])} spot drill queue'ya eklendi. "
+                "Spot Practice Trainer'a yönlendiriliyorsun."
+            )
+            self.navigate_requested.emit("Spot Practice Trainer")
+        except Exception as e:
+            self.coach_message.emit(f"Heatmap drill build failed: {e}")
 
     def _select_leak(self, row: int, _col: int) -> None:
         filtered = self.table.property("filtered_leaks") or self.all_leaks
