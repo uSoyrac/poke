@@ -1,16 +1,9 @@
-"""WelcomeScreen — first-run / launch landing.
+"""Welcome / Home screen — crystal-clear "Start Here" layout.
 
-Master-coach style onboarding:
-  • 3-step workflow callouts (Learn → Practice → Play)
-  • Today's recommended training (from DrillGeneratorAgent + recent leaks)
-  • Skill score + streak progress
-  • Quick links to every training surface with one-line explanations
-
-Built to be the user's "home base" — they should always know what to do next.
+Three giant workflow buttons dominate the top half so the user immediately
+knows what to click. Stat cards + quick-links fill the bottom half.
 """
 from __future__ import annotations
-
-from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -25,400 +18,229 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.agents import AgentOrchestrator, DrillGeneratorAgent, LeakDetectionAgent
 from app.core.app_state import AppState
 
-_C_BG     = "#0A0E14"
-_C_CARD   = "#0F141C"
-_C_PANEL  = "#131A24"
-_C_BORDER = "#1E2733"
-_C_TEXT   = "#E5E7EB"
-_C_MUTED  = "#6B7280"
-_C_CYAN   = "#22D3EE"
-_C_GREEN  = "#10B981"
-_C_AMBER  = "#F59E0B"
+_BG     = "#0A0E14"
+_CARD   = "#0F141C"
+_PANEL  = "#131A24"
+_BORDER = "#1E2733"
+_TEXT   = "#E5E7EB"
+_MUTED  = "#6B7280"
+_CYAN   = "#22D3EE"
+_GREEN  = "#10B981"
+_AMBER  = "#F59E0B"
+_RED    = "#EF4444"
 
 
-class _ActionCard(QFrame):
-    """Large clickable card with icon, title, description, and CTA button."""
-    clicked = Signal(str)  # emits the nav target
+def _btn(label: str, color: str) -> QPushButton:
+    b = QPushButton(label)
+    b.setMinimumHeight(56)
+    b.setStyleSheet(
+        f"QPushButton{{background:{color};color:#000;border:none;"
+        "border-radius:10px;font-size:15px;font-weight:800;padding:0 24px;}}"
+        f"QPushButton:hover{{opacity:0.88;background:{color}CC;}}"
+    )
+    return b
 
-    def __init__(self, icon: str, title: str, description: str,
-                 cta_label: str, nav_target: str, primary: bool = False):
+
+class _BigCard(QFrame):
+    """Giant start-here card — icon + title + one-liner + CTA button."""
+    clicked = Signal(str)
+
+    def __init__(self, icon: str, title: str, subtitle: str,
+                 cta: str, target: str, accent: str, primary: bool = False):
         super().__init__()
-        self._target = nav_target
+        self._target = target
         self.setFrameShape(QFrame.NoFrame)
-        self.setMinimumHeight(180)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        border = _C_GREEN if primary else _C_BORDER
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        border = accent if primary else _BORDER
         self.setStyleSheet(
-            f"QFrame{{background:{_C_PANEL};border:2px solid {border};border-radius:12px;}}"
-            f"QFrame:hover{{border-color:{_C_CYAN};}}"
+            f"QFrame{{background:{_PANEL};border:2px solid {border};"
+            "border-radius:16px;}"
+            f"QFrame:hover{{border-color:{accent};}}"
         )
         v = QVBoxLayout(self)
-        v.setContentsMargins(20, 18, 20, 18)
-        v.setSpacing(10)
+        v.setContentsMargins(28, 26, 28, 24)
+        v.setSpacing(0)
 
-        icon_lbl = QLabel(icon)
-        icon_lbl.setStyleSheet("font-size:36px;")
-        v.addWidget(icon_lbl)
+        il = QLabel(icon)
+        il.setStyleSheet("font-size:48px;")
+        v.addWidget(il)
+        v.addSpacing(12)
 
-        title_lbl = QLabel(title)
-        title_lbl.setStyleSheet(f"color:{_C_TEXT};font-size:18px;font-weight:800;")
-        v.addWidget(title_lbl)
+        tl = QLabel(title)
+        tl.setStyleSheet(f"color:{_TEXT};font-size:22px;font-weight:800;")
+        v.addWidget(tl)
+        v.addSpacing(6)
 
-        desc_lbl = QLabel(description)
-        desc_lbl.setStyleSheet(f"color:{_C_MUTED};font-size:12px;")
-        desc_lbl.setWordWrap(True)
-        v.addWidget(desc_lbl)
-
+        sl = QLabel(subtitle)
+        sl.setStyleSheet(f"color:{_MUTED};font-size:13px;")
+        sl.setWordWrap(True)
+        v.addWidget(sl)
         v.addStretch(1)
 
-        cta = QPushButton(cta_label)
-        cta.setFixedHeight(40)
-        if primary:
-            cta.setStyleSheet(
-                f"QPushButton{{background:{_C_GREEN};color:#000;border:none;"
-                "border-radius:8px;font-weight:800;font-size:13px;padding:6px 16px;}}"
-                "QPushButton:hover{background:#0EA371;}"
-            )
-        else:
-            cta.setStyleSheet(
-                f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};"
-                f"border:1px solid {_C_BORDER};border-radius:8px;"
-                "font-weight:700;font-size:13px;padding:6px 16px;}}"
-                f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
-            )
-        cta.clicked.connect(lambda: self.clicked.emit(self._target))
-        v.addWidget(cta)
+        btn = _btn(cta, accent)
+        btn.setMinimumHeight(52)
+        btn.clicked.connect(lambda: self.clicked.emit(self._target))
+        v.addWidget(btn)
 
 
-class _MiniMetric(QFrame):
-    """Compact stat card for top KPI row."""
-    def __init__(self, label: str, value: str, accent: str = _C_CYAN):
+class _StatCard(QFrame):
+    def __init__(self, label: str, value: str, accent: str = _CYAN):
         super().__init__()
         self.setFrameShape(QFrame.NoFrame)
-        self.setMinimumHeight(100)
+        self.setFixedHeight(80)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setStyleSheet(
-            f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:10px;}}"
+            f"QFrame{{background:{_CARD};border:1px solid {_BORDER};"
+            "border-radius:10px;}"
         )
-        v = QVBoxLayout(self)
-        v.setContentsMargins(16, 14, 16, 14)
-        v.setSpacing(6)
-        lbl = QLabel(label)
-        lbl.setStyleSheet(f"color:{_C_MUTED};font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;")
-        val = QLabel(value)
-        val.setStyleSheet(f"color:{accent};font-size:26px;font-weight:800;")
-        v.addWidget(lbl)
-        v.addWidget(val)
+        h = QVBoxLayout(self)
+        h.setContentsMargins(16, 10, 16, 10)
+        h.setSpacing(2)
+        vl = QLabel(value)
+        vl.setStyleSheet(f"color:{accent};font-size:24px;font-weight:800;")
+        ll = QLabel(label)
+        ll.setStyleSheet(f"color:{_MUTED};font-size:11px;font-weight:600;")
+        h.addWidget(vl)
+        h.addWidget(ll)
+
+
+class _QuickLink(QPushButton):
+    def __init__(self, icon: str, label: str, target: str):
+        super().__init__(f"{icon}  {label}")
+        self._target = target
+        self.setMinimumHeight(44)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setStyleSheet(
+            f"QPushButton{{background:{_CARD};color:{_TEXT};"
+            f"border:1px solid {_BORDER};border-radius:8px;"
+            "font-size:12px;font-weight:600;padding:0 12px;text-align:left;}}"
+            f"QPushButton:hover{{border-color:{_CYAN};color:{_CYAN};}}"
+        )
 
 
 class WelcomeScreen(QWidget):
-    """Onboarding home screen — guides user to next action."""
-
-    coach_message = Signal(str)
     navigate_requested = Signal(str)
 
     def __init__(self, state: AppState):
         super().__init__()
-        self.state = state
-        self.orchestrator = AgentOrchestrator()
+        self._state = state
+        self.setStyleSheet(f"background:{_BG};")
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
-        body = QWidget()
-        scroll.setWidget(body)
-        root_l = QVBoxLayout(self)
-        root_l.setContentsMargins(0, 0, 0, 0)
-        root_l.addWidget(scroll)
+        scroll.setStyleSheet("QScrollArea{background:transparent;border:none;}")
 
-        layout = QVBoxLayout(body)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(20)
+        content = QWidget()
+        content.setStyleSheet(f"background:{_BG};")
+        root = QVBoxLayout(content)
+        root.setContentsMargins(32, 28, 32, 32)
+        root.setSpacing(24)
 
-        # ── Hero header ────────────────────────────────────────────────
-        hero = QFrame()
-        hero.setStyleSheet(
-            f"QFrame{{background:qlineargradient(x1:0,y1:0,x2:1,y2:0,"
-            f"stop:0 #0F2A1E, stop:1 #0A1A2E);"
-            f"border:1px solid {_C_BORDER};border-radius:14px;}}"
+        # ── Header ───────────────────────────────────────────────────────
+        hl = QHBoxLayout()
+        title = QLabel("♠  Champion Poker Training OS")
+        title.setStyleSheet(f"color:{_TEXT};font-size:28px;font-weight:800;")
+        sub = QLabel("GTO-tabanlı offline poker antrenmanı")
+        sub.setStyleSheet(f"color:{_MUTED};font-size:14px;")
+        hl.addWidget(title)
+        hl.addStretch(1)
+        hl.addWidget(sub, 0, Qt.AlignVCenter)
+        root.addLayout(hl)
+
+        # ── "NEREDEN BAŞLAYACAĞIM" label ─────────────────────────────────
+        start_lbl = QLabel("NEREDEN BAŞLAYACAĞIM?")
+        start_lbl.setStyleSheet(
+            f"color:{_CYAN};font-size:11px;font-weight:700;letter-spacing:2px;"
         )
-        hv = QVBoxLayout(hero)
-        hv.setContentsMargins(28, 24, 28, 24)
-        hv.setSpacing(6)
-        title = QLabel("🎯  Champion Poker Training OS")
-        title.setStyleSheet(f"color:{_C_TEXT};font-size:26px;font-weight:800;")
-        subtitle = QLabel("Master-level GTO training, drill packs, and post-session reviews — all offline.")
-        subtitle.setStyleSheet(f"color:{_C_MUTED};font-size:13px;")
-        hv.addWidget(title)
-        hv.addWidget(subtitle)
-        layout.addWidget(hero)
+        root.addWidget(start_lbl)
 
-        # ── KPI row ────────────────────────────────────────────────────
-        kpi_row = QHBoxLayout()
-        kpi_row.setSpacing(12)
-        kpi_row.addWidget(_MiniMetric("Drills completed", f"{state.completed_drills}", _C_CYAN))
-        accuracy = f"{state.accuracy:.0f}%" if state.completed_drills > 0 else "—"
-        kpi_row.addWidget(_MiniMetric("Accuracy", accuracy, _C_GREEN if state.accuracy >= 70 else _C_AMBER))
-        kpi_row.addWidget(_MiniMetric("EV loss session", f"{state.ev_loss_total:.1f}bb", _C_AMBER))
-        kpi_row.addWidget(_MiniMetric("Catalog size", "325", _C_CYAN))
-        layout.addLayout(kpi_row)
+        # ── 3 giant start-here cards ─────────────────────────────────────
+        cards_row = QHBoxLayout()
+        cards_row.setSpacing(16)
 
-        # ── 3-step workflow callouts ───────────────────────────────────
-        steps_title = QLabel("Start training in 3 steps")
-        steps_title.setStyleSheet(f"color:{_C_TEXT};font-size:18px;font-weight:700;")
-        layout.addWidget(steps_title)
-
-        steps_row = QHBoxLayout()
-        steps_row.setSpacing(14)
-
-        learn_card = _ActionCard(
-            "📚", "1) Learn GTO Charts",
-            "Browse pre-solved ranges for every position × stack × situation. "
-            "13×13 matrix with EV / equity heatmaps.",
-            "Open GTO Trainer  →", "GTO Trainer (Range View)",
-            primary=False,
+        learn = _BigCard(
+            "📐", "GTO Trainer",
+            "Range matrisi + spot kütüphanesi. Preflop stratejini öğren, "
+            "pozisyon × pot tipi için her elleri gör.",
+            "→  GTO TRAINER'A GİT", "GTO Trainer (Range View)",
+            _CYAN, primary=True,
         )
-        learn_card.clicked.connect(self.navigate_requested.emit)
-        steps_row.addWidget(learn_card, 1)
+        learn.clicked.connect(self.navigate_requested)
+        cards_row.addWidget(learn)
 
-        practice_card = _ActionCard(
-            "🎯", "2) Practice Spots",
-            "Drill 325 hand-crafted GTO spots with adaptive difficulty. "
-            "Mistake queue, sizing options, real-time feedback.",
-            "Start Drilling  →", "Spot Practice Trainer",
-            primary=True,
+        practice = _BigCard(
+            "🎯", "Spot Antrenman",
+            "325 hazır spot. Bir el gör, karar ver — fold / call / raise / jam. "
+            "GTO frekansı anında gösterilir.",
+            "→  SPOT'LARA GİT", "Spot Practice Trainer",
+            _GREEN,
         )
-        practice_card.clicked.connect(self.navigate_requested.emit)
-        steps_row.addWidget(practice_card, 1)
+        practice.clicked.connect(self.navigate_requested)
+        cards_row.addWidget(practice)
 
-        play_card = _ActionCard(
-            "🏆", "3) Play vs Bots",
-            "Real Texas Hold'em — 2 to 11 players, full game engine, "
-            "every decision reviewed against GTO.",
-            "Start Tournament  →", "Tournament Play Mode",
-            primary=False,
+        play = _BigCard(
+            "🃏", "Masa Oyna",
+            "Bot masasında gerçek eller oyna. "
+            "Dealer dönüşü, blindler, side-pot ve sonuç — tam oyun.",
+            "→  MASAYA OTU", "Play Session",
+            _AMBER,
         )
-        play_card.clicked.connect(self.navigate_requested.emit)
-        steps_row.addWidget(play_card, 1)
-        layout.addLayout(steps_row)
+        play.clicked.connect(self.navigate_requested)
+        cards_row.addWidget(play)
 
-        # ── Drill of the Day ───────────────────────────────────────────
-        dod_title = QLabel("🎯  Drill of the Day")
-        dod_title.setStyleSheet(f"color:{_C_TEXT};font-size:18px;font-weight:700;")
-        layout.addWidget(dod_title)
+        root.addLayout(cards_row)
 
-        dod_card = self._build_drill_of_the_day()
-        layout.addWidget(dod_card)
+        # ── Stat bar ─────────────────────────────────────────────────────
+        stats_row = QHBoxLayout()
+        stats_row.setSpacing(12)
+        drills_val = str(state.completed_drills) if state.completed_drills else "0"
+        acc_val = f"{state.accuracy:.0f}%" if state.accuracy else "—"
+        ev_val = f"{state.ev_loss_total:.1f}bb" if state.ev_loss_total else "0.0bb"
+        for label, val, acc in [
+            ("Tamamlanan Drill", drills_val, _CYAN),
+            ("Doğruluk", acc_val, _GREEN),
+            ("EV Kaybı (toplam)", ev_val, _RED),
+            ("Katalog", "325 spot", _AMBER),
+        ]:
+            stats_row.addWidget(_StatCard(label, val, acc))
+        root.addLayout(stats_row)
 
-        # ── Personalized recommendation ────────────────────────────────
-        reco_title = QLabel("💡  Recommended for you")
-        reco_title.setStyleSheet(f"color:{_C_TEXT};font-size:18px;font-weight:700;")
-        layout.addWidget(reco_title)
+        # ── Quick-links grid ─────────────────────────────────────────────
+        ql_lbl = QLabel("HIZLI BAĞLANTILAR")
+        ql_lbl.setStyleSheet(
+            f"color:{_MUTED};font-size:10px;font-weight:700;letter-spacing:1.5px;"
+        )
+        root.addWidget(ql_lbl)
 
-        reco = self._build_recommendation_panel()
-        layout.addWidget(reco)
-
-        # ── Full surface map ───────────────────────────────────────────
-        surface_title = QLabel("All training surfaces")
-        surface_title.setStyleSheet(f"color:{_C_TEXT};font-size:18px;font-weight:700;")
-        layout.addWidget(surface_title)
-
-        grid_w = QWidget()
-        grid = QGridLayout(grid_w)
-        grid.setSpacing(10)
-        surfaces = [
-            ("📊", "GTO Study Library",   "Browse spots by category + filter",      "GTO Study Library"),
-            ("🃏", "Hand History Analyzer", "Import PokerStars/CoinPoker hands",     "Hand History Analyzer"),
-            ("⚡",  "Fast Play Simulator", "Rapid-fire hands with shot clock",       "Fast Play Simulator"),
-            ("🥊", "Heads-Up Trainer",     "1v1 with HU-specific ranges",           "Heads-Up Trainer"),
-            ("💰", "ICM / PKO Trainer",    "Final table / bubble pressure spots",   "ICM / PKO Trainer"),
-            ("📈", "Range Trainer",        "13×13 quiz with mistake-only mode",     "Preflop Range Trainer"),
-            ("🔍", "Leak Finder",          "Auto-detect systemic mistakes",         "Leak Finder"),
-            ("🤖", "AI Poker Coach",       "Master-level structured analysis",      "AI Poker Coach"),
-            ("📚", "Knowledge Base",       "Concepts + theory deep-dives",          "Knowledge Base"),
-            ("📅", "Study Planner",        "Multi-day training plans",              "Study Planner"),
-            ("📋", "Reports",              "Weekly progress + position breakdown",  "Reports"),
-            ("⚙️", "Settings",             "RTA guard + solver CSV import",         "Settings / Compliance Guard"),
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        links = [
+            ("🏆", "Turnuva Oyna",     "Tournament Play Mode"),
+            ("⚔️",  "Heads-Up Trainer", "Heads-Up Trainer"),
+            ("⚡", "Hızlı Oyun",       "Fast Play Simulator"),
+            ("📚", "Çalışma Kitaplığı","GTO Study Library"),
+            ("💪", "Drills",           "Drills"),
+            ("🔬", "El Analiz",        "Hand History Analyzer"),
+            ("🩺", "Leak Finder",      "Leak Finder"),
+            ("💰", "ICM / PKO",        "ICM / PKO Trainer"),
+            ("🌊", "Postflop",         "Postflop Trainer"),
+            ("🏁", "River Trainer",    "River Decision Trainer"),
+            ("🤖", "AI Coach",         "AI Poker Coach"),
+            ("📈", "Raporlar",         "Reports"),
         ]
-        for i, (icon, name, desc, target) in enumerate(surfaces):
-            chip = QPushButton(f"{icon}  {name}\n{desc}")
-            chip.setMinimumHeight(64)
-            chip.setStyleSheet(
-                f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};"
-                f"border:1px solid {_C_BORDER};border-radius:8px;"
-                "text-align:left;padding:8px 14px;font-size:12px;font-weight:600;}}"
-                f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
-            )
-            chip.clicked.connect(lambda _c=False, t=target: self.navigate_requested.emit(t))
-            grid.addWidget(chip, i // 3, i % 3)
-        layout.addWidget(grid_w)
-        layout.addStretch(1)
+        cols = 4
+        for idx, (icon, label, target) in enumerate(links):
+            btn = _QuickLink(icon, label, target)
+            btn.clicked.connect(lambda _=False, t=target: self.navigate_requested.emit(t))
+            grid.addWidget(btn, idx // cols, idx % cols)
+        root.addLayout(grid)
 
-    # ── drill of the day card ─────────────────────────────────────────────
-    def _build_drill_of_the_day(self) -> QFrame:
-        """Pick a deterministic-by-date drill from the catalog and feature it."""
-        import datetime
-        from app.db.drill_catalog import build_full_catalog
+        root.addStretch(1)
+        scroll.setWidget(content)
 
-        catalog = build_full_catalog()
-        if not catalog:
-            empty = QFrame()
-            return empty
-
-        # Deterministic by date so the same drill stays "today's" until midnight
-        day_index = datetime.date.today().toordinal()
-        spot = catalog[day_index % len(catalog)]
-
-        frame = QFrame()
-        frame.setStyleSheet(
-            f"QFrame{{background:qlineargradient(x1:0,y1:0,x2:1,y2:0,"
-            f"stop:0 #0F2A1E, stop:1 #131A24);"
-            f"border:1px solid {_C_GREEN};border-radius:12px;}}"
-        )
-        v = QVBoxLayout(frame)
-        v.setContentsMargins(20, 18, 20, 18)
-        v.setSpacing(8)
-
-        # Title row
-        top_row = QHBoxLayout()
-        title = QLabel(spot.get("name", spot.get("id", "Today's Drill")))
-        title.setStyleSheet(f"color:{_C_TEXT};font-size:17px;font-weight:800;")
-        top_row.addWidget(title)
-        top_row.addStretch(1)
-        cat = QLabel(spot.get("category", ""))
-        cat.setStyleSheet(f"color:{_C_GREEN};font-size:12px;font-weight:700;"
-                          "padding:3px 10px;background:#0F2A1E;border:1px solid #10B981;border-radius:6px;")
-        top_row.addWidget(cat)
-        v.addLayout(top_row)
-
-        # Meta
-        meta = QLabel(
-            f"{spot.get('format', 'MTT')} · {spot.get('table', '8-max')} · "
-            f"{spot.get('stack_bb', '?')}bb · {spot.get('position', '?')} · "
-            f"{spot.get('pot_type', '?')} · {spot.get('street', 'preflop').title()}"
-        )
-        meta.setStyleSheet(f"color:{_C_MUTED};font-size:12px;")
-        v.addWidget(meta)
-
-        # Hero hand line
-        hero = spot.get("hero_cards", "")
-        if hero:
-            hand_line = QLabel(f"<b>Hero hand:</b> <span style='color:{_C_CYAN}'>{hero}</span>")
-            hand_line.setStyleSheet(f"color:{_C_TEXT};font-size:13px;")
-            v.addWidget(hand_line)
-
-        # CTA row
-        cta_row = QHBoxLayout()
-        start = QPushButton("▶  Start Drill")
-        start.setFixedHeight(38)
-        start.setStyleSheet(
-            f"QPushButton{{background:{_C_GREEN};color:#000;border:none;"
-            "border-radius:8px;font-weight:800;padding:6px 22px;font-size:13px;}}"
-            "QPushButton:hover{background:#0EA371;}"
-        )
-        # Set pending spot so Spot Trainer jumps straight to it on next load
-        start.clicked.connect(lambda _, sid=spot.get("id"): self._launch_drill(sid))
-        cta_row.addWidget(start)
-
-        ask_master = QPushButton("🎓  Ask Master Coach")
-        ask_master.setFixedHeight(38)
-        ask_master.setStyleSheet(
-            f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};"
-            f"border:1px solid {_C_BORDER};border-radius:8px;"
-            "font-weight:700;padding:6px 18px;}}"
-            f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
-        )
-        ask_master.clicked.connect(lambda _, s=spot: self._ask_master_about(s))
-        cta_row.addWidget(ask_master)
-        cta_row.addStretch(1)
-        v.addLayout(cta_row)
-        return frame
-
-    def _launch_drill(self, spot_id: str) -> None:
-        """Set pending spot id so Spot Trainer auto-loads it, then navigate."""
-        if spot_id:
-            self.state.pending_spot_id = spot_id
-        self.navigate_requested.emit("Spot Practice Trainer")
-
-    def _ask_master_about(self, spot: dict) -> None:
-        """Push spot to AppState.selected_spot so AI Coach's Master Review uses it."""
-        self.state.selected_spot = spot
-        self.navigate_requested.emit("AI Poker Coach")
-
-    # ── personalized recommendation card ──────────────────────────────────
-    def _build_recommendation_panel(self) -> QFrame:
-        frame = QFrame()
-        frame.setStyleSheet(
-            f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:12px;}}"
-        )
-        v = QVBoxLayout(frame)
-        v.setContentsMargins(20, 18, 20, 18)
-        v.setSpacing(10)
-
-        # Get a leak summary via the agent (uses session_notes / completed drills)
-        # If nothing tracked yet, suggest the BB defense pack as canonical start
-        text = self._get_recommendation_text()
-        body = QLabel(text)
-        body.setStyleSheet(f"color:{_C_TEXT};font-size:13px;line-height:1.5;")
-        body.setWordWrap(True)
-        v.addWidget(body)
-
-        btn_row = QHBoxLayout()
-        b1 = QPushButton("Start recommended drill pack")
-        b1.setFixedHeight(38)
-        b1.setStyleSheet(
-            f"QPushButton{{background:{_C_GREEN};color:#000;border:none;"
-            "border-radius:8px;font-weight:700;padding:6px 18px;}}"
-            "QPushButton:hover{background:#0EA371;}"
-        )
-        b1.clicked.connect(lambda: self.navigate_requested.emit("Spot Practice Trainer"))
-        btn_row.addWidget(b1)
-
-        b2 = QPushButton("View leaks")
-        b2.setFixedHeight(38)
-        b2.setStyleSheet(
-            f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};"
-            f"border:1px solid {_C_BORDER};border-radius:8px;"
-            "font-weight:700;padding:6px 18px;}}"
-            f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
-        )
-        b2.clicked.connect(lambda: self.navigate_requested.emit("Leak Finder"))
-        btn_row.addWidget(b2)
-
-        b3 = QPushButton("Ask Master Coach")
-        b3.setFixedHeight(38)
-        b3.setStyleSheet(b2.styleSheet())
-        b3.clicked.connect(lambda: self.navigate_requested.emit("AI Poker Coach"))
-        btn_row.addWidget(b3)
-        btn_row.addStretch(1)
-        v.addLayout(btn_row)
-        return frame
-
-    def _get_recommendation_text(self) -> str:
-        completed = self.state.completed_drills
-        if completed == 0:
-            return (
-                "Yeni başlıyorsun. İlk önerim: <b>BB Defense vs BTN RFI 40bb</b> drill paketi. "
-                "BB defansı kazançlı oyunun temelidir; bunu sağlam öğrendikten sonra diğer "
-                "pozisyonlar daha hızlı oturur. Ardından <b>BTN Open-Raising 40bb</b> ile "
-                "geniş aggression range'i çalış. Birlikte ~25 spot etmen yeter."
-            )
-        if completed < 30:
-            return (
-                f"{completed} spot çözdün. Şimdi <b>postflop cbet</b> mantığına ilerlemek "
-                "için <b>Flop Strategy</b> kategorisindeki 20 spot iyi bir basamak. Range "
-                "avantajı + nut advantage + texture üçlüsünü hissetmeye başlayacaksın."
-            )
-        if self.state.ev_loss_total > 5.0:
-            return (
-                f"Bu session'da {self.state.ev_loss_total:.1f}bb EV kaybettin. Leak Finder'a "
-                "git, hangi spot tipinde takıldığını gör. Sonra hedefli bir drill paketiyle "
-                "o spot tipini 10-15 kez tekrarla."
-            )
-        return (
-            "Performansın iyi gidiyor. İlerleme için: <b>ICM / PKO Trainer</b>'a geç ve "
-            "bubble + final table dinamiklerini çalış. Bu spotlar 1bb chipEV'den çok daha "
-            "kıymetli kararlar içerir — turnuva ROI'ni en çok bunlar belirler."
-        )
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(scroll)
