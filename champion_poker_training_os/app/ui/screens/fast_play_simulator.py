@@ -434,12 +434,10 @@ class FastPlaySimulatorScreen(QWidget):
             for c in hand.community:
                 self.community_row.addWidget(CardView(c.display))
         else:
-            for _ in range(5):
-                ph = QLabel("🂠")
-                ph.setFixedSize(40, 52)
-                ph.setAlignment(Qt.AlignCenter)
-                ph.setStyleSheet("font-size:22px;color:#4B5563;")
-                self.community_row.addWidget(ph)
+            hint = QLabel("— Preflop, henüz board yok —")
+            hint.setStyleSheet("color:#4B5563;font-size:12px;font-style:italic;padding:14px 8px;")
+            hint.setAlignment(Qt.AlignCenter)
+            self.community_row.addWidget(hint)
 
         # Info
         to_call = hand.current_bet - hero.current_bet if hero else 0

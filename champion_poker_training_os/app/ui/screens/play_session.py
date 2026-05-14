@@ -343,18 +343,17 @@ class PlaySessionScreen(QWidget):
         self.street_label.setText(f"🃏 {hand.street_name}")
         self.pot_label.setText(f"Pot: {hand.pot:.1f}bb")
 
-        # Community cards
+        # Community cards — only show real cards. Preflop has NO board.
         _clear(self.community_row)
         if hand.community:
             for c in hand.community:
                 self.community_row.addWidget(CardView(c.display))
         else:
-            for _ in range(5):
-                placeholder = QLabel("🂠")
-                placeholder.setFixedSize(46, 62)
-                placeholder.setAlignment(Qt.AlignCenter)
-                placeholder.setStyleSheet("font-size: 28px; color: #4B5563;")
-                self.community_row.addWidget(placeholder)
+            # Preflop hint — no fake face-down placeholders
+            hint = QLabel("— Preflop, henüz board yok —")
+            hint.setStyleSheet("color:#4B5563;font-size:12px;font-style:italic;padding:18px 8px;")
+            hint.setAlignment(Qt.AlignCenter)
+            self.community_row.addWidget(hint)
 
         # Hero cards
         _clear(self.hero_cards_row)

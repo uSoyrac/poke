@@ -220,14 +220,19 @@ class OvalTable(QWidget):
                 self.seats["SB"].folded = True
                 self.seats["SB"].actions = ["F"]
         elif (spot.get("street") or "preflop").lower() == "preflop":
-            # Open spot — hero RFI, earlier positions fold
-            order = list(self.positions)
-            try: hero_idx = order.index(pos)
-            except ValueError: hero_idx = len(order) - 1
-            for p in order:
+            # Open spot — hero RFI, everyone who ACTS BEFORE hero folds.
+            # Use action order (NOT the seating order around the oval).
+            action_order = ["UTG", "UTG+1", "UTG1", "LJ", "HJ", "CO", "BTN", "SB", "BB"]
+            hero_key = "UTG+1" if pos == "UTG1" else pos
+            try:
+                hero_idx = action_order.index(hero_key)
+            except ValueError:
+                hero_idx = len(action_order) - 1
+            for p in self.seats:
+                key = "UTG+1" if p == "UTG1" else p
                 if p == pos or p in ("SB", "BB"):
                     continue
-                if order.index(p) < hero_idx:
+                if key in action_order and action_order.index(key) < hero_idx:
                     self.seats[p].folded = True
                     self.seats[p].actions = ["F"]
 
@@ -263,13 +268,23 @@ class OvalTable(QWidget):
         w = self.width()
         h = self.height()
 
-        # Outer oval (subtle felt suggestion, mostly invisible)
-        margin_x = 90
-        margin_y = 60 if not self.compact else 40
+        # Opaque dark background — so the widget always looks like part of
+        # the dark UI even when no parent fills behind it
+        painter.fillRect(0, 0, w, h, QColor("#0A0E14"))
+
+        # Real poker-felt oval — dark green with a subtle inner shadow rim
+        margin_x = 70
+        margin_y = 50 if not self.compact else 36
         oval = QRectF(margin_x, margin_y, w - margin_x * 2, h - margin_y * 2)
-        painter.setPen(QPen(QColor("#1E2733"), 1))
-        painter.setBrush(Qt.NoBrush)
+        # Outer felt rim (slightly lighter)
+        painter.setPen(QPen(QColor("#1A2C20"), 6))
+        painter.setBrush(QColor("#0E2018"))
         painter.drawEllipse(oval)
+        # Inner felt (the playing surface)
+        inner = oval.adjusted(8, 8, -8, -8)
+        painter.setPen(QPen(QColor("#1F3A2A"), 2))
+        painter.setBrush(QColor("#143020"))
+        painter.drawEllipse(inner)
 
         # Center board (community cards placeholder)
         center_x = oval.center().x()
@@ -313,31 +328,31 @@ class OvalTable(QWidget):
         # Hero gets two glow halos so it's IMPOSSIBLE to miss
         if seat.is_hero and not is_folded:
             for halo_r, alpha in ((r + 14, 35), (r + 8, 70)):
-                halo = QColor("#10B981"); halo.setAlpha(alpha)
+                halo = QColor("#22D3EE"); halo.setAlpha(alpha)
                 painter.setBrush(halo); painter.setPen(Qt.NoPen)
                 painter.drawEllipse(QPointF(x, y), halo_r, halo_r)
-        # Circle fill — folded gets dim, hero rich green
+        # Circle fill — folded gets dim, hero rich, others felt-darker
         if is_folded:
-            painter.setBrush(QColor("#080B10"))
+            painter.setBrush(QColor("#0C1620"))
         elif seat.is_hero:
-            painter.setBrush(QColor("#0F2A1E"))
+            painter.setBrush(QColor("#0F2433"))
         else:
-            painter.setBrush(QColor("#0E141C"))
+            painter.setBrush(QColor("#11212B"))
         # Border
         if seat.selected:
             pen = QPen(QColor("#22D3EE"), 3)
         elif seat.is_hero and not is_folded:
-            pen = QPen(QColor("#10B981"), 3.5)
+            pen = QPen(QColor("#22D3EE"), 3.5)
         elif is_folded:
             pen = QPen(QColor("#1F2937"), 1)
         else:
-            pen = QPen(QColor("#3A4659"), 1.5)
+            pen = QPen(QColor("#4B5C6E"), 1.5)
         painter.setPen(pen)
         painter.drawEllipse(QPointF(x, y), r, r)
 
-        # Position label
+        # Position label — TOP HALF of circle (no overlap with stack)
         font = QFont()
-        font.setPointSize(12 if seat.is_hero else 11)
+        font.setPointSize(11 if seat.is_hero else 10)
         font.setBold(True)
         painter.setFont(font)
         if is_folded:
@@ -345,51 +360,72 @@ class OvalTable(QWidget):
         elif seat.selected:
             text_color = "#22D3EE"
         elif seat.is_hero:
-            text_color = "#10B981"
+            text_color = "#67E8F9"
         else:
             text_color = "#E5E7EB"
         painter.setPen(QPen(QColor(text_color)))
-        painter.drawText(QRectF(x - r, y - 16, 2 * r, 18), Qt.AlignCenter, seat.position)
+        # Position in upper portion of circle
+        painter.drawText(QRectF(x - r, y - 14, 2 * r, 14), Qt.AlignCenter, seat.position)
+        # Hairline divider
+        painter.setPen(QPen(QColor("#1F2937" if is_folded else "#2A3441"), 1))
+        painter.drawLine(int(x - r * 0.6), int(y + 1), int(x + r * 0.6), int(y + 1))
 
-        # Stack label INSIDE the seat circle (so you always see chip count)
+        # Stack label — BOTTOM HALF of circle (separated from position)
         if seat.stack_bb > 0:
-            stack_font = QFont(); stack_font.setPointSize(10); stack_font.setBold(True)
+            stack_font = QFont(); stack_font.setPointSize(9); stack_font.setBold(True)
             painter.setFont(stack_font)
-            painter.setPen(QPen(QColor("#4B5563" if is_folded else "#E5E7EB")))
-            painter.drawText(QRectF(x - r, y + 2, 2 * r, 16), Qt.AlignCenter,
-                              f"{seat.stack_bb:.1f}bb")
+            painter.setPen(QPen(QColor("#6B7280" if is_folded else "#9CA3AF")))
+            painter.drawText(QRectF(x - r, y + 4, 2 * r, 14), Qt.AlignCenter,
+                              f"{seat.stack_bb:.0f}bb")
 
-        # Hero "★ YOU" badge below position (only when not folded)
+        # Compute INWARD (toward pot) and OUTWARD (away) unit vectors once
+        cx_t = self.width() / 2
+        cy_t = self.height() / 2
+        in_dx, in_dy = cx_t - x, cy_t - y
+        in_dist = max(1.0, (in_dx ** 2 + in_dy ** 2) ** 0.5)
+        ux, uy = in_dx / in_dist, in_dy / in_dist  # unit vector toward pot
+
+        # Hero "★ YOU" badge — OUTSIDE the seat (away from pot), so it never
+        # overlaps with bet chip or cards that sit on the inward side.
         if seat.is_hero and not is_folded:
             badge_font = QFont(); badge_font.setPointSize(8); badge_font.setBold(True)
             painter.setFont(badge_font)
-            painter.setPen(QPen(QColor("#6EE7B7")))
-            painter.drawText(QRectF(x - r, y - 28, 2 * r, 14), Qt.AlignCenter, "★ YOU")
+            badge_w, badge_h = 50, 16
+            bx_c = x - ux * (r + 16)
+            by_c = y - uy * (r + 16)
+            bx = bx_c - badge_w / 2
+            by = by_c - badge_h / 2
+            # Clamp so the pill never goes off-edge
+            bx = max(2, min(self.width() - badge_w - 2, bx))
+            by = max(2, min(self.height() - badge_h - 2, by))
+            painter.setBrush(QColor("#22D3EE"))
+            painter.setPen(Qt.NoPen)
+            painter.drawRoundedRect(QRectF(bx, by, badge_w, badge_h), 8, 8)
+            painter.setPen(QPen(QColor("#061018")))
+            painter.drawText(QRectF(bx, by, badge_w, badge_h), Qt.AlignCenter, "★ YOU")
 
-        # Hero hole cards — painted just OUTSIDE the seat in the direction of centre
+        # Hero hole cards — INWARD, just inside seat ring (CLOSEST to seat)
         if seat.is_hero and seat.hero_cards and not is_folded:
             self._paint_hero_cards(painter, x, y, theta, seat.hero_cards)
 
-        # Bet chip — painted between seat and table center, showing current_bet
+        # Bet chip — further INWARD than cards (so cards in front of bet),
+        # mimicking a real table: player ‣ cards ‣ chips ‣ pot.
         if seat.current_bet > 0:
-            cx_table = self.width() / 2
-            cy_table = self.height() / 2
-            dir_x = cx_table - x; dir_y = cy_table - y
-            dist = max(1.0, (dir_x ** 2 + dir_y ** 2) ** 0.5)
-            chip_x = x + dir_x / dist * (r + 22)
-            chip_y = y + dir_y / dist * (r + 22)
+            # Hero offsets bet chip further so it sits *past* the cards
+            chip_offset = (r + 66) if (seat.is_hero and seat.hero_cards) else (r + 24)
+            chip_x = x + ux * chip_offset
+            chip_y = y + uy * chip_offset
             self._paint_bet_chip(painter, chip_x, chip_y, seat.current_bet)
 
-        # Action chip — painted on the OUTSIDE of the seat (away from centre)
-        if seat.actions:
+        # Action chip — OUTWARD from pot (away from cards/bet).
+        # SKIP redundant "SB"/"BB" labels (the seat circle already shows them)
+        # SKIP for hero (★ YOU badge already occupies the outward slot)
+        if seat.actions and not seat.is_hero:
             action_label = seat.actions[-1]
-            cx_table = self.width() / 2
-            cy_table = self.height() / 2
-            dir_x = x - cx_table; dir_y = y - cy_table
-            dist = max(1.0, (dir_x ** 2 + dir_y ** 2) ** 0.5)
-            ax = x + dir_x / dist * (r + 22)
-            ay = y + dir_y / dist * (r + 22)
-            self._paint_action_chip(painter, ax, ay, action_label, is_folded)
+            if action_label.upper() not in ("SB", "BB"):
+                ax = x - ux * (r + 18)
+                ay = y - uy * (r + 18)
+                self._paint_action_chip(painter, ax, ay, action_label, is_folded)
 
         # Dealer button
         if seat.position == self._dealer:
