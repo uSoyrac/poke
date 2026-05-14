@@ -48,6 +48,7 @@ from app.ui.screens.tournament_simulator import TournamentSimulatorScreen
 from app.ui.screens.tournament_play import TournamentPlayScreen
 from app.ui.screens.gto_trainer import GTOTrainerScreen
 from app.ui.screens.heads_up_trainer import HeadsUpTrainerScreen
+from app.ui.screens.skills_report import SkillsReportScreen
 from app.ui.screens.welcome import WelcomeScreen
 from app.ui.theme.theme_manager import apply_dark_theme
 
@@ -97,6 +98,7 @@ NAV_ITEMS = [
     "Math Lab",
     "Combat Trainer",
     "Leak Finder",
+    "Skills Report",
     "AI Poker Coach",
     "Knowledge Base",
     "Study Planner",
@@ -211,6 +213,7 @@ class MainWindow(QMainWindow):
             "Math Lab": MathLabScreen,
             "Combat Trainer": CombatTrainerScreen,
             "Leak Finder": LeakFinderScreen,
+            "Skills Report": SkillsReportScreen,
             "AI Poker Coach": AiCoachScreen,
             "Knowledge Base": KnowledgeBaseScreen,
             "Study Planner": StudyPlannerScreen,

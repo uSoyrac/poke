@@ -41,6 +41,7 @@ from app.training.trainer_scoring import score_decision, skill_label
 from app.ui.components.card_view import CardView
 from app.ui.components.live_poker_table import LivePokerTable
 from app.ui.components.mtt_setup_dialog import MttConfig, MttSetupDialog
+from app.ui.components.tournament_result_dialog import TournamentResultDialog
 
 # ── colour constants ───────────────────────────────────────────────────────
 _C_BG     = "#0C1117"
@@ -414,9 +415,10 @@ class TournamentPlayScreen(QWidget):
         self._deal_hand()
 
     def _reset(self) -> None:
-        """Bust out / end current tournament → save record to archive."""
+        """Bust out / end current tournament → save record + show result dialog."""
         if self.session.running and self.session.config is not None:
             self._archive_current()
+            self._show_result()
         self.session = TournamentSession()
         self.game    = None
         self._tour_summary.setText("Henüz başlatılmadı.")
@@ -483,6 +485,55 @@ class TournamentPlayScreen(QWidget):
             save_tournament(record)
         except Exception:
             pass
+
+    def _show_result(self) -> None:
+        """Pop the APT-style tournament result dialog after bust-out."""
+        s = self.session
+        cfg: MttConfig = s.config  # type: ignore
+        if cfg is None:
+            return
+        # Derive finish position (same logic as archive)
+        if s.busted:
+            finish = max(1, int(s.field_size * 0.5))
+        elif s.hero_stack >= 2 * s.starting_stack:
+            finish = max(1, int(s.field_size * 0.15))
+        else:
+            finish = max(1, int(s.field_size * 0.35))
+        paid_places = max(2, int(s.field_size * 0.15))
+        cashed = finish <= paid_places
+        pool   = cfg.buyin * cfg.field_size * 0.93
+        payout = 0.0
+        if cashed:
+            pcts = [0.22, 0.15, 0.11, 0.08, 0.06, 0.05, 0.04, 0.03, 0.025, 0.02]
+            idx  = min(finish - 1, len(pcts) - 1)
+            payout = round(pool * pcts[idx], 2)
+        # Pick luck rating from how many ICM punts (proxy for variance)
+        luck = "unlucky" if s.icm_punts >= 2 else \
+               "lucky"   if (s.correct / max(1, s.decisions)) > 0.7 else "neutral"
+        dlg = TournamentResultDialog(
+            self,
+            tournament_name = cfg.tournament_name,
+            final_place     = finish,
+            field_size      = cfg.field_size,
+            skill_level     = cfg.skill_level,
+            skill_style     = cfg.skill_style,
+            buyin           = cfg.buyin,
+            starting_stack  = cfg.starting_stack,
+            time_per_level  = cfg.minutes_per_level,
+            hero_payout     = payout,
+            prize_pool      = pool,
+            all_in_luck     = luck,
+            hero_name       = "uygar",
+        )
+        dlg.view_report_requested.connect(self._on_view_report)
+        dlg.exec()
+
+    def _on_view_report(self) -> None:
+        """Bridge: 'Session Report' button → navigate to Reports screen."""
+        # Find the parent main window's navigate function
+        win = self.window()
+        if hasattr(win, "navigate"):
+            win.navigate("Reports")
 
     def _open_archive(self) -> None:
         """Pop a simple list of past tournaments."""
