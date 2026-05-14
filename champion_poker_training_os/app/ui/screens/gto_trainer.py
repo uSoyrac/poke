@@ -485,6 +485,32 @@ def _make_toggle_grid(rows: list[list[str]], active: str, disabled: Optional[lis
 class GTOTrainerScreen(QWidget):
     coach_message = Signal(str)
 
+    @staticmethod
+    def _mk_ctx_chip(label: str, value: str, accent: str) -> QFrame:
+        """Two-line pill: small caption + bold value. Used in scenario bar."""
+        f = QFrame()
+        f.setStyleSheet(
+            f"QFrame{{background:#0F141C;border:1px solid #1E2733;border-radius:6px;}}"
+        )
+        v = QVBoxLayout(f)
+        v.setContentsMargins(10, 4, 10, 4)
+        v.setSpacing(0)
+        cap = QLabel(label)
+        cap.setStyleSheet(f"color:#6B7280;font-size:9px;font-weight:700;"
+                          f"letter-spacing:1px;background:transparent;")
+        val = QLabel(value)
+        val.setStyleSheet(f"color:{accent};font-size:13px;font-weight:800;background:transparent;")
+        v.addWidget(cap)
+        v.addWidget(val)
+        f.setProperty("_value_label", val)   # so we can update later
+        return f
+
+    @staticmethod
+    def _update_ctx_chip(chip: QFrame, value: str) -> None:
+        val_label = chip.property("_value_label")
+        if val_label is not None:
+            val_label.setText(value)
+
     def __init__(self, state: AppState):
         super().__init__()
         self.state = state
@@ -500,7 +526,7 @@ class GTOTrainerScreen(QWidget):
 
         # ── Top scenario bar ───────────────────────────────────────────
         scenario_bar = QFrame()
-        scenario_bar.setFixedHeight(48)
+        scenario_bar.setFixedHeight(60)
         scenario_bar.setStyleSheet(f"background:{_C_PANEL};border-bottom:1px solid {_C_BORDER};")
         sb = QHBoxLayout(scenario_bar)
         sb.setContentsMargins(16, 6, 16, 6)
@@ -511,8 +537,18 @@ class GTOTrainerScreen(QWidget):
         sb.addWidget(title)
         sb.addSpacing(20)
 
-        self._scenario_lbl = QLabel("MTT  ·  8Max  ·  40bb  ·  12.5% ante")
-        self._scenario_lbl.setStyleSheet(f"color:{_C_MUTED};font-size:12px;")
+        # Big, unambiguous context strip — answers user's question:
+        # 'elimdeki kart ne, pozisyon ne, hangi spot?'
+        self._ctx_pos = self._mk_ctx_chip("Pos", "BTN", _C_CYAN)
+        self._ctx_stk = self._mk_ctx_chip("Stack", "40bb", _C_TEXT)
+        self._ctx_hand = self._mk_ctx_chip("Elin", "—", "#10B981")
+        self._ctx_pot = self._mk_ctx_chip("Pot", "—", "#F59E0B")
+        for chip in (self._ctx_pos, self._ctx_stk, self._ctx_hand, self._ctx_pot):
+            sb.addWidget(chip)
+        sb.addSpacing(8)
+
+        self._scenario_lbl = QLabel("MTT  ·  8Max  ·  12.5% ante")
+        self._scenario_lbl.setStyleSheet(f"color:{_C_MUTED};font-size:11px;")
         sb.addWidget(self._scenario_lbl)
         sb.addStretch(1)
 
@@ -793,7 +829,16 @@ class GTOTrainerScreen(QWidget):
         stack  = spot.get("stack_bb", 40)
         fmt    = spot.get("format", "MTT")
         tbl    = spot.get("table", "8-max")
-        self._scenario_lbl.setText(f"{fmt}  ·  {tbl}  ·  {stack}bb  ·  {name}")
+        pos    = spot.get("position", "BTN")
+        pot_bb = spot.get("pot_bb", 2.5)
+        hero_cards = spot.get("hero_cards", "")
+        h169 = hand_169_from_cards(hero_cards) if hero_cards else "?"
+        # Update context chips (Pos / Stack / Elin / Pot)
+        self._update_ctx_chip(self._ctx_pos,  pos)
+        self._update_ctx_chip(self._ctx_stk,  f"{stack}bb")
+        self._update_ctx_chip(self._ctx_hand, h169)
+        self._update_ctx_chip(self._ctx_pot,  f"{pot_bb:.1f}bb")
+        self._scenario_lbl.setText(f"{fmt}  ·  {tbl}  ·  {name}")
 
         # Position strip
         self._rebuild_position_strip(spot)
