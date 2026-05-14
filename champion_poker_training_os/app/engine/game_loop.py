@@ -39,6 +39,7 @@ class PokerGame:
         hero_seat: int = 0,
         bot_archetype: str = "Balanced Reg",
         bot_archetypes: Optional[Dict[int, str]] = None,
+        bot_names: Optional[Dict[int, str]] = None,
     ):
         self.num_players = min(max(num_players, 2), 11)
         self.starting_stack = starting_stack
@@ -72,8 +73,11 @@ class PokerGame:
             else:
                 arch_name = per_seat_archetypes.get(i, bot_archetype)
                 profile = BOT_ARCHETYPES.get(arch_name) or default_profile
+                # Use provided name if available (e.g. from FieldSimulator pool),
+                # otherwise fall back to the archetype name for visibility.
+                display_name = (bot_names or {}).get(i) or profile.name
                 self.players.append(PlayerSeat(
-                    name=profile.name, stack=starting_stack,
+                    name=display_name, stack=starting_stack,
                     position=pos, is_hero=False,
                 ))
                 self.bots[i] = BotBrain(profile)

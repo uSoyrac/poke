@@ -36,7 +36,7 @@ ACTION_VISUALS = {
 
 
 class LivePokerTable(QWidget):
-    """2-11 seat oval table renderer."""
+    """2-11 seat oval table renderer — APT-style name+stack pills."""
 
     def __init__(self):
         super().__init__()
@@ -48,9 +48,25 @@ class LivePokerTable(QWidget):
         self.community_cards: list[str] = []
         self.pot_bb: float = 0.0
         self.street: str = "Preflop"
+        # Tournament overlay state — populated externally via update_field_status
+        self.field_status: dict = {}     # {players_left, total, avg_stack, leader}
+        self.placeholder_text: str = "Üst sağdan ▶ New Tournament butonuna bas → başla"
         self.setMinimumHeight(420)
         self.setMinimumWidth(600)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+    def update_field_status(self, players_left: int, total: int,
+                            avg_stack: float, leader_name: str = "",
+                            leader_stack: float = 0.0) -> None:
+        """Set the tournament-context overlay shown at top of the table."""
+        self.field_status = {
+            "players_left": players_left,
+            "total":        total,
+            "avg_stack":    avg_stack,
+            "leader":       leader_name,
+            "leader_stack": leader_stack,
+        }
+        self.update()
 
     # --- public update API ----------------------------------------------
     def update_state(self, hand) -> None:
@@ -67,10 +83,10 @@ class LivePokerTable(QWidget):
         self.hero_idx = getattr(hand, "hero_idx", 0)
         self.active_idx = getattr(hand, "active_player_idx", None)
         self.community_cards = [c.display for c in (hand.community or [])]
-        self.pot_bb = float(getattr(hand, "pot", 0.0))
-        self.street = getattr(hand, "street_name", "Preflop")
-
         bb = max(1.0, getattr(hand, "big_blind", 1.0))
+        # Pot in BB, not raw chips — the label says 'bb' so it must be in bb
+        self.pot_bb = float(getattr(hand, "pot", 0.0)) / bb
+        self.street = getattr(hand, "street_name", "Preflop")
         self.players_data = []
         last_actions = self._latest_actions(hand)
         for i, p in enumerate(hand.players):
@@ -89,6 +105,16 @@ class LivePokerTable(QWidget):
                 "last_action": chip,
             })
         self.update()
+
+    @staticmethod
+    def _initials(name: str) -> str:
+        """Extract up to 2 initial letters from a name. 'Jim Spears' → 'JS'."""
+        parts = (name or "").split()
+        if not parts:
+            return "?"
+        if len(parts) == 1:
+            return parts[0][:2].upper()
+        return (parts[0][0] + parts[-1][0]).upper()
 
     @staticmethod
     def _latest_actions(hand) -> dict[int, str]:
@@ -112,10 +138,14 @@ class LivePokerTable(QWidget):
         w = self.width()
         h = self.height()
 
-        # Felt: subtle dark oval
+        # Felt: subtle dark oval — leave room at top for status banner
+        # and at bottom for hero name pill below seat
         margin_x = 100
-        margin_y = 70
-        oval = QRectF(margin_x, margin_y, w - margin_x * 2, h - margin_y * 2)
+        margin_y_top = 84
+        margin_y_bot = 130    # generous space for hero name+stack pill
+        oval = QRectF(margin_x, margin_y_top, w - margin_x * 2,
+                       max(120, h - margin_y_top - margin_y_bot))
+        margin_y = margin_y_top  # keep local var for compat below
         painter.setPen(QPen(QColor("#1E2733"), 2))
         painter.setBrush(QColor("#0E1B17"))
         painter.drawEllipse(oval)
@@ -128,15 +158,26 @@ class LivePokerTable(QWidget):
         self._paint_pot(painter, cx, cy + 32)
 
         if self.num_players == 0:
+            # Helpful instructions instead of misleading "Click Deal"
             painter.setPen(QColor("#9CA3AF"))
-            font = QFont(); font.setPointSize(13); painter.setFont(font)
-            painter.drawText(self.rect(), Qt.AlignCenter, "No active hand. Click 'Deal' to start.")
+            font = QFont(); font.setPointSize(14); font.setBold(True)
+            painter.setFont(font)
+            painter.drawText(QRectF(0, h * 0.40, w, 28), Qt.AlignCenter,
+                              "🎰  Henüz aktif el yok")
+            painter.setPen(QColor("#6B7280"))
+            font.setBold(False); font.setPointSize(12); painter.setFont(font)
+            painter.drawText(QRectF(0, h * 0.46, w, 24), Qt.AlignCenter,
+                              "Üst sağdaki ▶ New Tournament butonuna bas → ilk el otomatik dağıtılır")
             painter.end()
             return
 
-        # Place seats around the oval
-        rx = oval.width() / 2 + 30
-        ry = oval.height() / 2 + 35
+        # Tournament status overlay (top-center)
+        if self.field_status:
+            self._paint_field_status(painter, w, h)
+
+        # Place seats around the oval (close to the rim, slightly inside)
+        rx = oval.width() / 2 + 20
+        ry = oval.height() / 2 + 18
         for seat_idx, data in enumerate(self.players_data):
             # Hero is always at the bottom (180°). Other seats fan around.
             seat_offset = (seat_idx - self.hero_idx) % self.num_players
@@ -148,10 +189,32 @@ class LivePokerTable(QWidget):
 
         painter.end()
 
+    def _paint_field_status(self, painter: QPainter, w: int, h: int) -> None:
+        """APT-style 'Players remaining / Avg stack' banner at top of table."""
+        fs = self.field_status
+        text = (
+            f"PLAYERS REMAINING: {fs.get('players_left', 0):,} / {fs.get('total', 0):,}    "
+            f"AVG STACK: {fs.get('avg_stack', 0):,.0f}"
+        )
+        leader = fs.get("leader")
+        if leader:
+            text += f"    CHIP LEADER: {leader} ({fs.get('leader_stack', 0):,.0f})"
+        # Background pill
+        font = QFont(); font.setPointSize(11); font.setBold(True)
+        painter.setFont(font)
+        metrics = painter.fontMetrics()
+        tw = metrics.horizontalAdvance(text) + 28
+        rect = QRectF((w - tw) / 2, 8, tw, 26)
+        painter.setBrush(QColor("#0E2018"))
+        painter.setPen(QPen(QColor("#10B981"), 1.5))
+        painter.drawRoundedRect(rect, 13, 13)
+        painter.setPen(QPen(QColor("#6EE7B7")))
+        painter.drawText(rect, Qt.AlignCenter, text)
+
     def _paint_seat(self, painter: QPainter, x: float, y: float, data: dict,
                     is_dealer: bool, is_active: bool) -> None:
-        """Render a single seat — circle + position + stack + current bet + last action chip."""
-        r = 32
+        """Render a single seat — APT-style avatar circle + name & stack pill below."""
+        r = 28
         seat_rect = QRectF(x - r, y - r, r * 2, r * 2)
 
         # Outer halo for active player
@@ -161,44 +224,92 @@ class LivePokerTable(QWidget):
             painter.setBrush(Qt.NoBrush)
             painter.drawEllipse(halo)
 
-        # Seat circle
+        # Avatar circle — colored by archetype/skill
+        name_for_seed = data.get("name") or data.get("position") or "?"
         if data["is_folded"]:
-            painter.setBrush(QColor("#0E141C"))
+            avatar_bg = QColor("#0E141C"); avatar_fg = QColor("#4B5563")
         elif data["is_all_in"]:
-            painter.setBrush(QColor("#3D0E10"))
+            avatar_bg = QColor("#3D0E10"); avatar_fg = QColor("#FCA5A5")
         elif data["is_hero"]:
-            painter.setBrush(QColor("#0E2A1E"))
+            avatar_bg = QColor("#0E2A1E"); avatar_fg = QColor("#6EE7B7")
         else:
-            painter.setBrush(QColor("#1B2330"))
+            # Hash name → soft color (deterministic, no flicker)
+            hue_seed = sum(ord(c) for c in name_for_seed) % 6
+            avatar_palette = ["#1E3A5C", "#5C1F22", "#2A4A2C", "#3D2A4A",
+                              "#4A3D1F", "#3A4659"]
+            avatar_bg = QColor(avatar_palette[hue_seed])
+            avatar_fg = QColor("#E5E7EB")
         if data["is_hero"]:
-            pen = QPen(QColor("#10B981"), 2)
+            pen = QPen(QColor("#10B981"), 2.5)
         elif is_active:
             pen = QPen(QColor("#22D3EE"), 2)
         else:
             pen = QPen(QColor("#3A4659"), 1.5)
+        painter.setBrush(avatar_bg)
         painter.setPen(pen)
         painter.drawEllipse(seat_rect)
 
-        # Position label centered
-        label_color = "#4B5563" if data["is_folded"] else ("#10B981" if data["is_hero"] else "#E5E7EB")
-        font = QFont(); font.setPointSize(11); font.setBold(True)
+        # Avatar — initials (or YOU for hero) inside circle
+        initials = self._initials(data.get("name") or "?")
+        if data["is_hero"]:
+            initials = "YOU"
+        font = QFont(); font.setPointSize(11 if len(initials) > 2 else 13); font.setBold(True)
         painter.setFont(font)
-        painter.setPen(QPen(QColor(label_color)))
-        painter.drawText(seat_rect, Qt.AlignCenter, data["position"] or "?")
+        painter.setPen(QPen(avatar_fg))
+        painter.drawText(seat_rect, Qt.AlignCenter, initials)
 
-        # Stack + current bet below seat
-        font_small = QFont(); font_small.setPointSize(9); font_small.setBold(True)
-        painter.setFont(font_small)
-        painter.setPen(QPen(QColor("#9CA3AF" if data["is_folded"] else "#E5E7EB")))
-        info = f"{data['stack_bb']:.1f}bb"
-        painter.drawText(QRectF(x - 50, y + r + 4, 100, 16), Qt.AlignCenter, info)
+        # ── Name + Stack pill BELOW the avatar (APT style) ────────────
+        pill_w = 110
+        pill_h = 38
+        pill = QRectF(x - pill_w / 2, y + r + 4, pill_w, pill_h)
+        painter.setBrush(QColor("#0E1620"))
+        painter.setPen(QPen(QColor("#374151"), 1))
+        painter.drawRoundedRect(pill, 6, 6)
+        # Position + name on first line
+        pos_label = data.get("position") or "?"
+        display_name = data.get("name") or "Bot"
+        if data["is_hero"]:
+            display_name = "uygar"
+        # Truncate name if too long
+        if len(display_name) > 12:
+            display_name = display_name[:11] + "…"
+        line1 = f"{pos_label}  ·  {display_name}"
+        font_name = QFont(); font_name.setPointSize(9); font_name.setBold(True)
+        painter.setFont(font_name)
+        text_color = "#6B7280" if data["is_folded"] else ("#10B981" if data["is_hero"] else "#E5E7EB")
+        painter.setPen(QPen(QColor(text_color)))
+        painter.drawText(QRectF(pill.x(), pill.y() + 2, pill.width(), 16),
+                          Qt.AlignCenter, line1)
+        # Stack on second line, in green if healthy
+        stack_bb = data.get("stack_bb", 0.0)
+        if data["is_folded"]:
+            stack_color = "#4B5563"
+        elif stack_bb < 15:
+            stack_color = "#F87171"   # red — short stack
+        elif stack_bb < 30:
+            stack_color = "#F59E0B"   # amber
+        else:
+            stack_color = "#34D399"   # green — healthy
+        font_stack = QFont(); font_stack.setPointSize(10); font_stack.setBold(True)
+        painter.setFont(font_stack)
+        painter.setPen(QPen(QColor(stack_color)))
+        painter.drawText(QRectF(pill.x(), pill.y() + 18, pill.width(), 18),
+                          Qt.AlignCenter, f"{stack_bb:.1f} bb")
 
+        # Current bet chip — between seat and pot center
         if data["current_bet_bb"] > 0 and not data["is_folded"]:
-            bet_rect = QRectF(x - 32, y + r + 22, 64, 18)
+            cx_t, cy_t = self.width() / 2, self.height() / 2
+            dx = cx_t - x; dy = cy_t - y
+            dist = max(1.0, (dx**2 + dy**2)**0.5)
+            chip_x = x + dx / dist * (r + 26)
+            chip_y = y + dy / dist * (r + 26)
+            bet_rect = QRectF(chip_x - 30, chip_y - 10, 60, 20)
             painter.setBrush(QColor("#F59E0B"))
-            painter.setPen(Qt.NoPen)
-            painter.drawRoundedRect(bet_rect, 9, 9)
+            painter.setPen(QPen(QColor("#92400E"), 1))
+            painter.drawRoundedRect(bet_rect, 10, 10)
             painter.setPen(QPen(QColor("#0B0F14")))
+            font = QFont(); font.setPointSize(9); font.setBold(True)
+            painter.setFont(font)
             painter.drawText(bet_rect, Qt.AlignCenter, f"{data['current_bet_bb']:.1f}bb")
 
         # Hole cards: facedown for opponents (folded shown as 'X'), face-up for hero

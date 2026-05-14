@@ -75,10 +75,21 @@ BLIND_STRUCTURES: dict[str, list[tuple]] = {
 }
 
 
-def _blind_at(level: int, speed: str) -> tuple[int, int, int]:
+def _blind_at(level: int, speed: str, starting_stack: int = 20_000) -> tuple[int, int, int]:
+    """Get (sb, bb, ante) — auto-scaled so L1 BB ≈ starting_stack / 100.
+
+    Reference (APT-style): for starting_stack=1000 → L1 = 10/20 (50bb), or
+    for starting_stack=2000 → L1 = 20/40 (50bb). The fixed BLIND_STRUCTURES
+    table was hard-wired for ~20k starting stacks; we rescale it.
+    """
     struct = BLIND_STRUCTURES.get(speed, BLIND_STRUCTURES["regular"])
     idx = min(level - 1, len(struct) - 1)
     _, sb, bb, ante = struct[idx]
+    # Reference: original table assumes 20,000 starting stack
+    scale = max(0.005, starting_stack / 20_000)
+    sb   = max(1, int(round(sb * scale)))
+    bb   = max(2, int(round(bb * scale)))
+    ante = max(0, int(round(ante * scale)))
     return sb, bb, ante
 
 
@@ -668,7 +679,8 @@ class TournamentPlayScreen(QWidget):
 
     # ── blind helpers ──────────────────────────────────────────────────────
     def _blinds(self) -> tuple[int, int, int]:
-        return _blind_at(self.session.level, self.session.speed)
+        return _blind_at(self.session.level, self.session.speed,
+                         starting_stack=self.session.starting_stack or 20_000)
 
     def _advance_level(self) -> None:
         self.session.hands_this_level += 1
@@ -700,6 +712,13 @@ class TournamentPlayScreen(QWidget):
                 if bot_mix:
                     per_seat[seat_idx] = bot_mix[(seat_idx - 1) % len(bot_mix)]
             default_arch = bot_mix[0] if bot_mix else "Balanced Reg"
+            # Pull APT-style names from the field simulator's name pool
+            bot_names: dict[int, str] = {}
+            sim: FieldSimulator | None = self.session.field_sim
+            if sim is not None and sim.players:
+                for seat_idx in range(1, n):
+                    vp = sim.players[(seat_idx - 1) % len(sim.players)]
+                    bot_names[seat_idx] = vp.name
             self.game = PokerGame(
                 num_players      = n,
                 starting_stack   = float(self.session.hero_stack),
@@ -708,6 +727,7 @@ class TournamentPlayScreen(QWidget):
                 hero_seat        = 0,
                 bot_archetype    = default_arch,
                 bot_archetypes   = per_seat,
+                bot_names        = bot_names,
             )
             # If we're recreating mid-tournament (blinds change), advance dealer
             # to where it left off + 1, otherwise random start so first hand isn't always SB
@@ -731,6 +751,17 @@ class TournamentPlayScreen(QWidget):
     # ── table + cards ──────────────────────────────────────────────────────
     def _refresh_table(self, hand: HandState) -> None:
         self.live_table.update_state(hand)
+        # Push live tournament status (field simulator) to the table overlay
+        sim: FieldSimulator | None = self.session.field_sim
+        if sim is not None:
+            leader_name, leader_stack = sim.chip_leader
+            self.live_table.update_field_status(
+                players_left=sim.players_left,
+                total=self.session.field_size,
+                avg_stack=sim.avg_stack,
+                leader_name=leader_name,
+                leader_stack=leader_stack,
+            )
 
     def _show_hand_cards(self, hand: HandState) -> None:
         # Hero hole cards
