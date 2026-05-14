@@ -29,6 +29,10 @@ from PySide6.QtWidgets import (
 
 from app.core.app_state import AppState
 from app.db.seed_data import generate_spot_drills
+from app.db.tournament_archive import (
+    TournamentRecord, save_tournament, load_archive,
+    derive_leak_summary, new_id,
+)
 from app.engine.bot_brain import BOT_ARCHETYPES
 from app.engine.game_loop import PokerGame
 from app.engine.hand_state import ActionType, HandState, Street, positions_for
@@ -36,6 +40,7 @@ from app.solver.mock_solver import compare_action, solve_spot
 from app.training.trainer_scoring import score_decision, skill_label
 from app.ui.components.card_view import CardView
 from app.ui.components.live_poker_table import LivePokerTable
+from app.ui.components.mtt_setup_dialog import MttConfig, MttSetupDialog
 
 # ── colour constants ───────────────────────────────────────────────────────
 _C_BG     = "#0C1117"
@@ -139,6 +144,12 @@ class TournamentSession:
     mistakes:       list  = field(default_factory=list)
     running:        bool  = False
     busted:         bool  = False
+    # ── full MTT config used to spawn realistic bots & later archive ──
+    config:         object = None      # MttConfig | None
+    tournament_id:  str    = ""
+    started_at:     str    = ""
+    bot_mix:        list   = field(default_factory=list)
+    buyin:          float  = 0.0
 
 
 # ── main screen ───────────────────────────────────────────────────────────
@@ -170,48 +181,44 @@ class TournamentPlayScreen(QWidget):
         title = QLabel("🏆  Tournament Play Mode")
         title.setStyleSheet(f"color:{_C_TEXT};font-size:16px;font-weight:700;")
         sr.addWidget(title)
-        sr.addSpacing(16)
+        sr.addSpacing(20)
 
-        sr.addWidget(_lbl("Players:"))
-        self.players_spin = QSpinBox()
-        self.players_spin.setRange(2, 11)
-        self.players_spin.setValue(9)
-        self.players_spin.setSuffix(" seats")
-        self.players_spin.setFixedWidth(110)
-        sr.addWidget(self.players_spin)
+        # Current tournament summary (filled after Start)
+        self._tour_summary = QLabel("Henüz başlatılmadı.")
+        self._tour_summary.setStyleSheet(f"color:{_C_MUTED};font-size:12px;")
+        sr.addWidget(self._tour_summary)
+        sr.addStretch(1)
 
-        sr.addWidget(_lbl("Stack:"))
-        self.stack_combo = QComboBox()
-        self.stack_combo.addItems(["10,000", "20,000", "50,000"])
-        self.stack_combo.setCurrentIndex(1)
-        self.stack_combo.setFixedWidth(90)
-        sr.addWidget(self.stack_combo)
-
-        sr.addWidget(_lbl("Speed:"))
-        self.speed_combo = QComboBox()
-        self.speed_combo.addItems(["regular", "turbo", "hyper"])
-        self.speed_combo.setFixedWidth(80)
-        sr.addWidget(self.speed_combo)
-
-        self.start_btn = QPushButton("▶  Start Tournament")
+        self.start_btn = QPushButton("▶  New Tournament…")
         self.start_btn.setFixedHeight(36)
         self.start_btn.setStyleSheet(
-            f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:8px;"
+            f"QPushButton{{background:{_C_GREEN};color:#061018;border-radius:8px;"
             "font-weight:800;font-size:13px;padding:4px 18px;border:none;}}"
+            f"QPushButton:hover{{background:#0EA371;}}"
         )
-        self.start_btn.clicked.connect(self._start)
+        self.start_btn.clicked.connect(self._open_setup)
         sr.addWidget(self.start_btn)
 
-        self.reset_btn = QPushButton("↺  Reset")
+        self.archive_btn = QPushButton("📁  Past")
+        self.archive_btn.setFixedHeight(36)
+        self.archive_btn.setStyleSheet(
+            f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};border:1px solid {_C_BORDER};"
+            "border-radius:8px;font-size:12px;padding:4px 14px;}}"
+            f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
+        )
+        self.archive_btn.clicked.connect(self._open_archive)
+        sr.addWidget(self.archive_btn)
+
+        self.reset_btn = QPushButton("↺  Bust Out")
         self.reset_btn.setFixedHeight(36)
         self.reset_btn.setVisible(False)
         self.reset_btn.setStyleSheet(
             f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};border:1px solid {_C_BORDER};"
             "border-radius:8px;font-size:12px;padding:4px 12px;}}"
+            f"QPushButton:hover{{border-color:{_C_RED};color:{_C_RED};}}"
         )
         self.reset_btn.clicked.connect(self._reset)
         sr.addWidget(self.reset_btn)
-        sr.addStretch(1)
         root.addWidget(setup)
 
         # ── Context strip ──────────────────────────────────────────────
@@ -370,15 +377,36 @@ class TournamentPlayScreen(QWidget):
         self._act_layout.addWidget(w)
 
     # ── start / reset ──────────────────────────────────────────────────────
-    def _start(self) -> None:
-        n     = self.players_spin.value()
-        stack = int(self.stack_combo.currentText().replace(",", ""))
-        speed = self.speed_combo.currentText()
+    def _open_setup(self) -> None:
+        """Open the MTT setup dialog and start a tournament with that config."""
+        from datetime import datetime
+        dlg = MttSetupDialog(self)
+        if dlg.exec() != dlg.Accepted:
+            return
+        cfg: MttConfig = dlg.config
+        # Map UI speed → existing blind-structure key
+        speed = "turbo" if cfg.minutes_per_level <= 8 else \
+                "hyper" if cfg.minutes_per_level <= 4 else "regular"
+        n_table = cfg.table_size
+        bot_mix = cfg.make_bot_mix(n_table)
         self.session = TournamentSession(
-            num_players=n, starting_stack=stack, speed=speed,
-            hero_stack=stack, field_size=n, players_left=n,
+            num_players    = n_table,
+            starting_stack = cfg.starting_stack,
+            speed          = speed,
+            hero_stack     = cfg.starting_stack,
+            field_size     = cfg.field_size,
+            players_left   = cfg.field_size,
+            config         = cfg,
+            tournament_id  = new_id(),
+            started_at     = datetime.now().isoformat(timespec="seconds"),
+            bot_mix        = bot_mix,
+            buyin          = cfg.buyin,
         )
         self.session.running = True
+        self._tour_summary.setText(
+            f"{cfg.tournament_name}  ·  {cfg.field_size} oyuncu  ·  ${cfg.buyin:.0f} "
+            f"·  {cfg.starting_stack:,} chip  ·  {cfg.skill_style}/{cfg.skill_level}"
+        )
         self.start_btn.setVisible(False)
         self.reset_btn.setVisible(True)
         _clear_layout(self._log_vbox)
@@ -386,8 +414,12 @@ class TournamentPlayScreen(QWidget):
         self._deal_hand()
 
     def _reset(self) -> None:
+        """Bust out / end current tournament → save record to archive."""
+        if self.session.running and self.session.config is not None:
+            self._archive_current()
         self.session = TournamentSession()
         self.game    = None
+        self._tour_summary.setText("Henüz başlatılmadı.")
         self.start_btn.setVisible(True)
         self.reset_btn.setVisible(False)
         _clear_layout(self._log_vbox)
@@ -395,6 +427,114 @@ class TournamentPlayScreen(QWidget):
         self._show_waiting()
         self._update_ctx()
         self._update_stats()
+
+    def _archive_current(self) -> None:
+        """Persist the just-finished tournament to ~/.champion_poker_os/."""
+        from datetime import datetime
+        s = self.session
+        cfg: MttConfig = s.config  # type: ignore
+        if cfg is None:
+            return
+        # Naive finish projection — better stacks finish higher in field
+        if s.busted:
+            finish = max(1, int(s.field_size * 0.5))
+        elif s.hero_stack >= 2 * s.starting_stack:
+            finish = max(1, int(s.field_size * 0.15))
+        else:
+            finish = max(1, int(s.field_size * 0.35))
+        paid_places = max(2, int(s.field_size * 0.15))
+        cashed      = finish <= paid_places
+        # Pool 7% rake
+        pool   = cfg.buyin * cfg.field_size * 0.93
+        payout = 0.0
+        if cashed:
+            # Simple pyramid: top1=22%, 2nd=15%, 3rd=11%, ...
+            pcts = [0.22, 0.15, 0.11, 0.08, 0.06, 0.05, 0.04, 0.03, 0.025, 0.02]
+            idx = min(finish - 1, len(pcts) - 1)
+            payout = round(pool * pcts[idx], 2)
+        record = TournamentRecord(
+            id                = s.tournament_id,
+            started_at        = s.started_at,
+            ended_at          = datetime.now().isoformat(timespec="seconds"),
+            tournament_name   = cfg.tournament_name,
+            field_size        = cfg.field_size,
+            buyin             = cfg.buyin,
+            starting_stack    = cfg.starting_stack,
+            skill_style       = cfg.skill_style,
+            skill_level       = cfg.skill_level,
+            finish_position   = finish,
+            hands_played      = s.hands_played,
+            decisions         = s.decisions,
+            correct_decisions = s.correct,
+            total_ev_loss     = s.total_ev_loss,
+            icm_punts         = s.icm_punts,
+            cashed            = cashed,
+            payout            = payout,
+            notable_mistakes  = [
+                {"street": m.street, "hero_action": m.hero_action,
+                 "gto_action": m.gto_action, "ev_loss": m.ev_loss}
+                for m in (s.mistakes or [])[:10]
+            ],
+            leak_summary      = derive_leak_summary([
+                {"street": m.street, "hero_action": m.hero_action} for m in (s.mistakes or [])
+            ]),
+        )
+        try:
+            save_tournament(record)
+        except Exception:
+            pass
+
+    def _open_archive(self) -> None:
+        """Pop a simple list of past tournaments."""
+        from PySide6.QtWidgets import QDialog, QListWidget, QListWidgetItem
+        records = load_archive()
+        dlg = QDialog(self)
+        dlg.setWindowTitle("📁  Past Tournaments")
+        dlg.setMinimumSize(640, 480)
+        dlg.setStyleSheet(f"QDialog{{background:#0A0E14;}}")
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(16, 14, 16, 14)
+        hdr = QLabel(f"♠ {len(records)} kayıtlı turnuva")
+        hdr.setStyleSheet(f"color:{_C_TEXT};font-size:16px;font-weight:800;")
+        lay.addWidget(hdr)
+        lst = QListWidget()
+        lst.setStyleSheet(
+            f"QListWidget{{background:{_C_CARD};color:{_C_TEXT};"
+            f"border:1px solid {_C_BORDER};border-radius:6px;font-size:12px;}}"
+            f"QListWidget::item{{padding:8px 10px;border-bottom:1px solid {_C_BORDER};}}"
+            f"QListWidget::item:selected{{background:#0D2030;color:{_C_CYAN};}}"
+        )
+        if not records:
+            placeholder = QLabel("Henüz bir turnuva tamamlanmamış. ▶ New Tournament ile başla.")
+            placeholder.setStyleSheet(f"color:{_C_MUTED};font-size:13px;padding:24px;")
+            placeholder.setAlignment(Qt.AlignCenter)
+            lay.addWidget(placeholder)
+        else:
+            for r in records:
+                tag = "💰 ITM" if r.cashed else "❌ Bust"
+                line = (
+                    f"{r.ended_at[:16]}  ·  {r.tournament_name}  ·  "
+                    f"{r.field_size} oyuncu / ${r.buyin:.0f}  ·  "
+                    f"{r.skill_style}/{r.skill_level}\n"
+                    f"   {tag}  finish #{r.finish_position}  "
+                    f"·  payout ${r.payout:.0f}  ROI {r.roi_pct:+.1f}%  "
+                    f"·  accuracy {r.accuracy}%  ·  {r.leak_summary}"
+                )
+                item = QListWidgetItem(line)
+                lst.addItem(item)
+            lay.addWidget(lst)
+        close = QPushButton("Kapat")
+        close.setFixedHeight(34)
+        close.setStyleSheet(
+            f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};border:1px solid {_C_BORDER};"
+            f"border-radius:6px;padding:0 18px;}}"
+        )
+        close.clicked.connect(dlg.accept)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        row.addWidget(close)
+        lay.addLayout(row)
+        dlg.exec()
 
     # ── blind helpers ──────────────────────────────────────────────────────
     def _blinds(self) -> tuple[int, int, int]:
@@ -423,13 +563,21 @@ class TournamentPlayScreen(QWidget):
         if recreate:
             # Preserve hero's actual stack and dealer rotation across recreation
             prev_dealer = getattr(self.game, "dealer_idx", -1) if self.game else -1
+            # Build per-seat archetype map from configured bot mix (seat 0 = hero)
+            bot_mix = self.session.bot_mix or []
+            per_seat = {}
+            for seat_idx in range(1, n):
+                if bot_mix:
+                    per_seat[seat_idx] = bot_mix[(seat_idx - 1) % len(bot_mix)]
+            default_arch = bot_mix[0] if bot_mix else "Balanced Reg"
             self.game = PokerGame(
-                num_players    = n,
-                starting_stack = float(self.session.hero_stack),
-                small_blind    = float(sb),
-                big_blind      = float(bb),
-                hero_seat      = 0,
-                bot_archetype  = "Balanced Reg",
+                num_players      = n,
+                starting_stack   = float(self.session.hero_stack),
+                small_blind      = float(sb),
+                big_blind        = float(bb),
+                hero_seat        = 0,
+                bot_archetype    = default_arch,
+                bot_archetypes   = per_seat,
             )
             # If we're recreating mid-tournament (blinds change), advance dealer
             # to where it left off + 1, otherwise random start so first hand isn't always SB
