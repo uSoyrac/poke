@@ -173,6 +173,45 @@ class HandReviewDialog(QDialog):
         board_layout.addLayout(_card_row(hand_record.get("board", "")))
         root.addWidget(board_block)
 
+        # ── Action log (action-by-action replay) ───────────────────
+        actions = hand_record.get("actions") or []
+        if actions:
+            action_block = QFrame()
+            action_block.setStyleSheet(
+                f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:8px;}}"
+            )
+            al = QVBoxLayout(action_block)
+            al.setContentsMargins(16, 12, 16, 12)
+            al.setSpacing(2)
+            al.addWidget(_section_label("AKSİYON GEÇMİŞİ"))
+            current_street = None
+            for a in actions:
+                street = a.get("street", "?")
+                if street != current_street:
+                    current_street = street
+                    sl = QLabel(f"  ▸ {street.title()}")
+                    sl.setStyleSheet(
+                        f"color:{_C_CYAN};font-size:11px;font-weight:800;"
+                        f"padding-top:4px;background:transparent;"
+                    )
+                    al.addWidget(sl)
+                verb = a.get("action", "?").upper()
+                amount = a.get("amount", 0)
+                pos = a.get("pos", "?")
+                name = a.get("name", "?")
+                if len(name) > 14:
+                    name = name[:13] + "…"
+                amt_str = f" {amount:.0f}" if amount else ""
+                line = QLabel(
+                    f"      {pos:>4} · {name:<14}  →  {verb}{amt_str}"
+                )
+                line.setStyleSheet(
+                    f"color:{_C_TEXT};font-size:11px;background:transparent;"
+                    f"font-family:'SF Mono', Monaco, monospace;"
+                )
+                al.addWidget(line)
+            root.addWidget(action_block)
+
         # ── Showdown / coach blurb (if any) ────────────────────────
         showdown = hand_record.get("showdown", "")
         if showdown:

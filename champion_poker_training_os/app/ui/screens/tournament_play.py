@@ -218,6 +218,22 @@ class TournamentPlayScreen(QWidget):
         self.start_btn.clicked.connect(self._open_setup)
         sr.addWidget(self.start_btn)
 
+        # Auto-advance toggle — when ON, 'Sonraki El →' fires automatically
+        # after the configured delay so the tournament flows without clicks.
+        self._auto_advance = False
+        self._auto_delay_ms = 2000
+        self.auto_btn = QPushButton("⏵  Auto: KAPALI")
+        self.auto_btn.setFixedHeight(36)
+        self.auto_btn.setCheckable(True)
+        self.auto_btn.setStyleSheet(
+            f"QPushButton{{background:{_C_CARD};color:{_C_MUTED};"
+            f"border:1px solid {_C_BORDER};border-radius:8px;font-size:12px;"
+            f"padding:4px 14px;font-weight:700;}}"
+            f"QPushButton:checked{{background:#0D2030;color:{_C_CYAN};border-color:{_C_CYAN};}}"
+        )
+        self.auto_btn.clicked.connect(self._toggle_auto)
+        sr.addWidget(self.auto_btn)
+
         self.archive_btn = QPushButton("📁  Past")
         self.archive_btn.setFixedHeight(36)
         self.archive_btn.setStyleSheet(
@@ -973,6 +989,20 @@ class TournamentPlayScreen(QWidget):
         sb, bb, _ = self._blinds()
         hero_cards = "".join(c.display for c in hero.hole_cards) if hero.hole_cards else ""
         board      = "".join(c.display for c in (hand.community or []))
+        # Build a compact per-street action log from hand.actions
+        actions_log = []
+        for a in (getattr(hand, "actions", None) or []):
+            atype = getattr(a, "action_type", None)
+            verb  = getattr(atype, "value", str(atype)) if atype else "?"
+            seat_idx = getattr(a, "player_idx", -1)
+            seat_name = hand.players[seat_idx].name if 0 <= seat_idx < len(hand.players) else "?"
+            seat_pos  = hand.players[seat_idx].position if 0 <= seat_idx < len(hand.players) else "?"
+            street    = getattr(getattr(a, "street", None), "name", "?")
+            amount    = getattr(a, "amount", 0)
+            actions_log.append({
+                "street": street, "pos": seat_pos, "name": seat_name,
+                "action": verb, "amount": float(amount or 0),
+            })
         record = {
             "hand_no":        self.session.hands_played,
             "level":          self.session.level,
@@ -984,8 +1014,8 @@ class TournamentPlayScreen(QWidget):
             "hero_stack_in":  float(self.session.hero_stack) + float(hero.invested_this_hand or 0),
             "hero_stack_out": float(hero.stack),
             "hero_won":       hero.stack > self.session.hero_stack,
-            "actions":        [],   # full action log captured by decide hooks (TBD)
-            "showdown":       "",
+            "actions":        actions_log,
+            "showdown":       hand.winner_hand_name or "",
         }
         self.session.hand_history.append(record)
 
@@ -1077,6 +1107,10 @@ class TournamentPlayScreen(QWidget):
             freq_row.addWidget(pill)
         self._fb_layout.addLayout(freq_row)
 
+        # Auto-advance: if toggle is ON, schedule the next hand automatically
+        if getattr(self, "_auto_advance", False):
+            QTimer.singleShot(self._auto_delay_ms, self._next_hand)
+
     def _next_hand(self) -> None:
         self._fb.setMaximumHeight(0)
         if self.session.busted or not self.session.running:
@@ -1084,6 +1118,14 @@ class TournamentPlayScreen(QWidget):
         if self.session.hero_stack <= 0:
             self._bust(); return
         self._deal_hand()
+
+    def _toggle_auto(self) -> None:
+        """Auto-advance mode — hero feedback shows briefly then 'Sonraki El' fires."""
+        self._auto_advance = self.auto_btn.isChecked()
+        self.auto_btn.setText("⏵  Auto: AÇIK" if self._auto_advance else "⏵  Auto: KAPALI")
+        if self._auto_advance and self._answered_this_hand:
+            # If we're idle on a feedback panel right now, schedule advance
+            QTimer.singleShot(self._auto_delay_ms, self._next_hand)
 
     # ── helpers ────────────────────────────────────────────────────────────
     def _hand_to_spot(self, hand: HandState) -> dict:

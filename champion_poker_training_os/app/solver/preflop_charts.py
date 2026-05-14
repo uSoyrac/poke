@@ -472,17 +472,82 @@ _BB_DEF_vs_LJ_25 = _bb_def(
 )
 
 
+# 100bb deep stack — cash-game-like ranges
+_UTG_RFI_100 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66","55","44",
+        "AKs","AQs","AJs","ATs","A5s","A4s",
+        "KQs","KJs","KTs","K9s",
+        "QJs","QTs","Q9s","JTs","J9s","T9s","98s","87s","76s","65s","54s",
+        "AKo","AQo","AJo","KQo",
+    ],
+    mixed={"33":0.7, "22":0.5, "A9s":0.8, "K8s":0.4, "T8s":0.4, "ATo":0.6, "KJo":0.5},
+)
+_BTN_RFI_100 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22",
+        "AKs","AQs","AJs","ATs","A9s","A8s","A7s","A6s","A5s","A4s","A3s","A2s",
+        "KQs","KJs","KTs","K9s","K8s","K7s","K6s","K5s","K4s","K3s","K2s",
+        "QJs","QTs","Q9s","Q8s","Q7s","Q6s","Q5s",
+        "JTs","J9s","J8s","J7s","T9s","T8s","T7s","98s","97s","87s","86s",
+        "76s","75s","65s","64s","54s",
+        "AKo","AQo","AJo","ATo","A9o","A8o","A7o","A6o","A5o",
+        "KQo","KJo","KTo","K9o","QJo","QTo","Q9o","JTo","J9o","T9o","98o","87o",
+    ],
+)
+# BB DEF 40bb vs MP-style opener (treated like LJ-CO blend)
+_BB_DEF_vs_MP_40 = _bb_def(
+    value_3bets=["AA","KK","QQ","JJ","TT","AKs","AKo","AQs"],
+    bluff_3bets={"A5s":0.6,"A4s":0.5,"KJs":0.3,"QJs":0.4,"K9s":0.3},
+    calls=[
+        "99","88","77","66","55","44","33","22",
+        "AQo","AJs","ATs","A9s","A8s","A7s","A6s","A3s","A2s",
+        "KQs","KQo","KJs","KJo","KTs","K9s","K8s",
+        "QJs","QTs","Q9s","QJo","JTs","J9s","J8s","T9s","T8s",
+        "98s","87s","76s","65s","54s",
+        "AJo","ATo","A9o","KTo","QTo","JTo",
+    ],
+)
+# SB DEF 25bb vs BTN
+_SB_DEF_vs_BTN_25 = _bb_def(
+    value_3bets=["AA","KK","QQ","JJ","TT","AKs","AKo","AQs","AQo"],
+    bluff_3bets={"A5s":0.5,"A4s":0.4,"KJs":0.3,"QJs":0.3},
+    calls=[
+        "99","88","77","66","55","44",
+        "AJs","ATs","A9s","A5s","A4s","A3s","A2s",
+        "KQs","KJs","KTs","K9s",
+        "QJs","QTs","Q9s","JTs","J9s","T9s","98s","87s","76s","65s","54s",
+        "AJo","KQo","KJo","QJo","JTo",
+    ],
+)
+# Aggregate 'cash 100bb deep' shortcut for hands shorter than 40bb logic
+_CO_RFI_100 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22",
+        "AKs","AQs","AJs","ATs","A9s","A8s","A7s","A6s","A5s","A4s","A3s","A2s",
+        "KQs","KJs","KTs","K9s","K8s","K7s","K6s","K5s",
+        "QJs","QTs","Q9s","Q8s","JTs","J9s","J8s",
+        "T9s","T8s","98s","97s","87s","76s","65s","54s",
+        "AKo","AQo","AJo","ATo","A9o","KQo","KJo","KTo","QJo","QTo","JTo",
+    ],
+    mixed={"A8o":0.5, "K9o":0.5, "Q9o":0.4, "J9o":0.4, "T9o":0.3, "98o":0.3, "76o":0.2},
+)
+
+
 CHARTS: dict[str, dict[str, dict[str, float]]] = {
     "UTG-RFI-40":      _UTG_RFI_40,
     "UTG-RFI-25":      _UTG_RFI_25,
+    "UTG-RFI-100":     _UTG_RFI_100,
     "LJ-RFI-40":       _LJ_RFI_40,
     "LJ-RFI-25":       _LJ_RFI_25,
     "HJ-RFI-40":       _HJ_RFI_40,
     "HJ-RFI-25":       _HJ_RFI_25,
     "CO-RFI-40":       _CO_RFI_40,
     "CO-RFI-25":       _CO_RFI_25,
+    "CO-RFI-100":      _CO_RFI_100,
     "BTN-RFI-40":      _BTN_RFI_40,
     "BTN-RFI-25":      _BTN_RFI_25,
+    "BTN-RFI-100":     _BTN_RFI_100,
     "SB-RFI-40":       _SB_RFI_40,
     "SB-RFI-25":       _SB_RFI_25,
     "BB-DEF-40-vs-BTN":_BB_DEF_vs_BTN_40,
@@ -491,7 +556,9 @@ CHARTS: dict[str, dict[str, dict[str, float]]] = {
     "BB-DEF-25-vs-LJ": _BB_DEF_vs_LJ_25,
     "BB-DEF-40-vs-CO": _BB_DEF_vs_CO_40,
     "BB-DEF-25-vs-CO": _BB_DEF_vs_CO_25,
+    "BB-DEF-40-vs-MP": _BB_DEF_vs_MP_40,
     "SB-DEF-40-vs-BTN":_SB_DEF_vs_BTN_40,
+    "SB-DEF-25-vs-BTN":_SB_DEF_vs_BTN_25,
     "BTN-vsBB3BET-40": _BTN_vs_BB_3BET_40,
 }
 
