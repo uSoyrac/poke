@@ -19,10 +19,12 @@ from PySide6.QtWidgets import (
 from app.ai.coach_engine import explain_spot
 from app.core.app_state import AppState
 from app.db.repository import save_decision_review
+from app.db.tournament_archive import load_archive
 from app.engine.hand_state import positions_for
 from app.simulator.mtt_engine import TournamentEngine
 from app.training.decision_review import analyze_training_spot_decision
 from app.ui.components.live_poker_table import LivePokerTable
+from app.ui.components.mtt_setup_dialog import MttConfig, MttSetupDialog
 from app.ui.components.poker_table import PokerTableView
 from app.ui.components.spot_snapshot import build_spot_snapshot
 
@@ -100,55 +102,32 @@ class TournamentSimulatorScreen(QWidget):
 
         # Title row
         title_row = QHBoxLayout()
-        title = QLabel("Tournament Simulator")
+        title = QLabel("Tournament Simulator  (spot-quiz MTT karar antrenmanı)")
         title.setObjectName("Title")
         title_row.addWidget(title)
         title_row.addStretch(1)
+        self.setup_btn = QPushButton("⚙  Configure…")
+        self.setup_btn.clicked.connect(self._open_setup)
+        title_row.addWidget(self.setup_btn)
         self.reset_btn = QPushButton("Reset tournament")
         self.reset_btn.clicked.connect(self._reset)
         title_row.addWidget(self.reset_btn)
         layout.addLayout(title_row)
 
-        # Setup row
+        # Setup row — shown summary of current config (use MttSetupDialog to edit)
         setup = QFrame()
         setup.setObjectName("Card")
         setup_layout = QHBoxLayout(setup)
         setup_layout.setContentsMargins(14, 10, 14, 10)
-        setup_layout.addWidget(QLabel("Field"))
-        self.field = QSpinBox()
-        self.field.setRange(9, 8000)
-        self.field.setValue(self.engine.field_size)
-        self.field.valueChanged.connect(self._update_settings)
-        setup_layout.addWidget(self.field)
-
-        setup_layout.addWidget(QLabel("Buy-in $"))
-        self.buyin = QSpinBox()
-        self.buyin.setRange(1, 10000)
-        self.buyin.setValue(int(self.engine.buyin))
-        self.buyin.valueChanged.connect(self._update_settings)
-        setup_layout.addWidget(self.buyin)
-
-        setup_layout.addWidget(QLabel("Speed"))
-        self.speed = QComboBox()
-        self.speed.addItems(["regular", "turbo", "hyper"])
-        self.speed.currentTextChanged.connect(self._update_settings)
-        setup_layout.addWidget(self.speed)
-
-        self.pko = QCheckBox("PKO bounties")
-        self.pko.setChecked(True)
-        self.pko.stateChanged.connect(self._update_settings)
-        setup_layout.addWidget(self.pko)
-
-        # Table size selector — 2-11 players seated at the active table
-        setup_layout.addWidget(QLabel("Table size"))
+        self._setup_summary = QLabel("Field: 800  ·  Buy-in: $100  ·  Speed: regular  ·  9-handed")
+        self._setup_summary.setObjectName("Muted")
+        setup_layout.addWidget(self._setup_summary)
+        setup_layout.addStretch(1)
+        # Keep a table-size pseudo-spin used by _refresh_live_table compatibility
         self.table_size_spin = QSpinBox()
         self.table_size_spin.setRange(2, 11)
         self.table_size_spin.setValue(9)
-        self.table_size_spin.setSuffix(" seats")
-        self.table_size_spin.valueChanged.connect(self._refresh_live_table)
-        setup_layout.addWidget(self.table_size_spin)
-
-        setup_layout.addStretch(1)
+        self.table_size_spin.setVisible(False)
         layout.addWidget(setup)
 
         # MTT context (blind / stack / players)
@@ -257,12 +236,36 @@ class TournamentSimulatorScreen(QWidget):
         grid.addWidget(container, row, col)
         return val
 
-    def _update_settings(self) -> None:
-        self.engine.field_size = self.field.value()
-        self.engine.buyin = float(self.buyin.value())
-        self.engine.speed = self.speed.currentText()
-        self.engine.pko = self.pko.isChecked()
+    def _open_setup(self) -> None:
+        """Open the shared MTT setup dialog and reseed the engine from it."""
+        preset = MttConfig(
+            tournament_name   = "Online Turbo Low Stakes",
+            field_size        = self.engine.field_size,
+            buyin             = self.engine.buyin,
+            starting_stack    = self.engine.starting_stack,
+            minutes_per_level = 10,
+            skill_style       = "Human-Like",
+            skill_level       = "Medium",
+            table_size        = self.table_size_spin.value(),
+        )
+        dlg = MttSetupDialog(self, preset)
+        if dlg.exec() != dlg.Accepted:
+            return
+        cfg = dlg.config
+        self.engine.field_size     = cfg.field_size
+        self.engine.buyin          = float(cfg.buyin)
+        self.engine.starting_stack = cfg.starting_stack
+        self.engine.speed          = "turbo" if cfg.minutes_per_level <= 8 else \
+                                     "hyper" if cfg.minutes_per_level <= 4 else "regular"
+        self.engine.chip_stack     = cfg.starting_stack
+        self.table_size_spin.setValue(cfg.table_size)
+        self._setup_summary.setText(
+            f"{cfg.tournament_name}  ·  Field: {cfg.field_size}  ·  "
+            f"Buy-in: ${cfg.buyin:.0f}  ·  Stack: {cfg.starting_stack:,}  ·  "
+            f"{cfg.skill_style}/{cfg.skill_level}  ·  {cfg.table_size}-handed"
+        )
         self._refresh_context()
+        self._refresh_live_table()
 
     def _reset(self) -> None:
         self.engine.reset()

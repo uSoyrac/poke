@@ -40,6 +40,7 @@ from app.solver.mock_solver import compare_action, solve_spot
 from app.training.trainer_scoring import score_decision, skill_label
 from app.ui.components.card_view import CardView
 from app.ui.components.live_poker_table import LivePokerTable
+from app.simulator.field_simulator import FieldSimulator
 from app.ui.components.mtt_setup_dialog import MttConfig, MttSetupDialog
 from app.ui.components.tournament_result_dialog import TournamentResultDialog
 
@@ -151,6 +152,9 @@ class TournamentSession:
     started_at:     str    = ""
     bot_mix:        list   = field(default_factory=list)
     buyin:          float  = 0.0
+    # Real hand-by-hand state: background field + per-hand history
+    field_sim:      object = None      # FieldSimulator | None
+    hand_history:   list   = field(default_factory=list)   # list of HandRecord dicts
 
 
 # ── main screen ───────────────────────────────────────────────────────────
@@ -390,6 +394,12 @@ class TournamentPlayScreen(QWidget):
                 "hyper" if cfg.minutes_per_level <= 4 else "regular"
         n_table = cfg.table_size
         bot_mix = cfg.make_bot_mix(n_table)
+        field_sim = FieldSimulator(
+            field_size     = cfg.field_size,
+            starting_stack = cfg.starting_stack,
+            skill_style    = cfg.skill_style,
+            skill_level    = cfg.skill_level,
+        )
         self.session = TournamentSession(
             num_players    = n_table,
             starting_stack = cfg.starting_stack,
@@ -402,6 +412,8 @@ class TournamentPlayScreen(QWidget):
             started_at     = datetime.now().isoformat(timespec="seconds"),
             bot_mix        = bot_mix,
             buyin          = cfg.buyin,
+            field_sim      = field_sim,
+            hand_history   = [],
         )
         self.session.running = True
         self._tour_summary.setText(
@@ -437,8 +449,11 @@ class TournamentPlayScreen(QWidget):
         cfg: MttConfig = s.config  # type: ignore
         if cfg is None:
             return
-        # Naive finish projection — better stacks finish higher in field
-        if s.busted:
+        # Finish position from FieldSimulator (real, derived from simulated play)
+        sim: FieldSimulator | None = s.field_sim
+        if sim is not None:
+            finish = sim.finish_for_hero()
+        elif s.busted:
             finish = max(1, int(s.field_size * 0.5))
         elif s.hero_stack >= 2 * s.starting_stack:
             finish = max(1, int(s.field_size * 0.15))
@@ -480,6 +495,7 @@ class TournamentPlayScreen(QWidget):
             leak_summary      = derive_leak_summary([
                 {"street": m.street, "hero_action": m.hero_action} for m in (s.mistakes or [])
             ]),
+            hand_history      = list(s.hand_history or []),
         )
         try:
             save_tournament(record)
@@ -492,8 +508,11 @@ class TournamentPlayScreen(QWidget):
         cfg: MttConfig = s.config  # type: ignore
         if cfg is None:
             return
-        # Derive finish position (same logic as archive)
-        if s.busted:
+        # Derive finish position from FieldSimulator if available
+        sim: FieldSimulator | None = s.field_sim
+        if sim is not None:
+            finish = sim.finish_for_hero()
+        elif s.busted:
             finish = max(1, int(s.field_size * 0.5))
         elif s.hero_stack >= 2 * s.starting_stack:
             finish = max(1, int(s.field_size * 0.15))
@@ -563,17 +582,23 @@ class TournamentPlayScreen(QWidget):
         else:
             for r in records:
                 tag = "💰 ITM" if r.cashed else "❌ Bust"
+                hh_count = len(r.hand_history) if r.hand_history else 0
                 line = (
                     f"{r.ended_at[:16]}  ·  {r.tournament_name}  ·  "
                     f"{r.field_size} oyuncu / ${r.buyin:.0f}  ·  "
                     f"{r.skill_style}/{r.skill_level}\n"
                     f"   {tag}  finish #{r.finish_position}  "
                     f"·  payout ${r.payout:.0f}  ROI {r.roi_pct:+.1f}%  "
-                    f"·  accuracy {r.accuracy}%  ·  {r.leak_summary}"
+                    f"·  accuracy {r.accuracy}%  ·  {hh_count} el oynandı  ·  {r.leak_summary}"
                 )
                 item = QListWidgetItem(line)
+                item.setData(Qt.UserRole, r)
                 lst.addItem(item)
+            lst.itemDoubleClicked.connect(self._open_hand_history)
             lay.addWidget(lst)
+            hint = QLabel("💡 Bir turnuvanın detaylı el geçmişini görmek için satıra çift tıkla.")
+            hint.setStyleSheet(f"color:{_C_MUTED};font-size:11px;padding:4px;")
+            lay.addWidget(hint)
         close = QPushButton("Kapat")
         close.setFixedHeight(34)
         close.setStyleSheet(
@@ -585,6 +610,60 @@ class TournamentPlayScreen(QWidget):
         row.addStretch(1)
         row.addWidget(close)
         lay.addLayout(row)
+        dlg.exec()
+
+    def _open_hand_history(self, item) -> None:
+        """Phase 3 — open a detailed hand-history viewer for a saved tournament."""
+        from PySide6.QtWidgets import QDialog, QListWidget, QListWidgetItem
+        r = item.data(Qt.UserRole)
+        if r is None or not r.hand_history:
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"{r.tournament_name} — El Geçmişi ({len(r.hand_history)} el)")
+        dlg.setMinimumSize(820, 560)
+        dlg.setStyleSheet(f"QDialog{{background:#0A0E14;}}")
+        v = QVBoxLayout(dlg); v.setContentsMargins(16, 14, 16, 14); v.setSpacing(8)
+
+        hdr = QLabel(
+            f"{r.tournament_name}  ·  finish #{r.finish_position}/{r.field_size}  ·  "
+            f"payout ${r.payout:.0f}  ·  ROI {r.roi_pct:+.1f}%"
+        )
+        hdr.setStyleSheet(f"color:{_C_TEXT};font-size:14px;font-weight:700;")
+        v.addWidget(hdr)
+
+        lst = QListWidget()
+        lst.setStyleSheet(
+            f"QListWidget{{background:{_C_CARD};color:{_C_TEXT};"
+            f"border:1px solid {_C_BORDER};border-radius:6px;font-size:12px;"
+            f"font-family:'SF Mono', Monaco, monospace;}}"
+            f"QListWidget::item{{padding:6px 10px;border-bottom:1px solid {_C_BORDER};}}"
+            f"QListWidget::item:selected{{background:#0D2030;color:{_C_CYAN};}}"
+        )
+        for h in r.hand_history:
+            delta = h.get("hero_stack_out", 0) - h.get("hero_stack_in", 0)
+            sign  = "+" if delta >= 0 else ""
+            won   = "🏆" if h.get("hero_won") else "  "
+            line = (
+                f"#{h.get('hand_no', 0):>3}  L{h.get('level', 1):<2}  "
+                f"{h.get('blinds', ''):<10}  {h.get('hero_pos', '??'):<4}  "
+                f"{h.get('hero_cards', '????'):<6}  "
+                f"board: {(h.get('board') or '—'):<14}  "
+                f"pot {h.get('pot_final', 0):>5.0f}  "
+                f"stack {h.get('hero_stack_out', 0):>7,.0f}  "
+                f"{sign}{delta:>7,.0f}  {won}"
+            )
+            lst.addItem(QListWidgetItem(line))
+        v.addWidget(lst, 1)
+
+        close = QPushButton("Kapat")
+        close.setFixedHeight(34)
+        close.setStyleSheet(
+            f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};"
+            f"border:1px solid {_C_BORDER};border-radius:6px;padding:0 18px;}}"
+        )
+        close.clicked.connect(dlg.accept)
+        row = QHBoxLayout(); row.addStretch(1); row.addWidget(close)
+        v.addLayout(row)
         dlg.exec()
 
     # ── blind helpers ──────────────────────────────────────────────────────
@@ -765,19 +844,81 @@ class TournamentPlayScreen(QWidget):
             self._on_hand_done(hand_after)
 
     def _on_hand_done(self, hand: HandState) -> None:
-        # Update hero stack
         hero = hand.hero
         if hero:
             self.session.hero_stack = max(0, int(hero.stack))
-        # Simulate field eliminations (rough)
-        if random.random() < 0.06 and self.session.players_left > 1:
-            self.session.players_left -= 1
+
+        # Capture hand record for archive (Phase 3)
+        try:
+            self._record_hand(hand)
+        except Exception:
+            pass
+
+        # Background field simulation (Phase 2) — real eliminations
+        sim: FieldSimulator | None = self.session.field_sim
+        if sim is not None:
+            sim.update_hero_stack(self.session.hero_stack)
+            # Advance field every 10 hero hands (≈ 1 round of the rest of the field)
+            if self.session.hands_played % 10 == 0:
+                _, bb, _ = self._blinds()
+                busted = sim.advance_round(big_blind=float(bb), hands_in_round=10)
+                if busted:
+                    self._log_elimination(len(busted), sim.players_left)
+            self.session.players_left = sim.players_left
+            # Winner detection — if hero is the last one
+            if sim.players_left <= 1 and self.session.hero_stack > 0:
+                self._log_event("🏆  Turnuvayı kazandın!")
+                QTimer.singleShot(600, self._bust)   # ends session, archives win
+                return
+
         self._update_ctx()
         if self.session.hero_stack <= 0:
+            if sim is not None:
+                sim.hero_busted_at(self.session.hands_played)
             QTimer.singleShot(400, self._bust)
         elif not self._answered_this_hand:
-            # Hero didn't get a decision (e.g., everyone folded) — next hand
             QTimer.singleShot(300, self._deal_hand)
+
+    def _record_hand(self, hand: HandState) -> None:
+        """Append a HandRecord-shaped dict to the session history."""
+        hero = hand.hero
+        if hero is None:
+            return
+        sb, bb, _ = self._blinds()
+        hero_cards = "".join(c.display for c in hero.hole_cards) if hero.hole_cards else ""
+        board      = "".join(c.display for c in (hand.community or []))
+        record = {
+            "hand_no":        self.session.hands_played,
+            "level":          self.session.level,
+            "blinds":         f"{sb}/{bb}",
+            "hero_pos":       hero.position,
+            "hero_cards":     hero_cards,
+            "board":          board,
+            "pot_final":      float(hand.pot),
+            "hero_stack_in":  float(self.session.hero_stack) + float(hero.invested_this_hand or 0),
+            "hero_stack_out": float(hero.stack),
+            "hero_won":       hero.stack > self.session.hero_stack,
+            "actions":        [],   # full action log captured by decide hooks (TBD)
+            "showdown":       "",
+        }
+        self.session.hand_history.append(record)
+
+    def _log_elimination(self, count: int, players_left: int) -> None:
+        """Emit an entry into the live log when virtual players bust."""
+        msg = f"💥  {count} oyuncu elendi  ·  kalan: {players_left:,}"
+        self._log_event(msg)
+
+    def _log_event(self, text: str) -> None:
+        """Append a neutral event line to the mistake log panel."""
+        if not hasattr(self, "_log_vbox"):
+            return
+        from PySide6.QtWidgets import QLabel
+        lbl = QLabel(text)
+        lbl.setStyleSheet(
+            f"QLabel{{color:{_C_MUTED};font-size:11px;"
+            f"padding:5px 8px;background:{_C_CARD};border-radius:5px;}}"
+        )
+        self._log_vbox.addWidget(lbl)
 
     # ── feedback panel ─────────────────────────────────────────────────────
     def _draw_feedback(self, gto: dict, hero_action: str, hand: HandState) -> None:

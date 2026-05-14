@@ -19,14 +19,19 @@ _ARCHIVE_FILE = _ARCHIVE_DIR / "tournament_archive.json"
 
 @dataclass
 class HandRecord:
-    hand_no:     int
-    street:      str
-    hero_pos:    str
-    hero_cards:  str
-    action:      str
-    gto_action:  str
-    ev_loss:     float
-    pot:         float
+    """One hand played by hero in a tournament. Multiple per tournament."""
+    hand_no:        int
+    level:          int
+    blinds:         str         # e.g. "100/200"
+    hero_pos:       str
+    hero_cards:     str         # e.g. "AsKh"
+    board:          str         # e.g. "Td9c2s8d" up to 5 cards
+    pot_final:      float
+    hero_stack_in:  float
+    hero_stack_out: float
+    hero_won:       bool
+    actions:        List[dict] = field(default_factory=list)  # per-street action log
+    showdown:       str         = ""    # winning hand description, if any
 
 
 @dataclass
@@ -50,6 +55,7 @@ class TournamentRecord:
     payout:             float
     notable_mistakes:   List[dict]     = field(default_factory=list)
     leak_summary:       str            = ""
+    hand_history:       List[dict]     = field(default_factory=list)   # serialized HandRecords
 
     @property
     def accuracy(self) -> float:

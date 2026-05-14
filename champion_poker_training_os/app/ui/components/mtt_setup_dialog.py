@@ -35,18 +35,7 @@ from PySide6.QtWidgets import (
 )
 
 
-# Archetype pools by style / skill — used to build the per-seat bot mix.
-# Skill rises → fewer fish, more regs / shark.
-_HUMAN_LIKE_POOL = {
-    "Easy":   ["Fish", "Calling Station", "Aggro Fish", "Maniac", "Tight Passive"],
-    "Medium": ["TAG", "LAG", "Reg", "Fish", "Tight Passive", "Aggro Fish"],
-    "Hard":   ["Reg", "TAG", "LAG", "Shark", "Balanced Reg", "Nit"],
-}
-_GTO_POOL = {
-    "Easy":   ["Balanced Reg", "TAG", "Reg"],
-    "Medium": ["Balanced Reg", "Shark", "TAG"],
-    "Hard":   ["Shark", "Balanced Reg", "Shark"],
-}
+from app.simulator.skill_pools import HUMAN_LIKE_POOL as _HUMAN_LIKE_POOL, GTO_POOL as _GTO_POOL
 
 
 @dataclass
