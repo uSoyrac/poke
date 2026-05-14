@@ -651,9 +651,23 @@ class SpotTrainerScreen(QWidget):
         # Update oval table — full poker context (stacks, bets, chips, hero cards, pot)
         self.oval.populate_from_spot(spot)
         comm: list[str] = []
-        if spot.get("street") == "flop":   comm = ["W", "W", "W"]
-        elif spot.get("street") == "turn":  comm = ["W", "W", "W", "W"]
-        elif spot.get("street") == "river": comm = ["W", "W", "W", "W", "W"]
+        # Use the REAL board from the spot when available — falls back to
+        # face-down placeholders only when the spot didn't supply cards.
+        board_str = (spot.get("board") or "").strip()
+        street    = (spot.get("street") or "preflop").lower()
+        expected  = {"preflop": 0, "flop": 3, "turn": 4, "river": 5}.get(street, 0)
+        comm: list[str] = []
+        if board_str:
+            i = 0
+            while i < len(board_str) - 1 and len(comm) < expected:
+                if board_str[i].isspace():
+                    i += 1
+                    continue
+                comm.append(board_str[i:i+2])
+                i += 2
+        # Pad with face-downs if the spot was under-specified
+        while len(comm) < expected:
+            comm.append("W")
         self.oval.set_community_cards(comm)
         spr = round(stack / max(spot.get("pot_bb", 1), 1), 1)
         po  = round(100 * 0.33 / (1 + 2 * 0.33), 1)

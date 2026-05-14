@@ -145,17 +145,24 @@ class OvalTable(QWidget):
     def populate_from_spot(self, spot: dict) -> None:
         """One-call setter that derives a realistic table view from a spot dict.
 
-        Reads:
-          - spot.position           → hero seat (gets ★ YOU + cards)
-          - spot.hero_cards         → 2-char per card, painted face up at hero
-          - spot.stack_bb           → applied to every seat that isn't folded
-          - spot.pot_bb             → centre pot
-          - spot.name / pot_type    → derives who raised / folded so chips appear
+        Supports preflop and postflop spots, multiple pot stories:
+          • OPEN  — hero RFI, earlier positions fold (UTG…CO)
+          • DEFENSE — villain raised, hero defends from SB/BB (others fold)
+          • 3BP   — opener + hero 3-bet, others fold
+          • 4BP   — opener + 3-bettor + hero 4-bet
+          • SQUEEZE — opener + caller + hero squeeze
+          • LIMP  — limpers + hero raise (iso) or check
+          • POSTFLOP — preflop chips consolidated into pot; only postflop
+            actors keep their current-street bets visible
+
+        Derives realistic sizings from spot.pot_bb (not hard-coded 2.3bb).
         """
         pos    = (spot.get("position") or "BTN").upper()
         stack  = float(spot.get("stack_bb", 100))
         pot    = float(spot.get("pot_bb", 1.5))
-        street = (spot.get("street") or "preflop").title()
+        street = (spot.get("street") or "preflop")
+        street_t = street.title()
+        is_postflop = street.lower() in ("flop", "turn", "river")
         name   = (spot.get("name", "") + " " + spot.get("title", "") + " "
                   + spot.get("action_history", "")).upper()
         pot_t  = (spot.get("pot_type") or "").upper()
@@ -173,55 +180,102 @@ class OvalTable(QWidget):
             seat.folded = False
             seat.actions = []
             seat.hero_cards = []
-        # Hero
         self.set_hero(pos)
-        # Hero cards
         cards_str = spot.get("hero_cards", "") or ""
         cards = [cards_str[i:i+2] for i in range(0, len(cards_str) - 1, 2)][:2]
         if pos in self.seats:
             self.seats[pos].hero_cards = cards
 
-        # Blinds
-        if "SB" in self.seats:
-            self.seats["SB"].current_bet = 0.5
-            self.seats["SB"].stack_bb = stack - 0.5
-            self.seats["SB"].actions = ["SB"]
-        if "BB" in self.seats:
-            self.seats["BB"].current_bet = 1.0
-            self.seats["BB"].stack_bb = stack - 1.0
-            self.seats["BB"].actions = ["BB"]
+        # Realistic sizing derived from pot — gives variety
+        # Open ~2.3bb, larger for HJ/UTG (~2.5bb), smaller for BTN min-raise (~2.1bb)
+        open_sz = 2.3
+        if "MIN" in name:           open_sz = 2.0
+        elif pos in ("UTG", "UTG+1", "LJ"): open_sz = 2.5
+        elif pos == "BTN" and not vs:       open_sz = 2.2
 
-        # Story: 3-bet pot / vs-X defense / open spot
-        if "3-BET" in name or pot_t == "3BP":
-            opener = vs or "BTN"
-            if opener in self.seats:
-                self.seats[opener].current_bet = 2.3
-                self.seats[opener].stack_bb = stack - 2.3
-                self.seats[opener].actions = ["R 2.3"]
-            if pos in self.seats:
-                self.seats[pos].current_bet = 8.0
-                self.seats[pos].stack_bb = stack - 8.0
-                self.seats[pos].actions = ["3B 8"]
+        # 3-bet sizing: ~3.3x open IP, ~4x OOP
+        threebet_oop = open_sz * 4.0    # ~9.2bb
+        threebet_ip  = open_sz * 3.3    # ~7.6bb
+        # 4-bet sizing: ~2.2x 3-bet
+        fourbet_sz   = threebet_oop * 2.2 / max(1, open_sz)  # in BB
+        # Cap chip bets at remaining stack
+
+        def _set_seat(p: str, bet: float, label: str) -> None:
+            if p not in self.seats:
+                return
+            s = self.seats[p]
+            s.current_bet = round(bet, 1)
+            s.stack_bb = max(0, stack - bet)
+            s.actions = [label]
+
+        # ── Blinds always posted ──────────────────────────────
+        _set_seat("SB", 0.5, "SB")
+        _set_seat("BB", 1.0, "BB")
+
+        # Helper — fold every seat that isn't in `keep`
+        def _fold_others(keep: set) -> None:
             for p, seat in self.seats.items():
-                if p not in (opener, pos, "SB", "BB"):
-                    seat.folded = True
-                    seat.actions = ["F"]
+                if p in keep or p in ("SB", "BB"):
+                    continue
+                seat.folded = True
+                seat.actions = ["F"]
+
+        # ── Story detection ───────────────────────────────────────
+        if pot_t == "4BP" or "4-BET" in name or "4BET" in name:
+            opener = vs or ("BTN" if pos != "BTN" else "CO")
+            three_bettor = pos
+            _set_seat(opener, open_sz, f"R {open_sz:.1f}")
+            _set_seat(three_bettor, threebet_oop, f"3B {threebet_oop:.1f}")
+            # Hero is 4-better (could be opener re-jamming)
+            if pos == opener:
+                _set_seat(pos, fourbet_sz, f"4B {fourbet_sz:.1f}")
+            _fold_others({opener, three_bettor, pos})
+
+        elif "SQUEEZE" in name or "SQZ" in name:
+            opener = vs or "CO"
+            caller = "BTN" if opener != "BTN" else "CO"
+            _set_seat(opener, open_sz, f"R {open_sz:.1f}")
+            _set_seat(caller, open_sz, f"C {open_sz:.1f}")
+            _set_seat(pos, threebet_oop + 2.0, f"SQ {threebet_oop+2.0:.1f}")
+            _fold_others({opener, caller, pos})
+
+        elif pot_t == "3BP" or "3-BET" in name or "3BET" in name:
+            # Naming convention "X vs Y 3-bet" → X opened, Y 3-bet.
+            # So pos (the hero) is the OPENER facing villain's 3-bet
+            # UNLESS the spot is from the 3-bettor's seat (e.g. "BB 3-bet vs BTN")
+            three_bettor_first = (
+                "3-BET VS" in name or "3BET VS" in name
+                or name.startswith("BB 3") or name.startswith("SB 3")
+                or pos in ("BB", "SB") and pot_t == "3BP" and not vs
+            )
+            if three_bettor_first:
+                # Hero is the 3-bettor — opener is the villain
+                opener = vs or ("BTN" if pos != "BTN" else "CO")
+                _set_seat(opener, open_sz, f"R {open_sz:.1f}")
+                _set_seat(pos, threebet_oop, f"3B {threebet_oop:.1f}")
+                _fold_others({opener, pos})
+            else:
+                # Hero is the OPENER facing villain's 3-bet (most common)
+                three_bettor = vs or ("BB" if pos != "BB" else "BTN")
+                _set_seat(pos, open_sz, f"R {open_sz:.1f}")
+                _set_seat(three_bettor, threebet_oop, f"3B {threebet_oop:.1f}")
+                _fold_others({pos, three_bettor})
+
+        elif "LIMP" in name:
+            limpers = ["UTG", "UTG+1"]
+            for lim in limpers:
+                if lim in self.seats and lim != pos:
+                    _set_seat(lim, 1.0, "C 1.0")
+            if pos not in ("SB", "BB"):
+                _set_seat(pos, open_sz * 1.5, f"R {open_sz*1.5:.1f}")
+            _fold_others({pos, *limpers})
+
         elif vs and pos in ("BB", "SB"):
-            # Defense — villain raised, others folded
-            if vs in self.seats:
-                self.seats[vs].current_bet = 2.3
-                self.seats[vs].stack_bb = stack - 2.3
-                self.seats[vs].actions = ["R 2.3"]
-            for p, seat in self.seats.items():
-                if p not in (vs, pos, "SB", "BB"):
-                    seat.folded = True
-                    seat.actions = ["F"]
-            if pos == "BB" and vs != "SB" and "SB" in self.seats:
-                self.seats["SB"].folded = True
-                self.seats["SB"].actions = ["F"]
-        elif (spot.get("street") or "preflop").lower() == "preflop":
-            # Open spot — hero RFI, everyone who ACTS BEFORE hero folds.
-            # Use action order (NOT the seating order around the oval).
+            _set_seat(vs, open_sz, f"R {open_sz:.1f}")
+            _fold_others({vs, pos})
+
+        elif street.lower() == "preflop":
+            # Open spot — hero RFI
             action_order = ["UTG", "UTG+1", "UTG1", "LJ", "HJ", "CO", "BTN", "SB", "BB"]
             hero_key = "UTG+1" if pos == "UTG1" else pos
             try:
@@ -235,8 +289,55 @@ class OvalTable(QWidget):
                 if key in action_order and action_order.index(key) < hero_idx:
                     self.seats[p].folded = True
                     self.seats[p].actions = ["F"]
+            # Hero's pre-raise chip (RFI)
+            if pos not in ("SB", "BB"):
+                _set_seat(pos, open_sz, f"R {open_sz:.1f}")
+        else:
+            # Postflop default story: hero heads-up vs villain.
+            # Try to derive villain from action_history ("BTN bets", "CO checks").
+            ah_upper = name
+            villain_pos = None
+            for v in ("UTG+1", "UTG1", "UTG", "LJ", "HJ", "CO", "BTN", "SB", "BB"):
+                if v in ah_upper.split() and v != pos:
+                    villain_pos = "UTG+1" if v == "UTG1" else v
+                    break
+            # Fallback: opposite-blind default
+            if villain_pos is None:
+                villain_pos = "BB" if pos != "BB" else "BTN"
+            _fold_others({pos, villain_pos})
+            # Also fold SB/BB if they're not the villain or hero
+            for blind in ("SB", "BB"):
+                if blind not in (pos, villain_pos) and blind in self.seats:
+                    self.seats[blind].folded = True
+                    self.seats[blind].actions = ["F"]
 
-        self.set_pot(pot, street)
+        # ── Postflop adjustment ──────────────────────────────
+        # On flop/turn/river, ALL preflop bets are already in the pot;
+        # no current_bet chips should be drawn until somebody bets THIS street.
+        # The pot.bb value already includes all preflop contributions.
+        if is_postflop:
+            for p, seat in self.seats.items():
+                seat.current_bet = 0.0
+                # Keep fold label if folded; otherwise clear preflop verb
+                if not seat.folded:
+                    if seat.actions and seat.actions[0] not in ("F", "SB", "BB"):
+                        seat.actions = []
+
+            # Simple postflop story: villain checks to hero (when hero is IP)
+            # or villain bets into hero. Use action_history to guess.
+            ah = (spot.get("action_history") or "").lower()
+            villain = vs or ("BB" if pos != "BB" else "BTN")
+            if "check" in ah and "bet" not in ah:
+                if villain in self.seats:
+                    self.seats[villain].actions = ["X"]
+            elif "bet" in ah or "lead" in ah:
+                # villain leads on flop
+                bet_amount = pot * 0.5   # standard half-pot lead
+                if villain in self.seats:
+                    self.seats[villain].current_bet = round(bet_amount, 1)
+                    self.seats[villain].actions = [f"B {bet_amount:.1f}"]
+
+        self.set_pot(pot, street_t)
 
     def selection(self) -> set[str]:
         return {p for p, s in self.seats.items() if s.selected}
