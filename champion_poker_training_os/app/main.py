@@ -50,6 +50,8 @@ from app.ui.screens.gto_trainer import GTOTrainerScreen
 from app.ui.screens.heads_up_trainer import HeadsUpTrainerScreen
 from app.ui.screens.skills_report import SkillsReportScreen
 from app.ui.screens.welcome import WelcomeScreen
+from app.ui.screens.range_studio import RangeStudioScreen
+from app.ui.screens.my_mistakes import MyMistakesScreen
 from app.ui.theme.theme_manager import apply_dark_theme
 
 
@@ -83,7 +85,7 @@ NAV_ITEMS = [
     "Play Session",
     "Hands",
     "Drills",
-    "GTO Trainer (Range View)",
+    "Range Studio",
     "GTO Study Library",
     "Spot Practice Trainer",
     "Hand History Analyzer",
@@ -92,19 +94,18 @@ NAV_ITEMS = [
     "Tournament Play Mode",
     "Heads-Up Trainer",
     "ICM / PKO Trainer",
-    "Preflop Range Trainer",
     "Postflop Trainer",
     "River Decision Trainer",
     "Math Lab",
     "Combat Trainer",
     "Leak Finder",
     "Skills Report",
+    "My Mistakes",
     "AI Poker Coach",
     "Knowledge Base",
     "Study Planner",
     "Reports",
     "Aggregated Reports",
-    "Range Viewer",
     "Table Settings",
     "Settings / Compliance Guard",
 ]
@@ -198,7 +199,7 @@ class MainWindow(QMainWindow):
             "Play Session": PlaySessionScreen,
             "Hands": HandsListScreen,
             "Drills": DrillBuilderScreen,
-            "GTO Trainer (Range View)": GTOTrainerScreen,
+            "Range Studio": RangeStudioScreen,
             "GTO Study Library": StudyLibraryScreen,
             "Spot Practice Trainer": SpotTrainerScreen,
             "Hand History Analyzer": HandAnalyzerScreen,
@@ -207,19 +208,18 @@ class MainWindow(QMainWindow):
             "Tournament Play Mode": TournamentPlayScreen,
             "Heads-Up Trainer": HeadsUpTrainerScreen,
             "ICM / PKO Trainer": IcmTrainerScreen,
-            "Preflop Range Trainer": RangeTrainerScreen,
             "Postflop Trainer": PostflopTrainerScreen,
             "River Decision Trainer": RiverTrainerScreen,
             "Math Lab": MathLabScreen,
             "Combat Trainer": CombatTrainerScreen,
             "Leak Finder": LeakFinderScreen,
             "Skills Report": SkillsReportScreen,
+            "My Mistakes": MyMistakesScreen,
             "AI Poker Coach": AiCoachScreen,
             "Knowledge Base": KnowledgeBaseScreen,
             "Study Planner": StudyPlannerScreen,
             "Reports": ReportsScreen,
             "Aggregated Reports": AggregatedReportsScreen,
-            "Range Viewer": RangeViewerScreen,
             "Table Settings": TableSettingsScreen,
             "Settings / Compliance Guard": SettingsScreen,
         }

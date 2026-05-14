@@ -659,6 +659,10 @@ class DrillBuilderScreen(QWidget):
             self.badge.setText(str(count))
 
     def _on_selection_changed(self, selection: set) -> None:
+        # Guard: select_all() fires this signal during __init__ before
+        # self.summary / self.start_btn are constructed
+        if not hasattr(self, "summary") or not hasattr(self, "start_btn"):
+            return
         n = len(selection)
         if n == 0:
             self.summary.setText("Tıklayarak çalışacağın pozisyonları seç. En az 1 pozisyon seçili olmalı.")

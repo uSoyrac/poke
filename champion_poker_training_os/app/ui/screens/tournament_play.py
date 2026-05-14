@@ -33,6 +33,9 @@ from app.db.tournament_archive import (
     TournamentRecord, save_tournament, load_archive,
     derive_leak_summary, new_id,
 )
+from app.db.mistakes_queue import (
+    MistakeEntry as MqEntry, add_mistake, new_id as new_mistake_id,
+)
 from app.engine.bot_brain import BOT_ARCHETYPES
 from app.engine.game_loop import PokerGame
 from app.engine.hand_state import ActionType, HandState, Street, positions_for
@@ -847,6 +850,28 @@ class TournamentPlayScreen(QWidget):
             if ev_loss > 1.0 and self.session.players_left <= self.session.field_size * 0.15:
                 self.session.icm_punts += 1
             self._add_to_log(m)
+            # Persist to global My Mistakes queue
+            try:
+                from datetime import datetime
+                hero = hand.hero
+                hero_cards = "".join(c.display for c in hero.hole_cards) if hero and hero.hole_cards else ""
+                sb, bb, _ = self._blinds()
+                stack_bb = hero.stack / bb if hero else 0
+                add_mistake(MqEntry(
+                    id           = new_mistake_id(),
+                    logged_at    = datetime.now().isoformat(timespec="seconds"),
+                    context      = "tournament",
+                    position     = hero.position if hero else "",
+                    stack_bb     = round(stack_bb, 1),
+                    pot_type     = "3BP" if hand.current_bet > 3 * bb else "SRP",
+                    hero_cards   = hero_cards,
+                    hero_action  = act_str.lower(),
+                    gto_action   = best.lower(),
+                    ev_loss      = round(ev_loss, 2),
+                    why          = why,
+                ))
+            except Exception:
+                pass
 
         # Show GTO % on buttons
         freq_map = {a["action"]: a["frequency"] for a in gto["solver"]["actions"]}

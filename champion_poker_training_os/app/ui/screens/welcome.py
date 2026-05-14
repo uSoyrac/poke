@@ -226,7 +226,7 @@ class WelcomeScreen(QWidget):
             "📐", "GTO Trainer",
             "13×13 range matrisi ve 325 hazır spot kütüphanesi. "
             "Pozisyon × pot tipi için her elin GTO frekansını gör.",
-            "GTO TRAINER'A GİT  →", "GTO Trainer (Range View)", _CYAN,
+            "GTO TRAINER'A GİT  →", "Range Studio", _CYAN,
         )
         learn.clicked.connect(self.navigate_requested)
         cards_row.addWidget(learn)

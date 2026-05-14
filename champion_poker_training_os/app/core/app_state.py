@@ -21,6 +21,9 @@ class AppState:
     pending_spot_id: str | None = None
     # FIFO queue of upcoming spot ids — Spot Trainer pops from this on each load
     pending_spot_queue: list[str] = field(default_factory=list)
+    # When set by My Mistakes screen, the Spot Trainer filters to similar spots
+    active_leak_signature: str = ""
+    active_leak_mistakes: list[str] = field(default_factory=list)
     # Singleton adaptive engine — lazily created so unit tests don't pay setup cost
     _adaptive_engine: Any = None
 
