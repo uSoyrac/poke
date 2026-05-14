@@ -78,12 +78,21 @@ BLIND_STRUCTURES: dict[str, list[tuple]] = {
 }
 
 
-def _blind_at(level: int, speed: str, starting_stack: int = 20_000) -> tuple[int, int, int]:
+def _blind_at(
+    level: int,
+    speed: str,
+    starting_stack: int = 20_000,
+    bb_ante: bool = True,
+) -> tuple[int, int, int]:
     """Get (sb, bb, ante) — auto-scaled so L1 BB ≈ starting_stack / 100.
 
     Reference (APT-style): for starting_stack=1000 → L1 = 10/20 (50bb), or
     for starting_stack=2000 → L1 = 20/40 (50bb). The fixed BLIND_STRUCTURES
     table was hard-wired for ~20k starting stacks; we rescale it.
+
+    When bb_ante is True the ante grows the same as BB (modern online
+    structure). When False the ante stays zero — the BB still pays the
+    big blind but no extra orbit cost.
     """
     struct = BLIND_STRUCTURES.get(speed, BLIND_STRUCTURES["regular"])
     idx = min(level - 1, len(struct) - 1)
@@ -93,6 +102,8 @@ def _blind_at(level: int, speed: str, starting_stack: int = 20_000) -> tuple[int
     sb   = max(1, int(round(sb * scale)))
     bb   = max(2, int(round(bb * scale)))
     ante = max(0, int(round(ante * scale)))
+    if not bb_ante:
+        ante = 0
     return sb, bb, ante
 
 
@@ -419,9 +430,8 @@ class TournamentPlayScreen(QWidget):
         if dlg.exec() != dlg.Accepted:
             return
         cfg: MttConfig = dlg.config
-        # Map UI speed → existing blind-structure key
-        speed = "turbo" if cfg.minutes_per_level <= 8 else \
-                "hyper" if cfg.minutes_per_level <= 4 else "regular"
+        # Use MttConfig's derived speed_class (also factors in tournament_name)
+        speed = cfg.speed_class
         n_table = cfg.table_size
         bot_mix = cfg.make_bot_mix(n_table)
         field_sim = FieldSimulator(
@@ -728,8 +738,11 @@ class TournamentPlayScreen(QWidget):
 
     # ── blind helpers ──────────────────────────────────────────────────────
     def _blinds(self) -> tuple[int, int, int]:
+        cfg = self.session.config
+        bb_ante = bool(cfg.bb_ante) if cfg is not None else True
         return _blind_at(self.session.level, self.session.speed,
-                         starting_stack=self.session.starting_stack or 20_000)
+                         starting_stack=self.session.starting_stack or 20_000,
+                         bb_ante=bb_ante)
 
     def _advance_level(self) -> None:
         self.session.hands_this_level += 1

@@ -51,6 +51,30 @@ class MttConfig:
     table_size:        int  = 9                # seats at the active table
     seed:              Optional[int] = None
 
+    # ── Derived properties — these are what the engine actually reads ──
+
+    @property
+    def speed_class(self) -> str:
+        """Map (tournament_name + minutes_per_level) to engine speed key."""
+        name = self.tournament_name.lower()
+        # Explicit overrides by name
+        if "hyper" in name:                   return "hyper"
+        if "live" in name:                    return "regular"
+        if "wsop" in name:                    return "regular"
+        # Else use minutes_per_level
+        if self.minutes_per_level <= 4:       return "hyper"
+        if self.minutes_per_level <= 8:       return "turbo"
+        return "regular"
+
+    @property
+    def ante_factor(self) -> float:
+        """How much ante per orbit (as fraction of BB). 0 if disabled."""
+        return 1.0 if self.bb_ante else 0.0
+
+    @property
+    def prize_pool(self) -> float:
+        return self.buyin * self.field_size * 0.93   # 7% rake
+
     def make_bot_mix(self, n_seats: int) -> list[str]:
         """Generate a realistic per-seat archetype list for one table.
 
@@ -169,6 +193,13 @@ class MttSetupDialog(QDialog):
             "Daily Freezeout",
         ])
         self.type_combo.setCurrentText(self.config.tournament_name)
+        self.type_combo.setToolTip(
+            "Turnuva tipi:\n"
+            "  • 'Hyper' adı → çok hızlı blind artışı\n"
+            "  • 'Live' / 'WSOP' adı → yavaş, derin yapı (regular)\n"
+            "  • Diğerleri → Minutes/Level değerine göre belirlenir\n"
+            "Sonuç ekranındaki ve archive'daki turnuva ismi de bu olur."
+        )
         grid.addWidget(self.type_combo, 0, 1, 1, 2)
 
         # Row 0 — Skill style buttons
@@ -177,6 +208,15 @@ class MttSetupDialog(QDialog):
         skill_row.setSpacing(0)
         self.btn_human = QPushButton("Human-Like")
         self.btn_gto = QPushButton("GTO-Style")
+        self.btn_human.setToolTip(
+            "Human-Like: Bot'lar gerçek oyuncu davranışı sergiler (Fish, "
+            "Calling Station, Aggro Fish, Maniac, TAG, vb. arketipleri "
+            "karıştırılarak masaya yerleştirilir)."
+        )
+        self.btn_gto.setToolTip(
+            "GTO-Style: Bot'lar dengeli oynar (Balanced Reg, Shark, TAG). "
+            "Daha tutarlı raise/3bet frekansları, daha az exploitable."
+        )
         for b in (self.btn_human, self.btn_gto):
             b.setCheckable(True)
             b.setFixedHeight(28)
@@ -196,12 +236,24 @@ class MttSetupDialog(QDialog):
         self.players_spin.setRange(2, 5000)
         self.players_spin.setSingleStep(10)
         self.players_spin.setValue(self.config.field_size)
+        self.players_spin.setToolTip(
+            "Toplam turnuva oyuncu sayısı. Sen masada ~9 kişiyle oynarsın; "
+            "diğer (N−1) oyuncu arka planda istatistiksel olarak simüle "
+            "edilir (FieldSimulator). Daha çok oyuncu → daha uzun turnuva, "
+            "daha geç ITM."
+        )
         grid.addWidget(self.players_spin, 1, 1)
 
         grid.addWidget(_label("Skill Level:"), 1, 3)
         self.level_combo = QComboBox()
         self.level_combo.addItems(["Easy", "Medium", "Hard"])
         self.level_combo.setCurrentText(self.config.skill_level)
+        self.level_combo.setToolTip(
+            "Bot havuzunun seviyesi:\n"
+            "  • Easy → Fish + Calling Station + Maniac (gevşek/zayıf)\n"
+            "  • Medium → TAG + Reg + bazı fish (dengeli)\n"
+            "  • Hard → Shark + Balanced Reg + LAG (sıkı/agresif)"
+        )
         grid.addWidget(self.level_combo, 1, 4)
 
         # Row 2 — Minutes per level, buy-in
@@ -209,12 +261,24 @@ class MttSetupDialog(QDialog):
         self.mins_spin = QSpinBox()
         self.mins_spin.setRange(1, 120)
         self.mins_spin.setValue(self.config.minutes_per_level)
+        self.mins_spin.setToolTip(
+            "Her blind seviyesi için süre (dakika):\n"
+            "  • ≤4 dk → Hyper turbo blind yapısı\n"
+            "  • 5–8 dk → Turbo blind yapısı\n"
+            "  • ≥9 dk → Regular (yavaş) blind yapısı\n"
+            "Tournament Play modunda 10 el sonrası bir sonraki seviyeye geçilir."
+        )
         grid.addWidget(self.mins_spin, 2, 1)
 
         grid.addWidget(_label("Buy-in ($):"), 2, 3)
         self.buyin_spin = QSpinBox()
         self.buyin_spin.setRange(1, 100000)
         self.buyin_spin.setValue(int(self.config.buyin))
+        self.buyin_spin.setToolTip(
+            "Buy-in ($). Prize pool = buy-in × oyuncu sayısı × 0.93 "
+            "(7% rake). Bitiş sıralamana göre ROI buradan hesaplanır ve "
+            "Past Tournaments arşivine kaydedilir."
+        )
         grid.addWidget(self.buyin_spin, 2, 4)
 
         # Row 3 — Starting stack, table size
@@ -223,6 +287,11 @@ class MttSetupDialog(QDialog):
         self.stack_spin.setRange(100, 1000000)
         self.stack_spin.setSingleStep(500)
         self.stack_spin.setValue(self.config.starting_stack)
+        self.stack_spin.setToolTip(
+            "Başlangıç chip stack'i. Blind yapısı buna göre otomatik "
+            "ölçeklenir → L1 BB ≈ starting_stack / 100 (yani 100bb deep "
+            "başlarsın). 2000 chip → L1 = 10/20, 20000 chip → L1 = 100/200."
+        )
         grid.addWidget(self.stack_spin, 3, 1)
 
         grid.addWidget(_label("Table Seats:"), 3, 3)
@@ -230,11 +299,22 @@ class MttSetupDialog(QDialog):
         self.seats_spin.setRange(2, 11)
         self.seats_spin.setValue(self.config.table_size)
         self.seats_spin.setSuffix(" seats")
+        self.seats_spin.setToolTip(
+            "Hero'nun oturduğu masadaki toplam koltuk sayısı (hero dahil). "
+            "9 = full ring, 6 = 6-max, 2 = heads-up. Toplam oyuncu sayısı "
+            "ayrı (yukarıdaki 'Number of Players')."
+        )
         grid.addWidget(self.seats_spin, 3, 4)
 
         # Row 4 — BB ante checkbox
         self.bb_ante = QCheckBox("Use Big Blind Ante")
         self.bb_ante.setChecked(self.config.bb_ante)
+        self.bb_ante.setToolTip(
+            "Modern online turnuvalarda BB her el ekstra ante öder (orbit "
+            "başına extra cost). Açıkken bot'lar ve hero blind/ante baskısı "
+            "altında daha çok el oynamak zorunda kalır. Kapatınca sadece "
+            "SB/BB cost'u, daha relaxed yapı."
+        )
         grid.addWidget(self.bb_ante, 4, 0, 1, 2)
 
         bl.addLayout(grid)
@@ -305,9 +385,15 @@ class MttSetupDialog(QDialog):
         buyin = self.buyin_spin.value()
         pool  = int(n * buyin * 0.93)
         ante  = "BB-ante ON" if self.bb_ante.isChecked() else "no ante"
+        # Build a transient MttConfig to read derived speed_class
+        tmp = MttConfig(
+            tournament_name   = self.type_combo.currentText(),
+            minutes_per_level = self.mins_spin.value(),
+        )
+        speed = tmp.speed_class.upper()
         self.preview.setText(
             f"► {n} oyuncu  ·  ${buyin} buy-in  ·  başlangıç {stack:,} chip "
-            f"(~{stack // bb}bb)  ·  level {self.mins_spin.value()}dk  ·  {ante}\n"
+            f"(~{stack // bb}bb)  ·  level {self.mins_spin.value()}dk → {speed}  ·  {ante}\n"
             f"   Prize pool ≈ ${pool:,}  ·  Bots: "
             f"{self.config.skill_style} / {self.level_combo.currentText()}  ·  "
             f"{self.seats_spin.value()}-handed table"
