@@ -392,20 +392,105 @@ _BTN_vs_BB_3BET_40 = _vs_3bet(
 
 # ── chart registry ────────────────────────────────────────────────────────
 
+# ── Expanded chart library (Faz 5 — solver coverage) ────────────────────
+
+# HJ RFI 25bb — tighter than 40bb
+_HJ_RFI_25 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77",
+        "AKs","AQs","AJs","ATs","A9s","A5s","A4s",
+        "KQs","KJs","KTs","K9s",
+        "QJs","QTs","JTs","T9s","98s","87s",
+        "AKo","AQo","AJo","KQo",
+    ],
+    mixed={
+        "66":0.7,"55":0.4,"44":0.2,
+        "A8s":0.5,"A7s":0.4,"A3s":0.3,
+        "Q9s":0.4,"J9s":0.4,"76s":0.4,"65s":0.3,
+        "ATo":0.5,"KJo":0.4,
+    },
+)
+
+# CO RFI 25bb
+_CO_RFI_25 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66","55",
+        "AKs","AQs","AJs","ATs","A9s","A8s","A7s","A6s","A5s","A4s","A3s","A2s",
+        "KQs","KJs","KTs","K9s","K8s",
+        "QJs","QTs","Q9s","JTs","J9s","T9s","T8s","98s","87s","76s","65s",
+        "AKo","AQo","AJo","ATo","KQo","KJo","QJo",
+    ],
+    mixed={
+        "44":0.5,"33":0.3,"22":0.2,
+        "K7s":0.4,"Q8s":0.4,"J8s":0.3,"97s":0.3,"54s":0.3,
+        "KTo":0.5,"QTo":0.4,
+    },
+)
+
+# SB RFI 25bb — looser than 40bb (push/raise mix not modelled here, treated as raise)
+_SB_RFI_25 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66","55",
+        "AKs","AQs","AJs","ATs","A9s","A8s","A7s","A5s","A4s","A3s","A2s",
+        "KQs","KJs","KTs","K9s","K8s",
+        "QJs","QTs","Q9s","JTs","J9s","T9s","98s","87s","76s",
+        "AKo","AQo","AJo","ATo","A9o","KQo","KJo","QJo",
+    ],
+    mixed={
+        "44":0.6,"33":0.4,"22":0.3,
+        "A6s":0.6,
+        "K7s":0.4,"K6s":0.3,"Q8s":0.4,
+        "65s":0.4,"54s":0.3,
+        "KTo":0.5,"QTo":0.4,"JTo":0.3,
+    },
+)
+
+# BB DEF 25bb vs CO open — tighter than 40bb
+_BB_DEF_vs_CO_25 = _bb_def(
+    value_3bets=["AA","KK","QQ","JJ","AKs","AKo","AQs"],
+    bluff_3bets={"A5s":0.5,"A4s":0.4,"KJs":0.3,"QJs":0.3},
+    calls=[
+        "TT","99","88","77","66","55","44","33","22",
+        "AQo","AJs","ATs","A9s","A8s","A7s","A6s","A3s","A2s",
+        "KQs","KQo","KJs","KJo","KTs","K9s",
+        "QJs","QTs","QJo","JTs","J9s","T9s","98s","87s","76s","65s","54s",
+        "AJo","ATo","A9o","KTo","QTo","JTo",
+    ],
+)
+
+# BB DEF 25bb vs LJ — tighter range
+_BB_DEF_vs_LJ_25 = _bb_def(
+    value_3bets=["AA","KK","QQ","JJ","AKs","AKo"],
+    bluff_3bets={"A5s":0.3,"A4s":0.2,"KQs":0.2},
+    calls=[
+        "TT","99","88","77","66","55","44","33",
+        "AQo","AQs","AJs","ATs","A9s","A8s","A7s","A5s",
+        "KQs","KJs","KTs","KQo",
+        "QJs","QTs","JTs","T9s","98s","87s","76s","65s",
+        "AJo","KJo","QJo","JTo",
+    ],
+)
+
+
 CHARTS: dict[str, dict[str, dict[str, float]]] = {
     "UTG-RFI-40":      _UTG_RFI_40,
     "UTG-RFI-25":      _UTG_RFI_25,
     "LJ-RFI-40":       _LJ_RFI_40,
     "LJ-RFI-25":       _LJ_RFI_25,
     "HJ-RFI-40":       _HJ_RFI_40,
+    "HJ-RFI-25":       _HJ_RFI_25,
     "CO-RFI-40":       _CO_RFI_40,
+    "CO-RFI-25":       _CO_RFI_25,
     "BTN-RFI-40":      _BTN_RFI_40,
     "BTN-RFI-25":      _BTN_RFI_25,
     "SB-RFI-40":       _SB_RFI_40,
+    "SB-RFI-25":       _SB_RFI_25,
     "BB-DEF-40-vs-BTN":_BB_DEF_vs_BTN_40,
     "BB-DEF-25-vs-BTN":_BB_DEF_vs_BTN_25,
     "BB-DEF-40-vs-LJ": _BB_DEF_vs_LJ_40,
+    "BB-DEF-25-vs-LJ": _BB_DEF_vs_LJ_25,
     "BB-DEF-40-vs-CO": _BB_DEF_vs_CO_40,
+    "BB-DEF-25-vs-CO": _BB_DEF_vs_CO_25,
     "SB-DEF-40-vs-BTN":_SB_DEF_vs_BTN_40,
     "BTN-vsBB3BET-40": _BTN_vs_BB_3BET_40,
 }

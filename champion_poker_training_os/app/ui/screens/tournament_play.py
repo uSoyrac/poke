@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
@@ -960,21 +960,39 @@ class TournamentPlayScreen(QWidget):
         self.session.hand_history.append(record)
 
     def _log_elimination(self, count: int, players_left: int) -> None:
-        """Emit an entry into the live log when virtual players bust."""
-        msg = f"💥  {count} oyuncu elendi  ·  kalan: {players_left:,}"
-        self._log_event(msg)
+        """Emit an entry into the live log when virtual players bust.
 
-    def _log_event(self, text: str) -> None:
-        """Append a neutral event line to the mistake log panel."""
+        Includes up to 3 example names (sampled from the field) so the user
+        sees real eliminations like 'Jim Spears, Lena Voss out — 76 left'.
+        """
+        sim: FieldSimulator | None = self.session.field_sim
+        sample_names: list[str] = []
+        if sim is not None:
+            # Recently busted players (highest bust_hand first)
+            busted_recent = sorted(
+                [p for p in sim.players if not p.alive],
+                key=lambda p: -p.bust_hand,
+            )[:count]
+            sample_names = [p.name for p in busted_recent[:3]]
+        names_part = ", ".join(sample_names) if sample_names else f"{count} oyuncu"
+        suffix = "" if count <= 3 else f" (+{count-3} more)"
+        msg = f"💥  {names_part}{suffix} elendi  ·  kalan: {players_left:,}"
+        self._log_event(msg, accent="#F87171")
+
+    def _log_event(self, text: str, accent: Optional[str] = None) -> None:
+        """Insert an event line at the TOP of the mistake log panel."""
         if not hasattr(self, "_log_vbox"):
             return
         from PySide6.QtWidgets import QLabel
         lbl = QLabel(text)
+        color = accent or _C_MUTED
         lbl.setStyleSheet(
-            f"QLabel{{color:{_C_MUTED};font-size:11px;"
-            f"padding:5px 8px;background:{_C_CARD};border-radius:5px;}}"
+            f"QLabel{{color:{color};font-size:11px;font-weight:600;"
+            f"padding:6px 10px;background:{_C_CARD};border-radius:5px;"
+            f"border-left:3px solid {color};}}"
         )
-        self._log_vbox.addWidget(lbl)
+        # Newest event on top
+        self._log_vbox.insertWidget(0, lbl)
 
     # ── feedback panel ─────────────────────────────────────────────────────
     def _draw_feedback(self, gto: dict, hero_action: str, hand: HandState) -> None:

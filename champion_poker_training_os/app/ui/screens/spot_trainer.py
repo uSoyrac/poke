@@ -555,6 +555,43 @@ class SpotTrainerScreen(QWidget):
         self.load_spot()
 
     # ── core: load spot ───────────────────────────────────────────────────
+    def showEvent(self, event) -> None:
+        """Pick up an active leak signature set by My Mistakes screen and
+        filter the spot list to matching position/pot_type/action."""
+        super().showEvent(event)
+        sig = getattr(self.state, "active_leak_signature", "") or ""
+        if sig and not getattr(self, "_leak_filter_applied", False):
+            self._apply_leak_filter(sig)
+            self._leak_filter_applied = True
+
+    def _apply_leak_filter(self, signature: str) -> None:
+        """Filter drills to those matching the given leak signature.
+        Format: 'POS / POT_TYPE / ACTION' e.g. 'BB / 3BP / call'.
+        """
+        try:
+            pos, pot_t, action = [p.strip() for p in signature.split("/")]
+        except ValueError:
+            return
+        full = generate_spot_drills(120)
+        filtered = []
+        for d in full:
+            d_pos = (d.get("position") or "").upper()
+            d_pt  = (d.get("pot_type") or "SRP").upper()
+            if d_pos == pos.upper() and d_pt == pot_t.upper():
+                filtered.append(d)
+        if filtered:
+            self.drills = filtered
+            self.index = 0
+            # Banner in coach panel
+            self.coach_message.emit(
+                f"🎯 My Mistakes drill modu: '{signature}' — "
+                f"{len(filtered)} benzer spot yüklendi. Hatalarını burada kapatabilirsin."
+            )
+            # Clear the active signature so navigating away doesn't keep filter
+            self.state.active_leak_signature = ""
+            self.state.active_leak_mistakes = []
+            self.load_spot()
+
     def load_spot(self) -> None:
         spot = self.drills[self.index % len(self.drills)]
         self.state.selected_spot = spot
