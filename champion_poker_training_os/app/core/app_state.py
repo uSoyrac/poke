@@ -24,6 +24,9 @@ class AppState:
     # When set by My Mistakes screen, the Spot Trainer filters to similar spots
     active_leak_signature: str = ""
     active_leak_mistakes: list[str] = field(default_factory=list)
+    # When set by Spot Trainer's '🤖 Coach Açıkla' button, AI Coach screen
+    # picks this up on showEvent to render a personalised explanation.
+    coach_deepdive_context: dict[str, Any] = field(default_factory=dict)
     # Singleton adaptive engine — lazily created so unit tests don't pay setup cost
     _adaptive_engine: Any = None
 

@@ -666,8 +666,18 @@ class TournamentPlayScreen(QWidget):
                 f"stack {h.get('hero_stack_out', 0):>7,.0f}  "
                 f"{sign}{delta:>7,.0f}  {won}"
             )
-            lst.addItem(QListWidgetItem(line))
+            item = QListWidgetItem(line)
+            item.setData(Qt.UserRole, h)
+            lst.addItem(item)
+        # Double-click a hand line → open detailed Hand Review dialog
+        lst.itemDoubleClicked.connect(
+            lambda it, tn=r.tournament_name: self._open_hand_review(it, tn)
+        )
         v.addWidget(lst, 1)
+        # Hint
+        hint = QLabel("💡 Bir ele çift tıkla → kart-kart detaylı review")
+        hint.setStyleSheet(f"color:{_C_MUTED};font-size:11px;padding:4px;")
+        v.addWidget(hint)
 
         close = QPushButton("Kapat")
         close.setFixedHeight(34)
@@ -679,6 +689,26 @@ class TournamentPlayScreen(QWidget):
         row = QHBoxLayout(); row.addStretch(1); row.addWidget(close)
         v.addLayout(row)
         dlg.exec()
+
+    def _open_hand_review(self, item, tournament_name: str = "") -> None:
+        """Drill-down review for a single hand (per-hand replay equivalent)."""
+        from app.ui.components.hand_review_dialog import HandReviewDialog
+        hand_record = item.data(Qt.UserRole)
+        if not hand_record:
+            return
+        dlg = HandReviewDialog(self, hand_record, tournament_name=tournament_name)
+        dlg.drill_requested.connect(self._drill_from_hand)
+        dlg.exec()
+
+    def _drill_from_hand(self, hand_record: dict) -> None:
+        """User clicked 'Bu Spotu Drill Et' in HandReviewDialog → Spot Trainer."""
+        pos = hand_record.get("hero_pos", "BTN")
+        # Build a synthetic leak signature so Spot Trainer picks up the spot
+        sig = f"{pos} / SRP / call"   # generic fallback
+        self.state.active_leak_signature = sig
+        win = self.window()
+        if hasattr(win, "navigate"):
+            win.navigate("Spot Practice Trainer")
 
     # ── blind helpers ──────────────────────────────────────────────────────
     def _blinds(self) -> tuple[int, int, int]:

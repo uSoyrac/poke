@@ -555,6 +555,26 @@ class SpotTrainerScreen(QWidget):
         self.load_spot()
 
     # ── core: load spot ───────────────────────────────────────────────────
+    def _open_coach_deepdive(self, spot: dict, action: str, result: dict) -> None:
+        """User clicked '🤖 Coach Açıkla' → navigate to AI Coach with context."""
+        self.state.selected_spot = spot
+        # Stash decision context so AI Coach screen can render an analysis
+        self.state.coach_deepdive_context = {
+            "spot":         spot,
+            "hero_action":  action,
+            "gto_action":   result.get("best_action", ""),
+            "ev_loss":      result.get("ev_loss", 0.0),
+            "is_correct":   result.get("is_correct", False),
+        }
+        # Pre-fill coach panel with the explanation
+        try:
+            self.coach_message.emit(explain_spot(spot, action))
+        except Exception:
+            pass
+        win = self.window()
+        if hasattr(win, "navigate"):
+            win.navigate("AI Poker Coach")
+
     def showEvent(self, event) -> None:
         """Pick up an active leak signature set by My Mistakes screen and
         filter the spot list to matching position/pot_type/action."""
@@ -779,6 +799,18 @@ class SpotTrainerScreen(QWidget):
             f"QPushButton:hover{{background:#06B6D4;}}"
         )
         next_btn.clicked.connect(self._next_spot)
+
+        # Deep-dive: open AI Coach with this spot loaded for detailed analysis
+        deep_btn = QPushButton("🤖 Coach Açıkla")
+        deep_btn.setFixedHeight(38)
+        deep_btn.setStyleSheet(
+            f"QPushButton{{background:#0F141C;color:{_C_TEXT};"
+            f"border:1px solid {_C_BORDER};border-radius:8px;"
+            f"font-weight:700;font-size:12px;padding:4px 14px;}}"
+            f"QPushButton:hover{{border-color:#A78BFA;color:#A78BFA;}}"
+        )
+        deep_btn.clicked.connect(lambda: self._open_coach_deepdive(spot, action, result))
+        verdict_row.addWidget(deep_btn)
         verdict_row.addWidget(next_btn)
         self._feedback_layout.addLayout(verdict_row)
 

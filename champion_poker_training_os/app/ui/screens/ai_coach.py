@@ -58,6 +58,46 @@ class AiCoachScreen(QWidget):
         layout.addWidget(self.input)
         layout.addLayout(row)
 
+    def showEvent(self, event) -> None:
+        """Auto-trigger a deep-dive analysis if Spot Trainer set context."""
+        super().showEvent(event)
+        ctx = getattr(self.state, "coach_deepdive_context", None) or {}
+        if not ctx:
+            return
+        spot = ctx.get("spot") or self.state.selected_spot
+        if not spot:
+            return
+        hero_action = ctx.get("hero_action", "?")
+        gto_action  = ctx.get("gto_action", "?")
+        ev_loss     = ctx.get("ev_loss", 0.0)
+        correct     = ctx.get("is_correct", False)
+        verdict     = "✅ Doğru karar" if correct else f"❌ Yanlış karar (−{ev_loss:.2f}bb)"
+        intro = (
+            "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "🤖  DEEP-DIVE COACH\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"Spot: {spot.get('name', spot.get('id', '?'))}\n"
+            f"Senin aksiyon: {hero_action.upper()}  |  GTO: {gto_action.upper()}\n"
+            f"{verdict}\n"
+        )
+        self.history.append(intro)
+        # Coach engine explanation
+        try:
+            self.history.append("\n" + explain_spot(spot, hero_action))
+        except Exception:
+            pass
+        # Master review for deeper analysis
+        try:
+            result = self.master.run(spot=spot)
+            if result.success:
+                markdown = result.data.get("markdown", "")
+                plain = markdown.replace("**", "").replace("## ", "\n")
+                self.history.append("\n" + plain)
+        except Exception:
+            pass
+        # Consume the context so next visit doesn't re-trigger
+        self.state.coach_deepdive_context = {}
+
     def ask(self) -> None:
         prompt = self.input.toPlainText().strip()
         if not prompt:
