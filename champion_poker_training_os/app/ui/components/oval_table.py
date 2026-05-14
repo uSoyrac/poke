@@ -404,30 +404,65 @@ class OvalTable(QWidget):
             painter.drawText(QRectF(d_x - 9, d_y - 9, 18, 18), Qt.AlignCenter, "D")
 
     def _paint_hero_cards(self, painter: QPainter, x: float, y: float, theta: float, cards: list[str]) -> None:
-        """Paint hero's 2 hole cards on the table-facing side of the hero seat."""
-        # Position cards just inward of the seat
+        """Paint hero's 2 hole cards as proper playing cards (white bg, rank + suit).
+
+        Cards are placed JUST INSIDE the seat circle on the table-facing side,
+        and clamped to stay within the widget so they never get clipped.
+        """
         cx_t = self.width() / 2; cy_t = self.height() / 2
         dx = cx_t - x; dy = cy_t - y
         dist = max(1.0, (dx**2 + dy**2)**0.5)
-        cardw, cardh = 26, 36
-        base_x = x + dx / dist * (self._seat_radius + 16) - cardw - 3
-        base_y = y + dy / dist * (self._seat_radius + 16) - cardh / 2
-        suit_bg = {"s": QColor("#0F1419"), "h": QColor("#7F1D1D"),
-                   "d": QColor("#1E3A8A"), "c": QColor("#064E3B"),
-                   "♠": QColor("#0F1419"), "♥": QColor("#7F1D1D"),
-                   "♦": QColor("#1E3A8A"), "♣": QColor("#064E3B")}
+        # Card geometry — larger so they're always legible
+        cardw, cardh, gap = 32, 44, 5
+        total_w = 2 * cardw + gap
+        # Center anchor is just INSIDE the seat ring toward table centre
+        anchor_x = x + dx / dist * (self._seat_radius + 26)
+        anchor_y = y + dy / dist * (self._seat_radius + 26)
+        base_x = anchor_x - total_w / 2
+        base_y = anchor_y - cardh / 2
+        # Clamp to widget bounds so cards never disappear off-edge
+        base_x = max(4, min(self.width() - total_w - 4, base_x))
+        base_y = max(4, min(self.height() - cardh - 4, base_y))
+
+        # Suit → (symbol, colour) — standard red/black with hearts=red, diamonds=blue,
+        # spades=dark, clubs=green for max colour-blind distinction
+        suit_meta = {
+            "s": ("♠", "#0F1419"), "h": ("♥", "#DC2626"),
+            "d": ("♦", "#2563EB"), "c": ("♣", "#059669"),
+            "♠": ("♠", "#0F1419"), "♥": ("♥", "#DC2626"),
+            "♦": ("♦", "#2563EB"), "♣": ("♣", "#059669"),
+        }
         for i, card in enumerate(cards[:2]):
-            cx = base_x + i * (cardw + 4)
-            rank = card[0] if card else "?"
+            cx = base_x + i * (cardw + gap)
+            rank_raw = (card[0] if card else "?").upper()
+            rank = "10" if rank_raw == "T" else rank_raw
             suit_ch = card[1] if len(card) > 1 else ""
-            bg = suit_bg.get(suit_ch, QColor("#1F2937"))
-            painter.setBrush(bg)
-            painter.setPen(QPen(QColor("#E5E7EB"), 1))
-            painter.drawRoundedRect(QRectF(cx, base_y, cardw, cardh), 4, 4)
-            painter.setPen(QPen(QColor("#FFFFFF")))
-            f = QFont(); f.setPointSize(13); f.setBold(True)
-            painter.setFont(f)
-            painter.drawText(QRectF(cx, base_y, cardw, cardh), Qt.AlignCenter, rank)
+            symbol, colour = suit_meta.get(suit_ch, ("?", "#374151"))
+
+            # White card body with thin border
+            painter.setBrush(QColor("#FAFAFA"))
+            painter.setPen(QPen(QColor("#9CA3AF"), 1))
+            painter.drawRoundedRect(QRectF(cx, base_y, cardw, cardh), 5, 5)
+
+            # Top-left rank
+            painter.setPen(QPen(QColor(colour)))
+            f_rank = QFont(); f_rank.setPointSize(11); f_rank.setBold(True)
+            painter.setFont(f_rank)
+            painter.drawText(
+                QRectF(cx + 2, base_y + 2, cardw - 4, 16),
+                Qt.AlignLeft | Qt.AlignTop, rank,
+            )
+            # Top-left tiny suit under rank
+            f_sm = QFont(); f_sm.setPointSize(9); f_sm.setBold(True)
+            painter.setFont(f_sm)
+            painter.drawText(
+                QRectF(cx + 2, base_y + 14, cardw - 4, 12),
+                Qt.AlignLeft | Qt.AlignTop, symbol,
+            )
+            # Centre — big suit symbol
+            f_big = QFont(); f_big.setPointSize(18); f_big.setBold(True)
+            painter.setFont(f_big)
+            painter.drawText(QRectF(cx, base_y, cardw, cardh), Qt.AlignCenter, symbol)
 
     def _paint_bet_chip(self, painter: QPainter, x: float, y: float, amount: float) -> None:
         """Orange chip showing how many bb are in front of this player."""
@@ -515,35 +550,50 @@ class OvalTable(QWidget):
 
     def _paint_community(self, painter: QPainter, cx: float, cy: float) -> None:
         n = len(self.community_cards)
-        card_w = 28
-        card_h = 38
-        gap = 4
+        card_w = 32
+        card_h = 44
+        gap = 5
         total_w = n * card_w + (n - 1) * gap
         start_x = cx - total_w / 2
+        suit_meta = {
+            "s": ("♠", "#0F1419"), "h": ("♥", "#DC2626"),
+            "d": ("♦", "#2563EB"), "c": ("♣", "#059669"),
+            "S": ("♠", "#0F1419"), "H": ("♥", "#DC2626"),
+            "D": ("♦", "#2563EB"), "C": ("♣", "#059669"),
+        }
         for i, c in enumerate(self.community_cards):
             x = start_x + i * (card_w + gap)
             y = cy - card_h / 2
             rect = QRectF(x, y, card_w, card_h)
-            if c == "W" or not c:
-                # Face-down
-                painter.setBrush(QColor("#1B2330"))
-                painter.setPen(QPen(QColor("#2A3647"), 1))
-                painter.drawRoundedRect(rect, 4, 4)
-                painter.setPen(QPen(QColor("#4B5563")))
-                font = QFont(); font.setPointSize(13); font.setBold(True)
-                painter.setFont(font)
-                painter.drawText(rect, Qt.AlignCenter, "W")
+            if not c or c in ("W", "??", "?", "X"):
+                # Face-down — dark with cross pattern
+                painter.setBrush(QColor("#1F2937"))
+                painter.setPen(QPen(QColor("#374151"), 1))
+                painter.drawRoundedRect(rect, 5, 5)
+                painter.setPen(QPen(QColor("#4B5563"), 1))
+                painter.drawLine(int(x + 6), int(y + 6), int(x + card_w - 6), int(y + card_h - 6))
+                painter.drawLine(int(x + card_w - 6), int(y + 6), int(x + 6), int(y + card_h - 6))
             else:
-                painter.setBrush(QColor("#0E141C"))
-                painter.setPen(QPen(QColor("#2A3647"), 1))
-                painter.drawRoundedRect(rect, 4, 4)
-                rank = c[0] if c else "?"
-                suit = c[1] if len(c) > 1 else ""
-                color = "#22D3EE" if suit in ("h", "H") else "#10B981" if suit in ("s", "S") else "#F59E0B" if suit in ("d", "D") else "#EF4444"
-                painter.setPen(QPen(QColor(color)))
-                font = QFont(); font.setPointSize(13); font.setBold(True)
-                painter.setFont(font)
-                painter.drawText(rect, Qt.AlignCenter, rank)
+                rank_raw = c[0].upper()
+                rank = "10" if rank_raw == "T" else rank_raw
+                suit_ch = c[1] if len(c) > 1 else ""
+                symbol, colour = suit_meta.get(suit_ch, ("", "#0F1419"))
+                # White card body
+                painter.setBrush(QColor("#FAFAFA"))
+                painter.setPen(QPen(QColor("#9CA3AF"), 1))
+                painter.drawRoundedRect(rect, 5, 5)
+                # Top-left rank
+                painter.setPen(QPen(QColor(colour)))
+                f = QFont(); f.setPointSize(11); f.setBold(True)
+                painter.setFont(f)
+                painter.drawText(
+                    QRectF(x + 2, y + 2, card_w - 4, 16),
+                    Qt.AlignLeft | Qt.AlignTop, rank,
+                )
+                # Centre suit large
+                f_big = QFont(); f_big.setPointSize(18); f_big.setBold(True)
+                painter.setFont(f_big)
+                painter.drawText(rect, Qt.AlignCenter, symbol)
 
 
 class TableWithActions(QWidget):
