@@ -585,29 +585,27 @@ class SpotTrainerScreen(QWidget):
             self._leak_filter_applied = True
 
     def _apply_leak_filter(self, signature: str) -> None:
-        """Filter drills to those matching the given leak signature.
-        Format: 'POS / POT_TYPE / ACTION' e.g. 'BB / 3BP / call'.
+        """Smart multi-tier leak filter — tight (pos+pot+stack) → medium
+        (pos+pot) → loose (pos) until at least 3-5 spots are found.
         """
-        try:
-            pos, pot_t, action = [p.strip() for p in signature.split("/")]
-        except ValueError:
-            return
+        from app.db.mistakes_queue import filter_spots_by_signature, load_mistakes
+        # Try to derive an average stack from saved mistakes with this signature
+        mistakes = [m for m in load_mistakes() if m.leak_signature == signature]
+        avg_stack = (sum(m.stack_bb for m in mistakes) / len(mistakes)
+                     if mistakes else None)
         full = generate_spot_drills(120)
-        filtered = []
-        for d in full:
-            d_pos = (d.get("position") or "").upper()
-            d_pt  = (d.get("pot_type") or "SRP").upper()
-            if d_pos == pos.upper() and d_pt == pot_t.upper():
-                filtered.append(d)
+        filtered = filter_spots_by_signature(signature, full, avg_stack)
         if filtered:
             self.drills = filtered
             self.index = 0
-            # Banner in coach panel
+            tier = ("TIGHT" if len(filtered) >= 5 else
+                    "MEDIUM" if len(filtered) >= 3 else "LOOSE")
             self.coach_message.emit(
-                f"🎯 My Mistakes drill modu: '{signature}' — "
-                f"{len(filtered)} benzer spot yüklendi. Hatalarını burada kapatabilirsin."
+                f"🎯 My Mistakes drill modu [{tier}]: '{signature}'\n"
+                f"   {len(filtered)} benzer spot yüklendi"
+                + (f" (~{avg_stack:.0f}bb)" if avg_stack else "")
+                + ". Hatalarını burada kapatabilirsin."
             )
-            # Clear the active signature so navigating away doesn't keep filter
             self.state.active_leak_signature = ""
             self.state.active_leak_mistakes = []
             self.load_spot()

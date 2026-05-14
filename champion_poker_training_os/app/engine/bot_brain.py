@@ -169,6 +169,34 @@ class BotBrain:
             return ActionType.CHECK, 0
         return ActionType.FOLD, 0
 
+    def _board_texture(self, state: HandState) -> dict[str, float]:
+        """Return a {paired, monotone, connected, high} feature dict
+        used to tilt postflop aggression decisions."""
+        out = {"paired": 0.0, "monotone": 0.0, "connected": 0.0, "high": 0.0}
+        board = state.community or []
+        if len(board) < 3:
+            return out
+        vals  = sorted([c.value for c in board])
+        suits = [c.suit for c in board]
+        # Paired board
+        if len(set(vals)) < len(vals):
+            out["paired"] = 1.0
+        # Monotone or two-tone
+        s_counts = {s: suits.count(s) for s in set(suits)}
+        max_s = max(s_counts.values())
+        if max_s >= 3:
+            out["monotone"] = 1.0
+        elif max_s == 2:
+            out["monotone"] = 0.4
+        # Connected (any 3 within span 4)
+        if vals[-1] - vals[0] <= 4:
+            out["connected"] = 1.0
+        elif vals[-1] - vals[1] <= 4:
+            out["connected"] = 0.5
+        # High-card density (any rank 11+)
+        out["high"] = sum(1 for v in vals if v >= 11) / max(1, len(vals))
+        return out
+
     def _postflop_decision(
         self, state: HandState, player_idx: int, player: PlayerSeat,
         strength: float, valid: List[Tuple[ActionType, float, float]],
@@ -184,8 +212,12 @@ class BotBrain:
         else:
             pot_odds = 0
 
+        # Texture-aware noise: bots tighten on paired/monotone boards,
+        # loosen on dry uncoordinated boards.
+        texture = self._board_texture(state)
+        texture_shift = -0.04 * texture["paired"] - 0.03 * texture["monotone"]
         noise = random.gauss(0, 0.08)
-        adj_strength = strength + noise
+        adj_strength = strength + noise + texture_shift
 
         # Strong hand — bet or raise
         if adj_strength > 0.65:

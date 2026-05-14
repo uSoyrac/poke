@@ -181,23 +181,55 @@ class FieldSimulator:
     def hero_finish(self) -> Optional[int]:
         return self._hero_finish
 
+    @property
+    def icm_zone(self) -> str:
+        """Where we are in tournament life: 'early' / 'middle' / 'bubble' / 'itm' / 'final'."""
+        n = self.players_left
+        total = self.field_size
+        paid = max(2, int(total * 0.15))
+        if n <= 9:                    return "final"
+        if n <= paid:                 return "itm"
+        if n <= int(paid * 1.20):     return "bubble"
+        if n <= int(total * 0.50):    return "middle"
+        return "early"
+
     def advance_round(
         self,
         big_blind: float,
         hands_in_round: int = 10,
     ) -> list[VirtualPlayer]:
-        """Roll the field forward by ~hands_in_round hands. Returns busted players."""
-        self._hand_no += hands_in_round
-        # Pressure: as blinds grow, weaker stacks shed chips faster
-        pressure = max(0.0, math.log(max(big_blind, 1) / max(self.starting_stack / 200, 1)))
+        """Roll the field forward by ~hands_in_round hands. Returns busted players.
 
-        # Each alive player: random multiplicative walk
+        Models:
+          • Skill drift (better players accumulate chips slowly).
+          • Variance scaled by stack depth (short stacks gamble more).
+          • Blind/ante bleed (deterministic decay).
+          • ICM-zone bubble effect — near the money, short stacks bust slower
+            (everyone tightens up) and avg stacks decay faster than expected
+            (chip leaders pressure).
+        """
+        self._hand_no += hands_in_round
+        # Pressure: as blinds grow vs starting stack, weaker stacks shed chips
+        pressure = max(0.0, math.log(
+            max(big_blind, 1) / max(self.starting_stack / 200, 1)
+        ))
+        zone = self.icm_zone
+        # Bubble dynamics — short stacks survive longer near the money
+        bubble_protect = 1.0
+        if zone == "bubble":
+            bubble_protect = 0.55   # 45% less variance for short stacks
+        elif zone == "itm":
+            bubble_protect = 0.8
+
         for p in self.alive_players:
             # Drift: skill above 0.5 grows stack; below 0.5 shrinks
             drift_per_hand = (p.skill - 0.5) * 0.012 - 0.001 * pressure
             # Variance — bigger for short stacks (they're forced to gamble)
             stack_ratio = p.stack / max(self.starting_stack, 1)
             sigma = max(0.05, 0.15 / math.sqrt(max(stack_ratio, 0.05)))
+            # Short stacks tighten near bubble
+            if stack_ratio < 0.5:
+                sigma *= bubble_protect
             drift = drift_per_hand * hands_in_round
             noise = self.rng.gauss(0, sigma) * math.sqrt(hands_in_round)
             p.stack = p.stack * math.exp(drift + noise)

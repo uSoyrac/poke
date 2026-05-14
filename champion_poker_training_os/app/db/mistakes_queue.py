@@ -56,6 +56,64 @@ class MistakeEntry:
         """Group similar mistakes — same position+pot type+action class."""
         return f"{self.position} / {self.pot_type or 'SRP'} / {self.hero_action}"
 
+    @property
+    def stack_bucket(self) -> str:
+        """Bucketise stack depth so 38bb and 42bb count as the same 'class'."""
+        s = self.stack_bb or 0
+        if s < 12:  return "≤10bb"
+        if s < 20:  return "15bb"
+        if s < 30:  return "25bb"
+        if s < 50:  return "40bb"
+        if s < 80:  return "60bb"
+        return "100bb+"
+
+    def matches_spot(self, spot: dict) -> bool:
+        """Smart match: same position + pot_type + (compatible) stack bucket."""
+        if (spot.get("position") or "").upper() != self.position.upper():
+            return False
+        spot_pt = (spot.get("pot_type") or "SRP").upper()
+        if spot_pt != self.pot_type.upper():
+            return False
+        # Stack bucket compat (drill spots within ±10bb of the leak stack)
+        spot_stack = float(spot.get("stack_bb", 40))
+        if abs(spot_stack - self.stack_bb) > 12:
+            return False
+        return True
+
+
+def filter_spots_by_signature(
+    signature: str, spots: list[dict], stack_bb: Optional[float] = None,
+) -> list[dict]:
+    """Smart filter — tries exact position+pot_type+stack match first,
+    then loosens criteria if nothing matches."""
+    try:
+        pos, pot_t, action = [p.strip().upper() for p in signature.split("/")]
+    except ValueError:
+        return spots
+
+    # Tier 1: position + pot_type + stack bucket (tight)
+    tight = []
+    for d in spots:
+        d_pos = (d.get("position") or "").upper()
+        d_pt  = (d.get("pot_type") or "SRP").upper()
+        d_st  = float(d.get("stack_bb", 40))
+        if d_pos == pos and d_pt == pot_t:
+            if stack_bb is None or abs(d_st - stack_bb) <= 12:
+                tight.append(d)
+    if len(tight) >= 5:
+        return tight
+
+    # Tier 2: position + pot_type (any stack)
+    medium = [d for d in spots
+              if (d.get("position") or "").upper() == pos
+              and (d.get("pot_type") or "SRP").upper() == pot_t]
+    if len(medium) >= 3:
+        return medium
+
+    # Tier 3: just position
+    loose = [d for d in spots if (d.get("position") or "").upper() == pos]
+    return loose or spots
+
 
 def _ensure() -> None:
     _DIR.mkdir(parents=True, exist_ok=True)
