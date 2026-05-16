@@ -996,10 +996,15 @@ class TournamentPlayScreen(QWidget):
                 if busted:
                     self._log_elimination(len(busted), sim.players_left)
             self.session.players_left = sim.players_left
+            # Table consolidation — as field shrinks, hero's table also
+            # consolidates: 9-handed → 6-max → 4-max → 3-max → HU.
+            # Real MTTs balance like this. Doesn't change hero's stack;
+            # adjusts num_players for next deal.
+            self._maybe_consolidate_table(sim.players_left)
             # Winner detection — if hero is the last one
             if sim.players_left <= 1 and self.session.hero_stack > 0:
                 self._log_event("🏆  Turnuvayı kazandın!")
-                QTimer.singleShot(600, self._bust)   # ends session, archives win
+                QTimer.singleShot(600, self._bust)
                 return
 
         self._update_ctx()
@@ -1047,6 +1052,44 @@ class TournamentPlayScreen(QWidget):
             "showdown":       hand.winner_hand_name or "",
         }
         self.session.hand_history.append(record)
+
+    def _maybe_consolidate_table(self, players_left: int) -> None:
+        """As the field shrinks, reduce hero's table size to match real MTT
+        balancing. Triggers a recreate of the PokerGame on next deal.
+
+        Bands:
+          >= 60 players left → 9-max
+          25 to 59           → 6-max
+          10 to 24           → 4-max
+          ≤ 9                → final table 9-max (hero is at final)
+          ≤ 4 (with hero)    → 3-max / HU as needed
+        """
+        if players_left >= 60:
+            target = 9
+        elif players_left >= 25:
+            target = 6
+        elif players_left > 9:
+            target = 4
+        elif players_left >= 4:
+            target = min(9, players_left)
+        else:
+            target = max(2, players_left)
+        current = self.session.num_players
+        if target != current and target >= 2:
+            old = current
+            self.session.num_players = target
+            # Notify via log + toast (only once per consolidation step)
+            self._log_event(
+                f"🔀 Masa birleşmesi: {old}-max → {target}-max (kalan: {players_left})"
+            )
+            try:
+                from app.ui.components.toast import Toast
+                Toast.show_info(
+                    self.window(),
+                    f"🔀 Masa {old}-max → {target}-max  ·  Kalan oyuncu: {players_left}"
+                )
+            except Exception:
+                pass
 
     def _log_elimination(self, count: int, players_left: int) -> None:
         """Emit an entry into the live log when virtual players bust.
