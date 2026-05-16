@@ -296,19 +296,21 @@ class LivePokerTable(QWidget):
         painter.drawText(QRectF(pill.x(), pill.y() + 18, pill.width(), 18),
                           Qt.AlignCenter, f"{stack_bb:.1f} bb")
 
-        # Current bet chip — between seat and pot center
+        # Current bet chip — pushed well inside (past name pill) so it
+        # doesn't overlap the seat avatar OR the position+stack pill.
         if data["current_bet_bb"] > 0 and not data["is_folded"]:
             cx_t, cy_t = self.width() / 2, self.height() / 2
             dx = cx_t - x; dy = cy_t - y
             dist = max(1.0, (dx**2 + dy**2)**0.5)
-            chip_x = x + dx / dist * (r + 26)
-            chip_y = y + dy / dist * (r + 26)
-            bet_rect = QRectF(chip_x - 30, chip_y - 10, 60, 20)
+            chip_x = x + dx / dist * (r + 56)   # was r + 26
+            chip_y = y + dy / dist * (r + 56)
+            chip_w, chip_h = 52, 18
+            bet_rect = QRectF(chip_x - chip_w/2, chip_y - chip_h/2, chip_w, chip_h)
             painter.setBrush(QColor("#F59E0B"))
             painter.setPen(QPen(QColor("#92400E"), 1))
-            painter.drawRoundedRect(bet_rect, 10, 10)
+            painter.drawRoundedRect(bet_rect, chip_h/2, chip_h/2)
             painter.setPen(QPen(QColor("#0B0F14")))
-            font = QFont(); font.setPointSize(9); font.setBold(True)
+            font = QFont(); font.setPointSize(8); font.setBold(True)
             painter.setFont(font)
             painter.drawText(bet_rect, Qt.AlignCenter, f"{data['current_bet_bb']:.1f}bb")
 

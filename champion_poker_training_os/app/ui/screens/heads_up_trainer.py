@@ -43,7 +43,18 @@ class HeadsUpTrainerScreen(QWidget):
         scroll.setWidget(body)
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.addWidget(scroll)
+        root.setSpacing(0)
+        root.addWidget(scroll, 1)
+        # Sticky bottom action bar — always visible, no scroll required
+        self._sticky_bar = QFrame()
+        self._sticky_bar.setStyleSheet(
+            "QFrame{background:#0F141C;border-top:1px solid #1E2733;}"
+        )
+        self._sticky_layout = QHBoxLayout(self._sticky_bar)
+        self._sticky_layout.setContentsMargins(18, 10, 18, 10)
+        self._sticky_layout.setSpacing(10)
+        self._sticky_bar.hide()   # only show during an active session
+        root.addWidget(self._sticky_bar, 0)
         layout = QVBoxLayout(body)
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(12)
@@ -215,24 +226,45 @@ class HeadsUpTrainerScreen(QWidget):
         self.history_layout.addWidget(QLabel("📜 HU Hand History"))
         game_layout.addWidget(self.history_frame)
 
-        # Bottom buttons
-        bottom_btns = QHBoxLayout()
-        self.next_btn = QPushButton("Deal Next Hand →")
+        # Action buttons go into the sticky bottom bar (always visible)
+        self.next_btn = QPushButton("Sonraki El →    (Space)")
         self.next_btn.setObjectName("PrimaryButton")
+        self.next_btn.setMinimumHeight(46)
+        self.next_btn.setStyleSheet(
+            "QPushButton#PrimaryButton{background:#22D3EE;color:#061018;"
+            "border:none;border-radius:8px;font-size:14px;font-weight:800;"
+            "padding:8px 24px;}"
+            "QPushButton#PrimaryButton:hover{background:#0EA9C2;}"
+        )
+        self.next_btn.setCursor(Qt.PointingHandCursor)
+        self.next_btn.setToolTip("Klavye: Space / Enter / N")
         self.next_btn.clicked.connect(self._deal_next)
         self.next_btn.hide()
-        self.review_btn = QPushButton("🔍 Review Last Hand")
+        self.review_btn = QPushButton("🔍 Son Eli İncele")
+        self.review_btn.setMinimumHeight(46)
         self.review_btn.clicked.connect(self._review_last)
         self.review_btn.hide()
-        self.end_btn = QPushButton("📊 End HU Session")
+        self.end_btn = QPushButton("📊 Oturumu Bitir")
+        self.end_btn.setMinimumHeight(46)
         self.end_btn.clicked.connect(self._end_session)
         self.end_btn.hide()
-        bottom_btns.addWidget(self.next_btn)
-        bottom_btns.addWidget(self.review_btn)
-        bottom_btns.addWidget(self.end_btn)
-        game_layout.addLayout(bottom_btns)
+        self._sticky_layout.addWidget(self.next_btn, 2)
+        self._sticky_layout.addWidget(self.review_btn)
+        self._sticky_layout.addWidget(self.end_btn)
 
         layout.addWidget(self.game_frame)
+        layout.addStretch(1)   # push content up so sticky bar has visual breathing room
+
+        # Keyboard shortcuts — Space / Enter / N for Deal Next Hand
+        from PySide6.QtGui import QShortcut, QKeySequence
+        for keyseq in ("Space", "Return", "Enter", "N"):
+            sc = QShortcut(QKeySequence(keyseq), self)
+            sc.activated.connect(self._kbd_deal_next)
+
+    def _kbd_deal_next(self) -> None:
+        """Keyboard shortcut: only fires when 'Sonraki El' button is visible."""
+        if self.next_btn.isVisible() and self.next_btn.isEnabled():
+            self._deal_next()
 
     def _start_session(self) -> None:
         stack_map = {0: 15, 1: 20, 2: 30, 3: 50, 4: 100}
@@ -255,6 +287,7 @@ class HeadsUpTrainerScreen(QWidget):
             f"HU session: {stack}bb, hero {'BTN' if hero_on_btn else 'BB'}, bot: {bot_name}. "
             f"Aggressive play expected!"
         )
+        self._sticky_bar.show()   # show sticky action bar
         self._deal_next()
 
     def _deal_next(self) -> None:
@@ -485,13 +518,18 @@ class HeadsUpTrainerScreen(QWidget):
             return
         stats = self.game.get_session_stats()
         summary = (
-            f"🎯 HU Session Summary\n"
-            f"Hands: {stats['hands']} | Profit: {stats['profit_bb']:+.1f}bb | "
+            f"🎯 HU Oturum Özeti\n"
+            f"Eller: {stats['hands']} | Kar: {stats['profit_bb']:+.1f}bb | "
             f"Win Rate: {stats['win_rate']:.0f}% | VPIP: {stats['vpip']:.0f}%\n"
-            f"BB/100: {stats['bb_per_100']:+.1f} | Aggression Factor: {stats.get('agg_factor', 0):.1f}\n\n"
-            f"Keep practicing HU — position and aggression are key!"
+            f"BB/100: {stats['bb_per_100']:+.1f} | Agresyon Faktörü: {stats.get('agg_factor', 0):.1f}\n\n"
+            f"HU pratiğine devam — pozisyon ve agresyon en önemli iki silah!"
         )
         self.coach_message.emit(summary)
+        # Hide sticky bar
+        try:
+            self._sticky_bar.hide()
+        except Exception:
+            pass
 
     def _update_sizing_label(self, value: int) -> None:
         self.sizing_label_display.setText(f"{value}% pot")
