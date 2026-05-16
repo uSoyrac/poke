@@ -289,6 +289,45 @@ class WelcomeScreen(QWidget):
             stats.addWidget(_StatCard(label, val, accent))
         root.addLayout(stats)
 
+        # ── Son turnuvalar mini-list (Nielsen #1: visibility of progress) ──
+        try:
+            from app.db.tournament_archive import load_archive
+            recent = load_archive()[:5]
+        except Exception:
+            recent = []
+        if recent:
+            rec_kicker = QLabel("SON 5 TURNUVA")
+            rec_kicker.setStyleSheet(
+                f"color: {_MUTED}; font-size: 10px; font-weight: 800;"
+                f" letter-spacing: 1.5px; background: transparent; padding-top: 6px;"
+            )
+            root.addWidget(rec_kicker)
+            rec_grid = QGridLayout()
+            rec_grid.setSpacing(8)
+            for idx, r in enumerate(recent):
+                tag = "💰 ITM" if r.cashed else "❌ Bust"
+                line = (
+                    f"{tag}  ·  {r.tournament_name}  ·  finish #{r.finish_position}/"
+                    f"{r.field_size}  ·  ROI {r.roi_pct:+.1f}%  ·  "
+                    f"accuracy {r.accuracy}%"
+                )
+                pill = QPushButton(line)
+                pill.setMinimumHeight(36)
+                pill.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+                pill.setCursor(Qt.PointingHandCursor)
+                accent_col = _GREEN if r.cashed else _RED
+                pill.setStyleSheet(
+                    f"QPushButton{{background:{_CARD};color:{_TEXT};"
+                    f"border:1px solid {_BORDER};border-left:3px solid {accent_col};"
+                    f"border-radius:6px;padding:8px 12px;text-align:left;font-size:11px;}}"
+                    f"QPushButton:hover{{border-color:{_CYAN};color:{_CYAN};}}"
+                )
+                pill.clicked.connect(
+                    lambda _=False: self.navigate_requested.emit("Tournament Play Mode")
+                )
+                rec_grid.addWidget(pill, idx, 0)
+            root.addLayout(rec_grid)
+
         # ── Hızlı bağlantılar ────────────────────────────────────────
         ql_kicker = QLabel("HIZLI BAĞLANTILAR")
         ql_kicker.setStyleSheet(

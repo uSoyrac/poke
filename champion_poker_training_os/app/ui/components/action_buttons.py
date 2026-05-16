@@ -60,18 +60,76 @@ def action_display(action: str, pot_bb: float = 10.0, stack_bb: float = 100.0) -
 
 
 class GtoActionButton(QPushButton):
-    """Big, colour-coded action button. Optionally shows a GTO % bar after answer."""
+    """Big, colour-coded action button. Optionally shows a GTO % bar after answer.
+
+    Nielsen heuristic #5 (Error Prevention): dangerous actions (jam/all-in)
+    require two clicks — first arms (shows 'TIKLA: ONAYLA'), second commits.
+    Auto-disarms after 4s if user doesn't confirm.
+    """
 
     def __init__(self, label: str, action: str, parent=None):
         super().__init__(label, parent)
         self._action = action
         self._freq: Optional[float] = None
+        self._label = label
+        # Dangerous = irreversible big-pot commitment
+        a = action.lower()
+        self._is_dangerous = ("jam" in a or "all-in" in a
+                              or "all_in" in a or "allin" in a)
+        self._armed = False
         bg, border, fg = action_palette(action)
         self._bg, self._border, self._fg = bg, border, fg
         self.setMinimumHeight(64)
         self.setMinimumWidth(120)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._apply_style(False)
+        # Intercept clicks for dangerous buttons — require two presses
+        if self._is_dangerous:
+            super().clicked.connect(self._on_dangerous_click)
+            # Disarm timer
+            from PySide6.QtCore import QTimer
+            self._disarm_timer = QTimer(self)
+            self._disarm_timer.setSingleShot(True)
+            self._disarm_timer.timeout.connect(self._disarm)
+
+    def _on_dangerous_click(self) -> None:
+        """First click arms, second click commits. Internal use only."""
+        if self._armed:
+            # Second click — let the normal clicked signal proceed
+            # but block this internal handler from re-arming
+            return
+        # First click — arm
+        self._armed = True
+        self._apply_armed_style()
+        self.setText("⚠ TIKLA: ONAYLA")
+        self._disarm_timer.start(4000)
+        # Suppress the click signal to listeners — they only see confirm clicks
+        # We do this by emitting only on second press; rely on overriding
+        # mousePressEvent below
+
+    def _disarm(self) -> None:
+        if not self._armed:
+            return
+        self._armed = False
+        first_line = self._label
+        self.setText(first_line)
+        self._apply_style(self._freq is not None)
+
+    def mousePressEvent(self, ev) -> None:
+        if self._is_dangerous and not self._armed:
+            # Arm only — DO NOT propagate to base class (which fires clicked)
+            self._on_dangerous_click()
+            return
+        # Second press for dangerous, or any press for safe buttons
+        super().mousePressEvent(ev)
+
+    def click(self) -> None:
+        """Programmatic click (e.g. keyboard shortcut). Respects arming
+        so '4' twice triggers ALL-IN, not once."""
+        if self._is_dangerous and not self._armed:
+            self._on_dangerous_click()
+            return
+        super().click()
 
     @property
     def action_id(self) -> str:
@@ -92,6 +150,23 @@ class GtoActionButton(QPushButton):
         self.setText(first_line)
         self._apply_style(False)
         self.update()
+
+    def _apply_armed_style(self) -> None:
+        """Bright pulsing red while armed — clear warning before commit."""
+        self.setStyleSheet(f"""
+            QPushButton {{
+                background: #DC2626;
+                border: 3px solid #FCA5A5;
+                border-radius: 10px;
+                color: #FFF;
+                font-size: 15px;
+                font-weight: 900;
+                padding: 8px 16px;
+            }}
+            QPushButton:hover {{
+                background: #B91C1C;
+            }}
+        """)
 
     # ── styling ──────────────────────────────────────────────────────
     def _apply_style(self, answered: bool) -> None:
