@@ -8,12 +8,17 @@ from app.solver.mock_solver import compare_action, solve_spot
 
 
 def explain_spot(spot: dict, hero_action: str | None = None) -> str:
+    """Spot için detaylı Türkçe coach analizi.
+
+    9 bölüm yerine 5 anlamlı blok — gereksiz jargon yok, her cümle bir
+    öğretici noktayı vurguluyor. Sonunda bir mnemonic ve drill önerisi.
+    """
     if hero_action:
         result = compare_action(spot, hero_action)
     else:
         solver = solve_spot(spot)
         result = {
-            "hero_action": "not selected",
+            "hero_action": "—",
             "best_action": solver.best_action,
             "ev_loss": 0.0,
             "best_frequency": solver.actions[0].frequency if solver.actions else 0.0,
@@ -24,28 +29,166 @@ def explain_spot(spot: dict, hero_action: str | None = None) -> str:
             },
         }
 
-    pot = float(spot.get("pot_bb", 10.0))
-    risk = max(1.0, pot * 0.66)
-    req_eq = required_equity(risk, pot)
-    a = alpha(risk, pot)
-    defense = mdf(risk, pot)
-    source = result["solver"]["source_confidence"]
-    return (
-        "1. Spot özeti: "
-        f"{spot.get('position', 'Hero')} {spot.get('stack_bb', '?')}bb, "
-        f"{spot.get('pot_type', 'SRP')} {spot.get('street', 'flop')} node, board {spot.get('board') or 'preflop'}.\n\n"
-        f"2. Hero aksiyonu: {result['hero_action']}.\n"
-        f"3. Solver baseline: {result['best_action']} ({result.get('best_frequency', 0):.0%} ana frekans). "
-        f"Kaynak güveni: {source}.\n"
-        f"4. Matematik: pot odds ~{req_eq:.0%}, alpha {a:.0%}, MDF {defense:.0%}, "
-        f"EV loss {result['ev_loss']:.2f}bb. {blocker_note(spot.get('hero_cards', ''), spot.get('board', ''))}\n"
-        f"5. Strateji: {result['solver']['range_advantage']}; {result['solver']['nut_advantage']}. "
-        "Board texture ve pozisyon avantajı sizing seçimini belirliyor.\n"
-        "6. Hata tipi: action/frequency sapması ve gerektiğinde sizing sapması.\n"
-        "7. Exploit alternatif: rakip overfold ise küçük yüksek frekans baskı; station ise value ağırlıklı plan.\n"
-        "8. Tekrar drill: benzer 5 spot çöz, sonra aynı eli feedback kapalı tekrar dene.\n"
-        "9. Akılda kalacak ders: solver çıktısını ezberleme, range avantajı + risk/reward + blocker üçlüsünü birlikte oku."
+    pot      = float(spot.get("pot_bb", 10.0))
+    risk     = max(1.0, pot * 0.66)
+    req_eq   = required_equity(risk, pot)
+    defense  = mdf(risk, pot)
+    source   = result["solver"]["source_confidence"]
+    pos      = spot.get("position", "Hero")
+    stack    = spot.get("stack_bb", "?")
+    pot_t    = spot.get("pot_type", "SRP")
+    street   = spot.get("street", "preflop")
+    board    = spot.get("board") or "—"
+    hero_h   = spot.get("hero_cards", "?")
+    hero_a   = result["hero_action"]
+    gto_a    = result["best_action"]
+    ev_loss  = result["ev_loss"]
+    freq     = result.get("best_frequency", 0)
+
+    # Diagnose hata türü
+    if ev_loss < 0.05:
+        verdict = "✅ Karar doğru — GTO ile uyumlu."
+        verdict_color = "✓"
+    elif ev_loss < 0.5:
+        verdict = "⚠ Marjinal hata — EV kaybı küçük ama tekrarlanırsa leak olur."
+        verdict_color = "⚠"
+    elif ev_loss < 1.5:
+        verdict = "❌ Belirgin hata — bu spot'u drill etmen lazım."
+        verdict_color = "✗"
+    else:
+        verdict = "🔥 Büyük leak — bu hata pahalı, hemen düzelt."
+        verdict_color = "‼"
+
+    # Pot odds yorumu
+    pot_odds_note = (
+        f"%50 pot bahis karşılığında %{req_eq*100:.0f} equity gerekir. "
+        f"MDF (savunma frekansı): %{defense*100:.0f}."
     )
+
+    # Range advantage explanation in Türkçe (fallback varsa boş)
+    range_note = (result["solver"].get("range_advantage")
+                  or _range_advantage_fallback(pos, pot_t, street))
+    nut_note   = (result["solver"].get("nut_advantage")
+                  or _nut_advantage_fallback(hero_h, board))
+
+    # Blocker analysis
+    blockers = blocker_note(hero_h, board if board != "—" else "")
+    if not blockers:
+        blockers = "Bu eli blocker açısından değerlendir: villain'ın value range'ini blokluyor musun?"
+
+    # Position-specific mnemonic
+    mnemonic = _mnemonic_for(pos, pot_t, gto_a)
+
+    return (
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🎯 SPOT: {pos} · {stack}bb · {pot_t} · {street.title()}\n"
+        f"   Elin: {hero_h}  |  Board: {board}\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{verdict_color} VERDIKT\n"
+        f"{verdict}\n"
+        f"Sen: {hero_a.upper()}  →  GTO: {gto_a.upper()} (%{freq*100:.0f} frekans)\n"
+        f"EV kaybı: {ev_loss:.2f}bb  ·  Solver source: {source}\n\n"
+
+        f"📐 MATEMATIK\n"
+        f"{pot_odds_note}\n\n"
+
+        f"🃏 RANGE & BLOCKER\n"
+        f"{range_note}\n"
+        f"{nut_note}\n"
+        f"{blockers}\n\n"
+
+        f"🎓 AKILDA KALSIN\n"
+        f"{mnemonic}\n\n"
+
+        f"⚡ EXPLOIT NOTU\n"
+        f"Villain over-folds → küçük sizing yüksek frekansla baskı.\n"
+        f"Villain calling station → value-heavy plan, bluff'ları kes.\n"
+        f"Villain LAG/agresif → trap'le, slow-play düşük frekansta.\n\n"
+
+        f"🔁 SONRAKI ADIM\n"
+        f"⚡ 'Drill Bunları' butonuyla benzer 5+ spot çöz. 3 doğru üst üste\n"
+        f"yapınca leak otomatik kapanır. Sonra aynı spotu feedback kapalı tekrar dene."
+    )
+
+
+def _range_advantage_fallback(position: str, pot_type: str, street: str) -> str:
+    """Generic range advantage commentary when solver doesn't supply one."""
+    pos = (position or "").upper()
+    pt  = (pot_type or "SRP").upper()
+    st  = (street or "preflop").lower()
+    if st == "preflop":
+        if pos in ("UTG", "UTG+1", "UTG1", "LJ"):
+            return ("Range avantajı: early position dar açış range'i → premium-heavy. "
+                    "Late position 3-bet'lere karşı value-heavy savun.")
+        if pos in ("BTN", "CO"):
+            return ("Range avantajı: late position geniş açış → blind'lara karşı "
+                    "küçük edge ama yüksek hand frequency.")
+        if pos in ("SB", "BB"):
+            return ("Range avantajı: blind'lar OOP, range disadvantage. Pot odds "
+                    "+ closing action ile defend; 3-bet polarize.")
+    if pt == "3BP":
+        return ("3BP'da 3-bettor range avantajına sahip — value-heavy ve linear. "
+                "Caller capped range — kendi yapısını koru.")
+    if pt == "4BP":
+        return "4BP'da her iki range çok daraldı — premium showdown + bluff polarize."
+    return "Range advantage texture'a bağlı — kuru boardda OOP raiser, ıslak boardda IP caller avantajlı."
+
+
+def _nut_advantage_fallback(hero_cards: str, board: str) -> str:
+    """Comment on nut advantage based on hero hand and board."""
+    if not board or board == "—":
+        return "Nut advantage preflop'ta yok — postflop board'a göre değişir."
+    # Simple heuristic: check overlap between hero ranks and board
+    if hero_cards and len(hero_cards) >= 2:
+        hero_ranks = {hero_cards[0].upper(), hero_cards[2].upper() if len(hero_cards) > 2 else ""}
+        board_ranks = set()
+        for i in range(0, len(board) - 1, 2):
+            board_ranks.add(board[i].upper())
+        if "A" in hero_ranks and "A" in board_ranks:
+            return "Top set/2-pair imkanı — nut advantage hero tarafında."
+        if hero_ranks & board_ranks:
+            return "Pair olabilir — orta nut tier, value-bet uygun."
+    return "Nut advantage düşük — bluff catcher veya semi-bluff modunda oyna."
+
+
+def _mnemonic_for(position: str, pot_type: str, gto_action: str) -> str:
+    """Position+pot_type+action için akılda kalıcı tek-cümle kuralı."""
+    pos = (position or "").upper()
+    pt  = (pot_type or "SRP").upper()
+    a   = (gto_action or "").lower()
+
+    if pt == "3BP" and a == "fold":
+        return "3-bet'lere range tighten — marjinal eller premium 4-bet'e veya fold'a gider."
+    if pt == "3BP" and a == "4bet":
+        return ("4-bet polarize: value (AKs, QQ+) + blocker bluff (A5s-A2s). "
+                "Linear 4-bet (KQs, JJ) cold-call yapan rakibe karşı.")
+    if pt == "3BP" and a == "call":
+        return ("3-bet cold-call: pocket pair set-mining + suited connectors implied odds. "
+                "IP'de daha geniş, OOP'da daha sıkı.")
+    if pt == "4BP" and a == "jam":
+        return "4-bet pot SPR <2 → kalan stack'le jam yap, fold etmek pot odds'a haksızlık."
+    if pos in ("UTG", "UTG+1", "UTG1", "LJ") and a == "raise":
+        return ("Early position sıkı open: premium + playable suited broadways. "
+                "Marjinal eller fold — dominated dominance riski yüksek.")
+    if pos in ("BTN", "CO") and a == "raise":
+        return ("Late position geniş steal: blind'lar weak/tight ise %50+ open. "
+                "Suited connectors + suited gappers playable.")
+    if pos in ("BB", "SB") and a == "call" and pt == "SRP":
+        return ("Blind defense: pot odds + closing action avantajı. Yakın spotta "
+                "suited > offsuit, position vs aggressor önemli.")
+    if a == "fold":
+        return ("Marjinal spotta fold = chip preservation. Range edge yoksa savaşma; "
+                "dominated dominance riski varsa fold > marginal call.")
+    if a == "jam":
+        return ("Push range = stack/SPR + fold equity matematiği. Short stack "
+                "(<15bb): jam range'i genişler, call range'i daralır.")
+    if a == "check":
+        return ("Check ≠ pasif: range protection ve trap kurma. Strong range vs weak "
+                "range'de check daha sık; nut advantage'ın varsa bet sıklığın artar.")
+    if a == "bet":
+        return ("Bet sizing = range advantage + nut advantage + board texture. "
+                "Dry monoton boardda küçük sizing, dynamic wet board'da büyük.")
+    return "GTO solver dengeli karışım kullanıyor — frekans önemli, ezberleme."
 
 
 # ─── Hand Review (Post-game Analysis) ───────────────────────────────
