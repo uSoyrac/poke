@@ -770,6 +770,31 @@ class SpotTrainerScreen(QWidget):
         except Exception:
             pass
 
+        # ── Persist wrong decisions to the global My Mistakes queue ──
+        if not result["is_correct"]:
+            try:
+                from datetime import datetime
+                from app.db.mistakes_queue import (
+                    MistakeEntry as MqEntry, add_mistake, new_id as new_mistake_id,
+                )
+                best_act = result.get("best_action", "")
+                add_mistake(MqEntry(
+                    id           = new_mistake_id(),
+                    logged_at    = datetime.now().isoformat(timespec="seconds"),
+                    context      = "spot_trainer",
+                    spot_id      = spot.get("id", ""),
+                    position     = (spot.get("position") or "").upper(),
+                    stack_bb     = float(spot.get("stack_bb", 40)),
+                    pot_type     = (spot.get("pot_type") or "SRP").upper(),
+                    hero_cards   = spot.get("hero_cards", ""),
+                    hero_action  = action.lower(),
+                    gto_action   = best_act.lower(),
+                    ev_loss      = round(float(result["ev_loss"]), 2),
+                    why          = self._build_why_explanation(spot, action, result)[:240],
+                ))
+            except Exception:
+                pass
+
         # ── Show GTO frequencies on buttons ──────────────────────────
         solver_actions = result["solver"]["actions"]
         freq_map = {a["action"]: a["frequency"] for a in solver_actions}
