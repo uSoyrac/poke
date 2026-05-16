@@ -130,6 +130,48 @@ class DashboardScreen(QWidget):
         skill_tree = demo_skill_tree()
         tree_summary = skill_tree.get_summary()
 
+        # ── Live data overlay — read from mistakes_queue + tournament_archive ──
+        try:
+            from app.db.mistakes_queue import load_mistakes
+            all_m = load_mistakes()
+            open_leaks    = [m for m in all_m if not m.drilled]
+            drilled_leaks = [m for m in all_m if m.drilled]
+            # Recompute accuracy from real persisted mistakes
+            if state.completed_drills > 0:
+                metrics["drills_today"] = state.completed_drills
+                metrics["skill_score"] = max(50, 100 - len(open_leaks) * 2)
+            # Replace ev_loss_per_100 with real running tally
+            if open_leaks:
+                metrics["ev_loss_per_100"] = round(
+                    sum(m.ev_loss for m in open_leaks) * 100
+                    / max(1, len(open_leaks) * 10), 1
+                )
+            # Per-street accuracy bucketed from mistakes
+            preflop_m  = [m for m in open_leaks if m.pot_type in ("SRP","3BP","4BP")]
+            postflop_m = [m for m in open_leaks if m.context in
+                          ("postflop_trainer", "river_trainer")]
+            river_m    = [m for m in open_leaks if m.context == "river_trainer"]
+            icm_m      = [m for m in open_leaks if m.pot_type == "ICM"]
+            # Lower accuracy if more open leaks of that type
+            if preflop_m:
+                metrics["preflop_accuracy"]  = max(40, 95 - len(preflop_m) * 3)
+            if postflop_m:
+                metrics["postflop_accuracy"] = max(40, 90 - len(postflop_m) * 3)
+            if river_m:
+                metrics["river_score"]       = max(40, 85 - len(river_m) * 3)
+            if icm_m:
+                metrics["icm_discipline"]    = max(40, 88 - len(icm_m) * 4)
+        except Exception:
+            pass
+        try:
+            from app.db.tournament_archive import load_archive
+            arch = load_archive()
+            if arch:
+                cashed = sum(1 for r in arch if r.cashed)
+                metrics["streak"] = cashed
+        except Exception:
+            pass
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         body = QWidget()
@@ -143,7 +185,7 @@ class DashboardScreen(QWidget):
         layout.setSpacing(14)
 
         # === HEADER ===
-        header = QLabel("Dashboard")
+        header = QLabel("📊  Dashboard")
         header.setObjectName("Title")
         layout.addWidget(header)
 
@@ -153,18 +195,21 @@ class DashboardScreen(QWidget):
         goal_layout = QHBoxLayout(goal)
         goal_layout.setContentsMargins(14, 12, 14, 12)
         goal_left = QVBoxLayout()
-        goal_text = QLabel(f"🎯 Today's training target: {metrics['daily_goal']}")
+        goal_text = QLabel(f"🎯 Bugünkü hedef: {metrics['daily_goal']}")
         goal_text.setObjectName("SectionTitle")
-        streak_text = QLabel(f"🔥 {metrics['streak']}-day streak | Skill Score: {metrics['skill_score']} | Level: {tree_summary['overall_level']}")
+        streak_text = QLabel(
+            f"🔥 {metrics['streak']} ITM turnuva  ·  Skill Score: {metrics['skill_score']}  ·  "
+            f"Seviye: {tree_summary['overall_level']}"
+        )
         streak_text.setObjectName("Cyan")
         goal_left.addWidget(goal_text)
         goal_left.addWidget(streak_text)
         goal_layout.addLayout(goal_left, 1)
         for label, screen, style in [
-            ("▶ Start Training", "Spot Practice Trainer", "PrimaryButton"),
-            ("📊 Review Hands", "Hand History Analyzer", ""),
-            ("🎮 Fast Play", "Fast Play Simulator", ""),
-            ("🤖 Ask AI Coach", "AI Poker Coach", ""),
+            ("▶ Antrenmana Başla", "Spot Practice Trainer", "PrimaryButton"),
+            ("📊 Elleri İncele",   "Hand History Analyzer", ""),
+            ("🎮 Hızlı Oyun",      "Fast Play Simulator", ""),
+            ("🤖 AI Coach Sor",    "AI Poker Coach", ""),
         ]:
             button = QPushButton(label)
             button.setObjectName(style)
@@ -172,17 +217,26 @@ class DashboardScreen(QWidget):
             goal_layout.addWidget(button)
         layout.addWidget(goal)
 
-        # === METRIC CARDS ===
+        # === METRIC CARDS — Türkçe + live data ===
         cards = QGridLayout()
+        # Live leak counts for card details
+        try:
+            from app.db.mistakes_queue import load_mistakes
+            all_m = load_mistakes()
+            open_n = sum(1 for m in all_m if not m.drilled)
+            drilled_n = sum(1 for m in all_m if m.drilled)
+            leak_detail = f"{open_n} açık · {drilled_n} çözüldü"
+        except Exception:
+            leak_detail = "veri yok"
         card_data = [
-            ("Drills Today", str(metrics["drills_today"]), "daily pace +12"),
-            ("Preflop Accuracy", f"{metrics['preflop_accuracy']}%", "range work stable"),
-            ("Postflop Accuracy", f"{metrics['postflop_accuracy']}%", "flop/turn repair"),
-            ("River Decision Score", f"{metrics['river_score']}%", "blocker leaks active"),
-            ("ICM Discipline", f"{metrics['icm_discipline']}%", "bubble calls improving"),
-            ("Math Reflex Score", f"{metrics['math_reflex']}%", "alpha/MDF ready"),
-            ("EV Loss / 100 Decisions", f"{metrics['ev_loss_per_100']:.1f}bb", "target < 20bb", "Amber"),
-            ("Personal Skill Score", str(metrics["skill_score"]), f"{metrics['streak']}-day streak", "Green"),
+            ("Bugün Drill",          str(metrics["drills_today"]),         "günlük tempo"),
+            ("Preflop Doğruluk",     f"{metrics['preflop_accuracy']}%",    "range çalışması"),
+            ("Postflop Doğruluk",    f"{metrics['postflop_accuracy']}%",   "flop/turn"),
+            ("River Skoru",          f"{metrics['river_score']}%",         "blocker aktif"),
+            ("ICM Disiplini",        f"{metrics['icm_discipline']}%",      "bubble çağrıları"),
+            ("Math Refleks",         f"{metrics['math_reflex']}%",         "alpha/MDF hazır"),
+            ("EV Kaybı / 100 Karar", f"{metrics['ev_loss_per_100']:.1f}bb", "hedef < 20bb", "Amber"),
+            ("Skill Skoru",          str(metrics["skill_score"]),          leak_detail, "Green"),
         ]
         for idx, item in enumerate(card_data):
             title, value, detail = item[:3]
