@@ -814,18 +814,33 @@ class SpotTrainerScreen(QWidget):
         hero_ev    = result["hero_ev"]
         best_ev    = result["best_ev"]
 
-        # Verdict row
+        # ── Streak tracking ──────────────────────────────────────────
+        if is_correct:
+            self._streak = getattr(self, "_streak", 0) + 1
+        else:
+            self._streak = 0
+        self._best_streak = max(getattr(self, "_best_streak", 0), self._streak)
+
+        # Verdict row — Türkçe ve learning-friendly
         verdict_row = QHBoxLayout()
         if is_correct:
             icon = QLabel("✅")
             icon.setStyleSheet("font-size:22px;")
-            msg = QLabel(f"Correct!  EV loss: {ev_loss:.2f}bb  —  {skill_label(score)}")
-            msg.setStyleSheet(f"color:{_C_GREEN};font-size:14px;font-weight:700;")
+            streak_text = (f"  🔥 {self._streak} doğru üst üste!"
+                           if self._streak >= 3 else "")
+            msg = QLabel(
+                f"Harika — Doğru karar!  EV kayıp: {ev_loss:.2f}bb  ·  "
+                f"{skill_label(score)}{streak_text}"
+            )
+            msg.setStyleSheet(f"color:{_C_GREEN};font-size:14px;font-weight:800;")
         else:
             icon = QLabel("❌")
             icon.setStyleSheet("font-size:22px;")
-            msg = QLabel(f"Wrong  —  Hero: {action}  |  GTO best: {best_act}  |  EV lost: {ev_loss:.2f}bb")
-            msg.setStyleSheet(f"color:{_C_RED};font-size:14px;font-weight:700;")
+            msg = QLabel(
+                f"Daha iyisi var — Sen {action.upper()} dedin, GTO {best_act.upper()}  "
+                f"·  EV kayıp: {ev_loss:.2f}bb"
+            )
+            msg.setStyleSheet(f"color:{_C_RED};font-size:14px;font-weight:800;")
         verdict_row.addWidget(icon)
         verdict_row.addWidget(msg, 1)
         next_btn = QPushButton("Next Spot →")
