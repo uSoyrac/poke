@@ -349,13 +349,29 @@ class TournamentPlayScreen(QWidget):
         self._act_layout.setSpacing(10)
         lv.addWidget(self._act_frame)
 
-        # Feedback
+        # Feedback — clickable: anywhere on the panel advances to next hand
         self._fb = QFrame()
-        self._fb.setStyleSheet(f"QFrame{{background:{_C_CARD};border-top:1px solid {_C_BORDER};}}")
+        self._fb.setObjectName("FeedbackPanel")
+        self._fb.setStyleSheet(
+            f"QFrame#FeedbackPanel{{background:{_C_CARD};border-top:1px solid {_C_BORDER};}}"
+            f"QFrame#FeedbackPanel:hover{{background:#1A2230;cursor:pointer;}}"
+        )
+        self._fb.setCursor(Qt.PointingHandCursor)
+        # Mouse click anywhere on the feedback panel → next hand
+        self._fb.mousePressEvent = lambda ev: (
+            self._next_hand() if self._fb.maximumHeight() > 0 else None
+        )
         self._fb_layout = QVBoxLayout(self._fb)
         self._fb_layout.setContentsMargins(16,10,16,10)
         self._fb.setMaximumHeight(0)
         lv.addWidget(self._fb)
+
+        # ── Multi-modal 'next hand' keyboard shortcuts ──────────────
+        # Space / Enter / N — fire next hand
+        from PySide6.QtGui import QShortcut, QKeySequence
+        for keyseq in ("Space", "Return", "Enter", "N"):
+            sc = QShortcut(QKeySequence(keyseq), self)
+            sc.activated.connect(self._kbd_next_hand)
         body.addWidget(left, 3)
 
         # RIGHT — stats + mistake log
@@ -1085,6 +1101,8 @@ class TournamentPlayScreen(QWidget):
             msg.setStyleSheet(f"color:{_C_RED};font-size:13px;font-weight:700;")
         next_btn = QPushButton("Sonraki El →")
         next_btn.setFixedHeight(32)
+        next_btn.setCursor(Qt.PointingHandCursor)
+        next_btn.setToolTip("Klavye: Space / Enter / N — veya panele tıkla")
         next_btn.setStyleSheet(
             f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:7px;"
             "font-weight:800;font-size:12px;padding:4px 14px;border:none;}}"
@@ -1092,6 +1110,14 @@ class TournamentPlayScreen(QWidget):
         next_btn.clicked.connect(self._next_hand)
         row.addWidget(icon); row.addWidget(msg, 1); row.addWidget(next_btn)
         self._fb_layout.addLayout(row)
+
+        # Subtle hint about multi-modal input
+        hint = QLabel("⌨  Space / Enter / N  ·  veya panele tıkla  ·  veya butona bas")
+        hint.setStyleSheet(
+            f"color:{_C_MUTED};font-size:10px;font-style:italic;padding:2px 4px;"
+        )
+        hint.setAlignment(Qt.AlignCenter)
+        self._fb_layout.addWidget(hint)
 
         if not is_ok:
             why_lbl = QLabel(self._why(hand, hero_action, gto))
@@ -1131,6 +1157,12 @@ class TournamentPlayScreen(QWidget):
         if self.session.hero_stack <= 0:
             self._bust(); return
         self._deal_hand()
+
+    def _kbd_next_hand(self) -> None:
+        """Keyboard shortcut → next hand. Only fires when feedback panel is
+        visible (otherwise Space/Enter shouldn't deal a hand)."""
+        if self._fb.maximumHeight() > 0:
+            self._next_hand()
 
     def _toggle_auto(self) -> None:
         """Auto-advance mode — hero feedback shows briefly then 'Sonraki El' fires."""

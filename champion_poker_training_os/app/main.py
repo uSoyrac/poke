@@ -10,6 +10,7 @@ if __package__ is None or __package__ == "":
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from PySide6.QtCore import QDir, QLibraryInfo, Qt, QTimer
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QMainWindow, QStackedWidget, QVBoxLayout, QWidget
 
 from app.ai.coach_engine import explain_spot
@@ -191,6 +192,23 @@ class MainWindow(QMainWindow):
         self.scan_timer = QTimer(self)
         self.scan_timer.timeout.connect(self.scan_compliance)
         self.scan_timer.start(10_000)
+
+        # ── Global "?" shortcut → help overlay (Nielsen #10) ──────
+        self._help_shortcut = QShortcut(QKeySequence("?"), self)
+        self._help_shortcut.activated.connect(self.show_help)
+        # Also F1 for the same — universal help key
+        self._help_f1 = QShortcut(QKeySequence("F1"), self)
+        self._help_f1.activated.connect(self.show_help)
+        # Ctrl+1..9 — quick nav to first 9 items
+        for i in range(1, min(10, len(NAV_ITEMS) + 1)):
+            sc = QShortcut(QKeySequence(f"Ctrl+{i}"), self)
+            sc.activated.connect(lambda idx=i-1: self.navigate(NAV_ITEMS[idx]))
+
+    def show_help(self) -> None:
+        """Pop the keyboard-shortcut help overlay."""
+        from app.ui.components.help_overlay import HelpOverlay
+        dlg = HelpOverlay(self)
+        dlg.exec()
 
     def _create_screens(self) -> None:
         factories = {

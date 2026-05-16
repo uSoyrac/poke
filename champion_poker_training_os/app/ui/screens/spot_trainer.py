@@ -415,16 +415,28 @@ class SpotTrainerScreen(QWidget):
         self._action_layout.setSpacing(10)
         right_layout.addWidget(self._action_frame)
 
-        # ── Feedback panel ──────────────────────────────────────────────
+        # ── Feedback panel — clickable + cursor pointer hint ─────────────
         self._feedback_frame = QFrame()
+        self._feedback_frame.setObjectName("FbFrame")
         self._feedback_frame.setStyleSheet(
-            f"QFrame{{background:{_C_CARD};border-top:1px solid {_C_BORDER};}}"
+            f"QFrame#FbFrame{{background:{_C_CARD};border-top:1px solid {_C_BORDER};}}"
+            f"QFrame#FbFrame:hover{{background:#1A2230;}}"
+        )
+        self._feedback_frame.setCursor(Qt.PointingHandCursor)
+        self._feedback_frame.mousePressEvent = lambda ev: (
+            self._next_spot() if self._feedback_frame.maximumHeight() > 0 else None
         )
         self._feedback_layout = QVBoxLayout(self._feedback_frame)
         self._feedback_layout.setContentsMargins(16, 10, 16, 10)
         self._feedback_layout.setSpacing(6)
-        self._feedback_frame.setMaximumHeight(0)  # hidden until answered
+        self._feedback_frame.setMaximumHeight(0)
         right_layout.addWidget(self._feedback_frame)
+
+        # ── Multi-modal 'next spot' keyboard shortcuts ──────────────
+        from PySide6.QtGui import QShortcut, QKeySequence
+        for keyseq in ("Space", "Return", "Enter", "N"):
+            sc = QShortcut(QKeySequence(keyseq), self)
+            sc.activated.connect(self._kbd_next_spot)
 
         splitter.addWidget(right_widget)
         splitter.setSizes([260, 900])
@@ -891,9 +903,19 @@ class SpotTrainerScreen(QWidget):
             f"QPushButton:hover{{border-color:#A78BFA;color:#A78BFA;}}"
         )
         deep_btn.clicked.connect(lambda: self._open_coach_deepdive(spot, action, result))
+        next_btn.setToolTip("Klavye: Space / Enter / N — veya panele tıkla")
+        next_btn.setCursor(Qt.PointingHandCursor)
         verdict_row.addWidget(deep_btn)
         verdict_row.addWidget(next_btn)
         self._feedback_layout.addLayout(verdict_row)
+
+        # Multi-modal hint
+        hint = QLabel("⌨  Space / Enter / N  ·  veya panele tıkla  ·  veya butona bas")
+        hint.setStyleSheet(
+            f"color:{_C_MUTED};font-size:10px;font-style:italic;padding:2px 4px;"
+        )
+        hint.setAlignment(Qt.AlignCenter)
+        self._feedback_layout.addWidget(hint)
 
         # ── WHY explanation (only when wrong) ─────────────────────────
         if not is_correct:
@@ -1001,6 +1023,11 @@ class SpotTrainerScreen(QWidget):
                 self.index += 1
         else:
             self.index += 1
+
+    def _kbd_next_spot(self) -> None:
+        """Keyboard shortcut → next spot (only when feedback panel visible)."""
+        if self._feedback_frame.maximumHeight() > 0:
+            self._next_spot()
 
     def _next_spot(self) -> None:
         self._rebuild_spot_list()
