@@ -233,6 +233,12 @@ class MyMistakesScreen(QWidget):
     def _resolve_leak(self, signature: str) -> None:
         """Manuel: kullanıcı bu leak'i çözdüğünü düşünüyorsa hepsini drilled işaretle."""
         n = mark_signature_drilled(signature)
+        try:
+            from app.ui.components.toast import Toast
+            Toast.show_success(self.window(),
+                f"✓ '{signature}' çözüldü olarak işaretlendi ({n} hata kapatıldı)")
+        except Exception:
+            pass
         self.coach_message.emit(
             f"✓ '{signature}' çözüldü olarak işaretlendi ({n} hata kapatıldı)."
         )

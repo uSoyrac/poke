@@ -797,6 +797,16 @@ class SpotTrainerScreen(QWidget):
                         from app.db.mistakes_queue import mark_signature_drilled
                         n = mark_signature_drilled(active_sig)
                         if n:
+                            # Toast notification — visible + non-blocking
+                            try:
+                                from app.ui.components.toast import Toast
+                                Toast.show_success(
+                                    self.window(),
+                                    f"🎉 Leak çözüldü! '{active_sig}' — {n} hata kapatıldı",
+                                    duration_ms=5000,
+                                )
+                            except Exception:
+                                pass
                             self.coach_message.emit(
                                 f"🎉 Leak çözüldü! '{active_sig}' işaretlendi "
                                 f"({n} hata kapatıldı). Welcome'da 'Açık Leak' "
