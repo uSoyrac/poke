@@ -92,6 +92,12 @@ class HandReviewDialog(QDialog):
     """Single-hand summary view shown from the tournament archive."""
     drill_requested = Signal(dict)
 
+    def _open_frame_replay(self) -> None:
+        """Open the frame-by-frame replay dialog for this hand."""
+        from app.ui.components.hand_frame_replay import HandFrameReplayDialog
+        dlg = HandFrameReplayDialog(self, self._hand)
+        dlg.exec()
+
     def __init__(self, parent: Optional[QWidget], hand_record: dict,
                  tournament_name: str = ""):
         super().__init__(parent)
@@ -223,6 +229,19 @@ class HandReviewDialog(QDialog):
 
         # ── Footer buttons ─────────────────────────────────────────
         footer = QHBoxLayout()
+        # Replay button — frame-by-frame animation
+        if actions:
+            replay = QPushButton("🎬  Frame-by-frame Replay")
+            replay.setFixedHeight(38)
+            replay.setStyleSheet(
+                f"QPushButton{{background:#0E2A1E;color:#6EE7B7;"
+                f"border:1px solid #10B981;border-radius:7px;padding:0 18px;"
+                f"font-size:12px;font-weight:700;}}"
+                f"QPushButton:hover{{background:#0F3320;color:#34D399;}}"
+            )
+            replay.clicked.connect(self._open_frame_replay)
+            footer.addWidget(replay)
+
         drill = QPushButton("🎯  Bu Spotu Drill Et")
         drill.setFixedHeight(38)
         drill.setStyleSheet(
