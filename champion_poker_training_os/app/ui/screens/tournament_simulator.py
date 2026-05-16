@@ -18,6 +18,12 @@ from PySide6.QtWidgets import (
 
 from app.ai.coach_engine import explain_spot
 from app.core.app_state import AppState
+
+# Color tokens for verdict styling
+_C_GREEN  = "#10B981"
+_C_AMBER  = "#F59E0B"
+_C_RED    = "#EF4444"
+_C_CYAN   = "#22D3EE"
 from app.db.repository import save_decision_review
 from app.db.tournament_archive import load_archive
 from app.engine.hand_state import positions_for
@@ -102,14 +108,14 @@ class TournamentSimulatorScreen(QWidget):
 
         # Title row
         title_row = QHBoxLayout()
-        title = QLabel("Tournament Simulator  (spot-quiz MTT karar antrenmanı)")
+        title = QLabel("🎰  Tournament Simulator  (MTT karar pratiği)")
         title.setObjectName("Title")
         title_row.addWidget(title)
         title_row.addStretch(1)
-        self.setup_btn = QPushButton("⚙  Configure…")
+        self.setup_btn = QPushButton("⚙  Yapılandır")
         self.setup_btn.clicked.connect(self._open_setup)
         title_row.addWidget(self.setup_btn)
-        self.reset_btn = QPushButton("Reset tournament")
+        self.reset_btn = QPushButton("↺  Sıfırla")
         self.reset_btn.clicked.connect(self._reset)
         title_row.addWidget(self.reset_btn)
         layout.addLayout(title_row)
@@ -137,13 +143,13 @@ class TournamentSimulatorScreen(QWidget):
         ctx_layout.setContentsMargins(14, 12, 14, 12)
         ctx_layout.setHorizontalSpacing(20)
         self.label_blinds = self._ctx_metric(ctx_layout, 0, 0, "Blinds", "L1 100/200")
-        self.label_stack = self._ctx_metric(ctx_layout, 0, 1, "Hero stack", "30,000")
+        self.label_stack = self._ctx_metric(ctx_layout, 0, 1, "Hero Stack", "30,000")
         self.label_stack_bb = self._ctx_metric(ctx_layout, 0, 2, "Stack (bb)", "150")
-        self.label_m = self._ctx_metric(ctx_layout, 0, 3, "M-ratio", "100")
-        self.label_avg = self._ctx_metric(ctx_layout, 0, 4, "Avg stack", "30,000")
-        self.label_left = self._ctx_metric(ctx_layout, 0, 5, "Players left", "800")
-        self.label_paid = self._ctx_metric(ctx_layout, 0, 6, "Paid places", "120")
-        self.label_pool = self._ctx_metric(ctx_layout, 0, 7, "Prize pool", "$74,400")
+        self.label_m = self._ctx_metric(ctx_layout, 0, 3, "M-Oran", "100")
+        self.label_avg = self._ctx_metric(ctx_layout, 0, 4, "Avg Stack", "30,000")
+        self.label_left = self._ctx_metric(ctx_layout, 0, 5, "Kalan Oyuncu", "800")
+        self.label_paid = self._ctx_metric(ctx_layout, 0, 6, "Ödüllü", "120")
+        self.label_pool = self._ctx_metric(ctx_layout, 0, 7, "Ödül Havuzu", "$74,400")
         self.stack_bar = StackBar()
         ctx_layout.addWidget(self.stack_bar, 1, 0, 1, 8)
         layout.addWidget(ctx)
@@ -186,14 +192,14 @@ class TournamentSimulatorScreen(QWidget):
         ladder.setObjectName("Card")
         ladder_layout = QVBoxLayout(ladder)
         ladder_layout.setContentsMargins(14, 14, 14, 14)
-        ladder_title = QLabel("Payout Ladder")
+        ladder_title = QLabel("🏆  Ödül Merdiveni")
         ladder_title.setObjectName("SectionTitle")
         ladder_layout.addWidget(ladder_title)
         self.ladder_grid = QGridLayout()
         self.ladder_grid.setHorizontalSpacing(16)
         ladder_layout.addLayout(self.ladder_grid)
         ladder_layout.addStretch(1)
-        self.label_finish = QLabel("Projected finish: —")
+        self.label_finish = QLabel("Tahmini bitiş: —")
         self.label_finish.setObjectName("Amber")
         ladder_layout.addWidget(self.label_finish)
         body_row.addWidget(ladder, 2)
@@ -205,13 +211,13 @@ class TournamentSimulatorScreen(QWidget):
         perf.setObjectName("Card")
         perf_layout = QHBoxLayout(perf)
         perf_layout.setContentsMargins(14, 10, 14, 10)
-        self.label_acc = QLabel("Accuracy: 0%")
+        self.label_acc = QLabel("Doğruluk: 0%")
         self.label_acc.setObjectName("Green")
-        self.label_punts = QLabel("ICM punts: 0")
+        self.label_punts = QLabel("ICM Punt: 0")
         self.label_punts.setObjectName("Red")
-        self.label_roi = QLabel("ROI projection: 0.0")
+        self.label_roi = QLabel("ROI Tahmini: 0.0")
         self.label_roi.setObjectName("Cyan")
-        self.label_decisions = QLabel("Decisions: 0")
+        self.label_decisions = QLabel("Kararlar: 0")
         for w in (self.label_acc, self.label_punts, self.label_roi, self.label_decisions):
             perf_layout.addWidget(w)
         perf_layout.addStretch(1)
@@ -268,10 +274,23 @@ class TournamentSimulatorScreen(QWidget):
         self._refresh_live_table()
 
     def _reset(self) -> None:
-        self.engine.reset()
+        # MTT engine doesn't have a reset() method — recreate it
+        from app.simulator.mtt_engine import TournamentEngine
+        self.engine = TournamentEngine(
+            field_size=self.engine.field_size,
+            starting_stack=self.engine.starting_stack,
+            speed=self.engine.speed,
+            pko=self.engine.pko,
+            buyin=self.engine.buyin,
+        )
         self._refresh_context()
         self.load_spot()
-        self.report.setText("Turnuva sıfırlandı. Yeniden başla.")
+        self.report.setText("↺  Turnuva sıfırlandı. Yeniden başla.")
+        try:
+            from app.ui.components.toast import Toast
+            Toast.show_info(self.window(), "↺ Turnuva sıfırlandı")
+        except Exception:
+            pass
 
     def _refresh_context(self) -> None:
         e = self.engine
@@ -284,11 +303,13 @@ class TournamentSimulatorScreen(QWidget):
         self.label_paid.setText(str(e.paid_places))
         self.label_pool.setText(f"${e.prize_pool:,.0f}")
         self.stack_bar.set_values(e.chip_stack, e.avg_stack)
-        self.label_finish.setText(f"Projected finish: {e.finish_position or '—'} of {e.field_size}")
-        self.label_acc.setText(f"Accuracy: {e.accuracy()}%")
-        self.label_punts.setText(f"ICM punts: {e.icm_punts}")
-        self.label_roi.setText(f"ROI projection: {e.roi_projection:+.2f}")
-        self.label_decisions.setText(f"Decisions: {e.decisions_made}")
+        self.label_finish.setText(
+            f"Tahmini bitiş: #{e.finish_position or '—'} / {e.field_size}"
+        )
+        self.label_acc.setText(f"Doğruluk: {e.accuracy()}%")
+        self.label_punts.setText(f"ICM Punt: {e.icm_punts}")
+        self.label_roi.setText(f"ROI Tahmini: {e.roi_projection:+.2f}")
+        self.label_decisions.setText(f"Kararlar: {e.decisions_made}")
         # Refresh payout ladder
         for i in reversed(range(self.ladder_grid.count())):
             item = self.ladder_grid.itemAt(i)
@@ -302,7 +323,7 @@ class TournamentSimulatorScreen(QWidget):
             self.ladder_grid.addWidget(place_lbl, r, 0)
             self.ladder_grid.addWidget(amount_lbl, r, 1)
             if e.finish_position == place:
-                marker = QLabel("◀ projected")
+                marker = QLabel("◀ tahmini bitiş")
                 marker.setObjectName("Amber")
                 self.ladder_grid.addWidget(marker, r, 2)
 
@@ -326,11 +347,14 @@ class TournamentSimulatorScreen(QWidget):
         self._refresh_live_table()
         self.spot_title.setText(f"{spot['id']} | {spot['title']}")
         self.spot_info.setText(
-            f"Stage: {spot.get('stage', '—')} · Risk premium {spot['risk_premium']:.1%} · "
-            f"Bubble factor {spot['bubble_factor']} · Bounty EV {spot['bounty_ev']:+.2f}"
+            f"Aşama: {spot.get('stage', '—')}  ·  Risk premium {spot['risk_premium']:.1%}  ·  "
+            f"Bubble faktörü {spot['bubble_factor']}  ·  Bounty EV {spot['bounty_ev']:+.2f}"
         )
         if not self.report.text():
-            self.report.setText("İlk kararı ver: chipEV mi, $EV mi öncelikli? Bubble pressure'ı yorumla.")
+            self.report.setText(
+                "İlk kararı ver: chipEV mi, $EV mi öncelikli? "
+                "Bubble baskısını yorumla ve risk premium'a göre karar al."
+            )
         _clear_layout(self.action_layout)
         # Use the shared GTO action button so this screen looks identical
         # to Spot Trainer, GTO Trainer, Tournament Play, etc.
@@ -357,20 +381,70 @@ class TournamentSimulatorScreen(QWidget):
             save_decision_review(review)
         except Exception:
             pass
-        chip_change = result["chip_stack"] - (self.engine.starting_stack if self.engine.decisions_made == 1 else self.engine.chip_stack)
+
+        # ── Persist wrong decisions to global My Mistakes queue ──
+        if not result.get("is_correct", review.get("ev_loss", 0) < 0.1):
+            try:
+                from datetime import datetime
+                from app.db.mistakes_queue import (
+                    MistakeEntry as MqEntry, add_mistake, new_id as new_mistake_id,
+                )
+                add_mistake(MqEntry(
+                    id           = new_mistake_id(),
+                    logged_at    = datetime.now().isoformat(timespec="seconds"),
+                    context      = "tournament_simulator",
+                    spot_id      = spot.get("id", ""),
+                    position     = (spot.get("position") or "").upper(),
+                    stack_bb     = float(spot.get("stack_bb", 40)),
+                    pot_type     = (spot.get("pot_type") or "ICM").upper(),
+                    hero_cards   = spot.get("hero_cards", ""),
+                    hero_action  = action.lower(),
+                    gto_action   = str(result["best_action"]).lower(),
+                    ev_loss      = round(float(result["dollar_ev_loss"]), 2),
+                    why          = f"Tournament Sim — risk premium {spot.get('risk_premium', 0):.1%}",
+                ))
+                # Toast
+                try:
+                    from app.ui.components.toast import Toast
+                    label = "🚨 ICM PUNT" if result["dollar_ev_loss"] > 0.7 else "❌ MTT hata"
+                    Toast.show_warning(
+                        self.window(),
+                        f"{label}  ·  $EV kayıp: {result['dollar_ev_loss']:.2f}"
+                    )
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+        # Build a Türkçe verdict line with learning context
+        ev_loss = result["dollar_ev_loss"]
+        if ev_loss < 0.1:
+            verdict = f"✅  Doğru karar"
+            verdict_color = _C_GREEN
+        elif ev_loss < 0.5:
+            verdict = f"⚠  Marjinal — küçük EV kaybı"
+            verdict_color = _C_AMBER
+        elif ev_loss < 1.5:
+            verdict = f"❌  Hata — drill et"
+            verdict_color = _C_RED
+        else:
+            verdict = f"🔥  ICM PUNT — büyük leak"
+            verdict_color = _C_RED
         self.report.setText(
-            f"Hero {action} | chipEV best {result['best_action']} | "
-            f"$EV loss {result['dollar_ev_loss']:.2f} | "
-            f"Stack now {result['chip_stack']:,} | "
-            f"Risk premium {result['risk_premium']:.1%} | "
-            f"{review['verdict']} ({review['source_confidence']})"
+            f"{verdict}\n"
+            f"Sen: {action.upper()}  →  chipEV: {str(result['best_action']).upper()}  ·  "
+            f"$EV kayıp: ${ev_loss:.2f}  ·  Stack: {result['chip_stack']:,} chip\n"
+            f"Risk premium {result['risk_premium']:.1%}  ·  source: {review['source_confidence']}"
         )
+        self.report.setStyleSheet(f"color:{verdict_color};")
         self.coach_message.emit(
             explain_spot(spot, action)
-            + "\n\nTournament decision review:\n"
-            + f"Hero {review['hero_action']} vs baseline {review['solver_action']} | "
-            + f"$EV loss {review['ev_loss']:.2f} | {review['exploit_note']} | "
-            + f"Drill: {review['drill_target']}"
+            + "\n\n━━━━━━━━━━━━━━━━━━━━━━\n"
+            + "TURNUVA KARAR DEĞERLENDİRMESİ\n"
+            + "━━━━━━━━━━━━━━━━━━━━━━\n"
+            + f"Hero {review['hero_action']} vs baseline {review['solver_action']}\n"
+            + f"$EV kayıp: ${review['ev_loss']:.2f}  ·  {review['exploit_note']}\n"
+            + f"Drill hedefi: {review['drill_target']}"
         )
         self._refresh_context()
         self.load_spot()
