@@ -159,6 +159,22 @@ def mark_drilled(mistake_id: str) -> None:
     save_all(items)
 
 
+def mark_signature_drilled(signature: str) -> int:
+    """Mark every undrilled mistake matching this leak_signature as drilled.
+    Returns the count actually marked. Used when user passes a drill run."""
+    items = load_mistakes()
+    now = datetime.now().isoformat(timespec="seconds")
+    n = 0
+    for m in items:
+        if m.leak_signature == signature and not m.drilled:
+            m.drilled = True
+            m.drilled_at = now
+            n += 1
+    if n:
+        save_all(items)
+    return n
+
+
 def clear_mistakes() -> None:
     if _FILE.exists():
         _FILE.unlink()

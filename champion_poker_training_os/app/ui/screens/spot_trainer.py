@@ -587,7 +587,12 @@ class SpotTrainerScreen(QWidget):
     def _apply_leak_filter(self, signature: str) -> None:
         """Smart multi-tier leak filter — tight (pos+pot+stack) → medium
         (pos+pot) → loose (pos) until at least 3-5 spots are found.
+
+        Also enters 'leak drill mode': tracks correct streak so 3 correct
+        in a row marks every matching mistake as drilled automatically.
         """
+        self._active_leak_drill = signature   # track for auto-resolve
+        self._leak_drill_correct = 0
         from app.db.mistakes_queue import filter_spots_by_signature, load_mistakes
         # Try to derive an average stack from saved mistakes with this signature
         mistakes = [m for m in load_mistakes() if m.leak_signature == signature]
@@ -769,6 +774,30 @@ class SpotTrainerScreen(QWidget):
             engine.save_to_db()
         except Exception:
             pass
+
+        # ── Leak-drill mode: auto-resolve after 3 correct in a row ────
+        active_sig = getattr(self, "_active_leak_drill", "") or ""
+        if active_sig:
+            if result["is_correct"]:
+                self._leak_drill_correct = getattr(self, "_leak_drill_correct", 0) + 1
+                if self._leak_drill_correct >= 3:
+                    try:
+                        from app.db.mistakes_queue import mark_signature_drilled
+                        n = mark_signature_drilled(active_sig)
+                        if n:
+                            self.coach_message.emit(
+                                f"🎉 Leak çözüldü! '{active_sig}' işaretlendi "
+                                f"({n} hata kapatıldı). Welcome'da 'Açık Leak' "
+                                f"sayısı düşecek."
+                            )
+                    except Exception:
+                        pass
+                    # Exit leak drill mode after resolving
+                    self._active_leak_drill = ""
+                    self._leak_drill_correct = 0
+            else:
+                # Wrong answer during leak drill → reset streak
+                self._leak_drill_correct = 0
 
         # ── Persist wrong decisions to the global My Mistakes queue ──
         if not result["is_correct"]:

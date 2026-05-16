@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 from app.core.app_state import AppState
 from app.db.mistakes_queue import (
     MistakeEntry, load_mistakes, clear_mistakes, grouped_by_leak,
+    mark_signature_drilled,
 )
 
 
@@ -63,7 +64,7 @@ def _btn(label: str, primary: bool = False) -> QPushButton:
 
 
 def _leak_card(signature: str, mistakes: list[MistakeEntry],
-               on_drill) -> QFrame:
+               on_drill, on_resolve=None) -> QFrame:
     f = QFrame()
     f.setStyleSheet(
         f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:8px;}}"
@@ -87,6 +88,10 @@ def _leak_card(signature: str, mistakes: list[MistakeEntry],
     drill_btn = _btn("⚡  Drill Bunları", primary=True)
     drill_btn.clicked.connect(lambda: on_drill(signature, mistakes))
     row1.addWidget(drill_btn)
+    if on_resolve is not None:
+        resolve_btn = _btn("✓ Çözüldü")
+        resolve_btn.clicked.connect(lambda: on_resolve(signature))
+        row1.addWidget(resolve_btn)
     v.addLayout(row1)
 
     detail = QLabel(
@@ -174,8 +179,15 @@ class MyMistakesScreen(QWidget):
             if w:
                 w.deleteLater()
 
-        mistakes = load_mistakes()
-        self._title_lbl.setText(f"🩺  My Mistakes  ({len(mistakes)})")
+        all_mistakes = load_mistakes()
+        # Show only open leaks; drilled mistakes hidden (Welcome counter
+        # tracks open vs drilled separately)
+        mistakes = [m for m in all_mistakes if not m.drilled]
+        drilled_count = len(all_mistakes) - len(mistakes)
+        title_extra = f" · ✓ {drilled_count} çözüldü" if drilled_count else ""
+        self._title_lbl.setText(
+            f"🩺  My Mistakes  ({len(mistakes)} açık{title_extra})"
+        )
 
         if not mistakes:
             empty = QLabel(
@@ -214,9 +226,17 @@ class MyMistakesScreen(QWidget):
         )
         for sig, group in ordered:
             self._content_layout.addWidget(
-                _leak_card(sig, group, self._start_drill)
+                _leak_card(sig, group, self._start_drill, self._resolve_leak)
             )
         self._content_layout.addStretch(1)
+
+    def _resolve_leak(self, signature: str) -> None:
+        """Manuel: kullanıcı bu leak'i çözdüğünü düşünüyorsa hepsini drilled işaretle."""
+        n = mark_signature_drilled(signature)
+        self.coach_message.emit(
+            f"✓ '{signature}' çözüldü olarak işaretlendi ({n} hata kapatıldı)."
+        )
+        self._refresh()
 
     def _clear_all(self) -> None:
         clear_mistakes()
