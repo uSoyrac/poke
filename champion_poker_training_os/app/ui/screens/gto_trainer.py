@@ -993,6 +993,30 @@ class GTOTrainerScreen(QWidget):
         ev_loss  = result["ev_loss"]
         best     = result["best_action"]
 
+        # Persist wrong decisions to global My Mistakes queue
+        if not is_ok:
+            try:
+                from datetime import datetime
+                from app.db.mistakes_queue import (
+                    MistakeEntry as MqEntry, add_mistake, new_id as new_mistake_id,
+                )
+                add_mistake(MqEntry(
+                    id           = new_mistake_id(),
+                    logged_at    = datetime.now().isoformat(timespec="seconds"),
+                    context      = "gto_trainer",
+                    spot_id      = spot.get("id", ""),
+                    position     = (spot.get("position") or "").upper(),
+                    stack_bb     = float(spot.get("stack_bb", 40)),
+                    pot_type     = (spot.get("pot_type") or "SRP").upper(),
+                    hero_cards   = spot.get("hero_cards", ""),
+                    hero_action  = action.lower(),
+                    gto_action   = best.lower(),
+                    ev_loss      = round(float(ev_loss), 2),
+                    why          = "",
+                ))
+            except Exception:
+                pass
+
         # Show frequencies on buttons
         freq_map = {a["action"]: a["frequency"] for a in result["solver"]["actions"]}
         for btn, act in self._action_btns:
@@ -1000,23 +1024,101 @@ class GTOTrainerScreen(QWidget):
             f = freq_map.get(act, 0.0)
             btn.setText(btn.text() + f"\n{f*100:.1f}%")
 
-        # Feedback panel
+        # ── Learning-friendly feedback panel ──────────────────────────
         self._tbl_fb.setMaximumHeight(9999)
         _clear_layout(self._tbl_fb_layout)
         if is_ok:
-            verdict = QLabel(f"✅  Doğru — EV kayıp: {ev_loss:.2f}bb")
-            verdict.setStyleSheet(f"color:{_C_GREEN};font-size:14px;font-weight:700;")
+            verdict = QLabel(f"✅  Harika — Doğru karar")
+            verdict.setStyleSheet(f"color:{_C_GREEN};font-size:16px;font-weight:800;")
+            self._tbl_fb_layout.addWidget(verdict)
+            # Encouragement sub-line
+            freq_pct = freq_map.get(action, 0.0) * 100
+            sub = QLabel(
+                f"GTO bu spotta {action.upper()} aksiyonunu %{freq_pct:.0f} oynar. "
+                f"EV kaybı: {ev_loss:.2f}bb."
+            )
+            sub.setStyleSheet(f"color:{_C_MUTED};font-size:12px;")
+            sub.setWordWrap(True)
+            self._tbl_fb_layout.addWidget(sub)
         else:
-            verdict = QLabel(f"❌  Hatalı — Sen: {action}  |  GTO: {best}  |  EV kayıp: {ev_loss:.2f}bb")
-            verdict.setStyleSheet(f"color:{_C_RED};font-size:14px;font-weight:700;")
-        self._tbl_fb_layout.addWidget(verdict)
+            verdict = QLabel(
+                f"❌  Daha iyisi var — Sen {action.upper()} dedin, GTO {best.upper()}"
+            )
+            verdict.setStyleSheet(f"color:{_C_RED};font-size:15px;font-weight:800;")
+            self._tbl_fb_layout.addWidget(verdict)
+            # 3-line teaching: WHY the GTO move is better, KEY rule, EV impact
+            stack_bb = spot.get("stack_bb", 40)
+            pos      = spot.get("position", "?")
+            pot_t    = spot.get("pot_type", "SRP")
+            teach_lines = [
+                f"📊  Bu spot: {pos} pozisyonu · {stack_bb}bb · {pot_t}",
+                f"🎯  GTO kuralı: {self._teach_rule(spot, best)}",
+                f"💸  Hatalı kararın maliyeti: −{ev_loss:.2f}bb / 100 el oynanırsa "
+                f"~{ev_loss*100:.0f}bb leak"
+            ]
+            for line in teach_lines:
+                w = QLabel(line)
+                w.setStyleSheet(
+                    f"QLabel{{background:#0C1117;color:{_C_TEXT};font-size:12px;"
+                    f"padding:6px 10px;border-left:3px solid {_C_AMBER};border-radius:4px;}}"
+                )
+                w.setWordWrap(True)
+                self._tbl_fb_layout.addWidget(w)
 
-        # Quick switch to range view
-        ret_btn = QPushButton("📊 Show range matrix")
+        # Quick action row: range matrix + add to drill queue
+        row = QHBoxLayout()
+        ret_btn = QPushButton("📊 Range matrisini gör")
         ret_btn.setStyleSheet(_pill_style(active=True))
         ret_btn.clicked.connect(self._toggle_mode)
-        self._tbl_fb_layout.addWidget(ret_btn)
+        row.addWidget(ret_btn)
+        if not is_ok:
+            drill_btn = QPushButton("⚡ Bu Tip Spotları Drill Et")
+            drill_btn.setStyleSheet(_pill_style(active=False))
+            drill_btn.clicked.connect(lambda: self._jump_to_mistakes_drill(spot, action))
+            row.addWidget(drill_btn)
+        self._tbl_fb_layout.addLayout(row)
+
         self.coach_message.emit(explain_spot(spot, action))
+
+    @staticmethod
+    def _teach_rule(spot: dict, gto_action: str) -> str:
+        """One-liner rule-of-thumb tailored to position + pot_type + action."""
+        pos    = (spot.get("position") or "").upper()
+        pot_t  = (spot.get("pot_type") or "SRP").upper()
+        stack  = spot.get("stack_bb", 40)
+        a      = gto_action.lower()
+        if pot_t == "3BP" and a == "fold":
+            return (f"{pos} olarak 3-bet'lere karşı {stack}bb'de range tightening yap; "
+                    f"marjinal eller fold.")
+        if pot_t == "3BP" and a == "4bet":
+            return ("3-bet'lere karşı premium + bluff combos ile 4-bet polarize et; "
+                    "AKs/QQ+ value, A5s-A2s bluff.")
+        if pot_t == "3BP" and a == "call":
+            return (f"{pos} 3-bet defend: pocket pairs ve broadways suited cold-call et, "
+                    f"set-mining + suited connectors equity için.")
+        if a == "raise" and pos in ("UTG", "UTG+1", "LJ"):
+            return (f"{pos} early position: sıkı open range — sadece premium ve "
+                    f"playable suited connectors.")
+        if a == "raise" and pos in ("BTN", "CO"):
+            return (f"{pos} late position: geniş steal range — özellikle blind'larda "
+                    f"weak defender varsa.")
+        if a == "fold":
+            return "Marjinal spotlarda fold = chip preservation. Range edge yoksa savaşma."
+        if a == "call":
+            return "Pot odds + implied odds + position kombinasyonu call'u haklı çıkarıyor."
+        if a == "jam":
+            return f"{stack}bb stack ile fold-equity + showdown value yeterli — shove."
+        return "GTO solver dengeli karışım kullanıyor; bu el için en yüksek EV: " + a.upper()
+
+    def _jump_to_mistakes_drill(self, spot: dict, action: str) -> None:
+        """User clicked 'Drill Bunları' on a wrong answer → jump to Spot Trainer."""
+        pos = (spot.get("position") or "BTN").upper()
+        pot_t = (spot.get("pot_type") or "SRP").upper()
+        sig = f"{pos} / {pot_t} / {action.lower()}"
+        self.state.active_leak_signature = sig
+        win = self.window()
+        if hasattr(win, "navigate"):
+            win.navigate("Spot Practice Trainer")
 
     # ── next spot ──────────────────────────────────────────────────────
     # ── spot library panel ────────────────────────────────────────────

@@ -320,6 +320,31 @@ class IcmTrainerScreen(QWidget):
         if is_punt:
             self.icm_punts += 1
 
+        # Persist ICM mistakes to global My Mistakes queue
+        if not result["is_correct"]:
+            try:
+                from datetime import datetime
+                from app.db.mistakes_queue import (
+                    MistakeEntry as MqEntry, add_mistake, new_id as new_mistake_id,
+                )
+                add_mistake(MqEntry(
+                    id           = new_mistake_id(),
+                    logged_at    = datetime.now().isoformat(timespec="seconds"),
+                    context      = "icm",
+                    spot_id      = spot.get("id", ""),
+                    position     = (spot.get("position") or "").upper(),
+                    stack_bb     = float(spot.get("stack_bb", 20)),
+                    pot_type     = "ICM",
+                    hero_cards   = spot.get("hero_cards", ""),
+                    hero_action  = action.lower(),
+                    gto_action   = result["best_action"].lower(),
+                    ev_loss      = round(dollar_ev_loss, 2),
+                    why          = f"ICM punt — risk premium {spot.get('risk_premium', 0):.1%}"
+                                   f", bubble factor {spot.get('bubble_factor', 1):.2f}"
+                ))
+            except Exception:
+                pass
+
         accuracy = f"{100 * self.correct / self.total:.0f}%" if self.total > 0 else "—"
         self.card_accuracy = _update_card_text(self.card_accuracy, accuracy, f"{self.total} decisions")
         self.card_punts = _update_card_text(self.card_punts, str(self.icm_punts), "avoid $EV mistakes")
