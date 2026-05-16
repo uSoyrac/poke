@@ -534,6 +534,69 @@ _CO_RFI_100 = _chart(
 )
 
 
+# Short-stack shove ranges (15bb push) — MTT bubble dynamics
+_UTG_SHOVE_15 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66",
+        "AKs","AQs","AJs","ATs","A9s","A5s","A4s","A3s","A2s",
+        "KQs","KJs","KTs","K9s",
+        "QJs","QTs","JTs","T9s","98s","87s",
+        "AKo","AQo","AJo","KQo",
+    ],
+    primary="jam", secondary="fold",
+    mixed={"55":0.8, "44":0.5, "33":0.3, "ATo":0.4, "KJo":0.3},
+)
+_BTN_SHOVE_10 = _chart(   # very short — wide BTN push
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22",
+        "AKs","AQs","AJs","ATs","A9s","A8s","A7s","A6s","A5s","A4s","A3s","A2s",
+        "KQs","KJs","KTs","K9s","K8s","K7s","K6s","K5s","K4s","K3s","K2s",
+        "QJs","QTs","Q9s","Q8s","Q7s","JTs","J9s","J8s","T9s","T8s","98s","87s","76s","65s",
+        "AKo","AQo","AJo","ATo","A9o","A8o","A7o","A6o","A5o","A4o","A3o","A2o",
+        "KQo","KJo","KTo","K9o","QJo","QTo","Q9o","JTo","J9o","T9o","98o","87o",
+    ],
+    primary="jam", secondary="fold",
+)
+_SB_SHOVE_15 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22",
+        "AKs","AQs","AJs","ATs","A9s","A8s","A7s","A6s","A5s","A4s","A3s","A2s",
+        "KQs","KJs","KTs","K9s","K8s",
+        "QJs","QTs","Q9s","JTs","J9s","T9s","98s","87s","76s","65s","54s",
+        "AKo","AQo","AJo","ATo","A9o","A8o","KQo","KJo","KTo","QJo","QTo","JTo",
+    ],
+    primary="jam", secondary="fold",
+    mixed={"K7s":0.6, "Q8s":0.5, "J8s":0.5, "T8s":0.5, "97s":0.4,
+           "A7o":0.7, "K9o":0.6, "Q9o":0.5},
+)
+
+# BB call-vs-shove ranges
+_BB_CALL_VS_SHOVE_10 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22",
+        "AKs","AQs","AJs","ATs","A9s","A8s","A7s","A6s","A5s","A4s","A3s","A2s",
+        "KQs","KJs","KTs","K9s","QJs","QTs","JTs","T9s","98s","87s","76s",
+        "AKo","AQo","AJo","ATo","A9o","KQo","KJo","QJo",
+    ],
+    primary="call", secondary="fold",
+    mixed={"K8s":0.6, "K7s":0.4, "Q9s":0.5, "J9s":0.5,
+           "ATo":0.7, "A8o":0.5, "KTo":0.6},
+)
+
+# 6-max MP and EP — pre-solved
+_MP_RFI_40 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66",
+        "AKs","AQs","AJs","ATs","A9s","A5s","A4s",
+        "KQs","KJs","KTs","K9s",
+        "QJs","QTs","JTs","T9s","98s","87s","76s",
+        "AKo","AQo","AJo","KQo",
+    ],
+    mixed={"55":0.8, "44":0.5, "A8s":0.6, "A7s":0.5, "Q9s":0.5, "J9s":0.4,
+           "65s":0.4, "ATo":0.7, "KJo":0.5},
+)
+
+
 CHARTS: dict[str, dict[str, dict[str, float]]] = {
     "UTG-RFI-40":      _UTG_RFI_40,
     "UTG-RFI-25":      _UTG_RFI_25,
@@ -560,6 +623,13 @@ CHARTS: dict[str, dict[str, dict[str, float]]] = {
     "SB-DEF-40-vs-BTN":_SB_DEF_vs_BTN_40,
     "SB-DEF-25-vs-BTN":_SB_DEF_vs_BTN_25,
     "BTN-vsBB3BET-40": _BTN_vs_BB_3BET_40,
+    # Short stacks — shove/fold dynamics
+    "UTG-SHOVE-15":    _UTG_SHOVE_15,
+    "BTN-SHOVE-10":    _BTN_SHOVE_10,
+    "SB-SHOVE-15":     _SB_SHOVE_15,
+    "BB-CALL-SHOVE-10":_BB_CALL_VS_SHOVE_10,
+    # MP for 6-max / 9-max
+    "MP-RFI-40":       _MP_RFI_40,
 }
 
 
