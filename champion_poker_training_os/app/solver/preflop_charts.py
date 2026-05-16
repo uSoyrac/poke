@@ -389,6 +389,180 @@ _BTN_vs_BB_3BET_40 = _vs_3bet(
     ],
 )
 
+# More 3-bet defense charts — opener faces a 3-bet
+_UTG_vs_3BET_40 = _vs_3bet(
+    value_4bets=["AA","KK","QQ","AKs","AKo","JJ"],
+    bluff_4bets={"A5s":0.4, "A4s":0.3},
+    calls=["TT","99","88","77","AQs","AJs","ATs","KQs","KJs","QJs","JTs"],
+)
+_LJ_vs_3BET_40 = _vs_3bet(
+    value_4bets=["AA","KK","QQ","AKs","AKo","JJ"],
+    bluff_4bets={"A5s":0.5,"A4s":0.4,"KQs":0.3},
+    calls=["TT","99","88","77","66","AQs","AJs","ATs","A9s","KQs","KJs","KTs","QJs","QTs","JTs","AQo"],
+)
+_HJ_vs_3BET_40 = _vs_3bet(
+    value_4bets=["AA","KK","QQ","AKs","AKo","JJ"],
+    bluff_4bets={"A5s":0.55,"A4s":0.4},
+    calls=["TT","99","88","77","66","55","AQs","AJs","ATs","A9s","A8s",
+           "KQs","KJs","KTs","K9s","QJs","QTs","JTs","T9s","98s","87s","AQo","AJo","KQo"],
+)
+_CO_vs_3BET_40 = _vs_3bet(
+    value_4bets=["AA","KK","QQ","AKs","AKo","JJ"],
+    bluff_4bets={"A5s":0.6,"A4s":0.5,"A3s":0.3,"KQs":0.2},
+    calls=["TT","99","88","77","66","55","44",
+           "AQs","AJs","ATs","A9s","A8s","A7s",
+           "KQs","KJs","KTs","K9s","K8s","QJs","QTs","Q9s","JTs","J9s","T9s","T8s","98s","87s","76s",
+           "AQo","AJo","ATo","KQo","KJo","QJo"],
+)
+_CO_vs_BTN_3BET_40 = _vs_3bet(
+    value_4bets=["AA","KK","QQ","AKs","AKo"],
+    bluff_4bets={"A5s":0.6,"A4s":0.4,"K5s":0.3},
+    calls=["JJ","TT","99","88","77","66","AQs","AJs","ATs","A9s",
+           "KQs","KJs","KTs","QJs","QTs","JTs","T9s","98s",
+           "AQo","AJo","KQo"],
+)
+_BTN_vs_CO_3BET_40 = _vs_3bet(
+    value_4bets=["AA","KK","QQ","AKs","AKo"],
+    bluff_4bets={"A5s":0.65,"A4s":0.5,"A3s":0.3},
+    calls=["JJ","TT","99","88","77","66","55",
+           "AQs","AJs","ATs","A9s","A8s","KQs","KJs","KTs","K9s",
+           "QJs","QTs","Q9s","JTs","J9s","T9s","98s","87s","76s",
+           "AQo","AJo","ATo","KQo","KJo"],
+)
+_SB_vs_BTN_3BET_40 = _vs_3bet(
+    value_4bets=["AA","KK","QQ","JJ","AKs","AKo"],
+    bluff_4bets={"A5s":0.55,"A4s":0.4},
+    calls=["TT","99","88","77","66","AQs","AJs","ATs","A9s","KQs","KJs","KTs","QJs","QTs","JTs","AQo","KQo"],
+)
+_BB_vs_SB_3BET_40 = _vs_3bet(
+    value_4bets=["AA","KK","QQ","JJ","AKs","AKo"],
+    bluff_4bets={"A5s":0.5,"KQs":0.3},
+    calls=["TT","99","88","77","66","55","AQs","AJs","ATs","KQs","KJs","KTs","QJs","QTs","JTs","AQo"],
+)
+
+# 4-bet defense — facing a 4-bet (jam / call / fold)
+def _vs_4bet(value_jams: list[str], call_4bet: list[str]) -> dict[str, dict[str, float]]:
+    result: dict[str, dict[str, float]] = {}
+    for h in value_jams:
+        result[h] = {"jam": 1.0}
+    for h in call_4bet:
+        if h not in result:
+            result[h] = {"call": 1.0}
+    for h in _HANDS:
+        if h not in result:
+            result[h] = {"fold": 1.0}
+    return result
+
+_BTN_vs_BB_4BET_40 = _vs_4bet(
+    value_jams=["AA","KK","QQ","AKs","AKo"],
+    call_4bet=["JJ","TT","AQs","AJs"],
+)
+
+# BB squeeze ranges (3-bet from BB after open + caller)
+_BB_SQUEEZE_vs_BTN_40 = _bb_def(
+    value_3bets=["AA","KK","QQ","JJ","AKs","AKo","AQs"],
+    bluff_3bets={"A5s":0.7,"A4s":0.6,"A3s":0.4,"K9s":0.3,"Q9s":0.3},
+    calls=["TT","99","88","77","66","55","44",
+           "AQo","AJs","ATs","A9s","A8s","A7s","A6s","A2s",
+           "KQs","KJs","KTs","K8s","QJs","QTs","Q8s","JTs","J9s",
+           "T9s","T8s","98s","87s","76s","65s","54s",
+           "AJo","ATo","KQo","KJo","QJo","JTo"],
+)
+
+# Deep-stack opens (100bb+) — wider cash-game style
+_LJ_RFI_100 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66","55","44",
+        "AKs","AQs","AJs","ATs","A9s","A8s","A7s","A5s","A4s",
+        "KQs","KJs","KTs","K9s","K8s",
+        "QJs","QTs","Q9s","JTs","J9s","T9s","98s","87s","76s","65s","54s",
+        "AKo","AQo","AJo","ATo","KQo","KJo","QJo",
+    ],
+    mixed={"33":0.6,"22":0.4,"A6s":0.7,"K7s":0.4,"Q8s":0.4,"J8s":0.4,
+           "T8s":0.4,"97s":0.3,"86s":0.3,"KTo":0.5,"QTo":0.4},
+)
+_HJ_RFI_100 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33",
+        "AKs","AQs","AJs","ATs","A9s","A8s","A7s","A6s","A5s","A4s","A3s","A2s",
+        "KQs","KJs","KTs","K9s","K8s","K7s",
+        "QJs","QTs","Q9s","Q8s","JTs","J9s","J8s","T9s","T8s",
+        "98s","87s","76s","65s","54s",
+        "AKo","AQo","AJo","ATo","A9o","KQo","KJo","KTo","QJo","QTo","JTo",
+    ],
+    mixed={"22":0.5,"K6s":0.5,"K5s":0.3,"Q7s":0.3,"J7s":0.3,"97s":0.4,"86s":0.4,"75s":0.3},
+)
+_SB_RFI_100 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22",
+        "AKs","AQs","AJs","ATs","A9s","A8s","A7s","A6s","A5s","A4s","A3s","A2s",
+        "KQs","KJs","KTs","K9s","K8s","K7s","K6s","K5s",
+        "QJs","QTs","Q9s","Q8s","Q7s",
+        "JTs","J9s","J8s","T9s","T8s","98s","87s","76s","65s","54s",
+        "AKo","AQo","AJo","ATo","A9o","A8o","KQo","KJo","KTo","K9o","QJo","QTo","Q9o","JTo","J9o","T9o","98o",
+    ],
+    mixed={"K4s":0.4,"Q6s":0.3,"J7s":0.3,"T7s":0.3,"97s":0.4,"86s":0.4,
+           "76o":0.3,"87o":0.3,"A7o":0.5,"K8o":0.4},
+)
+_BB_DEF_100_vs_BTN = _bb_def(
+    value_3bets=["AA","KK","QQ","JJ","AKs","AKo","AQs"],
+    bluff_3bets={"A5s":0.7,"A4s":0.6,"A3s":0.5,"K9s":0.3,"Q9s":0.3,
+                 "76s":0.2,"65s":0.2},
+    calls=["TT","99","88","77","66","55","44","33","22",
+           "AQo","AJs","ATs","A9s","A8s","A7s","A6s","A2s",
+           "KQs","KJs","KTs","K8s","K7s","K6s","K5s","K4s","K3s","K2s",
+           "QJs","QTs","Q9s","Q8s","Q7s","Q6s","Q5s",
+           "JTs","J9s","J8s","J7s","T9s","T8s","T7s","98s","97s","87s","86s","75s","65s","54s","43s",
+           "AJo","ATo","A9o","A8o","A7o","KQo","KJo","KTo","K9o","QJo","QTo","Q9o","JTo","J9o","T9o","98o","87o","76o"],
+)
+
+# More shove ranges for short-stack tournaments
+_CO_SHOVE_15 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66","55","44",
+        "AKs","AQs","AJs","ATs","A9s","A8s","A7s","A6s","A5s","A4s","A3s","A2s",
+        "KQs","KJs","KTs","K9s","K8s",
+        "QJs","QTs","Q9s","JTs","J9s","T9s","98s","87s","76s","65s",
+        "AKo","AQo","AJo","ATo","A9o","KQo","KJo","QJo",
+    ],
+    primary="jam", secondary="fold",
+    mixed={"33":0.7,"22":0.5,"K7s":0.5,"Q8s":0.4,"KTo":0.6,"QTo":0.4},
+)
+_BTN_SHOVE_15 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22",
+        "AKs","AQs","AJs","ATs","A9s","A8s","A7s","A6s","A5s","A4s","A3s","A2s",
+        "KQs","KJs","KTs","K9s","K8s","K7s","K6s","K5s","K4s",
+        "QJs","QTs","Q9s","Q8s","JTs","J9s","J8s","T9s","T8s","98s","87s","76s","65s","54s",
+        "AKo","AQo","AJo","ATo","A9o","A8o","A7o","KQo","KJo","KTo","K9o","QJo","QTo","JTo",
+    ],
+    primary="jam", secondary="fold",
+    mixed={"K3s":0.5,"Q7s":0.4,"J7s":0.4,"T7s":0.4,"97s":0.4,"86s":0.4,
+           "A6o":0.6,"K8o":0.5,"Q9o":0.5,"J9o":0.4,"T9o":0.3},
+)
+_UTG_SHOVE_10 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22",
+        "AKs","AQs","AJs","ATs","A9s","A8s","A7s","A6s","A5s","A4s","A3s","A2s",
+        "KQs","KJs","KTs","K9s","K8s","K7s",
+        "QJs","QTs","Q9s","JTs","J9s","T9s","98s","87s","76s","65s","54s",
+        "AKo","AQo","AJo","ATo","A9o","KQo","KJo","QJo",
+    ],
+    primary="jam", secondary="fold",
+    mixed={"A8o":0.6,"KTo":0.5,"QTo":0.4,"JTo":0.3},
+)
+_BB_CALL_SHOVE_15 = _chart(
+    strong=[
+        "AA","KK","QQ","JJ","TT","99","88","77","66","55",
+        "AKs","AQs","AJs","ATs","A9s","A8s","A7s","A6s","A5s","A4s",
+        "KQs","KJs","KTs","K9s","QJs","QTs","JTs","T9s","98s",
+        "AKo","AQo","AJo","ATo","KQo","KJo","QJo",
+    ],
+    primary="call", secondary="fold",
+    mixed={"44":0.6,"33":0.4,"A3s":0.7,"K8s":0.5,"Q9s":0.6,"J9s":0.5,
+           "A9o":0.7,"KTo":0.6,"QTo":0.4},
+)
+
 
 # ── chart registry ────────────────────────────────────────────────────────
 
@@ -623,11 +797,33 @@ CHARTS: dict[str, dict[str, dict[str, float]]] = {
     "SB-DEF-40-vs-BTN":_SB_DEF_vs_BTN_40,
     "SB-DEF-25-vs-BTN":_SB_DEF_vs_BTN_25,
     "BTN-vsBB3BET-40": _BTN_vs_BB_3BET_40,
+    # 3-bet defense (opener facing 3-bet)
+    "UTG-vs3BET-40":   _UTG_vs_3BET_40,
+    "LJ-vs3BET-40":    _LJ_vs_3BET_40,
+    "HJ-vs3BET-40":    _HJ_vs_3BET_40,
+    "CO-vs3BET-40":    _CO_vs_3BET_40,
+    "CO-vsBTN3BET-40": _CO_vs_BTN_3BET_40,
+    "BTN-vsCO3BET-40": _BTN_vs_CO_3BET_40,
+    "SB-vsBTN3BET-40": _SB_vs_BTN_3BET_40,
+    "BB-vsSB3BET-40":  _BB_vs_SB_3BET_40,
+    # 4-bet defense
+    "BTN-vsBB4BET-40": _BTN_vs_BB_4BET_40,
+    # BB squeeze (3-bet vs open + caller)
+    "BB-SQUEEZE-vs-BTN-40": _BB_SQUEEZE_vs_BTN_40,
+    # Deep stack 100bb
+    "LJ-RFI-100":      _LJ_RFI_100,
+    "HJ-RFI-100":      _HJ_RFI_100,
+    "SB-RFI-100":      _SB_RFI_100,
+    "BB-DEF-100-vs-BTN":_BB_DEF_100_vs_BTN,
     # Short stacks — shove/fold dynamics
     "UTG-SHOVE-15":    _UTG_SHOVE_15,
+    "UTG-SHOVE-10":    _UTG_SHOVE_10,
+    "CO-SHOVE-15":     _CO_SHOVE_15,
+    "BTN-SHOVE-15":    _BTN_SHOVE_15,
     "BTN-SHOVE-10":    _BTN_SHOVE_10,
     "SB-SHOVE-15":     _SB_SHOVE_15,
     "BB-CALL-SHOVE-10":_BB_CALL_VS_SHOVE_10,
+    "BB-CALL-SHOVE-15":_BB_CALL_SHOVE_15,
     # MP for 6-max / 9-max
     "MP-RFI-40":       _MP_RFI_40,
 }
@@ -641,12 +837,17 @@ def chart_for_spot(spot: dict) -> dict[str, dict[str, float]]:
     """Return the best matching chart for a given spot dict."""
     pos    = (spot.get("position") or "BTN").upper().replace("UTG+1", "UTG")
     stack  = int(spot.get("stack_bb") or 40)
-    bucket = 25 if stack <= 30 else 40
+    # Stack bucket — 10/15 shove, 25 short, 40 mid, 100 deep
+    if stack <= 12:   bucket = 10
+    elif stack <= 18: bucket = 15
+    elif stack <= 30: bucket = 25
+    elif stack <= 70: bucket = 40
+    else:             bucket = 100
     name   = (spot.get("name", "") + " " + spot.get("title", "") + " " + spot.get("action_history", "")).lower()
 
     # Detect "vs X" patterns
     vs = None
-    for v in ("btn", "lj", "co", "bb", "sb", "hj"):
+    for v in ("btn", "lj", "co", "bb", "sb", "hj", "mp"):
         if f"vs {v}" in name or f"vs {v.upper()}" in name.upper():
             vs = v.upper(); break
 
@@ -654,18 +855,37 @@ def chart_for_spot(spot: dict) -> dict[str, dict[str, float]]:
 
     # Try most specific to least specific
     keys_to_try = []
-    if "DEF" in pos or pos == "BB":
+    # Squeeze
+    if "squeeze" in name or "sqz" in name:
+        keys_to_try.append(f"BB-SQUEEZE-vs-{vs or 'BTN'}-{bucket}")
+        keys_to_try.append("BB-SQUEEZE-vs-BTN-40")
+    # 4-bet pot defense
+    if pot == "4BP" or "4-bet" in name or "4bet" in name:
+        keys_to_try.append(f"{pos}-vs{vs or 'BB'}4BET-{bucket}")
+        keys_to_try.append("BTN-vsBB4BET-40")
+    # Shove spots (≤ 15bb)
+    if stack <= 18:
+        keys_to_try.append(f"{pos}-SHOVE-{bucket}")
+        if pos == "BB" and vs:
+            keys_to_try.append(f"BB-CALL-SHOVE-{bucket}")
+    # BB defense
+    if pos == "BB":
         if vs:
             keys_to_try.append(f"BB-DEF-{bucket}-vs-{vs}")
-        keys_to_try += [f"BB-DEF-{bucket}-vs-BTN", "BB-DEF-40-vs-BTN"]
+        keys_to_try += [f"BB-DEF-{bucket}-vs-BTN", "BB-DEF-40-vs-BTN", "BB-DEF-100-vs-BTN"]
+    # SB defense
     elif pos == "SB" and vs == "BTN":
         keys_to_try += [f"SB-DEF-{bucket}-vs-BTN", "SB-DEF-40-vs-BTN"]
     else:
-        if "3BP" in pot:
-            keys_to_try += [f"BTN-vsBB3BET-{bucket}", "BTN-vsBB3BET-40"]
-        keys_to_try += [f"{pos}-RFI-{bucket}", f"{pos}-RFI-40"]
+        # 3BP — defending the open vs a 3-bet
+        if "3BP" in pot or "3-bet" in name:
+            keys_to_try.append(f"{pos}-vs{vs or 'BB'}3BET-{bucket}")
+            keys_to_try.append(f"{pos}-vs3BET-{bucket}")
+            keys_to_try += ["BTN-vsBB3BET-40", "CO-vsBTN3BET-40"]
+        # RFI fallback
+        keys_to_try += [f"{pos}-RFI-{bucket}", f"{pos}-RFI-40", f"{pos}-RFI-100"]
 
-    # Fallback ladder
+    # Final fallback ladder
     keys_to_try += ["BTN-RFI-40", "CO-RFI-40", "LJ-RFI-40"]
 
     for k in keys_to_try:
