@@ -108,6 +108,53 @@ class SettingsScreen(QWidget):
         solver_layout.addWidget(format_help)
         layout.addWidget(solver_card)
 
+        # --- Data Reset card (My Mistakes + Tournament Archive) ---
+        reset_card = QFrame()
+        reset_card.setObjectName("Card")
+        reset_layout = QVBoxLayout(reset_card)
+        reset_layout.setContentsMargins(14, 12, 14, 12)
+        reset_title = QLabel("🗑  Veri Yönetimi")
+        reset_title.setObjectName("SectionTitle")
+        reset_layout.addWidget(reset_title)
+        reset_info = QLabel(
+            "My Mistakes ve Tournament Archive JSON dosyalarındaki tüm geçmişi siler. "
+            "Bu işlem GERİ ALINAMAZ — temiz başlangıç istediğinde kullan."
+        )
+        reset_info.setWordWrap(True)
+        reset_info.setObjectName("Muted")
+        reset_layout.addWidget(reset_info)
+
+        reset_buttons = QHBoxLayout()
+        reset_mistakes_btn = QPushButton("Hataları Temizle")
+        reset_mistakes_btn.setStyleSheet(
+            "QPushButton { background: #1B2330; color: #FCA5A5; font-weight: 700; "
+            "padding: 8px 16px; border-radius: 7px; border:1px solid #7F1D1D; }"
+            "QPushButton:hover { background: #2A1F1F; border-color: #DC2626; }"
+        )
+        reset_mistakes_btn.clicked.connect(self._reset_mistakes)
+        reset_buttons.addWidget(reset_mistakes_btn)
+
+        reset_archive_btn = QPushButton("Turnuva Arşivini Temizle")
+        reset_archive_btn.setStyleSheet(
+            "QPushButton { background: #1B2330; color: #FCA5A5; font-weight: 700; "
+            "padding: 8px 16px; border-radius: 7px; border:1px solid #7F1D1D; }"
+            "QPushButton:hover { background: #2A1F1F; border-color: #DC2626; }"
+        )
+        reset_archive_btn.clicked.connect(self._reset_archive)
+        reset_buttons.addWidget(reset_archive_btn)
+
+        reset_all_btn = QPushButton("⚠  TÜMÜNÜ SIL (Reset)")
+        reset_all_btn.setStyleSheet(
+            "QPushButton { background: #DC2626; color: #FFF; font-weight: 800; "
+            "padding: 8px 18px; border-radius: 7px; border: none; }"
+            "QPushButton:hover { background: #B91C1C; }"
+        )
+        reset_all_btn.clicked.connect(self._reset_all_data)
+        reset_buttons.addWidget(reset_all_btn)
+        reset_buttons.addStretch(1)
+        reset_layout.addLayout(reset_buttons)
+        layout.addWidget(reset_card)
+
         layout.addStretch(1)
         self.scan()
 
@@ -153,6 +200,65 @@ class SettingsScreen(QWidget):
             f"Imported {total} solver row(s) across {len(paths)} file(s)."
             f"\nLibrary size: {lib.size()}.",
         )
+
+    def _reset_mistakes(self) -> None:
+        ok = QMessageBox.question(
+            self, "My Mistakes Temizle",
+            "TÜM My Mistakes geçmişini silmek istediğinden emin misin?\n"
+            "Bu işlem GERİ ALINAMAZ.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if ok != QMessageBox.Yes:
+            return
+        try:
+            from app.db.mistakes_queue import clear_mistakes
+            clear_mistakes()
+            from app.ui.components.toast import Toast
+            Toast.show_success(self.window(), "✓ My Mistakes temizlendi")
+        except Exception as e:
+            QMessageBox.warning(self, "Hata", str(e))
+
+    def _reset_archive(self) -> None:
+        ok = QMessageBox.question(
+            self, "Tournament Archive Temizle",
+            "TÜM kayıtlı turnuvaları silmek istediğinden emin misin?\n"
+            "Bu işlem GERİ ALINAMAZ.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if ok != QMessageBox.Yes:
+            return
+        try:
+            from app.db.tournament_archive import clear_archive
+            clear_archive()
+            from app.ui.components.toast import Toast
+            Toast.show_success(self.window(), "✓ Tournament Archive temizlendi")
+        except Exception as e:
+            QMessageBox.warning(self, "Hata", str(e))
+
+    def _reset_all_data(self) -> None:
+        ok = QMessageBox.warning(
+            self, "TÜMÜNÜ SIL",
+            "Bu, hem My Mistakes hem de Tournament Archive'ı tamamen siler.\n"
+            "Tüm progress, leak'ler, turnuva geçmişi KAYBOLACAK.\n\n"
+            "Bu işlemi gerçekten yapmak istiyor musun?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if ok != QMessageBox.Yes:
+            return
+        try:
+            from app.db.mistakes_queue import clear_mistakes
+            from app.db.tournament_archive import clear_archive
+            clear_mistakes()
+            clear_archive()
+            # AppState in-memory counters
+            self.state.completed_drills = 0
+            self.state.correct_drills = 0
+            self.state.ev_loss_total = 0.0
+            self.state.session_notes = []
+            from app.ui.components.toast import Toast
+            Toast.show_success(self.window(), "✓ Tüm veri temizlendi — temiz başlangıç")
+        except Exception as e:
+            QMessageBox.warning(self, "Hata", str(e))
 
     def _clear_library(self) -> None:
         lib = get_solver_library()

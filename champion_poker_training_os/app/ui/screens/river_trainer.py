@@ -190,6 +190,14 @@ class RiverTrainerScreen(QWidget):
                     ev_loss      = round(float(result["ev_loss"]), 2),
                     why          = result.get("sizing_feedback", "")[:240],
                 ))
+                try:
+                    from app.ui.components.toast import Toast
+                    Toast.show_warning(
+                        self.window(),
+                        f"❌ River hatası kaydedildi (−{result['ev_loss']:.2f}bb)"
+                    )
+                except Exception:
+                    pass
             except Exception:
                 pass
 

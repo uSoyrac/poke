@@ -342,6 +342,15 @@ class IcmTrainerScreen(QWidget):
                     why          = f"ICM punt — risk premium {spot.get('risk_premium', 0):.1%}"
                                    f", bubble factor {spot.get('bubble_factor', 1):.2f}"
                 ))
+                try:
+                    from app.ui.components.toast import Toast
+                    label = "🚨 ICM PUNT" if is_punt else "❌ ICM hatası"
+                    Toast.show_error(
+                        self.window(),
+                        f"{label}  ·  $EV kayıp: {dollar_ev_loss:.2f}"
+                    )
+                except Exception:
+                    pass
             except Exception:
                 pass
 

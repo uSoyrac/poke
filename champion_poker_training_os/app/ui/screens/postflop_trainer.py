@@ -211,6 +211,15 @@ class PostflopTrainerScreen(QWidget):
                     ev_loss      = round(float(result["ev_loss"]), 2),
                     why          = result.get("sizing_feedback", "")[:240],
                 ))
+                # Toast feedback — non-blocking
+                try:
+                    from app.ui.components.toast import Toast
+                    Toast.show_warning(
+                        self.window(),
+                        f"❌ Hata kaydedildi  ·  My Mistakes'e eklendi (−{result['ev_loss']:.2f}bb)"
+                    )
+                except Exception:
+                    pass
             except Exception:
                 pass
 

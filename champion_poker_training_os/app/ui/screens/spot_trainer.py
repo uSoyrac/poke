@@ -843,6 +843,14 @@ class SpotTrainerScreen(QWidget):
                     ev_loss      = round(float(result["ev_loss"]), 2),
                     why          = self._build_why_explanation(spot, action, result)[:240],
                 ))
+                try:
+                    from app.ui.components.toast import Toast
+                    Toast.show_warning(
+                        self.window(),
+                        f"❌ Hata kaydedildi  ·  −{result['ev_loss']:.2f}bb  ·  GTO: {best_act.upper()}"
+                    )
+                except Exception:
+                    pass
             except Exception:
                 pass
 
