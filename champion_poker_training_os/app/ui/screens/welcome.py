@@ -267,10 +267,12 @@ class WelcomeScreen(QWidget):
         try:
             from app.db.mistakes_queue import load_mistakes
             mistakes = load_mistakes()
-            open_leaks = sum(1 for m in mistakes if not m.drilled)
-            leaks_val = str(open_leaks) if open_leaks else "0"
+            open_leaks    = sum(1 for m in mistakes if not m.drilled)
+            drilled_leaks = sum(1 for m in mistakes if m.drilled)
+            leaks_val   = str(open_leaks) if open_leaks else "0"
+            drilled_val = str(drilled_leaks) if drilled_leaks else "0"
         except Exception:
-            leaks_val = "—"
+            leaks_val = "—"; drilled_val = "—"
         try:
             from app.db.tournament_archive import load_archive
             archive = load_archive()
@@ -278,10 +280,11 @@ class WelcomeScreen(QWidget):
         except Exception:
             tours_val = "—"
         for label, val, accent in [
-            ("Tamamlanan Drill", drills,    _CYAN),
-            ("Doğruluk",         acc,       _GREEN),
-            ("Açık Leak",        leaks_val, _RED),
-            ("Turnuva",          tours_val, _AMBER),
+            ("Tamamlanan Drill", drills,      _CYAN),
+            ("Doğruluk",         acc,         _GREEN),
+            ("Açık Leak",        leaks_val,   _RED),
+            ("Çözülen Leak",     drilled_val, _GREEN),
+            ("Turnuva",          tours_val,   _AMBER),
         ]:
             stats.addWidget(_StatCard(label, val, accent))
         root.addLayout(stats)

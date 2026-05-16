@@ -194,25 +194,53 @@ class RiverTrainerScreen(QWidget):
                 pass
 
         accuracy = f"{100 * self.correct / self.total:.0f}%" if self.total > 0 else "—"
-        _update_card(self.stat_accuracy, accuracy, f"{self.total} river decisions")
-        _update_card(self.stat_streak, str(self.streak), "correct in a row")
+        _update_card(self.stat_accuracy, accuracy, f"{self.total} river kararı")
+        streak_suffix = " 🔥" if self.streak >= 3 else ""
+        _update_card(self.stat_streak, f"{self.streak}{streak_suffix}", "üst üste doğru")
 
-        # Detailed feedback
+        # Detailed feedback — Türkçe + learning-friendly
         _clear_layout(self.feedback_layout)
-        color = "Green" if result["is_correct"] else "Red"
+        is_ok = result["is_correct"]
+        color = "Green" if is_ok else "Red"
 
-        verdict = QLabel(
-            f"Hero {action} | Best: {result['best_action']} | EV loss: {result['ev_loss']:.2f}bb | "
-            f"{'✓ Correct' if result['is_correct'] else '✗ Mistake'} | {result['sizing_feedback']}"
-        )
+        if is_ok:
+            verdict = QLabel(
+                f"✅  Doğru karar — {action.upper()}  ·  EV kayıp: {result['ev_loss']:.2f}bb"
+            )
+        else:
+            verdict = QLabel(
+                f"❌  Daha iyisi var — Sen {action.upper()} dedin, GTO "
+                f"{result['best_action'].upper()}  ·  EV kayıp: {result['ev_loss']:.2f}bb"
+            )
         verdict.setObjectName(color)
         verdict.setWordWrap(True)
         self.feedback_layout.addWidget(verdict)
 
-        # MDF note
+        # Sizing feedback
+        if result.get("sizing_feedback"):
+            sf = QLabel(f"💡 {result['sizing_feedback']}")
+            sf.setWordWrap(True)
+            sf.setStyleSheet(
+                "QLabel{background:#0C1117;color:#E5E7EB;font-size:12px;"
+                "padding:8px 12px;border-radius:6px;border-left:3px solid #F59E0B;}"
+            )
+            self.feedback_layout.addWidget(sf)
+
+        # 100-hand leak projection
+        if not is_ok:
+            leak_lbl = QLabel(
+                f"💸 100 elde tekrarlanırsa ~{result['ev_loss']*100:.0f}bb leak"
+            )
+            leak_lbl.setStyleSheet(
+                "QLabel{color:#F87171;font-size:11px;padding:4px 12px;font-weight:600;}"
+            )
+            self.feedback_layout.addWidget(leak_lbl)
+
+        # River-specific teaching note in Türkçe
         mdf_note = QLabel(
-            "Remember: MDF is a baseline, not a command. Blockers decide close river calls. "
-            "Check if your hand blocks villain's bluffs (bad) or value (good for calling)."
+            "🎯 River kuralı: MDF (Minimum Defense Frequency) bir başlangıç — "
+            "blockerlar yakın call'ları belirler. Elin villain'ın bluff'larını "
+            "blokluyorsa call zayıflar; value'sunu blokluyorsa call güçlenir."
         )
         mdf_note.setObjectName("Muted")
         mdf_note.setWordWrap(True)
@@ -228,7 +256,7 @@ class RiverTrainerScreen(QWidget):
         self.feedback_layout.addLayout(solver_grid)
 
         # Next button
-        next_btn = QPushButton("Next River Spot →")
+        next_btn = QPushButton("Sonraki River Spotu →")
         next_btn.setObjectName("PrimaryButton")
         next_btn.clicked.connect(self._next)
         self.feedback_layout.addWidget(next_btn)

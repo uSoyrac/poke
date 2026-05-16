@@ -217,17 +217,41 @@ class PostflopTrainerScreen(QWidget):
         accuracy = f"{100 * self.correct / self.total:.0f}%" if self.total > 0 else "—"
         self.stat_accuracy = _update_card(self.stat_accuracy, accuracy, f"{self.total} decisions")
 
-        # Show detailed feedback
+        # Show detailed feedback — Türkçe + learning-friendly
         _clear_layout(self.feedback_layout)
-        color = "Green" if result["is_correct"] else "Red"
-        verdict = QLabel(
-            f"Hero {action} | Best: {result['best_action']} | EV loss: {result['ev_loss']:.2f}bb | "
-            f"{'✓ Correct' if result['is_correct'] else '✗ Review'}"
-        )
+        is_ok = result["is_correct"]
+        color = "Green" if is_ok else "Red"
+        if is_ok:
+            verdict = QLabel(
+                f"✅  Doğru karar — {action.upper()}  ·  EV kayıp: {result['ev_loss']:.2f}bb"
+            )
+        else:
+            verdict = QLabel(
+                f"❌  Daha iyisi var — Sen {action.upper()} dedin, GTO "
+                f"{result['best_action'].upper()}  ·  EV kayıp: {result['ev_loss']:.2f}bb"
+            )
         verdict.setObjectName(color)
         verdict.setWordWrap(True)
         self.feedback_layout.addWidget(verdict)
-        self.feedback_layout.addWidget(QLabel(result["sizing_feedback"]))
+
+        # Sizing feedback as a separate hint (the solver's reasoning)
+        sizing_lbl = QLabel(f"💡 {result.get('sizing_feedback', '')}")
+        sizing_lbl.setWordWrap(True)
+        sizing_lbl.setStyleSheet(
+            "QLabel{background:#0C1117;color:#E5E7EB;font-size:12px;"
+            "padding:8px 12px;border-radius:6px;border-left:3px solid #F59E0B;}"
+        )
+        self.feedback_layout.addWidget(sizing_lbl)
+
+        # 100-hand leak projection — concrete cost of repeating the mistake
+        if not is_ok:
+            leak_lbl = QLabel(
+                f"💸 100 elde tekrarlanırsa ~{result['ev_loss']*100:.0f}bb leak"
+            )
+            leak_lbl.setStyleSheet(
+                "QLabel{color:#F87171;font-size:11px;padding:4px 12px;font-weight:600;}"
+            )
+            self.feedback_layout.addWidget(leak_lbl)
 
         # Solver bars
         solver_grid = QGridLayout()
@@ -239,7 +263,7 @@ class PostflopTrainerScreen(QWidget):
         self.feedback_layout.addLayout(solver_grid)
 
         # Next button
-        next_btn = QPushButton("Next Spot →")
+        next_btn = QPushButton("Sonraki Spot →")
         next_btn.setObjectName("PrimaryButton")
         next_btn.clicked.connect(self._next)
         self.feedback_layout.addWidget(next_btn)
