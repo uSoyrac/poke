@@ -190,6 +190,29 @@ class PostflopTrainerScreen(QWidget):
         self.total += 1
         if result["is_correct"]:
             self.correct += 1
+        else:
+            # Persist wrong postflop decisions to global My Mistakes queue
+            try:
+                from datetime import datetime
+                from app.db.mistakes_queue import (
+                    MistakeEntry as MqEntry, add_mistake, new_id as new_mistake_id,
+                )
+                add_mistake(MqEntry(
+                    id           = new_mistake_id(),
+                    logged_at    = datetime.now().isoformat(timespec="seconds"),
+                    context      = "postflop_trainer",
+                    spot_id      = spot.get("id", ""),
+                    position     = (spot.get("position") or "").upper(),
+                    stack_bb     = float(spot.get("stack_bb", 40)),
+                    pot_type     = (spot.get("pot_type") or "SRP").upper(),
+                    hero_cards   = spot.get("hero_cards", ""),
+                    hero_action  = action.lower(),
+                    gto_action   = result["best_action"].lower(),
+                    ev_loss      = round(float(result["ev_loss"]), 2),
+                    why          = result.get("sizing_feedback", "")[:240],
+                ))
+            except Exception:
+                pass
 
         accuracy = f"{100 * self.correct / self.total:.0f}%" if self.total > 0 else "—"
         self.stat_accuracy = _update_card(self.stat_accuracy, accuracy, f"{self.total} decisions")

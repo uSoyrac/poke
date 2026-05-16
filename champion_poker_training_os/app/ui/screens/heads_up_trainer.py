@@ -426,6 +426,27 @@ class HeadsUpTrainerScreen(QWidget):
                 f"{worst['hero_action']} yerine {worst['solver_action']} "
                 f"({worst['ev_loss']:.2f}bb)."
             )
+            # Persist worst HU decision to global My Mistakes queue
+            try:
+                from datetime import datetime
+                from app.db.mistakes_queue import (
+                    MistakeEntry as MqEntry, add_mistake, new_id as new_mistake_id,
+                )
+                add_mistake(MqEntry(
+                    id           = new_mistake_id(),
+                    logged_at    = datetime.now().isoformat(timespec="seconds"),
+                    context      = "heads_up",
+                    position     = worst.get("position", "BTN").upper(),
+                    stack_bb     = float(worst.get("stack_bb", 50)),
+                    pot_type     = "HU",
+                    hero_cards   = result.hero_cards or "",
+                    hero_action  = worst.get("hero_action", "?").lower(),
+                    gto_action   = worst.get("solver_action", "?").lower(),
+                    ev_loss      = round(float(worst.get("ev_loss", 0)), 2),
+                    why          = f"Heads-Up {worst.get('street', '?')} mistake",
+                ))
+            except Exception:
+                pass
         else:
             decision_line = "Karar analizi için bu elde hero aksiyonu kaydedilmedi."
         self.coach_message.emit(

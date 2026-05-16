@@ -263,12 +263,25 @@ class WelcomeScreen(QWidget):
         stats.setSpacing(12)
         drills = str(state.completed_drills) if state.completed_drills else "0"
         acc = f"{state.accuracy:.0f}%" if state.accuracy else "—"
-        ev = f"{state.ev_loss_total:.1f}bb" if state.ev_loss_total else "0.0bb"
+        # Pull live data from My Mistakes + Tournament Archive
+        try:
+            from app.db.mistakes_queue import load_mistakes
+            mistakes = load_mistakes()
+            open_leaks = sum(1 for m in mistakes if not m.drilled)
+            leaks_val = str(open_leaks) if open_leaks else "0"
+        except Exception:
+            leaks_val = "—"
+        try:
+            from app.db.tournament_archive import load_archive
+            archive = load_archive()
+            tours_val = str(len(archive)) if archive else "0"
+        except Exception:
+            tours_val = "—"
         for label, val, accent in [
-            ("Tamamlanan Drill", drills, _CYAN),
-            ("Doğruluk",         acc,    _GREEN),
-            ("EV Kaybı",         ev,     _RED),
-            ("Katalog",          "325",  _AMBER),
+            ("Tamamlanan Drill", drills,    _CYAN),
+            ("Doğruluk",         acc,       _GREEN),
+            ("Açık Leak",        leaks_val, _RED),
+            ("Turnuva",          tours_val, _AMBER),
         ]:
             stats.addWidget(_StatCard(label, val, accent))
         root.addLayout(stats)
