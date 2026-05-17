@@ -251,6 +251,39 @@ class WelcomeScreen(QWidget):
 
         root.addLayout(cards_row)
 
+        # ── Günün Konsepti ───────────────────────────────────────────
+        # Deterministic per-day: aynı gün aynı terim, sonraki gün farklı
+        try:
+            from datetime import date
+            from app.data.poker_glossary import GLOSSARY
+            seed_idx = date.today().toordinal() % len(GLOSSARY)
+            term_of_day = GLOSSARY[seed_idx]
+            cot_kicker = QLabel("🌟  GÜNÜN KONSEPTİ")
+            cot_kicker.setStyleSheet(
+                f"color: {_CYAN}; font-size: 10px; font-weight: 800;"
+                f" letter-spacing: 1.5px; background: transparent; padding-top: 8px;"
+            )
+            root.addWidget(cot_kicker)
+            cot_card = QPushButton(
+                f"  📖   {term_of_day['term'].upper()}\n"
+                f"        {term_of_day.get('short', '')[:140]}"
+            )
+            cot_card.setMinimumHeight(72)
+            cot_card.setCursor(Qt.PointingHandCursor)
+            cot_card.setStyleSheet(
+                f"QPushButton{{background:{_PANEL};color:{_TEXT};"
+                f"border:1px solid {_BORDER};border-left:3px solid {_CYAN};"
+                f"border-radius:8px;padding:10px 16px;"
+                f"font-size:12px;text-align:left;}}"
+                f"QPushButton:hover{{border-color:{_CYAN};background:#13202E;}}"
+            )
+            cot_card.clicked.connect(
+                lambda: self.navigate_requested.emit("Knowledge Base")
+            )
+            root.addWidget(cot_card)
+        except Exception:
+            pass
+
         # ── İstatistik bar ───────────────────────────────────────────
         stats_kicker = QLabel("İLERLEMEN")
         stats_kicker.setStyleSheet(
