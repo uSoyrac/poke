@@ -340,11 +340,12 @@ class SpotTrainerScreen(QWidget):
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(0)
 
-        # Oval table
+        # Oval table — capped so the feedback panel always fits without scroll
         self.oval = OvalTable(positions=DEFAULT_POSITIONS_9, selectable=False)
         self.oval.set_dealer("BTN")
         self.oval.set_seed(self.seed)
-        self.oval.setMinimumHeight(400)
+        self.oval.setMinimumHeight(340)
+        self.oval.setMaximumHeight(480)
         right_layout.addWidget(self.oval, 1)
 
         # Hero cards bar — visible cards + sizing input
@@ -416,21 +417,23 @@ class SpotTrainerScreen(QWidget):
         right_layout.addWidget(self._action_frame)
 
         # ── Feedback panel — clickable + cursor pointer hint ─────────────
+        # Caps max height so it never pushes the action bar off-screen;
+        # internal scroll if explanation is very long.
         self._feedback_frame = QFrame()
         self._feedback_frame.setObjectName("FbFrame")
         self._feedback_frame.setStyleSheet(
-            f"QFrame#FbFrame{{background:{_C_CARD};border-top:1px solid {_C_BORDER};}}"
+            f"QFrame#FbFrame{{background:{_C_CARD};border-top:2px solid {_C_CYAN};}}"
             f"QFrame#FbFrame:hover{{background:#1A2230;}}"
         )
         self._feedback_frame.setCursor(Qt.PointingHandCursor)
         self._feedback_frame.mousePressEvent = lambda ev: (
             self._next_spot() if self._feedback_frame.maximumHeight() > 0 else None
         )
+        self._feedback_frame.setMaximumHeight(0)
         self._feedback_layout = QVBoxLayout(self._feedback_frame)
         self._feedback_layout.setContentsMargins(16, 10, 16, 10)
         self._feedback_layout.setSpacing(6)
-        self._feedback_frame.setMaximumHeight(0)
-        right_layout.addWidget(self._feedback_frame)
+        right_layout.addWidget(self._feedback_frame, 0)
 
         # ── Multi-modal 'next spot' keyboard shortcuts ──────────────
         from PySide6.QtGui import QShortcut, QKeySequence
@@ -864,7 +867,9 @@ class SpotTrainerScreen(QWidget):
             btn.setEnabled(False)
 
         # ── Feedback panel ────────────────────────────────────────────
-        self._feedback_frame.setMaximumHeight(9999)
+        # Cap to ~260px so the panel never pushes content off-screen.
+        # WHY explanation can scroll inside the panel if needed.
+        self._feedback_frame.setMaximumHeight(260)
         _clear_layout(self._feedback_layout)
 
         is_correct = result["is_correct"]
