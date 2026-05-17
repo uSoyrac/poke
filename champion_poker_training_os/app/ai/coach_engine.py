@@ -386,6 +386,63 @@ def coach_chat(prompt: str, selected_spot: dict | None = None, session_stats: di
     if not lower:
         return _coach_help_menu()
 
+    # ─ Pro player lookup ────────────────────────────────────────────
+    # Kullanıcı bir pro ismi söylediyse → profil + advice döndür
+    try:
+        from app.data.pro_profiles import lookup_pro, format_pro, search_pros
+        # Tam isim eşleştir
+        for word in lower.replace("'", " ").replace(",", " ").split():
+            pro = lookup_pro(word)
+            if pro:
+                base = format_pro(pro)
+                if any(k in lower for k in ("göre", "ne der", "ne yapardı", "advice")):
+                    return base + "\n\n" + _coach_meta_reasoning_note()
+                return base
+        # Partial match (örn "ivey")
+        matches = search_pros(lower)
+        if matches and len(matches) == 1:
+            return format_pro(matches[0])
+        if matches and len(matches) <= 3:
+            return (
+                "🃏  EŞLEŞEN OYUNCULAR\n\n"
+                + "\n\n".join(f"• {p['name']} ({p['style_tag']})" for p in matches)
+                + "\n\nDaha spesifik ad yaz: '"
+                + matches[0]["name"]
+                + "' veya 'doyle' / 'ivey' / 'hellmuth' vb."
+            )
+    except Exception:
+        pass
+
+    # ─ Glossary term lookup ─────────────────────────────────────────
+    try:
+        from app.data.poker_glossary import lookup, search_glossary, format_entry
+        # Tam terim eşleştir (örn "MDF", "GTO", "polarized")
+        for word in lower.replace("'", " ").replace(",", " ").split():
+            entry = lookup(word)
+            if entry:
+                return format_entry(entry) + "\n\n" + _next_step_suggestion(
+                    [entry["category"]], selected_spot
+                )
+        # 'X nedir', 'X ne demek' kalıpları
+        if "nedir" in lower or "ne demek" in lower or "anlat" in lower:
+            # 'pot odds nedir' → pot odds aranır
+            stripped = (lower.replace("nedir", "").replace("ne demek", "")
+                              .replace("anlat", "").replace("?", "").strip())
+            entry = lookup(stripped)
+            if entry:
+                return format_entry(entry) + "\n\n" + _next_step_suggestion(
+                    [entry["category"]], selected_spot
+                )
+            matches = search_glossary(stripped)
+            if matches:
+                return (
+                    "📖  EŞLEŞEN TERİMLER\n\n"
+                    + "\n".join(f"• {e['term']} — {e['short']}" for e in matches[:6])
+                    + "\n\nDaha spesifik sorman için terimin tam adını yaz."
+                )
+    except Exception:
+        pass
+
     # Spot-spesifik soru — spot seçildiyse ve sorulan şey "neden" benzeri
     spot_context_words = ("neden", "niye", "niçin", "açıkla", "anlat", "why", "explain", "ne yapma", "yapmalı")
     if selected_spot and any(w in lower for w in spot_context_words):
