@@ -424,8 +424,10 @@ class PokerGame:
         """Calculate running session statistics."""
         if not self.hand_history:
             return {
-                "hands": 0, "profit": 0, "vpip": 0, "pfr": 0,
-                "wtsd": 0, "win_rate": 0, "biggest_pot": 0,
+                "hands": 0, "profit": 0, "profit_bb": 0,
+                "vpip": 0, "pfr": 0, "wtsd": 0,
+                "win_rate": 0, "biggest_pot": 0, "bb_per_100": 0,
+                "agg_factor": 0,
             }
 
         total = len(self.hand_history)

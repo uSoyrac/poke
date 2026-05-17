@@ -350,25 +350,20 @@ class LivePokerTable(QWidget):
 
     def _paint_hole_cards(self, painter: QPainter, cx: float, cy: float,
                           cards: list[str], face_up: bool) -> None:
-        # Larger so suit symbol + rank are both legible at a glance
+        # Font-bağımsız 4-color deck suit shapes
+        from app.ui.components.card_view import paint_suit_shape, SUIT_COLORS, _normalize_suit
         card_w, card_h = 32, 44
         gap = 3
         total = len(cards) * card_w + (len(cards) - 1) * gap
         start_x = cx - total / 2
-        # Suit → (symbol, colour). White card face, colour-coded glyph
-        # so spades/clubs are clearly distinguishable from hearts/diamonds.
-        suit_meta = {
-            "s": ("♠", "#0F1419"), "h": ("♥", "#DC2626"),
-            "d": ("♦", "#2563EB"), "c": ("♣", "#059669"),
-        }
         for i, c in enumerate(cards):
             x = start_x + i * (card_w + gap)
             rect = QRectF(x, cy - card_h / 2, card_w, card_h)
             if face_up:
                 rank_raw = (c[0] if c else "?").upper()
                 rank = "10" if rank_raw == "T" else rank_raw
-                suit_ch = c[1].lower() if len(c) > 1 else ""
-                symbol, colour = suit_meta.get(suit_ch, ("?", "#374151"))
+                suit = _normalize_suit(c[1] if len(c) > 1 else "")
+                colour = SUIT_COLORS.get(suit, "#374151")
                 # White card body
                 painter.setBrush(QColor("#FAFAFA"))
                 painter.setPen(QPen(QColor("#9CA3AF"), 1))
@@ -381,17 +376,10 @@ class LivePokerTable(QWidget):
                     QRectF(x + 2, cy - card_h / 2 + 2, card_w - 4, 16),
                     Qt.AlignLeft | Qt.AlignTop, rank,
                 )
-                # Top-left tiny suit under rank
-                f_sm = QFont(); f_sm.setPointSize(9); f_sm.setBold(True)
-                painter.setFont(f_sm)
-                painter.drawText(
-                    QRectF(x + 2, cy - card_h / 2 + 14, card_w - 4, 12),
-                    Qt.AlignLeft | Qt.AlignTop, symbol,
-                )
-                # Centre — big suit symbol so you instantly see ♠♥♦♣
-                f_big = QFont(); f_big.setPointSize(18); f_big.setBold(True)
-                painter.setFont(f_big)
-                painter.drawText(rect, Qt.AlignCenter, symbol)
+                # Top-left small suit shape (geometric, font-bağımsız)
+                paint_suit_shape(painter, x + 8, cy - card_h / 2 + 26, 10, suit)
+                # Centre — BIG suit shape
+                paint_suit_shape(painter, x + card_w / 2, cy + 3, 20, suit)
             else:
                 painter.setPen(QPen(QColor("#3A4659"), 1))
                 painter.setBrush(QColor("#1B2330"))
@@ -403,23 +391,33 @@ class LivePokerTable(QWidget):
                                      int(rect.x() + card_w - 4), int(rect.center().y() + dy))
 
     def _paint_community(self, painter: QPainter, cx: float, cy: float) -> None:
+        from app.ui.components.card_view import paint_suit_shape, SUIT_COLORS, _normalize_suit
         n = len(self.community_cards)
         card_w, card_h = 38, 50
         gap = 4
         total_w = n * card_w + (n - 1) * gap
         start_x = cx - total_w / 2
         for i, c in enumerate(self.community_cards):
-            rect = QRectF(start_x + i * (card_w + gap), cy - card_h / 2, card_w, card_h)
-            suit = c[1].lower() if len(c) > 1 else "?"
-            bg = {"h": "#5C1F22", "d": "#1E3A5C", "s": "#0E2A1E", "c": "#2A2F3A"}.get(suit, "#1B2330")
-            fg = {"h": "#EF4444", "d": "#3B82F6", "s": "#10B981", "c": "#9CA3AF"}.get(suit, "#E5E7EB")
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor(bg))
+            x = start_x + i * (card_w + gap)
+            rect = QRectF(x, cy - card_h / 2, card_w, card_h)
+            rank_raw = (c[0] if c else "?").upper()
+            rank = "10" if rank_raw == "T" else rank_raw
+            suit = _normalize_suit(c[1] if len(c) > 1 else "")
+            colour = SUIT_COLORS.get(suit, "#374151")
+            # White card body
+            painter.setBrush(QColor("#FAFAFA"))
+            painter.setPen(QPen(QColor("#9CA3AF"), 1))
             painter.drawRoundedRect(rect, 5, 5)
-            painter.setPen(QPen(QColor(fg)))
-            font = QFont(); font.setPointSize(15); font.setBold(True)
-            painter.setFont(font)
-            painter.drawText(rect, Qt.AlignCenter, c[0] if c else "?")
+            # Top-left rank
+            painter.setPen(QPen(QColor(colour)))
+            f_rank = QFont(); f_rank.setPointSize(13); f_rank.setBold(True)
+            painter.setFont(f_rank)
+            painter.drawText(
+                QRectF(x + 2, cy - card_h / 2 + 2, card_w - 4, 18),
+                Qt.AlignLeft | Qt.AlignTop, rank,
+            )
+            # Big center suit shape
+            paint_suit_shape(painter, x + card_w / 2, cy + 4, 22, suit)
 
     def _paint_pot(self, painter: QPainter, cx: float, cy: float) -> None:
         text = f"Pot: {self.pot_bb:.1f}bb  ·  {self.street}"

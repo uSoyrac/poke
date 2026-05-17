@@ -30,14 +30,36 @@ class PlaySessionScreen(QWidget):
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         body = QWidget()
         scroll.setWidget(body)
-        root.addWidget(scroll)
+        root.addWidget(scroll, 1)
+
+        # ── STICKY top-of-action-bar — always visible 'Deal Next Hand' ──
+        # Pinned ABOVE the scroll area so the user never has to scroll
+        # for the most common action.
+        self._sticky_bar = QFrame()
+        self._sticky_bar.setStyleSheet(
+            "QFrame{background:#0F141C;border-bottom:1px solid #1E2733;}"
+        )
+        self._sticky_layout = QHBoxLayout(self._sticky_bar)
+        self._sticky_layout.setContentsMargins(18, 8, 18, 8)
+        self._sticky_layout.setSpacing(10)
+        self._sticky_bar.hide()   # hidden until session starts
+        # Insert at TOP (before scroll)
+        root.insertWidget(0, self._sticky_bar, 0)
+
         self.layout_main = QVBoxLayout(body)
         self.layout_main.setContentsMargins(18, 18, 18, 18)
         self.layout_main.setSpacing(12)
+
+        # Keyboard shortcuts — Space / Enter / N for Deal Next Hand
+        from PySide6.QtGui import QShortcut, QKeySequence
+        for keyseq in ("Space", "Return", "Enter", "N"):
+            sc = QShortcut(QKeySequence(keyseq), self)
+            sc.activated.connect(self._kbd_deal_next)
 
         # === SETUP PANEL ===
         self.setup_frame = QFrame()
@@ -205,24 +227,38 @@ class PlaySessionScreen(QWidget):
         self.history_layout.addWidget(_title("📜 Hand History"))
         game_layout.addWidget(self.history_frame)
 
-        # Bottom buttons
-        bottom_btns = QHBoxLayout()
-        self.next_btn = QPushButton("Deal Next Hand →")
+        # Action buttons live in the STICKY BAR at the top of the screen
+        self.next_btn = QPushButton("Sonraki El  →   (Space)")
         self.next_btn.setObjectName("PrimaryButton")
+        self.next_btn.setMinimumHeight(40)
+        self.next_btn.setStyleSheet(
+            "QPushButton#PrimaryButton{background:#22D3EE;color:#061018;"
+            "border:none;border-radius:8px;font-size:14px;font-weight:800;"
+            "padding:6px 24px;}"
+            "QPushButton#PrimaryButton:hover{background:#0EA9C2;}"
+        )
+        self.next_btn.setCursor(Qt.PointingHandCursor)
+        self.next_btn.setToolTip("Klavye: Space / Enter / N")
         self.next_btn.clicked.connect(self._deal_next)
         self.next_btn.hide()
-        self.review_btn = QPushButton("🔍 Review Last Hand")
+        self.review_btn = QPushButton("🔍 Son Eli İncele")
+        self.review_btn.setMinimumHeight(40)
         self.review_btn.clicked.connect(self._review_last)
         self.review_btn.hide()
-        self.end_btn = QPushButton("📊 End Session")
+        self.end_btn = QPushButton("📊 Oturumu Bitir")
+        self.end_btn.setMinimumHeight(40)
         self.end_btn.clicked.connect(self._end_session)
         self.end_btn.hide()
-        bottom_btns.addWidget(self.next_btn)
-        bottom_btns.addWidget(self.review_btn)
-        bottom_btns.addWidget(self.end_btn)
-        game_layout.addLayout(bottom_btns)
+        self._sticky_layout.addWidget(self.next_btn, 2)
+        self._sticky_layout.addWidget(self.review_btn)
+        self._sticky_layout.addWidget(self.end_btn)
 
         self.layout_main.addWidget(self.game_frame)
+
+    def _kbd_deal_next(self) -> None:
+        """Keyboard shortcut: only fires when 'Sonraki El' button is visible."""
+        if hasattr(self, "next_btn") and self.next_btn.isVisible() and self.next_btn.isEnabled():
+            self._deal_next()
 
     def _on_player_count_changed(self, n: int) -> None:
         self.hero_seat_spin.setMaximum(n)
@@ -279,6 +315,7 @@ class PlaySessionScreen(QWidget):
             bot_archetypes=per_seat,
         )
         self.setup_frame.hide()
+        self._sticky_bar.show()   # show sticky action bar
         self.game_frame.show()
         self.feedback_label.setText("Session started! Dealing first hand...")
         self.coach_message.emit(
@@ -393,10 +430,10 @@ class PlaySessionScreen(QWidget):
         # Stats
         stats = self.game.get_session_stats()
         _update_card(self.stat_hands, str(stats["hands"]), "played")
-        profit_str = f"{stats['profit_bb']:+.1f}bb"
-        _update_card(self.stat_profit, profit_str, f"{stats['bb_per_100']:+.1f}bb/100")
-        _update_card(self.stat_vpip, f"{stats['vpip']:.0f}%", "voluntary")
-        _update_card(self.stat_winrate, f"{stats['win_rate']:.0f}%", "showdown")
+        profit_str = f"{stats.get('profit_bb', 0):+.1f}bb"
+        _update_card(self.stat_profit, profit_str, f"{stats.get('bb_per_100', 0):+.1f}bb/100")
+        _update_card(self.stat_vpip, f"{stats.get('vpip', 0):.0f}%", "voluntary")
+        _update_card(self.stat_winrate, f"{stats.get('win_rate', 0):.0f}%", "showdown")
 
         if hand.is_complete:
             self._on_hand_complete()

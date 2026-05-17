@@ -243,7 +243,7 @@ class TournamentSimulatorScreen(QWidget):
         return val
 
     def _open_setup(self) -> None:
-        """Open the shared MTT setup dialog and reseed the engine from it."""
+        """Open the shared MTT setup dialog and FULLY restart the simulator."""
         preset = MttConfig(
             tournament_name   = "Online Turbo Low Stakes",
             field_size        = self.engine.field_size,
@@ -258,20 +258,39 @@ class TournamentSimulatorScreen(QWidget):
         if dlg.exec() != dlg.Accepted:
             return
         cfg = dlg.config
-        self.engine.field_size     = cfg.field_size
-        self.engine.buyin          = float(cfg.buyin)
-        self.engine.starting_stack = cfg.starting_stack
-        self.engine.speed          = "turbo" if cfg.minutes_per_level <= 8 else \
-                                     "hyper" if cfg.minutes_per_level <= 4 else "regular"
-        self.engine.chip_stack     = cfg.starting_stack
+        # Tam yeniden başlatma — eski engine state'ini bırak
+        from app.simulator.mtt_engine import TournamentEngine
+        self.engine = TournamentEngine(
+            field_size     = cfg.field_size,
+            starting_stack = cfg.starting_stack,
+            speed          = cfg.speed_class,
+            pko            = True,
+            buyin          = float(cfg.buyin),
+        )
         self.table_size_spin.setValue(cfg.table_size)
         self._setup_summary.setText(
-            f"{cfg.tournament_name}  ·  Field: {cfg.field_size}  ·  "
-            f"Buy-in: ${cfg.buyin:.0f}  ·  Stack: {cfg.starting_stack:,}  ·  "
+            f"{cfg.tournament_name}  ·  {cfg.field_size} oyuncu  ·  "
+            f"${cfg.buyin:.0f} buy-in  ·  {cfg.starting_stack:,} chip  ·  "
             f"{cfg.skill_style}/{cfg.skill_level}  ·  {cfg.table_size}-handed"
         )
         self._refresh_context()
-        self._refresh_live_table()
+        self.load_spot()  # New spot loads — index reset
+        # Clear stale report
+        self.report.setText(
+            f"✅ Turnuva başlatıldı: {cfg.field_size} oyuncu  ·  "
+            f"{cfg.skill_style}/{cfg.skill_level}\n"
+            "İlk karar bekleniyor — ekrana göre FOLD/CALL/RAISE/JAM seç."
+        )
+        self.report.setStyleSheet(f"color:{_C_GREEN};")
+        try:
+            from app.ui.components.toast import Toast
+            Toast.show_success(
+                self.window(),
+                f"✅ Turnuva başlatıldı: {cfg.field_size} oyuncu, "
+                f"{cfg.skill_style}/{cfg.skill_level}"
+            )
+        except Exception:
+            pass
 
     def _reset(self) -> None:
         # MTT engine doesn't have a reset() method — recreate it
