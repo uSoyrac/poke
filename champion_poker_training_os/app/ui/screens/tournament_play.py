@@ -401,6 +401,20 @@ class TournamentPlayScreen(QWidget):
             self._stat[key] = val
         rv.addWidget(stats_f)
 
+        # ── Coach tip — bot tipine özel exploit önerisi ─────────────
+        rv.addWidget(_section("💭  Coach Tavsiyesi"))
+        self._coach_tip = QLabel(
+            "Turnuva başlatıldığında bot mix'e göre exploit önerisi gelecek."
+        )
+        self._coach_tip.setWordWrap(True)
+        self._coach_tip.setStyleSheet(
+            f"QLabel{{background:#0F1E2A;color:{_C_TEXT};font-size:11px;"
+            f"padding:10px 12px;border-radius:6px;border-left:3px solid {_C_CYAN};"
+            f"font-weight:500;line-height:1.5;}}"
+        )
+        rv.addWidget(self._coach_tip)
+        rv.addSpacing(8)
+
         rv.addWidget(_section("🔴  Mistake Log"))
         log_scroll = QScrollArea()
         log_scroll.setWidgetResizable(True)
@@ -476,11 +490,109 @@ class TournamentPlayScreen(QWidget):
             f"{cfg.tournament_name}  ·  {cfg.field_size} oyuncu  ·  ${cfg.buyin:.0f} "
             f"·  {cfg.starting_stack:,} chip  ·  {cfg.skill_style}/{cfg.skill_level}"
         )
+        # ── Coach tip: bot mix'e göre exploit önerisi ─────────────
+        self._coach_tip.setText(self._coach_tip_for_mix(bot_mix, cfg))
         self.start_btn.setVisible(False)
         self.reset_btn.setVisible(True)
         _clear_layout(self._log_vbox)
         self._fb.setMaximumHeight(0)
         self._deal_hand()
+
+    @staticmethod
+    def _coach_tip_for_mix(bot_mix: list[str], cfg) -> str:
+        """Bot mix dağılımına göre master-coach tavsiye üretir."""
+        if not bot_mix:
+            return "Bot mix tanımlanmadı."
+        from collections import Counter
+        counts = Counter(bot_mix)
+        most_common = counts.most_common(1)[0][0]
+        # Bot tipine özel exploit
+        tips = {
+            "Fish": (
+                "🎣 FISH-HEAVY MASA\n"
+                "Loose-passive oyuncular. Value-bet thin (top pair iyi kicker yeterli), "
+                "büyük sizing (2/3-pot+) — onlar pot odds anlamaz. "
+                "Bluff'tan kaçın — onlar bet'ine inanır, fold etmez."
+            ),
+            "Calling Station": (
+                "🪨 CALLING STATION'lar\n"
+                "Asla bluff yapma — her şey call'lanır. "
+                "Value-heavy line, sizing'i büyüt (1.5x pot bile OK). "
+                "Showdown'a getir, draws/marginal eller fold."
+            ),
+            "Aggro Fish": (
+                "🦊 AGGRO FISH\n"
+                "Loose + agresif ama unbalanced. Bluff frekansları yüksek — hero call "
+                "frekansını artır. Premium eller trap için ideal (slow-play TT+). "
+                "Onların aggresion'u senin value."
+            ),
+            "Maniac": (
+                "🌀 MANIAC OYUNCULAR\n"
+                "Her şey raise/jam — variance fıçısı. Sıkı tight range bekle, "
+                "QQ+ ile light call. Bluff yapma — onlar her şey call'lar. "
+                "Bankroll bb-fonlu olmalı, swing'ler büyük."
+            ),
+            "Tight Passive": (
+                "🐢 TIGHT-PASSIVE\n"
+                "Premium beklerler. Onlar bet attığında inan — bluff nadir. "
+                "Sen geniş steal et — blind'ları çal. Onlara karşı 3-bet "
+                "frequency artır, fold'a yüksek."
+            ),
+            "TAG": (
+                "🎯 TAG (Tight-Aggressive)\n"
+                "Solid winning reg profili. Standart GTO oyna — exploit zor. "
+                "3-bet'lerine fazla fold ediyorlar (overfold leak) — light 3-bet bluff +EV. "
+                "Postflop tight, c-bet'lere normal MDF."
+            ),
+            "LAG": (
+                "⚔️ LAG (Loose-Aggressive)\n"
+                "Geniş range, agresif. 4-bet bluff frequency yüksek olabilir — light "
+                "5-bet jam (AKs+, QQ+). Postflop hero call'lar ödüllü, multi-street "
+                "bluff catch için sabırlı ol."
+            ),
+            "Reg": (
+                "♟️ REG (Düzenli oyuncu)\n"
+                "TAG-LAG arası. GTO baseline'a yakın oynarlar. Exploit zor — büyük "
+                "leaks için 1000+ el sample gerek. Disipline kal, marginal spotları fold."
+            ),
+            "Balanced Reg": (
+                "⚖️ BALANCED REG\n"
+                "GTO frequency'lere yakın oynar — exploit çok zor. Standart GTO ile "
+                "savaş, marginal spotları premium spotlara çevirmeye çalışma. "
+                "Variance düşürmek odak."
+            ),
+            "Shark": (
+                "🦈 SHARK (Pro seviye)\n"
+                "GTO + exploit ikisini de bilen pro. Exploit attempt ters tepebilir. "
+                "Sadece premium spotları savaş, bluff frequency'leri düşür, "
+                "thin value spotları skip — variance riski yüksek."
+            ),
+            "Nit": (
+                "🐌 NIT (Çok sıkı)\n"
+                "Premium only. Bluff sıklığı düşür (onların fold range'i geniş = "
+                "bluff +EV). Bet attıklarında inan — sadece premium ile aggression. "
+                "Blind'larından çal — defend frequency düşük."
+            ),
+            "Rock": (
+                "🪨 ROCK\n"
+                "Çok dar, çok agresif değil. Sürekli baskı kur — fold frekansları "
+                "yüksek. Bet attığında stop ve düşün — sadece premium."
+            ),
+        }
+        primary = tips.get(most_common, f"Karışık masa ({most_common} ağırlıklı).")
+        # Compose multi-bot insight
+        unique = len(set(bot_mix))
+        summary = (
+            f"📊 Masada {len(bot_mix)} bot, {unique} farklı arketip.  "
+            f"Ana tip: **{most_common}**.\n\n{primary}"
+        )
+        # ICM context if applicable
+        if cfg.field_size >= 100:
+            summary += (
+                f"\n\n💰 {cfg.field_size}-player MTT — bubble/FT yaklaştıkça ICM "
+                f"premium ekle, kısa stack'lere maksimum baskı kur."
+            )
+        return summary
 
     def _reset(self) -> None:
         """Bust out / end current tournament → save record + show result dialog."""
@@ -490,6 +602,9 @@ class TournamentPlayScreen(QWidget):
         self.session = TournamentSession()
         self.game    = None
         self._tour_summary.setText("Henüz başlatılmadı.")
+        self._coach_tip.setText(
+            "Turnuva başlatıldığında bot mix'e göre exploit önerisi gelecek."
+        )
         self.start_btn.setVisible(True)
         self.reset_btn.setVisible(False)
         _clear_layout(self._log_vbox)
