@@ -10,24 +10,30 @@ from app.solver.mock_solver import compare_action, solve_spot
 def explain_spot(spot: dict, hero_action: str | None = None) -> str:
     """Spot için detaylı Türkçe coach analizi.
 
-    9 bölüm yerine 5 anlamlı blok — gereksiz jargon yok, her cümle bir
-    öğretici noktayı vurguluyor. Sonunda bir mnemonic ve drill önerisi.
+    When `hero_action` is supplied, the user just made a decision — we route
+    to `teacher_review()` which gives the per-option % breakdown and
+    teacher-style "what should I have been thinking" explanation. Without
+    a hero action, fall back to the lighter pre-game spot brief.
     """
     if hero_action:
-        result = compare_action(spot, hero_action)
-    else:
-        solver = solve_spot(spot)
-        result = {
-            "hero_action": "—",
-            "best_action": solver.best_action,
-            "ev_loss": 0.0,
-            "best_frequency": solver.actions[0].frequency if solver.actions else 0.0,
-            "solver": {
-                "source_confidence": solver.source_confidence,
-                "range_advantage": solver.range_advantage,
-                "nut_advantage": solver.nut_advantage,
-            },
-        }
+        return teacher_review(spot, hero_action)
+    return _explain_spot_brief(spot)
+
+
+def _explain_spot_brief(spot: dict) -> str:
+    """Lighter brief used when no hero action exists yet (pre-decision)."""
+    solver = solve_spot(spot)
+    result = {
+        "hero_action": "—",
+        "best_action": solver.best_action,
+        "ev_loss": 0.0,
+        "best_frequency": solver.actions[0].frequency if solver.actions else 0.0,
+        "solver": {
+            "source_confidence": solver.source_confidence,
+            "range_advantage": solver.range_advantage,
+            "nut_advantage": solver.nut_advantage,
+        },
+    }
 
     pot      = float(spot.get("pot_bb", 10.0))
     risk     = max(1.0, pot * 0.66)
@@ -109,6 +115,280 @@ def explain_spot(spot: dict, hero_action: str | None = None) -> str:
         f"⚡ 'Drill Bunları' butonuyla benzer 5+ spot çöz. 3 doğru üst üste\n"
         f"yapınca leak otomatik kapanır. Sonra aynı spotu feedback kapalı tekrar dene."
     )
+
+
+# ─── Teacher Review (per-option breakdown + WHY) ────────────────────
+
+
+def teacher_review(spot: dict, hero_action: str) -> str:
+    """Detailed teacher-style review after a hero decision.
+
+    Sections:
+      • Verdikt (with EV-loss tier)
+      • Karar Dağılımı — every option with %, EV, BB-sizing
+      • Bu spotta ne düşünmeliydin — 5-bullet thinking framework
+        (pot, stack, position, range, ICM/chip-EV)
+      • Neden GTO X? — concrete justification
+      • Matematik (BB-units): pot odds, MDF, SPR
+      • Range & Blocker
+      • Mnemonic + drill
+
+    All bet sizings are in BB units. Pot odds and MDF computed against
+    the option the solver actually wants the hero to take.
+    """
+    solver = solve_spot(spot)
+    compare = compare_action(spot, hero_action)
+
+    pot      = float(spot.get("pot_bb", 10.0))
+    stack    = spot.get("stack_bb", 25)
+    pos      = spot.get("position", "Hero")
+    pot_t    = spot.get("pot_type", "SRP")
+    street   = (spot.get("street") or "preflop").lower()
+    board    = spot.get("board") or "—"
+    hero_h   = spot.get("hero_cards", "?")
+    is_icm   = bool(spot.get("icm") or spot.get("is_icm")
+                     or "ICM" in (spot.get("name") or "").upper()
+                     or pot_t.upper() == "ICM")
+    payouts  = spot.get("payouts") or spot.get("icm_payouts")
+
+    hero_a   = compare["hero_action"]
+    gto_a    = compare["best_action"]
+    ev_loss  = compare["ev_loss"]
+    best_freq = compare.get("best_frequency", 0)
+    hero_freq = compare.get("solver_frequency", 0)
+    source    = compare["solver"]["source_confidence"]
+
+    # ── Verdikt tier ───────────────────────────────────────────────
+    if ev_loss < 0.05:
+        verdict_icon = "✅"
+        verdict = "Karar doğru — GTO ile uyumlu, EV maksimize."
+    elif ev_loss < 0.5:
+        verdict_icon = "⚠"
+        verdict = "Marjinal hata — EV kaybı küçük ama tekrarlanırsa leak olur."
+    elif ev_loss < 1.5:
+        verdict_icon = "❌"
+        verdict = "Belirgin hata — bu spotu drill etmen lazım."
+    else:
+        verdict_icon = "🔥"
+        verdict = "Büyük leak — bu hata pahalı, hemen düzelt."
+
+    # ── Karar Dağılımı table ──────────────────────────────────────
+    # Sort by frequency desc; mark GTO best and hero's pick
+    actions_sorted = sorted(
+        solver.actions, key=lambda a: a.frequency, reverse=True
+    )
+    breakdown_lines = []
+    breakdown_lines.append("   ┌──────────────────────────────────────────────────────────┐")
+    for a in actions_sorted:
+        name = a.action.upper()
+        is_best = (a.action == gto_a)
+        is_hero = (a.action == hero_a)
+        marker = "▶ " if is_best else "  "
+        tag    = ""
+        if is_best and is_hero:
+            tag = "  ✓ GTO + sen"
+        elif is_best:
+            tag = "  ← GTO"
+        elif is_hero:
+            tag = "  ← sen"
+        pct = f"%{a.frequency * 100:5.1f}"
+        ev  = f"EV {a.ev:+5.2f}bb"
+        sz  = f" · {a.sizing}" if a.sizing else ""
+        breakdown_lines.append(
+            f"   │ {marker}{name:<7} {pct}   {ev}{sz[:32]:<32}{tag}".ljust(60) + " │"
+        )
+    breakdown_lines.append("   └──────────────────────────────────────────────────────────┘")
+    breakdown = "\n".join(breakdown_lines)
+
+    # ── Thinking framework — what the hero should have asked ──────
+    # All sizings BB-based. Stack and pot are already in BB.
+    try:
+        stack_bb = float(stack)
+    except (ValueError, TypeError):
+        stack_bb = 25.0
+    spr = stack_bb / max(pot, 0.5)
+    standard_open_bb = 2.5 if street == "preflop" else max(0.66 * pot, 1.0)
+    risk_for_best = _typical_risk_bb(gto_a, pot, stack_bb, street)
+    req_eq = required_equity(risk_for_best, pot) if risk_for_best > 0 else 0.0
+    defense_mdf = mdf(risk_for_best, pot) if risk_for_best > 0 else 0.0
+
+    framework = []
+    framework.append(
+        f"   1) Pot ölçüsü: pot {pot:.1f}bb, hedef aksiyon {risk_for_best:.1f}bb "
+        f"→ riziko/pot oranı {risk_for_best/max(pot,0.5):.2f}."
+    )
+    framework.append(
+        f"   2) Stack derinliği: {stack_bb:.0f}bb "
+        f"({'short' if stack_bb < 20 else 'medium' if stack_bb < 50 else 'deep'}) "
+        f"→ SPR {spr:.1f}. {'Implied odds düşük; pre-pot equity öncelikli.' if stack_bb < 25 else 'İmplied odds postflop spotlarda devreye girer.'}"
+    )
+    framework.append(
+        f"   3) Pozisyon: {pos} — "
+        f"{'in-position avantajı tüm street boyunca.' if pos in ('BTN','CO','HJ') else 'OOP — pot kontrol önceliği, range protection.'}"
+    )
+    framework.append(
+        f"   4) Range avantajı: "
+        + (compare['solver'].get('range_advantage')
+           or _range_advantage_fallback(pos, pot_t, street))
+    )
+    if is_icm:
+        # ICM context — risk premium, ladder pressure
+        ladder_note = ""
+        if payouts and isinstance(payouts, (list, tuple)) and len(payouts) >= 2:
+            ladder_note = (
+                f" Payout merdiveni: {payouts[0]} / {payouts[1]} → "
+                f"chip-EV ≠ $-EV; küçük marjinde fold öncelikli."
+            )
+        framework.append(
+            "   5) ICM baskısı: chip kaybı $-değer kaybından büyük → "
+            "risk premium uygula, marjinal call'ları kes." + ladder_note
+        )
+    else:
+        framework.append(
+            "   5) Chip-EV (cash/non-ICM): chip = $ → ham EV maksimize, "
+            "marjinal +EV spotlardan kaçma."
+        )
+    framework_block = "\n".join(framework)
+
+    # ── Neden GTO X? ──────────────────────────────────────────────
+    why_lines = _why_gto(gto_a, pos, pot_t, street, hero_h, board, hero_a, stack_bb)
+
+    # ── Math (BB-first) ───────────────────────────────────────────
+    math_block = (
+        f"   • Pot odds (best aksiyona göre): {risk_for_best:.1f}bb risk, "
+        f"{pot:.1f}bb pot → %{req_eq*100:.0f} equity gerekli.\n"
+        f"   • MDF (savunma frekansı): %{defense_mdf*100:.0f} — bunun altına düşersen exploitable.\n"
+        f"   • SPR (stack-to-pot): {spr:.1f} "
+        f"({'commitment yüksek — küçük raise ≈ all-in' if spr < 4 else 'manevra alanı var'}).\n"
+        f"   • Standard {street} açış sizing: {standard_open_bb:.1f}bb"
+    )
+
+    # ── Range & Blocker ───────────────────────────────────────────
+    range_note = (compare["solver"].get("range_advantage")
+                  or _range_advantage_fallback(pos, pot_t, street))
+    nut_note   = (compare["solver"].get("nut_advantage")
+                  or _nut_advantage_fallback(hero_h, board))
+    blockers   = blocker_note(hero_h, board if board != "—" else "")
+    if not blockers:
+        blockers = ("Bu eli blocker açısından değerlendir: villain'in value range'ini "
+                    "blokluyor musun? A-blocker AKx/AA combo'larını azaltır.")
+
+    # ── Mnemonic ───────────────────────────────────────────────────
+    mnemonic = _mnemonic_for(pos, pot_t, gto_a)
+
+    # ── Compose ────────────────────────────────────────────────────
+    return (
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🎯 SPOT — {pos} · {stack_bb:.0f}bb · {pot_t} · {street.title()}\n"
+        f"   Elin: {hero_h}   ·   Board: {board}\n"
+        f"   Pot: {pot:.1f}bb   ·   Stack: {stack_bb:.0f}bb   ·   SPR: {spr:.1f}"
+        + (f"   ·   🏆 ICM" if is_icm else "")
+        + "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        f"{verdict_icon} VERDIKT\n"
+        f"{verdict}\n"
+        f"Sen: {hero_a.upper()} (%{hero_freq*100:.0f})  →  "
+        f"GTO: {gto_a.upper()} (%{best_freq*100:.0f})\n"
+        f"EV kaybı: {ev_loss:.2f}bb   ·   Source: {source}\n\n"
+
+        f"📊 KARAR DAĞILIMI — her opsiyonun GTO frekansı + EV\n"
+        f"{breakdown}\n\n"
+
+        f"🧠 BU SPOTTA NE DÜŞÜNMELİYDİN\n"
+        f"{framework_block}\n\n"
+
+        f"🎓 NEDEN GTO {gto_a.upper()}?\n"
+        f"{why_lines}\n\n"
+
+        f"⚖️ MATEMATİK (BB cinsinden)\n"
+        f"{math_block}\n\n"
+
+        f"🃏 RANGE & BLOCKER\n"
+        f"   • {range_note}\n"
+        f"   • {nut_note}\n"
+        f"   • {blockers}\n\n"
+
+        f"🎯 AKILDA KALSIN\n"
+        f"   {mnemonic}\n\n"
+
+        f"🔁 SONRAKI ADIM\n"
+        f"   ⚡ 'Drill Bunları' butonu → benzer 5+ spot. 3 doğru üst üste\n"
+        f"   yapınca leak otomatik kapanır. Sonra feedback kapalı tekrar dene."
+    )
+
+
+def _typical_risk_bb(action: str, pot: float, stack_bb: float, street: str) -> float:
+    """Typical risk in BB for a given action class — used in math block.
+
+    Preflop is BB-based (2.5bb open, 8bb 3-bet, etc.). Postflop scales with
+    pot but reported in BB. Returns 0 for check/fold (no risk).
+    """
+    a = (action or "").lower()
+    if a in ("fold", "check"):
+        return 0.0
+    if street == "preflop":
+        if a in ("call",):
+            return min(2.5, stack_bb)  # call the open
+        if a in ("raise", "bet small"):
+            return min(2.5, stack_bb)
+        if "bet" in a or a in ("3bet",):
+            return min(8.0, stack_bb)
+        if a == "jam":
+            return stack_bb
+        return min(2.5, stack_bb)
+    # postflop — express as BB equivalents of pot fractions
+    if "small" in a:   return pot * 0.33
+    if "medium" in a:  return pot * 0.66
+    if "large" in a:   return pot * 1.10
+    if a == "jam":     return stack_bb
+    if a in ("raise",): return pot * 2.4
+    if a in ("call", "bet"): return pot * 0.5
+    return pot * 0.5
+
+
+def _why_gto(gto_a: str, pos: str, pot_t: str, street: str,
+             hero_h: str, board: str, hero_a: str, stack_bb: float) -> str:
+    """Concrete justification for the GTO choice — teacher-style sentences."""
+    a = (gto_a or "").lower()
+    pos_u = (pos or "").upper()
+    pt = (pot_t or "SRP").upper()
+    lines: list[str] = []
+
+    # Why GTO chose this
+    if a in ("raise", "bet medium", "bet large", "3bet", "4bet"):
+        lines.append(f"   • Pozisyon + range avantajı agresyonu destekliyor ({pos_u} · {pt}).")
+        if street == "preflop":
+            lines.append("   • Linear/polarised value-heavy açış: premium elleri pot'a koyup blind'lara IP avantajını ücretsiz bırakmıyorsun.")
+        else:
+            lines.append("   • Bet'lemek hem value alıyor hem villain'in capped range'ine baskı yapıyor.")
+    elif a in ("call",):
+        lines.append("   • Closing/realisation hakkı + pot odds matematiği call'u +EV yapıyor.")
+        lines.append("   • 3-bet/raise yapmak range'i incinmeye uğratır — implied odds ve realisation peşinde koş.")
+    elif a in ("fold",):
+        lines.append("   • Dominated dominance riski yüksek — marginal call =/= chip preservation.")
+        lines.append("   • Range edge yoksa savaşma; folding burada paradan kar etmektir.")
+    elif a == "check":
+        lines.append("   • Range protection + trap kurma — strong range vs weak range'de check daha sık.")
+        lines.append("   • Bet'lemek polarise eder; check tüm marjinalleri ve nut combo'ları aynı line'da tutar.")
+    elif a == "jam":
+        lines.append(f"   • Stack {stack_bb:.0f}bb · SPR düşük → jam = fold equity + showdown equity birleşimi.")
+        lines.append("   • Küçük raise commitment yaratır ama fold equity kaybeder — jam optimal risk/reward.")
+    else:
+        lines.append(f"   • Solver bu spotta {a.upper()} aksiyonunu yüksek frekansla tercih ediyor.")
+
+    # Why NOT what the hero did
+    if hero_a and hero_a != gto_a:
+        h = hero_a.lower()
+        if h == "fold" and a in ("call", "raise"):
+            lines.append("   • Senin FOLD: pot odds avantajını ve realisation hakkını çöpe atıyor.")
+        elif h == "call" and a in ("raise", "3bet", "4bet"):
+            lines.append("   • Senin CALL: passive flat — initiative ve fold equity kaybı.")
+        elif h in ("raise", "bet medium", "3bet") and a in ("call", "check"):
+            lines.append("   • Senin RAISE: marjinal elini turn'leştirip dominate eden range'leri davet ediyor.")
+        elif h == "jam" and a != "jam":
+            lines.append("   • Senin JAM: over-commitment — daha küçük bir bet aynı işi yapardı.")
+
+    return "\n".join(lines)
 
 
 def _range_advantage_fallback(position: str, pot_type: str, street: str) -> str:

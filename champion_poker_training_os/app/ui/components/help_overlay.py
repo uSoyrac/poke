@@ -107,7 +107,7 @@ class HelpOverlay(QDialog):
             sh = QLabel(section_title)
             sh.setStyleSheet(
                 "color:#22D3EE;font-size:13px;font-weight:800;"
-                "letter-spacing:1px;background:transparent;"
+                "background:transparent;"
             )
             v.addWidget(sh)
             grid = QGridLayout()

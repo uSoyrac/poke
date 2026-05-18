@@ -388,7 +388,7 @@ class SpotTrainerScreen(QWidget):
             pill.setFixedHeight(28)
             pill.setStyleSheet(
                 f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-                "border-radius:5px;padding:2px 10px;font-size:11px;}}"
+                "border-radius:5px;padding:2px 10px;font-size:11px;}"
                 f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
             )
             pill.clicked.connect(lambda _, v=pct: self._sizing_input.setText(v))
@@ -409,7 +409,7 @@ class SpotTrainerScreen(QWidget):
         self._action_frame = QFrame()
         self._action_frame.setStyleSheet(
             f"QFrame{{background:{_C_BG};border-top:1px solid {_C_BORDER};"
-            "padding:12px 16px;}}"
+            "padding:12px 16px;}"
         )
         self._action_layout = QHBoxLayout(self._action_frame)
         self._action_layout.setContentsMargins(16, 10, 16, 10)
@@ -549,7 +549,7 @@ class SpotTrainerScreen(QWidget):
             hdr = QLabel(cat)
             hdr.setStyleSheet(
                 f"QLabel{{background:#0C1117;color:{_C_MUTED};font-size:11px;font-weight:700;"
-                "padding:6px 12px;border-bottom:1px solid #1E2733;letter-spacing:0.5px;}}"
+                "padding:6px 12px;border-bottom:1px solid #1E2733;}"
             )
             self._spot_list_layout.addWidget(hdr)
             for spot in spots:
@@ -911,7 +911,7 @@ class SpotTrainerScreen(QWidget):
         next_btn.setFixedHeight(38)
         next_btn.setStyleSheet(
             f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:8px;"
-            "font-weight:800;font-size:13px;padding:4px 18px;}}"
+            "font-weight:800;font-size:13px;padding:4px 18px;}"
             f"QPushButton:hover{{background:#06B6D4;}}"
         )
         next_btn.clicked.connect(self._next_spot)
@@ -948,7 +948,7 @@ class SpotTrainerScreen(QWidget):
             why_label.setStyleSheet(
                 f"QLabel{{background:#0C1117;color:{_C_TEXT};font-size:13px;"
                 "padding:10px 14px;border-radius:8px;border:1px solid #1E2733;"
-                "line-height:1.5;}}"
+                "}"
             )
             self._feedback_layout.addWidget(why_label)
 
@@ -965,7 +965,7 @@ class SpotTrainerScreen(QWidget):
             pill.setStyleSheet(
                 f"QLabel{{background:{bg};border:2px solid {border};"
                 f"color:{fg};border-radius:8px;padding:6px 12px;font-size:12px;"
-                "font-weight:700;}}"
+                "font-weight:700;}"
             )
             freq_row.addWidget(pill)
         self._feedback_layout.addLayout(freq_row)

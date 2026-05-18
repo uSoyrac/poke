@@ -83,7 +83,7 @@ def test_tab_switching_changes_matrix_mode(trainer):
 
 def test_tab_buttons_constructed(trainer):
     expected_tabs = {"Strategy", "Strategy + EV", "EV", "Equity",
-                     "Runout Comparison", "Aggregate Reports"}
+                     "Solver Tree", "Runout Comparison", "Aggregate Reports"}
     assert set(trainer._tab_buttons.keys()) == expected_tabs
 
 

@@ -85,17 +85,25 @@ class ActionFrequencyMatrix(QWidget):
             return {"fold": 50, "call": 30, "raise": 20}
 
     def _hand_strength(self, hand: str) -> int:
-        """Simple hand strength estimation (0-100)."""
+        """Simple hand strength estimation (0-100).
+
+        Accepts 169-style hand notation: "AA" (pair), "AKs" (suited),
+        "AKo" (offsuit). First two chars are ranks, optional 3rd is s/o.
+        """
         if not hand or len(hand) < 2:
             return 50
 
-        ranks = hand[::2]
-        suits = hand[1::2]
-        is_pair = ranks[0] == ranks[1]
-        is_suited = len(suits) >= 2 and suits[0] == suits[1]
-
         rank_order = "23456789TJQKA"
-        high_card = max(rank_order.index(r) for r in ranks) if ranks else 0
+        try:
+            r1, r2 = hand[0], hand[1]
+            if r1 not in rank_order or r2 not in rank_order:
+                return 50
+            is_pair = (r1 == r2)
+            suit_char = hand[2] if len(hand) >= 3 else ""
+            is_suited = (suit_char == "s")
+            high_card = max(rank_order.index(r1), rank_order.index(r2))
+        except (ValueError, IndexError):
+            return 50
 
         strength = 30  # Base strength
 

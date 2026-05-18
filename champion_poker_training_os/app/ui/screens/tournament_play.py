@@ -223,7 +223,7 @@ class TournamentPlayScreen(QWidget):
         self.start_btn.setFixedHeight(36)
         self.start_btn.setStyleSheet(
             f"QPushButton{{background:{_C_GREEN};color:#061018;border-radius:8px;"
-            "font-weight:800;font-size:13px;padding:4px 18px;border:none;}}"
+            "font-weight:800;font-size:13px;padding:4px 18px;border:none;}"
             f"QPushButton:hover{{background:#0EA371;}}"
         )
         self.start_btn.clicked.connect(self._open_setup)
@@ -249,7 +249,7 @@ class TournamentPlayScreen(QWidget):
         self.archive_btn.setFixedHeight(36)
         self.archive_btn.setStyleSheet(
             f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-            "border-radius:8px;font-size:12px;padding:4px 14px;}}"
+            "border-radius:8px;font-size:12px;padding:4px 14px;}"
             f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
         )
         self.archive_btn.clicked.connect(self._open_archive)
@@ -260,7 +260,7 @@ class TournamentPlayScreen(QWidget):
         self.reset_btn.setVisible(False)
         self.reset_btn.setStyleSheet(
             f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-            "border-radius:8px;font-size:12px;padding:4px 12px;}}"
+            "border-radius:8px;font-size:12px;padding:4px 12px;}"
             f"QPushButton:hover{{border-color:{_C_RED};color:{_C_RED};}}"
         )
         self.reset_btn.clicked.connect(self._reset)
@@ -354,7 +354,7 @@ class TournamentPlayScreen(QWidget):
         self._fb.setObjectName("FeedbackPanel")
         self._fb.setStyleSheet(
             f"QFrame#FeedbackPanel{{background:{_C_CARD};border-top:1px solid {_C_BORDER};}}"
-            f"QFrame#FeedbackPanel:hover{{background:#1A2230;cursor:pointer;}}"
+            f"QFrame#FeedbackPanel:hover{{background:#1A2230;}}"
         )
         self._fb.setCursor(Qt.PointingHandCursor)
         # Mouse click anywhere on the feedback panel → next hand
@@ -410,7 +410,7 @@ class TournamentPlayScreen(QWidget):
         self._coach_tip.setStyleSheet(
             f"QLabel{{background:#0F1E2A;color:{_C_TEXT};font-size:11px;"
             f"padding:10px 12px;border-radius:6px;border-left:3px solid {_C_CYAN};"
-            f"font-weight:500;line-height:1.5;}}"
+            f"font-weight:500;}}"
         )
         rv.addWidget(self._coach_tip)
         rv.addSpacing(8)
@@ -435,7 +435,7 @@ class TournamentPlayScreen(QWidget):
         drill_btn.setFixedHeight(36)
         drill_btn.setStyleSheet(
             f"QPushButton{{background:{_C_AMBER};color:#000;border-radius:8px;"
-            "font-weight:700;font-size:12px;border:none;}}"
+            "font-weight:700;font-size:12px;border:none;}"
         )
         drill_btn.clicked.connect(self._queue_mistakes)
         rv.addWidget(drill_btn)
@@ -1263,7 +1263,7 @@ class TournamentPlayScreen(QWidget):
         next_btn.setToolTip("Klavye: Space / Enter / N — veya panele tıkla")
         next_btn.setStyleSheet(
             f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:7px;"
-            "font-weight:800;font-size:12px;padding:4px 14px;border:none;}}"
+            "font-weight:800;font-size:12px;padding:4px 14px;border:none;}"
         )
         next_btn.clicked.connect(self._next_hand)
         row.addWidget(icon); row.addWidget(msg, 1); row.addWidget(next_btn)
@@ -1299,7 +1299,7 @@ class TournamentPlayScreen(QWidget):
             pill.setStyleSheet(
                 f"QLabel{{background:{_C_BG};border:1.5px solid {color};"
                 f"color:{color};border-radius:7px;padding:5px 10px;"
-                "font-size:11px;font-weight:700;}}"
+                "font-size:11px;font-weight:700;}"
             )
             freq_row.addWidget(pill)
         self._fb_layout.addLayout(freq_row)
@@ -1428,7 +1428,7 @@ class TournamentPlayScreen(QWidget):
         again = QPushButton("🔄  Tekrar Oyna")
         again.setStyleSheet(
             f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:8px;"
-            "font-weight:800;font-size:13px;padding:6px 20px;border:none;}}"
+            "font-weight:800;font-size:13px;padding:6px 20px;border:none;}"
         )
         again.clicked.connect(self._reset)
         self._act_layout.addWidget(again)

@@ -211,21 +211,21 @@ class StudyLibraryScreen(QWidget):
             if action == "practice":
                 b.setStyleSheet(
                     f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:8px;"
-                    "font-weight:700;font-size:13px;padding:4px 16px;border:none;}}"
+                    "font-weight:700;font-size:13px;padding:4px 16px;border:none;}"
                     f"QPushButton:hover{{background:#06B6D4;}}"
                 )
                 b.clicked.connect(self._launch_practice)
             elif action == "coach":
                 b.setStyleSheet(
                     f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-                    "border-radius:8px;font-size:13px;padding:4px 14px;}}"
+                    "border-radius:8px;font-size:13px;padding:4px 14px;}"
                     f"QPushButton:hover{{border-color:{_C_CYAN};}}"
                 )
                 b.clicked.connect(lambda: self.coach_message.emit(explain_spot(self.current)))
             else:
                 b.setStyleSheet(
                     f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-                    "border-radius:8px;font-size:13px;padding:4px 14px;}}"
+                    "border-radius:8px;font-size:13px;padding:4px 14px;}"
                     f"QPushButton:hover{{border-color:{_C_CYAN};}}"
                 )
                 if action == "compare":
@@ -295,7 +295,7 @@ class StudyLibraryScreen(QWidget):
             hdr.setFixedHeight(28)
             hdr.setStyleSheet(
                 f"QLabel{{background:#0C1117;color:{_C_MUTED};font-size:11px;font-weight:700;"
-                "padding:4px 12px;border-bottom:1px solid #1E2733;letter-spacing:0.5px;}}"
+                "padding:4px 12px;border-bottom:1px solid #1E2733;}"
             )
             self._list_vbox.addWidget(hdr)
             for spot in items:

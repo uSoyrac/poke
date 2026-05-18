@@ -135,7 +135,7 @@ def _winners_panel(winners: List[tuple], hero_place: int, hero_name: str,
     hdr.setAlignment(Qt.AlignCenter)
     hdr.setStyleSheet(
         f"background:#D1D5DB;color:{_C_CARD_TEXT};font-size:14px;font-weight:700;"
-        f"letter-spacing:2px;padding:8px;border-top-left-radius:6px;"
+        f"padding:8px;border-top-left-radius:6px;"
         f"border-top-right-radius:6px;border-bottom:1px solid #9CA3AF;"
     )
     v.addWidget(hdr)

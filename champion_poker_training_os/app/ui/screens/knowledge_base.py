@@ -152,7 +152,7 @@ class KnowledgeBaseScreen(QWidget):
         self._gloss_detail.setStyleSheet(
             f"QTextEdit{{background:{_C_PANEL};color:{_C_TEXT};"
             f"border:1px solid {_C_BORDER};border-radius:6px;padding:16px;"
-            f"font-size:13px;line-height:1.5;}}"
+            f"font-size:13px;}}"
         )
         split.addWidget(self._gloss_list)
         split.addWidget(self._gloss_detail)
@@ -225,7 +225,7 @@ class KnowledgeBaseScreen(QWidget):
         self._pro_detail.setStyleSheet(
             f"QTextEdit{{background:{_C_PANEL};color:{_C_TEXT};"
             f"border:1px solid {_C_BORDER};border-radius:6px;padding:16px;"
-            f"font-size:13px;line-height:1.5;}}"
+            f"font-size:13px;}}"
         )
         split.addWidget(self._pro_list)
         split.addWidget(self._pro_detail)

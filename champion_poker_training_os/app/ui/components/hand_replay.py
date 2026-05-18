@@ -204,7 +204,7 @@ class HandReplay(QWidget):
         c_layout.addWidget(c_title)
         self.coach_text = QLabel("")
         self.coach_text.setWordWrap(True)
-        self.coach_text.setStyleSheet("color: #9CA3AF; line-height: 1.5;")
+        self.coach_text.setStyleSheet("color: #9CA3AF;")
         c_layout.addWidget(self.coach_text)
         layout.addWidget(self.coach_card)
 

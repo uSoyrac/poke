@@ -371,24 +371,27 @@ class UISimulationAgent:
     # ── helpers ───────────────────────────────────────────────────────────
 
     def _has_visible_action_cards(self, w, screen: str, min_count: int) -> None:
-        # Welcome screen uses _ActionCard widgets — verify count
-        from app.ui.screens.welcome import _ActionCard
-        cards = w.findChildren(_ActionCard)
+        # Welcome screen uses _BigCard widgets (renamed from _ActionCard) — verify count
+        from app.ui.screens.welcome import _BigCard
+        cards = w.findChildren(_BigCard)
         if len(cards) < min_count:
             self._add_high(screen, f"Only {len(cards)} action cards (need ≥{min_count})",
                           "Add 3-step workflow callouts")
 
     def _has_kpi_metrics(self, w, screen: str) -> None:
-        from app.ui.screens.welcome import _MiniMetric
-        cards = w.findChildren(_MiniMetric)
+        # Welcome screen uses _StatCard widgets (renamed from _MiniMetric)
+        from app.ui.screens.welcome import _StatCard
+        cards = w.findChildren(_StatCard)
         if len(cards) < 3:
             self._add_medium(screen, f"Only {len(cards)} KPI cards",
                             "Add at least drills/accuracy/EV cards")
 
     def _has_navigation_links(self, w, screen: str, expected_min: int) -> None:
         from PySide6.QtWidgets import QPushButton
-        # Welcome surface map has many QPushButtons — verify
-        buttons = [b for b in w.findChildren(QPushButton) if b.minimumHeight() >= 60]
+        # Welcome surface map has many QPushButton-based tiles. After the
+        # redesign, tile buttons live inside _BigCard / _QuickLink at heights
+        # of 46-88 px — count anything that looks like a clickable tile.
+        buttons = [b for b in w.findChildren(QPushButton) if b.minimumHeight() >= 40]
         if len(buttons) < expected_min:
             self._add_medium(screen, f"Only {len(buttons)} surface tiles (need ≥{expected_min})",
                             "Add more nav tiles to surface map")

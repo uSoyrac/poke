@@ -205,17 +205,42 @@ def compare_action(spot: dict, hero_action: str) -> dict:
 
 
 def _sizing_label(action: str, spot: dict) -> str:
-    pot = float(spot.get("pot_bb", 10.0))
+    """BB-first sizing label. Pot% shown in parentheses for postflop context.
+
+    Poker players think in big-blind units — that's how stacks, blinds, and
+    raises are quoted in every tournament/cash recap. We lead with BB, and
+    only show pot% as a secondary reference for postflop bets where pot
+    geometry matters for the math.
+    """
+    pot     = float(spot.get("pot_bb", 10.0))
+    bb_size = float(spot.get("big_blind", 1.0))   # in chips; default 1 unit
+    stack   = float(spot.get("stack_bb", 25))
+    street  = (spot.get("street") or "preflop").lower()
+
+    def _bb(amount_in_chips: float) -> float:
+        """Amount in chips → BB (already-BB pot stays as-is)."""
+        return amount_in_chips / bb_size if bb_size else amount_in_chips
+
     if "small" in action:
-        return f"{pot * 0.33:.1f}bb / 33% pot"
+        amt = pot * 0.33
+        return f"{_bb(amt):.1f}bb  (33% pot)"
     if "medium" in action:
-        return f"{pot * 0.66:.1f}bb / 66% pot"
+        amt = pot * 0.66
+        return f"{_bb(amt):.1f}bb  (66% pot)"
     if "large" in action:
-        return f"{pot * 1.10:.1f}bb / 110% pot"
+        amt = pot * 1.10
+        return f"{_bb(amt):.1f}bb  (110% pot)"
     if action == "jam":
-        return f"{spot.get('stack_bb', 25)}bb all-in"
+        return f"{stack:.0f}bb all-in"
     if action == "raise":
-        return f"{pot * 2.4:.1f}bb raise"
+        # Preflop: open is 2.5x BB; postflop raise = ~2.4x prior bet
+        if street == "preflop":
+            return f"2.5bb open"
+        return f"{_bb(pot * 2.4):.1f}bb  (raise)"
+    if action == "call":
+        return f"call (to call)"
+    if action in ("check", "fold"):
+        return ""
     return ""
 
 

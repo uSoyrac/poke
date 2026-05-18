@@ -41,7 +41,7 @@ _C_RED    = "#EF4444"
 def _section_label(text: str) -> QLabel:
     lbl = QLabel(text)
     lbl.setStyleSheet(
-        f"color:{_C_MUTED};font-size:10px;font-weight:700;letter-spacing:1.2px;"
+        f"color:{_C_MUTED};font-size:10px;font-weight:700;"
         f"background:transparent;padding-bottom:4px;"
     )
     return lbl
@@ -58,7 +58,7 @@ def _stat_pill(caption: str, value: str, accent: str = _C_TEXT) -> QFrame:
     v.setSpacing(0)
     cap = QLabel(caption)
     cap.setStyleSheet(f"color:{_C_MUTED};font-size:10px;font-weight:700;"
-                      f"letter-spacing:1px;background:transparent;")
+                      f"background:transparent;")
     val = QLabel(value)
     val.setStyleSheet(f"color:{accent};font-size:15px;font-weight:800;background:transparent;")
     v.addWidget(cap)

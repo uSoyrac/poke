@@ -112,7 +112,7 @@ class SidebarNav(QFrame):
         hl.setContentsMargins(14, 14, 14, 12)
         hl.setSpacing(2)
         brand = QLabel("♠ Champion\nPoker OS")
-        brand.setStyleSheet("color:#E5E7EB;font-size:15px;font-weight:800;line-height:1.4;")
+        brand.setStyleSheet("color:#E5E7EB;font-size:15px;font-weight:800;")
         sub = QLabel("Offline GTO Lab")
         sub.setStyleSheet("color:#22D3EE;font-size:11px;font-weight:600;")
         hl.addWidget(brand)
@@ -151,7 +151,7 @@ class SidebarNav(QFrame):
                     "color:#4B5563;"
                     "font-size:10px;"
                     "font-weight:700;"
-                    "letter-spacing:1.5px;"
+                    ""
                     "padding:10px 6px 4px 6px;"
                 )
                 inner_layout.addWidget(lbl)

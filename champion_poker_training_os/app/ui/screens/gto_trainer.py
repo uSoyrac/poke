@@ -125,7 +125,7 @@ class _PositionChip(QFrame):
             else:                             bg, fg = "#2A1B1B", "#FCA5A5"
             pill.setStyleSheet(
                 f"QLabel{{background:{bg};color:{fg};border-radius:4px;"
-                "font-size:10px;font-weight:600;padding:2px 6px;}}"
+                "font-size:10px;font-weight:600;padding:2px 6px;}"
             )
             v.addWidget(pill)
         v.addStretch(1)
@@ -202,7 +202,7 @@ class _HandComboCard(QFrame):
             c.setFixedSize(28, 36)
             c.setStyleSheet(
                 f"QLabel{{background:{card['bg']};color:white;border-radius:3px;"
-                "font-size:14px;font-weight:800;}}"
+                "font-size:14px;font-weight:800;}"
             )
             cards.addWidget(c)
         cards.addStretch(1)
@@ -343,7 +343,7 @@ class TrainerScenarioDialog(QDialog):
         close_btn.setFixedHeight(38)
         close_btn.setStyleSheet(
             f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-            "border-radius:8px;padding:4px 22px;font-weight:600;}}"
+            "border-radius:8px;padding:4px 22px;font-weight:600;}"
         )
         close_btn.clicked.connect(self.reject)
         save_btn = QPushButton("📌 Save Preset")
@@ -353,7 +353,7 @@ class TrainerScenarioDialog(QDialog):
         start_btn.setFixedHeight(38)
         start_btn.setStyleSheet(
             f"QPushButton{{background:{_C_GREEN};color:#000;border-radius:8px;"
-            "padding:4px 22px;font-weight:800;font-size:13px;border:none;}}"
+            "padding:4px 22px;font-weight:800;font-size:13px;border:none;}"
         )
         start_btn.clicked.connect(self._accept_with_result)
         footer.addWidget(close_btn)
@@ -398,16 +398,16 @@ def _make_toggle_group(options: list[str], active: str, disabled: Optional[list[
         if is_disabled:
             return (
                 f"QPushButton{{background:{_C_PANEL};color:#374151;border:1px solid {_C_BORDER};"
-                "border-radius:6px;padding:6px 14px;font-size:12px;}}"
+                "border-radius:6px;padding:6px 14px;font-size:12px;}"
             )
         if is_active:
             return (
                 f"QPushButton{{background:{_C_PANEL};color:{_C_GREEN};border:1px solid {_C_GREEN};"
-                "border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;}}"
+                "border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;}"
             )
         return (
             f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-            "border-radius:6px;padding:6px 14px;font-size:12px;}}"
+            "border-radius:6px;padding:6px 14px;font-size:12px;}"
             f"QPushButton:hover{{border-color:{_C_GREEN};}}"
         )
 
@@ -442,16 +442,16 @@ def _make_toggle_grid(rows: list[list[str]], active: str, disabled: Optional[lis
         if is_disabled:
             return (
                 f"QPushButton{{background:{_C_PANEL};color:#374151;border:1px solid {_C_BORDER};"
-                "border-radius:6px;padding:6px 14px;font-size:12px;}}"
+                "border-radius:6px;padding:6px 14px;font-size:12px;}"
             )
         if is_active:
             return (
                 f"QPushButton{{background:{_C_PANEL};color:{_C_GREEN};border:1px solid {_C_GREEN};"
-                "border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;}}"
+                "border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;}"
             )
         return (
             f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-            "border-radius:6px;padding:6px 14px;font-size:12px;}}"
+            "border-radius:6px;padding:6px 14px;font-size:12px;}"
         )
 
     def make_handler(opt: str):
@@ -497,7 +497,7 @@ class GTOTrainerScreen(QWidget):
         v.setSpacing(0)
         cap = QLabel(label)
         cap.setStyleSheet(f"color:#6B7280;font-size:9px;font-weight:700;"
-                          f"letter-spacing:1px;background:transparent;")
+                          f"background:transparent;")
         val = QLabel(value)
         val.setStyleSheet(f"color:{accent};font-size:13px;font-weight:800;background:transparent;")
         v.addWidget(cap)
@@ -963,7 +963,7 @@ class GTOTrainerScreen(QWidget):
             btn.setStyleSheet(
                 f"QPushButton{{background:{bg};border:2px solid {border};border-radius:10px;"
                 f"color:{fg};font-size:15px;font-weight:800;padding:12px 24px;"
-                "min-height:58px;min-width:120px;}}"
+                "min-height:58px;min-width:120px;}"
                 f"QPushButton:hover{{background:{bg}dd;}}"
             )
             btn.clicked.connect(lambda _, a=action: self._table_answer(a))
@@ -1253,12 +1253,12 @@ def _pill_style(active: bool) -> str:
     if active:
         return (
             f"QPushButton{{background:{_C_GREEN};color:#000;border-radius:6px;"
-            "padding:5px 14px;font-weight:700;font-size:12px;border:none;}}"
+            "padding:5px 14px;font-weight:700;font-size:12px;border:none;}"
             f"QPushButton:hover{{background:#0EA371;}}"
         )
     return (
         f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-        "border-radius:6px;padding:5px 14px;font-size:12px;}}"
+        "border-radius:6px;padding:5px 14px;font-size:12px;}"
         f"QPushButton:hover{{border-color:{_C_CYAN};}}"
     )
 

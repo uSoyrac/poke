@@ -16,12 +16,13 @@ from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, Q
 from PySide6.QtWidgets import QWidget
 
 
-# 4-color deck — user's preferred scheme
+# 4-color deck — industry standard (PokerStars/GG style)
+# Simpler/calmer than orange/yellow — easier to read at a glance
 SUIT_COLORS = {
-    "s": "#2563EB",   # MAÇA → MAVİ
-    "h": "#DC2626",   # KUPA → KIRMIZI
-    "d": "#F59E0B",   # KARO → TURUNCU
-    "c": "#EAB308",   # SİNEK → SARI
+    "s": "#0F1419",   # MAÇA → SİYAH (klasik)
+    "h": "#DC2626",   # KUPA → KIRMIZI (klasik)
+    "d": "#2563EB",   # KARO → MAVİ
+    "c": "#059669",   # SİNEK → YEŞİL
 }
 
 SUIT_NAMES = {"s": "Maça", "h": "Kupa", "d": "Karo", "c": "Sinek"}

@@ -113,7 +113,7 @@ def _section_label(text: str) -> QLabel:
     lbl = QLabel(text)
     lbl.setStyleSheet(
         f"color:{_C_RED};font-size:13px;font-weight:800;"
-        f"letter-spacing:1px;background:transparent;padding:4px 0;"
+        f"background:transparent;padding:4px 0;"
     )
     return lbl
 
@@ -154,7 +154,7 @@ class MttSetupDialog(QDialog):
         title = QLabel("♠  MULTI-TABLE TOURNAMENT CONFIGURATION")
         title.setStyleSheet(
             f"color:{_C_RED};font-size:18px;font-weight:800;"
-            f"letter-spacing:2px;padding:4px 0 8px 0;background:transparent;"
+            f"padding:4px 0 8px 0;background:transparent;"
         )
         title.setAlignment(Qt.AlignCenter)
         root.addWidget(title)

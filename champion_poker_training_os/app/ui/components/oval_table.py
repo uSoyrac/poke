@@ -224,19 +224,19 @@ class OvalTable(QWidget):
         if pot_t == "4BP" or "4-BET" in name or "4BET" in name:
             opener = vs or ("BTN" if pos != "BTN" else "CO")
             three_bettor = pos
-            _set_seat(opener, open_sz, f"R {open_sz:.1f}")
-            _set_seat(three_bettor, threebet_oop, f"3B {threebet_oop:.1f}")
+            _set_seat(opener, open_sz, f"R {open_sz:.1f}bb")
+            _set_seat(three_bettor, threebet_oop, f"3B {threebet_oop:.1f}bb")
             # Hero is 4-better (could be opener re-jamming)
             if pos == opener:
-                _set_seat(pos, fourbet_sz, f"4B {fourbet_sz:.1f}")
+                _set_seat(pos, fourbet_sz, f"4B {fourbet_sz:.1f}bb")
             _fold_others({opener, three_bettor, pos})
 
         elif "SQUEEZE" in name or "SQZ" in name:
             opener = vs or "CO"
             caller = "BTN" if opener != "BTN" else "CO"
-            _set_seat(opener, open_sz, f"R {open_sz:.1f}")
-            _set_seat(caller, open_sz, f"C {open_sz:.1f}")
-            _set_seat(pos, threebet_oop + 2.0, f"SQ {threebet_oop+2.0:.1f}")
+            _set_seat(opener, open_sz, f"R {open_sz:.1f}bb")
+            _set_seat(caller, open_sz, f"C {open_sz:.1f}bb")
+            _set_seat(pos, threebet_oop + 2.0, f"SQ {threebet_oop+2.0:.1f}bb")
             _fold_others({opener, caller, pos})
 
         elif pot_t == "3BP" or "3-BET" in name or "3BET" in name:
@@ -251,14 +251,14 @@ class OvalTable(QWidget):
             if three_bettor_first:
                 # Hero is the 3-bettor — opener is the villain
                 opener = vs or ("BTN" if pos != "BTN" else "CO")
-                _set_seat(opener, open_sz, f"R {open_sz:.1f}")
-                _set_seat(pos, threebet_oop, f"3B {threebet_oop:.1f}")
+                _set_seat(opener, open_sz, f"R {open_sz:.1f}bb")
+                _set_seat(pos, threebet_oop, f"3B {threebet_oop:.1f}bb")
                 _fold_others({opener, pos})
             else:
                 # Hero is the OPENER facing villain's 3-bet (most common)
                 three_bettor = vs or ("BB" if pos != "BB" else "BTN")
-                _set_seat(pos, open_sz, f"R {open_sz:.1f}")
-                _set_seat(three_bettor, threebet_oop, f"3B {threebet_oop:.1f}")
+                _set_seat(pos, open_sz, f"R {open_sz:.1f}bb")
+                _set_seat(three_bettor, threebet_oop, f"3B {threebet_oop:.1f}bb")
                 _fold_others({pos, three_bettor})
 
         elif "LIMP" in name:
@@ -267,11 +267,11 @@ class OvalTable(QWidget):
                 if lim in self.seats and lim != pos:
                     _set_seat(lim, 1.0, "C 1.0")
             if pos not in ("SB", "BB"):
-                _set_seat(pos, open_sz * 1.5, f"R {open_sz*1.5:.1f}")
+                _set_seat(pos, open_sz * 1.5, f"R {open_sz*1.5:.1f}bb")
             _fold_others({pos, *limpers})
 
         elif vs and pos in ("BB", "SB"):
-            _set_seat(vs, open_sz, f"R {open_sz:.1f}")
+            _set_seat(vs, open_sz, f"R {open_sz:.1f}bb")
             _fold_others({vs, pos})
 
         elif street.lower() == "preflop":
@@ -291,7 +291,7 @@ class OvalTable(QWidget):
                     self.seats[p].actions = ["F"]
             # Hero's pre-raise chip (RFI)
             if pos not in ("SB", "BB"):
-                _set_seat(pos, open_sz, f"R {open_sz:.1f}")
+                _set_seat(pos, open_sz, f"R {open_sz:.1f}bb")
         else:
             # Postflop default story: hero heads-up vs villain.
             # Try to derive villain from action_history ("BTN bets", "CO checks").

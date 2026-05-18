@@ -295,7 +295,7 @@ class DrillBuilderScreen(QWidget):
         self.start_btn = QPushButton("▶  START TRAINING")
         self.start_btn.setStyleSheet(
             "QPushButton { background: #10B981; color: #04110D; font-weight: 800; "
-            "padding: 12px 26px; border-radius: 8px; border: none; letter-spacing: 0.4px; }"
+            "padding: 12px 26px; border-radius: 8px; border: none; }"
             "QPushButton:hover { background: #34D399; }"
             "QPushButton:disabled { background: #1F3D24; color: #4B5563; }"
         )
@@ -386,7 +386,10 @@ class DrillBuilderScreen(QWidget):
 
         layout.addWidget(right, 1)
         self._update_badge()
-        self._on_selection_changed(set())
+        # Initialise summary + button state with the ACTUAL table selection
+        # (select_all(True) was called before start_btn existed, so its
+        # selection_changed emit bailed out via the hasattr guard).
+        self._on_selection_changed(self.table.selection())
         self._populate_my_drills()
         self.pack_format_filter.currentTextChanged.connect(self._populate_training_library)
         self.pack_street_filter.currentTextChanged.connect(self._populate_training_library)

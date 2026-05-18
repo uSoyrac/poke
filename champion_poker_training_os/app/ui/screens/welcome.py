@@ -74,7 +74,7 @@ class _BigCard(QFrame):
 
         sub_lbl = QLabel(subtitle)
         sub_lbl.setStyleSheet(
-            f"color: {_MUTED}; font-size: 13px; background: transparent; line-height: 1.5;"
+            f"color: {_MUTED}; font-size: 13px; background: transparent;"
         )
         sub_lbl.setWordWrap(True)
         sub_lbl.setMinimumHeight(64)
@@ -95,7 +95,7 @@ class _BigCard(QFrame):
             f"  font-size: 14px;"
             f"  font-weight: 800;"
             f"  padding: 0 18px;"
-            f"  letter-spacing: 0.5px;"
+            f""
             f"}}"
             f"QPushButton#BigCardCTA:hover {{"
             f"  background: {accent};"
@@ -214,7 +214,7 @@ class WelcomeScreen(QWidget):
         kicker = QLabel("▸  NEREDEN BAŞLAYACAĞIM?")
         kicker.setStyleSheet(
             f"color: {_CYAN}; font-size: 11px; font-weight: 800;"
-            f" letter-spacing: 2px; background: transparent; padding-top: 8px;"
+            f" background: transparent; padding-top: 8px;"
         )
         root.addWidget(kicker)
 
@@ -261,7 +261,7 @@ class WelcomeScreen(QWidget):
             cot_kicker = QLabel("🌟  GÜNÜN KONSEPTİ")
             cot_kicker.setStyleSheet(
                 f"color: {_CYAN}; font-size: 10px; font-weight: 800;"
-                f" letter-spacing: 1.5px; background: transparent; padding-top: 8px;"
+                f" background: transparent; padding-top: 8px;"
             )
             root.addWidget(cot_kicker)
             cot_card = QPushButton(
@@ -288,7 +288,7 @@ class WelcomeScreen(QWidget):
         stats_kicker = QLabel("İLERLEMEN")
         stats_kicker.setStyleSheet(
             f"color: {_MUTED}; font-size: 10px; font-weight: 800;"
-            f" letter-spacing: 1.5px; background: transparent; padding-top: 6px;"
+            f" background: transparent; padding-top: 6px;"
         )
         root.addWidget(stats_kicker)
 
@@ -332,7 +332,7 @@ class WelcomeScreen(QWidget):
             rec_kicker = QLabel("SON 5 TURNUVA")
             rec_kicker.setStyleSheet(
                 f"color: {_MUTED}; font-size: 10px; font-weight: 800;"
-                f" letter-spacing: 1.5px; background: transparent; padding-top: 6px;"
+                f" background: transparent; padding-top: 6px;"
             )
             root.addWidget(rec_kicker)
             rec_grid = QGridLayout()
@@ -365,7 +365,7 @@ class WelcomeScreen(QWidget):
         ql_kicker = QLabel("HIZLI BAĞLANTILAR")
         ql_kicker.setStyleSheet(
             f"color: {_MUTED}; font-size: 10px; font-weight: 800;"
-            f" letter-spacing: 1.5px; background: transparent; padding-top: 6px;"
+            f" background: transparent; padding-top: 6px;"
         )
         root.addWidget(ql_kicker)
 
