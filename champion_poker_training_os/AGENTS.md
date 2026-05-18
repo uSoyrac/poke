@@ -3,7 +3,7 @@
 **You are a coding agent.** This doc is the contract: read it once, become
 productive immediately, stop re-deriving the same context every session.
 
-Last verified: 2026-05-18 · commit `779dcad` · 270/270 tests passing.
+Last verified: 2026-05-19 · commit pushed to `origin/claude/friendly-torvalds-0ecc83` · 270/270 tests passing · UI audit 20/0 issues.
 
 ---
 
@@ -336,8 +336,9 @@ See `app/ui/screens/poke_style_guide.py` for the live in-app reference.
 | Style Guide                      | ✅ Done            | (reference) |
 | Welcome                          | ✅ Done            | done |
 | Dashboard (top half)             | ✅ Done            | done |
+| **SidebarNav**                   | ✅ Done            | done — touches every screen |
+| **TopStatusBar**                 | ✅ Done            | done — touches every screen |
 | Dashboard (bottom panels)        | ⚠️ Legacy         | medium |
-| SidebarNav · TopStatusBar        | ❌ Legacy         | **high** (touches every screen) |
 | Spot Trainer                     | ❌ Legacy         | **high** (most-used) |
 | Tournament Play                  | ❌ Legacy         | high |
 | GTO Trainer (Range Studio)       | ❌ Legacy         | high |

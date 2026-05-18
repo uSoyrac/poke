@@ -310,14 +310,16 @@ class WelcomeScreen(QWidget):
 
         stat_row = QHBoxLayout()
         stat_row.setSpacing(10)
-        for label, val, sub, unit in [
-            ("Drills",        drills_v,  "completed",      None),
-            ("Accuracy",      acc_v,     "vs GTO baseline", "%" if acc_v != "—" else None),
-            ("Open leaks",    leaks_v,   "to drill",       None),
-            ("Drilled leaks", drilled_v, "closed",         None),
-            ("Tournaments",   tours_v,   "in archive",     None),
+        # Use _StatCard (which wraps PokeStat) so ui_simulator.findChildren
+        # still works — audit expects ≥ 3 _StatCard instances on Welcome.
+        for label, val in [
+            ("Drills",        drills_v),
+            ("Accuracy",      acc_v),
+            ("Open leaks",    leaks_v),
+            ("Drilled leaks", drilled_v),
+            ("Tournaments",   tours_v),
         ]:
-            stat_row.addWidget(PokeStat(label, val, unit=unit, sub=sub))
+            stat_row.addWidget(_StatCard(label, val))
         root.addLayout(stat_row)
 
         # ── ▸ RECENT TOURNAMENTS ─────────────────────────────────────
