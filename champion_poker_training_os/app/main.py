@@ -53,6 +53,7 @@ from app.ui.screens.skills_report import SkillsReportScreen
 from app.ui.screens.welcome import WelcomeScreen
 from app.ui.screens.range_studio import RangeStudioScreen
 from app.ui.screens.my_mistakes import MyMistakesScreen
+from app.ui.screens.poke_style_guide import PokeStyleGuideScreen
 from app.ui.theme.theme_manager import apply_dark_theme
 
 
@@ -109,6 +110,7 @@ NAV_ITEMS = [
     "Aggregated Reports",
     "Table Settings",
     "Settings / Compliance Guard",
+    "Style Guide",
 ]
 
 RESTRICTED_WHEN_LOCKED = {
@@ -240,6 +242,7 @@ class MainWindow(QMainWindow):
             "Aggregated Reports": AggregatedReportsScreen,
             "Table Settings": TableSettingsScreen,
             "Settings / Compliance Guard": SettingsScreen,
+            "Style Guide": PokeStyleGuideScreen,
         }
         for name in NAV_ITEMS:
             screen = factories[name](self.state)
@@ -288,6 +291,11 @@ def main() -> int:
     prepare_qt_platform_plugins()
     app = QApplication(sys.argv)
     apply_dark_theme(app)
+    # Load the bundled Poke fonts (Space Grotesk · JetBrains Mono ·
+    # Instrument Serif) so the brutalist editorial design works on
+    # machines that don't have them installed system-wide.
+    from app.ui.theme.poke_fonts import load_poke_fonts
+    load_poke_fonts()
     window = MainWindow()
     window.show()
     return app.exec()
