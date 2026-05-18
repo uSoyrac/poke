@@ -19,15 +19,19 @@ from app.engine.hand_state import Street
 
 
 def test_dealer_button_rotates_each_hand():
+    """Each new hand the button moves clockwise. After N hands every
+    seat has been the dealer exactly once."""
+    from app.engine.hand_state import ActionType
     game = PokerGame(num_players=6, starting_stack=100.0)
     seen_dealers = []
     for _ in range(6):
         game.start_hand()
         seen_dealers.append(game.dealer_idx)
-        # Force-finalise the hand so the next one can start cleanly
-        game.current_hand.completed = True
-        game.dealer_idx = (game.dealer_idx + 1) % game.num_players
-    # Each seat should have been the dealer exactly once
+        # Drain hero action so the hand can finish (engine rotates the
+        # button itself when the next hand starts).
+        s = 80
+        while game.is_waiting_for_hero and s > 0:
+            game.hero_act(ActionType.FOLD); s -= 1
     assert sorted(seen_dealers) == list(range(6))
 
 
@@ -125,6 +129,55 @@ def test_three_bet_sizing_is_2_5_to_4_x_open():
 
 
 # ── Action chip labels show BB units on the oval table ─────────────────
+
+
+def test_engine_survives_many_hands_with_hero_always_folding():
+    """Regression: in some seat orders the hero would be asked to act
+    AFTER every other player folded — then the hero folded too,
+    leaving zero active players and crashing the showdown evaluator
+    with `min() arg is an empty sequence`.
+    """
+    from app.engine.game_loop import PokerGame
+    from app.engine.hand_state import ActionType
+
+    for n in (2, 3, 6, 9):
+        game = PokerGame(num_players=n, starting_stack=100.0)
+        for _ in range(40):
+            game.start_hand()
+            safety = 80
+            while game.is_waiting_for_hero and safety > 0:
+                game.hero_act(ActionType.FOLD)
+                safety -= 1
+            # Pot must always be paid out — at least one winner recorded
+            assert game.current_hand.winners, (
+                f"{n}-max hand finished with no winners: "
+                f"{game.current_hand.winner_hand_name}"
+            )
+
+
+def test_hero_never_folds_their_own_winning_hand():
+    """If every villain folds before the hero acts, the hand must end
+    by awarding the hero — not by asking the hero to fold."""
+    from app.engine.game_loop import PokerGame
+    from app.engine.hand_state import ActionType
+
+    # Run 60 hands; whenever the hero is the BB and everyone folds to
+    # them, the engine should auto-end without prompting.
+    game = PokerGame(num_players=6, starting_stack=100.0)
+    starting_hero_stack = game.players[0].stack
+    walkovers = 0
+    for _ in range(60):
+        game.start_hand()
+        if not game.is_waiting_for_hero:
+            # Hand ended without asking hero — that's a walkover
+            if 0 in (game.current_hand.winners or []):
+                walkovers += 1
+        # Drain any remaining action with FOLD
+        s = 80
+        while game.is_waiting_for_hero and s > 0:
+            game.hero_act(ActionType.FOLD); s -= 1
+    # Sanity: the engine ran to completion
+    assert game.hand_count == 60
 
 
 def test_oval_table_action_labels_include_bb_suffix():

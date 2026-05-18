@@ -246,6 +246,11 @@ class PokerGame:
                 continue
 
             if player.is_hero:
+                # Edge case: if everyone else already folded, don't ask the
+                # hero to act — they win by default. Without this guard the
+                # hero could fold their own winning hand.
+                if hand.active_count <= 1:
+                    return False
                 self._waiting_for_hero = True
                 return True  # Pause for hero input
             else:
@@ -254,6 +259,10 @@ class PokerGame:
                 if bot:
                     action_type, amount = bot.decide(hand, idx)
                     self._apply_action(idx, action_type, amount)
+
+                    # Round ends immediately if only one player remains
+                    if hand.active_count <= 1:
+                        return False
 
                     # After a raise, other players may need to act again
                     if action_type in (ActionType.RAISE, ActionType.BET):
@@ -365,7 +374,21 @@ class PokerGame:
 
         active_players = [(i, p) for i, p in enumerate(self.players) if not p.is_folded]
 
-        if len(active_players) == 1:
+        if len(active_players) == 0:
+            # Pathological: every seat folded (e.g. hero folded after all
+            # other seats had already folded). Award the pot to whoever
+            # invested the most this hand — closest analogue to "the
+            # player who would have won had we stopped one fold earlier".
+            ranked = sorted(
+                enumerate(self.players),
+                key=lambda kv: kv[1].invested_this_hand,
+                reverse=True,
+            )
+            winner_idx = ranked[0][0]
+            hand.winners = [winner_idx]
+            hand.winner_hand_name = "Walkover (all folded)"
+            self.players[winner_idx].stack += hand.pot
+        elif len(active_players) == 1:
             # Last player standing
             winner_idx = active_players[0][0]
             hand.winners = [winner_idx]
