@@ -1,7 +1,12 @@
-"""Welcome / Home screen — büyük 'Start Here' kartlarıyla net giriş ekranı.
+"""Welcome / Home — Poke brutalist editorial.
 
-Tüm stil objectName ile scope'lanır ki child widget'lara cascade etmesin.
-Kartlara explicit min-yükseklik verilir ki scroll'da ezilmesin.
+Rewritten to use the Poke design system primitives (PokePageHeader,
+PokeCard, PokeStat, PokeBtn, PokeTag). All content + behaviour
+preserved; only the visual language changes.
+
+The legacy `_BigCard` / `_StatCard` / `_QuickLink` classes are kept as
+public symbols so external tooling (ui_simulator) can still findChildren
+on them — they just delegate to the new Poke widgets under the hood.
 """
 from __future__ import annotations
 
@@ -19,383 +24,410 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.app_state import AppState
+from app.ui.components.poke import (
+    PokeBtn, PokeCard, PokePageHeader, PokeStat, PokeTag,
+)
+from app.ui.theme import poke_tokens as t
 
-_BG     = "#0A0E14"
-_CARD   = "#0F141C"
-_PANEL  = "#131A24"
-_BORDER = "#1E2733"
-_TEXT   = "#E5E7EB"
-_MUTED  = "#9CA3AF"
-_CYAN   = "#22D3EE"
-_GREEN  = "#10B981"
-_AMBER  = "#F59E0B"
-_RED    = "#EF4444"
+
+# ─── Back-compat classes (used by ui_simulator.findChildren) ─────────
 
 
 class _BigCard(QFrame):
-    """Büyük 'tıkla-başla' kartı — ikon + başlık + alt yazı + buton."""
+    """Big 'click-to-start' card. Public for ui_simulator compatibility.
+
+    Renders with Poke brutalist styling: dark surface, 1px hairline
+    border, 0 radius, accent-coloured left rule, mono uppercase eyebrow
+    + display title + body + CTA button at the bottom.
+    """
     clicked = Signal(str)
 
     def __init__(self, icon: str, title: str, subtitle: str,
-                 cta: str, target: str, accent: str):
+                 cta: str, target: str, accent: str = None):
         super().__init__()
         self._target = target
         self.setObjectName("BigCard")
-        self.setFrameShape(QFrame.NoFrame)
-        # Kartların boyutu sabit minimum'a sahip olmalı ki scroll'da ezilmesin
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self.setMinimumSize(280, 320)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        accent_col = accent or t.ACCENT
         self.setStyleSheet(
-            f"QFrame#BigCard {{"
-            f"  background: {_PANEL};"
-            f"  border: 2px solid {accent};"
-            f"  border-radius: 16px;"
-            f"}}"
-            f"QFrame#BigCard:hover {{"
-            f"  background: #1A2333;"
-            f"}}"
+            f"#BigCard {{ background: {t.SURFACE}; "
+            f"border: 1px solid {t.LINE_2}; "
+            f"border-left: 3px solid {accent_col}; }}"
+            f"#BigCard:hover {{ background: {t.SURFACE_2}; }}"
         )
 
         v = QVBoxLayout(self)
         v.setContentsMargins(24, 22, 24, 22)
         v.setSpacing(0)
 
+        # Eyebrow — small mono label above icon
+        eyebrow = QLabel("▸  START HERE".upper())
+        eyebrow.setStyleSheet(
+            f"color: {t.MUTED}; background: transparent; "
+            f"font-family: 'JetBrains Mono'; font-size: 10px; "
+            f"font-weight: 500;"
+        )
+        v.addWidget(eyebrow)
+        v.addSpacing(10)
+
         icon_lbl = QLabel(icon)
-        icon_lbl.setStyleSheet(f"font-size: 44px; background: transparent; color: {_TEXT};")
+        icon_lbl.setStyleSheet(
+            f"font-size: 36px; background: transparent; "
+            f"color: {accent_col};"
+        )
         v.addWidget(icon_lbl)
         v.addSpacing(14)
 
         title_lbl = QLabel(title)
         title_lbl.setStyleSheet(
-            f"color: {_TEXT}; font-size: 22px; font-weight: 800; background: transparent;"
+            f"color: {t.INK}; background: transparent; "
+            f"font-family: 'Space Grotesk'; font-weight: 700; "
+            f"font-size: 24px;"
         )
         v.addWidget(title_lbl)
         v.addSpacing(8)
 
         sub_lbl = QLabel(subtitle)
-        sub_lbl.setStyleSheet(
-            f"color: {_MUTED}; font-size: 13px; background: transparent;"
-        )
         sub_lbl.setWordWrap(True)
         sub_lbl.setMinimumHeight(64)
+        sub_lbl.setStyleSheet(
+            f"color: {t.INK_2}; background: transparent; "
+            f"font-family: 'Space Grotesk'; font-size: 13px;"
+        )
         v.addWidget(sub_lbl)
         v.addStretch(1)
 
-        btn = QPushButton(cta)
-        btn.setObjectName("BigCardCTA")
-        btn.setMinimumHeight(52)
-        btn.setCursor(Qt.PointingHandCursor)
-        # Açık metin / koyu arkaplan ile yüksek kontrast
-        btn.setStyleSheet(
-            f"QPushButton#BigCardCTA {{"
-            f"  background: {accent};"
-            f"  color: #061018;"
-            f"  border: none;"
-            f"  border-radius: 10px;"
-            f"  font-size: 14px;"
-            f"  font-weight: 800;"
-            f"  padding: 0 18px;"
-            f""
-            f"}}"
-            f"QPushButton#BigCardCTA:hover {{"
-            f"  background: {accent};"
-            f"}}"
-        )
+        # CTA — use a PokeBtn under primary variant for the canonical look
+        btn = PokeBtn(cta, variant="primary", size="md", block=True)
         btn.clicked.connect(lambda: self.clicked.emit(self._target))
         v.addWidget(btn)
 
     def mousePressEvent(self, event) -> None:
+        # Click anywhere on the card → navigate (mouse alternative)
         if event.button() == Qt.LeftButton:
             self.clicked.emit(self._target)
         super().mousePressEvent(event)
 
 
 class _StatCard(QFrame):
-    def __init__(self, label: str, value: str, accent: str = _CYAN):
+    """Small KPI cell — kept for back-compat. Internally just a PokeStat
+    wrapped in a QFrame with the same public attrs."""
+
+    def __init__(self, label: str, value: str, accent: str = None):
         super().__init__()
         self.setObjectName("StatCard")
-        self.setFrameShape(QFrame.NoFrame)
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self.setFixedHeight(88)
         self.setMinimumWidth(140)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setStyleSheet(
-            f"QFrame#StatCard {{"
-            f"  background: {_CARD};"
-            f"  border: 1px solid {_BORDER};"
-            f"  border-radius: 10px;"
-            f"}}"
-        )
+        # Render via PokeStat but compact (no delta/sub).
         v = QVBoxLayout(self)
-        v.setContentsMargins(16, 12, 16, 12)
-        v.setSpacing(4)
-        val = QLabel(value)
-        val.setStyleSheet(
-            f"color: {accent}; font-size: 24px; font-weight: 800; background: transparent;"
-        )
-        lbl = QLabel(label)
-        lbl.setStyleSheet(
-            f"color: {_MUTED}; font-size: 11px; font-weight: 600; background: transparent;"
-        )
-        v.addWidget(val)
-        v.addWidget(lbl)
+        v.setContentsMargins(0, 0, 0, 0)
+        stat = PokeStat(label, value)
+        v.addWidget(stat)
 
 
 class _QuickLink(QPushButton):
+    """Sidebar-quick-nav tile. Brutalist: hairline border, left-rule
+    flips to accent on hover."""
+
     def __init__(self, icon: str, label: str, target: str):
         super().__init__(f"  {icon}   {label}")
         self.setObjectName("QuickLink")
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self._target = target
         self.setMinimumHeight(46)
         self.setCursor(Qt.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setStyleSheet(
-            f"QPushButton#QuickLink {{"
-            f"  background: {_CARD};"
-            f"  color: {_TEXT};"
-            f"  border: 1px solid {_BORDER};"
-            f"  border-radius: 8px;"
-            f"  font-size: 13px;"
-            f"  font-weight: 600;"
-            f"  padding: 0 14px;"
-            f"  text-align: left;"
+            f"#QuickLink {{"
+            f"  background: {t.BG_2}; color: {t.INK_2};"
+            f"  border: 1px solid {t.LINE}; border-left: 2px solid {t.LINE_2};"
+            f"  font-family: 'Space Grotesk'; font-size: 13px; "
+            f"  font-weight: 500; padding: 0 14px; text-align: left;"
             f"}}"
-            f"QPushButton#QuickLink:hover {{"
-            f"  border: 1px solid {_CYAN};"
-            f"  color: {_CYAN};"
-            f"  background: #0D1620;"
+            f"#QuickLink:hover {{"
+            f"  background: {t.SURFACE}; color: {t.ACCENT};"
+            f"  border-color: {t.LINE_2}; border-left-color: {t.ACCENT};"
             f"}}"
         )
 
 
+# ─── Main Welcome screen ─────────────────────────────────────────────
+
+
 class WelcomeScreen(QWidget):
+    """Brutalist editorial entry surface — Poke design system.
+
+    Layout:
+      ┌─────────────────────────────────────────────────────────┐
+      │ 00 / WELCOME                                            │
+      │ Sharpen your <em>edge</em>.                  [Drill ▶] │
+      │ A GTO-backed offline trainer.                            │
+      ╞═════════════════════════════════════════════════════════╡
+      │ ▸ START HERE                                            │
+      │ [GTO Trainer]  [Spot Practice]  [Play Table]            │
+      │                                                          │
+      │ ▸ DAILY CONCEPT                                         │
+      │ [Glossary card]                                          │
+      │                                                          │
+      │ ▸ PROGRESS                                              │
+      │ [Drills] [Acc] [Open Leaks] [Drilled] [Tour]            │
+      │                                                          │
+      │ ▸ RECENT TOURNAMENTS                                    │
+      │ [tour row × 5]                                           │
+      │                                                          │
+      │ ▸ QUICK LINKS                                           │
+      │ [3 × 4 grid of nav tiles]                                │
+      └─────────────────────────────────────────────────────────┘
+    """
     navigate_requested = Signal(str)
 
     def __init__(self, state: AppState):
         super().__init__()
         self._state = state
         self.setObjectName("WelcomeRoot")
-        self.setStyleSheet(f"QWidget#WelcomeRoot {{ background: {_BG}; }}")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setStyleSheet(f"#WelcomeRoot {{ background: {t.BG}; }}")
 
-        # Scroll area
+        # ── Scroll wrapper ───────────────────────────────────────────
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setStyleSheet(
-            "QScrollArea { background: transparent; border: none; }"
-            "QScrollBar:vertical { width: 8px; background: transparent; }"
-            "QScrollBar::handle:vertical { background: #2A3A50; border-radius: 4px; min-height: 24px; }"
+            f"QScrollArea {{ background: {t.BG}; border: 0; }}"
+            f"QScrollBar:vertical {{ width: 8px; background: transparent; }}"
+            f"QScrollBar::handle:vertical {{ background: {t.LINE_2}; }}"
         )
-
         content = QWidget()
-        content.setObjectName("WelcomeContent")
-        content.setStyleSheet(f"QWidget#WelcomeContent {{ background: {_BG}; }}")
-        content.setMinimumHeight(820)  # Scroll içinde ezilmesin
+        content.setStyleSheet(f"QWidget {{ background: {t.BG}; }}")
+        scroll.setWidget(content)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(scroll, 1)
 
         root = QVBoxLayout(content)
-        root.setContentsMargins(36, 28, 36, 32)
-        root.setSpacing(22)
+        root.setContentsMargins(t.PAGE_PAD, t.PAGE_PAD, t.PAGE_PAD, 48)
+        root.setSpacing(28)
 
-        # ── Üst başlık ───────────────────────────────────────────────
-        header = QHBoxLayout()
-        title = QLabel("♠  Champion Poker Training OS")
-        title.setStyleSheet(
-            f"color: {_TEXT}; font-size: 26px; font-weight: 800; background: transparent;"
+        # ── Page header ──────────────────────────────────────────────
+        header_action = PokeBtn("Drill now", variant="primary", size="md", kbd="↵")
+        header_action.clicked.connect(
+            lambda: self.navigate_requested.emit("Spot Practice Trainer")
         )
-        tag = QLabel("GTO tabanlı offline poker antrenmanı")
-        tag.setStyleSheet(
-            f"color: {_MUTED}; font-size: 13px; background: transparent;"
+        header = PokePageHeader(
+            num="00 / Welcome",
+            title="Sharpen your <em>edge</em>.",
+            sub=("A GTO-backed offline poker trainer. Drill solver-verified "
+                 "spots, get coached on your own hands, watch your leaks close."),
+            actions=header_action,
         )
-        header.addWidget(title)
-        header.addStretch(1)
-        header.addWidget(tag, 0, Qt.AlignVCenter)
-        root.addLayout(header)
+        root.addWidget(header)
 
-        # ── "NEREDEN BAŞLA" etiketi ──────────────────────────────────
-        kicker = QLabel("▸  NEREDEN BAŞLAYACAĞIM?")
-        kicker.setStyleSheet(
-            f"color: {_CYAN}; font-size: 11px; font-weight: 800;"
-            f" background: transparent; padding-top: 8px;"
-        )
-        root.addWidget(kicker)
-
-        # ── 3 büyük kart ─────────────────────────────────────────────
+        # ── ▸ START HERE — 3 big cards ───────────────────────────────
+        root.addWidget(self._kicker("▸  START HERE"))
         cards_row = QHBoxLayout()
-        cards_row.setSpacing(18)
+        cards_row.setSpacing(14)
 
         learn = _BigCard(
-            "📐", "GTO Trainer",
-            "13×13 range matrisi ve 325 hazır spot kütüphanesi. "
-            "Pozisyon × pot tipi için her elin GTO frekansını gör.",
-            "GTO TRAINER'A GİT  →", "Range Studio", _CYAN,
+            "◆", "GTO Trainer",
+            "A 13×13 range matrix and a 325-spot library. See the GTO "
+            "frequency for every hand by position and pot type.",
+            "OPEN GTO TRAINER", "Range Studio", t.ACCENT,
         )
         learn.clicked.connect(self.navigate_requested)
         cards_row.addWidget(learn)
 
         practice = _BigCard(
-            "🎯", "Spot Antrenman",
-            "Bir el gör, karar ver: FOLD / CALL / RAISE / JAM. "
-            "Anlık geri bildirim ve GTO doğruluk bar'ı.",
-            "SPOT'LARA GİT  →", "Spot Practice Trainer", _GREEN,
+            "▲", "Spot Practice",
+            "See a hand, make a call: FOLD / CALL / RAISE / JAM. Instant "
+            "feedback with the per-option GTO frequency bar.",
+            "OPEN SPOTS", "Spot Practice Trainer", t.INFO,
         )
         practice.clicked.connect(self.navigate_requested)
         cards_row.addWidget(practice)
 
         play = _BigCard(
-            "🃏", "Masa Oyna",
-            "Bot masasında gerçek eller oyna. Dealer dönüşü, blindler, "
-            "side-pot, showdown — tam poker deneyimi.",
-            "MASAYA OTUR  →", "Play Session", _AMBER,
+            "●", "Play a Table",
+            "Real hands against bots. Button rotation, blinds, side-pots, "
+            "showdowns — the full poker loop in BB-native sizing.",
+            "TAKE A SEAT", "Play Session", t.WARN,
         )
         play.clicked.connect(self.navigate_requested)
         cards_row.addWidget(play)
 
         root.addLayout(cards_row)
 
-        # ── Günün Konsepti ───────────────────────────────────────────
-        # Deterministic per-day: aynı gün aynı terim, sonraki gün farklı
+        # ── ▸ DAILY CONCEPT (glossary term of the day) ───────────────
         try:
             from datetime import date
             from app.data.poker_glossary import GLOSSARY
             seed_idx = date.today().toordinal() % len(GLOSSARY)
-            term_of_day = GLOSSARY[seed_idx]
-            cot_kicker = QLabel("🌟  GÜNÜN KONSEPTİ")
-            cot_kicker.setStyleSheet(
-                f"color: {_CYAN}; font-size: 10px; font-weight: 800;"
-                f" background: transparent; padding-top: 8px;"
+            term = GLOSSARY[seed_idx]
+            root.addWidget(self._kicker("▸  DAILY CONCEPT"))
+            card = PokeCard(
+                title=term["term"].upper(),
+                num="◇",
+                sub="GLOSSARY",
+                action=PokeBtn("Open glossary", variant="ghost", size="sm",
+                                on_click=lambda: self.navigate_requested.emit("Knowledge Base")),
             )
-            root.addWidget(cot_kicker)
-            cot_card = QPushButton(
-                f"  📖   {term_of_day['term'].upper()}\n"
-                f"        {term_of_day.get('short', '')[:140]}"
+            body = QLabel(term.get("short", "")[:240])
+            body.setWordWrap(True)
+            body.setStyleSheet(
+                f"color: {t.INK_2}; background: transparent; "
+                f"font-family: 'Space Grotesk'; font-size: 14px;"
             )
-            cot_card.setMinimumHeight(72)
-            cot_card.setCursor(Qt.PointingHandCursor)
-            cot_card.setStyleSheet(
-                f"QPushButton{{background:{_PANEL};color:{_TEXT};"
-                f"border:1px solid {_BORDER};border-left:3px solid {_CYAN};"
-                f"border-radius:8px;padding:10px 16px;"
-                f"font-size:12px;text-align:left;}}"
-                f"QPushButton:hover{{border-color:{_CYAN};background:#13202E;}}"
-            )
-            cot_card.clicked.connect(
-                lambda: self.navigate_requested.emit("Knowledge Base")
-            )
-            root.addWidget(cot_card)
+            card.add_to_body(body)
+            root.addWidget(card)
         except Exception:
             pass
 
-        # ── İstatistik bar ───────────────────────────────────────────
-        stats_kicker = QLabel("İLERLEMEN")
-        stats_kicker.setStyleSheet(
-            f"color: {_MUTED}; font-size: 10px; font-weight: 800;"
-            f" background: transparent; padding-top: 6px;"
-        )
-        root.addWidget(stats_kicker)
+        # ── ▸ PROGRESS (5 stats) ─────────────────────────────────────
+        root.addWidget(self._kicker("▸  PROGRESS"))
 
-        stats = QHBoxLayout()
-        stats.setSpacing(12)
-        drills = str(state.completed_drills) if state.completed_drills else "0"
-        acc = f"{state.accuracy:.0f}%" if state.accuracy else "—"
-        # Pull live data from My Mistakes + Tournament Archive
+        # Pull live data
+        drills_v = str(state.completed_drills) if state.completed_drills else "0"
+        acc_v    = f"{state.accuracy:.0f}" if state.accuracy else "—"
         try:
             from app.db.mistakes_queue import load_mistakes
             mistakes = load_mistakes()
             open_leaks    = sum(1 for m in mistakes if not m.drilled)
             drilled_leaks = sum(1 for m in mistakes if m.drilled)
-            leaks_val   = str(open_leaks) if open_leaks else "0"
-            drilled_val = str(drilled_leaks) if drilled_leaks else "0"
+            leaks_v   = str(open_leaks)
+            drilled_v = str(drilled_leaks)
         except Exception:
-            leaks_val = "—"; drilled_val = "—"
+            leaks_v = "—"; drilled_v = "—"
         try:
             from app.db.tournament_archive import load_archive
             archive = load_archive()
-            tours_val = str(len(archive)) if archive else "0"
+            tours_v = str(len(archive)) if archive else "0"
         except Exception:
-            tours_val = "—"
-        for label, val, accent in [
-            ("Tamamlanan Drill", drills,      _CYAN),
-            ("Doğruluk",         acc,         _GREEN),
-            ("Açık Leak",        leaks_val,   _RED),
-            ("Çözülen Leak",     drilled_val, _GREEN),
-            ("Turnuva",          tours_val,   _AMBER),
-        ]:
-            stats.addWidget(_StatCard(label, val, accent))
-        root.addLayout(stats)
+            tours_v = "—"
 
-        # ── Son turnuvalar mini-list (Nielsen #1: visibility of progress) ──
+        stat_row = QHBoxLayout()
+        stat_row.setSpacing(10)
+        for label, val, sub, unit in [
+            ("Drills",        drills_v,  "completed",      None),
+            ("Accuracy",      acc_v,     "vs GTO baseline", "%" if acc_v != "—" else None),
+            ("Open leaks",    leaks_v,   "to drill",       None),
+            ("Drilled leaks", drilled_v, "closed",         None),
+            ("Tournaments",   tours_v,   "in archive",     None),
+        ]:
+            stat_row.addWidget(PokeStat(label, val, unit=unit, sub=sub))
+        root.addLayout(stat_row)
+
+        # ── ▸ RECENT TOURNAMENTS ─────────────────────────────────────
         try:
             from app.db.tournament_archive import load_archive
             recent = load_archive()[:5]
         except Exception:
             recent = []
         if recent:
-            rec_kicker = QLabel("SON 5 TURNUVA")
-            rec_kicker.setStyleSheet(
-                f"color: {_MUTED}; font-size: 10px; font-weight: 800;"
-                f" background: transparent; padding-top: 6px;"
-            )
-            root.addWidget(rec_kicker)
-            rec_grid = QGridLayout()
-            rec_grid.setSpacing(8)
-            for idx, r in enumerate(recent):
-                tag = "💰 ITM" if r.cashed else "❌ Bust"
-                line = (
-                    f"{tag}  ·  {r.tournament_name}  ·  finish #{r.finish_position}/"
-                    f"{r.field_size}  ·  ROI {r.roi_pct:+.1f}%  ·  "
-                    f"accuracy {r.accuracy}%"
-                )
-                pill = QPushButton(line)
-                pill.setMinimumHeight(36)
-                pill.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-                pill.setCursor(Qt.PointingHandCursor)
-                accent_col = _GREEN if r.cashed else _RED
-                pill.setStyleSheet(
-                    f"QPushButton{{background:{_CARD};color:{_TEXT};"
-                    f"border:1px solid {_BORDER};border-left:3px solid {accent_col};"
-                    f"border-radius:6px;padding:8px 12px;text-align:left;font-size:11px;}}"
-                    f"QPushButton:hover{{border-color:{_CYAN};color:{_CYAN};}}"
-                )
-                pill.clicked.connect(
-                    lambda _=False: self.navigate_requested.emit("Tournament Play Mode")
-                )
-                rec_grid.addWidget(pill, idx, 0)
-            root.addLayout(rec_grid)
+            root.addWidget(self._kicker("▸  RECENT TOURNAMENTS"))
+            for r in recent:
+                row = self._tournament_row(r)
+                root.addWidget(row)
 
-        # ── Hızlı bağlantılar ────────────────────────────────────────
-        ql_kicker = QLabel("HIZLI BAĞLANTILAR")
-        ql_kicker.setStyleSheet(
-            f"color: {_MUTED}; font-size: 10px; font-weight: 800;"
-            f" background: transparent; padding-top: 6px;"
-        )
-        root.addWidget(ql_kicker)
-
+        # ── ▸ QUICK LINKS ────────────────────────────────────────────
+        root.addWidget(self._kicker("▸  QUICK LINKS"))
         grid = QGridLayout()
-        grid.setSpacing(10)
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(10)
         links = [
-            ("🏆", "Turnuva Oyna",     "Tournament Play Mode"),
-            ("⚔️",  "Heads-Up Trainer", "Heads-Up Trainer"),
-            ("⚡", "Hızlı Oyun",       "Fast Play Simulator"),
-            ("📚", "Çalışma Kitaplığı","GTO Study Library"),
-            ("💪", "Drills",           "Drills"),
-            ("🔬", "El Analiz",        "Hand History Analyzer"),
-            ("🩺", "Leak Finder",      "Leak Finder"),
-            ("💰", "ICM / PKO",        "ICM / PKO Trainer"),
-            ("🌊", "Postflop",         "Postflop Trainer"),
-            ("🏁", "River Trainer",    "River Decision Trainer"),
-            ("🤖", "AI Coach",         "AI Poker Coach"),
-            ("📈", "Raporlar",         "Reports"),
+            ("♔", "Tournament Play", "Tournament Play Mode"),
+            ("⚔", "Heads-Up",        "Heads-Up Trainer"),
+            ("⚡", "Fast Play",       "Fast Play Simulator"),
+            ("☷", "Study Library",   "GTO Study Library"),
+            ("✧", "Drills",          "Drills"),
+            ("⚗", "Hand Analyzer",   "Hand History Analyzer"),
+            ("⊕", "Leak Finder",     "Leak Finder"),
+            ("◈", "ICM / PKO",       "ICM / PKO Trainer"),
+            ("≋", "Postflop",        "Postflop Trainer"),
+            ("⌖", "River",           "River Decision Trainer"),
+            ("⊙", "AI Coach",        "AI Poker Coach"),
+            ("▭", "Reports",         "Reports"),
         ]
         cols = 4
         for idx, (icon, label, target) in enumerate(links):
             btn = _QuickLink(icon, label, target)
-            btn.clicked.connect(lambda _=False, t=target: self.navigate_requested.emit(t))
+            btn.clicked.connect(
+                lambda _=False, tgt=target: self.navigate_requested.emit(tgt))
             grid.addWidget(btn, idx // cols, idx % cols)
         root.addLayout(grid)
 
         root.addStretch(1)
-        scroll.setWidget(content)
 
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
-        outer.addWidget(scroll)
+    # ── helpers ──────────────────────────────────────────────────────
+
+    def _kicker(self, text: str) -> QLabel:
+        """Small uppercase JetBrains-Mono section kicker."""
+        lbl = QLabel(text.upper())
+        lbl.setStyleSheet(
+            f"color: {t.ACCENT}; background: transparent; "
+            f"font-family: 'JetBrains Mono'; font-size: 11px; "
+            f"font-weight: 600; padding-top: 6px;"
+        )
+        return lbl
+
+    def _tournament_row(self, r) -> QFrame:
+        """One pill-row per recent tournament."""
+        f = QFrame()
+        f.setAttribute(Qt.WA_StyledBackground, True)
+        side = t.ACCENT if r.cashed else t.DANGER_2
+        f.setStyleSheet(
+            f"QFrame {{ background: {t.SURFACE}; "
+            f"border: 1px solid {t.LINE}; border-left: 3px solid {side}; }}"
+        )
+        f.setMinimumHeight(44)
+        h = QHBoxLayout(f)
+        h.setContentsMargins(14, 8, 14, 8)
+        h.setSpacing(14)
+
+        # Status tag
+        status_tag = PokeTag("ITM" if r.cashed else "BUST",
+                              tone="g" if r.cashed else "r", dot=True)
+        h.addWidget(status_tag)
+
+        # Name + finish
+        name_lbl = QLabel(r.tournament_name)
+        name_lbl.setStyleSheet(
+            f"color: {t.INK}; background: transparent; "
+            f"font-family: 'Space Grotesk'; font-size: 13px; font-weight: 600;"
+        )
+        h.addWidget(name_lbl)
+
+        finish_lbl = QLabel(f"#{r.finish_position} / {r.field_size}")
+        finish_lbl.setStyleSheet(
+            f"color: {t.MUTED}; background: transparent; "
+            f"font-family: 'JetBrains Mono'; font-size: 11px;"
+        )
+        h.addWidget(finish_lbl)
+
+        h.addStretch(1)
+
+        # ROI + accuracy
+        roi_lbl = QLabel(f"ROI {r.roi_pct:+.1f}%")
+        roi_col = t.ACCENT if r.roi_pct >= 0 else t.DANGER_2
+        roi_lbl.setStyleSheet(
+            f"color: {roi_col}; background: transparent; "
+            f"font-family: 'JetBrains Mono'; font-size: 12px; font-weight: 600;"
+        )
+        h.addWidget(roi_lbl)
+
+        acc_lbl = QLabel(f"acc {r.accuracy}%")
+        acc_lbl.setStyleSheet(
+            f"color: {t.MUTED}; background: transparent; "
+            f"font-family: 'JetBrains Mono'; font-size: 11px;"
+        )
+        h.addWidget(acc_lbl)
+
+        # Clickable → tournament play mode
+        f.mousePressEvent = (
+            lambda _e: self.navigate_requested.emit("Tournament Play Mode")
+        )
+        f.setCursor(Qt.PointingHandCursor)
+        return f
