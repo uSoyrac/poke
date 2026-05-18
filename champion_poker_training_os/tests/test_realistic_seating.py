@@ -20,15 +20,18 @@ from app.engine.hand_state import Street
 
 def test_dealer_button_rotates_each_hand():
     """Each new hand the button moves clockwise. After N hands every
-    seat has been the dealer exactly once."""
+    seat has been the dealer exactly once.
+
+    NB: read `dealer_idx` from the HandState — `game.dealer_idx` may have
+    already advanced if the hand finished synchronously inside start_hand
+    (everyone folded before the hero could act).
+    """
     from app.engine.hand_state import ActionType
     game = PokerGame(num_players=6, starting_stack=100.0)
     seen_dealers = []
     for _ in range(6):
-        game.start_hand()
-        seen_dealers.append(game.dealer_idx)
-        # Drain hero action so the hand can finish (engine rotates the
-        # button itself when the next hand starts).
+        hand = game.start_hand()
+        seen_dealers.append(hand.dealer_idx)
         s = 80
         while game.is_waiting_for_hero and s > 0:
             game.hero_act(ActionType.FOLD); s -= 1

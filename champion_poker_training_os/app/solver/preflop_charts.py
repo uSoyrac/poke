@@ -836,7 +836,10 @@ def get_chart(key: str) -> Optional[dict[str, dict[str, float]]]:
 def chart_for_spot(spot: dict) -> dict[str, dict[str, float]]:
     """Return the best matching chart for a given spot dict."""
     pos    = (spot.get("position") or "BTN").upper().replace("UTG+1", "UTG")
-    stack  = int(spot.get("stack_bb") or 40)
+    try:
+        stack = int(float(spot.get("stack_bb") or 40))
+    except (ValueError, TypeError):
+        stack = 40
     # Stack bucket — 10/15 shove, 25 short, 40 mid, 100 deep
     if stack <= 12:   bucket = 10
     elif stack <= 18: bucket = 15
