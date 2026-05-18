@@ -134,33 +134,49 @@ QScrollBar::sub-line:vertical {{ height: 0; background: none; }}
 _NAVBTN_QSS = f"""
 QPushButton#NavButton {{
   text-align: left;
-  padding: 6px 18px 6px 18px;
+  padding: 0;
   border: 0;
   border-left: 2px solid transparent;
-  color: {t.INK_2};
   background: transparent;
-  font-family: 'Space Grotesk';
-  font-weight: 500;
-  font-size: 13px;
 }}
 QPushButton#NavButton:hover {{
-  color: {t.INK};
   background: {t.SURFACE};
 }}
 QPushButton#NavButton:checked {{
-  color: {t.INK};
   background: {t.SURFACE};
   border-left: 2px solid {t.ACCENT};
-  font-weight: 600;
 }}
+QPushButton#NavButton QLabel {{ background: transparent; }}
 """
+
+_NAVLBL_QSS = (
+    f"color: {t.INK_2}; background: transparent; "
+    f"font-family: 'Space Grotesk'; font-weight: 500; font-size: 13px;"
+)
+_NAVLBL_ACTIVE_QSS = (
+    f"color: {t.INK}; background: transparent; "
+    f"font-family: 'Space Grotesk'; font-weight: 600; font-size: 13px;"
+)
+_KBD_QSS = (
+    f"color: {t.DIM}; background: {t.BG}; "
+    f"border: 1px solid {t.LINE}; "
+    f"padding: 1px 5px 1px 5px; "
+    f"font-family: 'JetBrains Mono'; font-weight: 500; font-size: 9px;"
+)
+_KBD_ACTIVE_QSS = (
+    f"color: {t.ACCENT}; background: {t.BG}; "
+    f"border: 1px solid {t.LINE_2}; "
+    f"padding: 1px 5px 1px 5px; "
+    f"font-family: 'JetBrains Mono'; font-weight: 600; font-size: 9px;"
+)
 
 
 class SidebarNav(QFrame):
     """Scrollable Poke sidebar — section headers, active accent left-rule."""
     navigation_requested = Signal(str)
 
-    def __init__(self, items: list[str]):
+    def __init__(self, items: list[str],
+                 shortcuts: dict[str, str] | None = None):
         super().__init__()
         self.setObjectName("Sidebar")
         self.setAttribute(Qt.WA_StyledBackground, True)
@@ -169,6 +185,9 @@ class SidebarNav(QFrame):
             f"border-right: 1px solid {t.LINE}; }}"
         )
         self.buttons: dict[str, QPushButton] = {}
+        self._labels: dict[str, QLabel] = {}
+        self._kbd_chips: dict[str, QLabel] = {}
+        self._shortcuts = shortcuts or {}
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -291,7 +310,7 @@ class SidebarNav(QFrame):
 
     def _nav_button(self, item: str) -> QPushButton:
         short = _NAV_META.get(item, item)
-        btn = QPushButton(short)
+        btn = QPushButton()
         btn.setCheckable(True)
         btn.setObjectName("NavButton")
         btn.setAttribute(Qt.WA_StyledBackground, True)
@@ -299,7 +318,36 @@ class SidebarNav(QFrame):
         btn.setMinimumHeight(30)
         btn.setToolTip(item)
         btn.setStyleSheet(_NAVBTN_QSS)
+
+        row = QHBoxLayout(btn)
+        row.setContentsMargins(18, 6, 12, 6)
+        row.setSpacing(8)
+
+        lbl = QLabel(short)
+        lbl.setStyleSheet(_NAVLBL_QSS)
+        lbl.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        row.addWidget(lbl)
+        row.addStretch(1)
+        self._labels[item] = lbl
+
+        kbd_text = self._shortcuts.get(item, "")
+        if kbd_text:
+            chip = QLabel(kbd_text)
+            chip.setStyleSheet(_KBD_QSS)
+            chip.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+            row.addWidget(chip)
+            self._kbd_chips[item] = chip
+
+        btn.toggled.connect(lambda checked, it=item: self._on_toggled(it, checked))
         return btn
+
+    def _on_toggled(self, item: str, checked: bool) -> None:
+        lbl = self._labels.get(item)
+        if lbl:
+            lbl.setStyleSheet(_NAVLBL_ACTIVE_QSS if checked else _NAVLBL_QSS)
+        chip = self._kbd_chips.get(item)
+        if chip:
+            chip.setStyleSheet(_KBD_ACTIVE_QSS if checked else _KBD_QSS)
 
     # ── public API (unchanged) ───────────────────────────────────────
 

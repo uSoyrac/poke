@@ -149,7 +149,9 @@ class MainWindow(QMainWindow):
         root.setObjectName("RootWindow")
         self.setCentralWidget(root)
 
-        self.sidebar = SidebarNav(NAV_ITEMS)
+        sidebar_kbd = {NAV_ITEMS[i]: f"⌃{i + 1}"
+                       for i in range(min(9, len(NAV_ITEMS)))}
+        self.sidebar = SidebarNav(NAV_ITEMS, shortcuts=sidebar_kbd)
         self.sidebar.navigation_requested.connect(self.navigate)
         self.topbar = TopStatusBar(self.state)
         self.coach = CoachPanel()

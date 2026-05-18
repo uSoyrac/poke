@@ -26,6 +26,196 @@ from app.ui.components.weekly_progress import WeeklyProgressChart
 from app.ui.theme import poke_tokens as t
 
 
+# ── Poke-styled row primitives for Dashboard bottom panels ───────────────
+
+
+def _row_frame() -> QFrame:
+    """Hairline-separated row container, used for leak/skill/weakness rows."""
+    f = QFrame()
+    f.setAttribute(Qt.WA_StyledBackground, True)
+    f.setStyleSheet(
+        f"QFrame {{ background: transparent; "
+        f"border-top: 1px solid {t.LINE}; }}"
+    )
+    return f
+
+
+def _mono(text: str, color: str, size: int = 11, weight: int = 500) -> QLabel:
+    lbl = QLabel(text)
+    lbl.setStyleSheet(
+        f"color: {color}; background: transparent; "
+        f"font-family: 'JetBrains Mono'; font-weight: {weight}; "
+        f"font-size: {size}px;"
+    )
+    return lbl
+
+
+def _grotesk(text: str, color: str, size: int = 13, weight: int = 500,
+              wrap: bool = False) -> QLabel:
+    lbl = QLabel(text)
+    lbl.setStyleSheet(
+        f"color: {color}; background: transparent; "
+        f"font-family: 'Space Grotesk'; font-weight: {weight}; "
+        f"font-size: {size}px;"
+    )
+    if wrap:
+        lbl.setWordWrap(True)
+    return lbl
+
+
+def _section_eyebrow(text: str) -> QLabel:
+    """▸ PROGRESS-style mono uppercase label."""
+    lbl = QLabel(f"▸  {text.upper()}")
+    lbl.setStyleSheet(
+        f"color: {t.MUTED}; background: transparent; "
+        f"font-family: 'JetBrains Mono'; font-weight: 500; font-size: 10px;"
+    )
+    return lbl
+
+
+class _PokeLeakRow(QFrame):
+    """A single leak row in the Poke style — severity tag · name · EV loss."""
+
+    def __init__(self, leak: dict, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setStyleSheet(
+            f"#leakrow {{ background: transparent; "
+            f"border-top: 1px solid {t.LINE}; }}"
+        )
+        self.setObjectName("leakrow")
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 12, 0, 12)
+        row.setSpacing(12)
+
+        sev = leak.get("severity", "")
+        tone = {"Critical": "r", "High": "r",
+                "Medium": "y", "Low": "b"}.get(sev, "neutral")
+        tag = PokeTag(sev or "—", tone=tone, dot=True)
+        tag.setFixedWidth(96)
+        row.addWidget(tag)
+
+        body = QVBoxLayout()
+        body.setSpacing(2)
+        body.addWidget(_grotesk(leak["name"], t.INK, size=13, weight=600,
+                                  wrap=True))
+        meta = (f"{leak.get('sample_size', 0)} hands · "
+                f"{leak.get('frequency_deviation', '')}")
+        body.addWidget(_mono(meta, t.MUTED, size=10))
+        row.addLayout(body, 1)
+
+        ev = QLabel(f"-{leak.get('ev_lost', 0):.1f}")
+        ev.setStyleSheet(
+            f"color: {t.DANGER_2}; background: transparent; "
+            f"font-family: 'JetBrains Mono'; font-weight: 700; font-size: 18px;"
+        )
+        ev.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        row.addWidget(ev)
+        unit = _mono("bb", t.MUTED, size=10)
+        unit.setAlignment(Qt.AlignRight | Qt.AlignBottom)
+        row.addWidget(unit)
+
+
+class _PokeSkillRow(QFrame):
+    """A skill-tree category row — name · level · xp progress bar."""
+
+    def __init__(self, node: dict, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setObjectName("skillrow")
+        self.setStyleSheet(
+            f"#skillrow {{ background: transparent; "
+            f"border-top: 1px solid {t.LINE}; }}"
+        )
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 10, 0, 10)
+        row.setSpacing(12)
+
+        name = _grotesk(node["name"], t.INK, size=12, weight=500)
+        name.setFixedWidth(150)
+        row.addWidget(name)
+
+        lvl = _mono(f"LV {node['level']:02d}", t.ACCENT, size=10, weight=600)
+        lvl.setFixedWidth(42)
+        row.addWidget(lvl)
+
+        bar = QProgressBar()
+        bar.setRange(0, 100)
+        bar.setValue(int(node["progress"]))
+        bar.setTextVisible(False)
+        bar.setFixedHeight(4)
+        bar.setStyleSheet(
+            f"QProgressBar {{ background: {t.BG}; border: 0; }}"
+            f"QProgressBar::chunk {{ background: {t.ACCENT}; }}"
+        )
+        row.addWidget(bar, 1)
+
+        xp = _mono(f"{node['xp']}/{node['xp_next']}", t.MUTED, size=10)
+        xp.setFixedWidth(72)
+        xp.setAlignment(Qt.AlignRight)
+        row.addWidget(xp)
+
+
+class _PokeAchievementRow(QFrame):
+    """Achievement row — status dot · name · lock state."""
+
+    def __init__(self, ach: dict, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setObjectName("achrow")
+        self.setStyleSheet(
+            f"#achrow {{ background: transparent; "
+            f"border-top: 1px solid {t.LINE}; }}"
+        )
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 8, 0, 8)
+        row.setSpacing(12)
+
+        unlocked = bool(ach.get("unlocked"))
+        dot = QLabel("●")
+        dot.setStyleSheet(
+            f"color: {t.ACCENT if unlocked else t.DIM}; "
+            f"background: transparent; font-size: 10px;"
+        )
+        dot.setFixedWidth(14)
+        row.addWidget(dot)
+
+        name = _grotesk(ach["name"], t.INK if unlocked else t.MUTED,
+                         size=12, weight=500)
+        row.addWidget(name, 1)
+
+        status = _mono("UNLOCKED" if unlocked else "LOCKED",
+                        t.ACCENT if unlocked else t.DIM, size=9, weight=600)
+        row.addWidget(status)
+
+
+class _PokeMetricCell(QFrame):
+    """Small metric cell used in the Adaptive Queue panel."""
+
+    def __init__(self, label: str, value: str, tone: str = "neutral",
+                 parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setObjectName("metriccell")
+        self.setStyleSheet(
+            f"#metriccell {{ background: {t.BG_2}; "
+            f"border: 1px solid {t.LINE}; }}"
+        )
+        v = QVBoxLayout(self)
+        v.setContentsMargins(14, 10, 14, 10)
+        v.setSpacing(4)
+
+        v.addWidget(_mono(label.upper(), t.MUTED, size=10))
+        color = {"g": t.ACCENT, "r": t.DANGER_2,
+                  "y": t.WARN, "b": t.INFO}.get(tone, t.INK)
+        val = QLabel(value)
+        val.setStyleSheet(
+            f"color: {color}; background: transparent; "
+            f"font-family: 'Space Grotesk'; font-weight: 700; font-size: 28px;"
+        )
+        v.addWidget(val)
+
+
 class MiniSparkline(QWidget):
     """Tiny inline sparkline chart."""
 
@@ -259,95 +449,111 @@ class DashboardScreen(QWidget):
                                 idx // 4, idx % 4)
         layout.addLayout(kpi_grid)
 
-        # === MIDDLE ROW: LEAKS + PROGRESS + SKILL TREE ===
+        # === MIDDLE ROW: LEAKS + PROGRESS + SKILL TREE (Poke) ===
         middle = QHBoxLayout()
+        middle.setSpacing(16)
 
-        # Left: Top Leaks
-        leak_panel = QFrame()
-        leak_panel.setObjectName("DataPanel")
-        leak_layout = QVBoxLayout(leak_panel)
-        leak_title = QLabel("🔴 Top Leaks")
-        leak_title.setObjectName("SectionTitle")
-        leak_layout.addWidget(leak_title)
-        for leak in leaks()[:3]:
-            leak_layout.addWidget(LeakCard(leak))
-        leak_btn = QPushButton("View All Leaks →")
-        leak_btn.clicked.connect(lambda: self.navigate_requested.emit("Leak Finder"))
-        leak_layout.addWidget(leak_btn)
-        middle.addWidget(leak_panel, 2)
-
-        # Center: 7-Day Progress + Expensive Spots
-        center_panel = QFrame()
-        center_panel.setObjectName("DataPanel")
-        center_layout = QVBoxLayout(center_panel)
-        progress_title = QLabel("📈 7-Day Progress")
-        progress_title.setObjectName("SectionTitle")
-        center_layout.addWidget(progress_title)
-        sparkline_row = QHBoxLayout()
-        sparkline_row.addWidget(MiniSparkline([float(v) for v in metrics["progress_7d"]], "#22D3EE"))
-        sparkline_row.addWidget(QLabel(f"{metrics['progress_7d'][-1]}%"))
-        center_layout.addLayout(sparkline_row)
-
-        center_layout.addWidget(QLabel("💸 Most expensive spots:"))
-        for spot in metrics["expensive_spots"][:4]:
-            label = QLabel(f"  • {spot}")
-            label.setWordWrap(True)
-            label.setObjectName("Muted")
-            center_layout.addWidget(label)
-
-        # Study plan preview
-        plan_title = QLabel("📋 Active Study Plan")
-        plan_title.setObjectName("SectionTitle")
-        center_layout.addWidget(plan_title)
-        for day in study_plan()[:3]:
-            label = QLabel(f"{day['day']}: {day['focus']} | {day['target']}")
-            label.setWordWrap(True)
-            label.setObjectName("Green")
-            center_layout.addWidget(label)
-        plan_btn = QPushButton("Open Study Planner →")
-        plan_btn.clicked.connect(lambda: self.navigate_requested.emit("Study Planner"))
-        center_layout.addWidget(plan_btn)
-        center_layout.addStretch(1)
-        middle.addWidget(center_panel, 2)
-
-        # Right: Skill Tree Summary
-        skill_panel = QFrame()
-        skill_panel.setObjectName("DataPanel")
-        skill_layout = QVBoxLayout(skill_panel)
-        skill_title = QLabel("🌳 Skill Tree")
-        skill_title.setObjectName("SectionTitle")
-        skill_layout.addWidget(skill_title)
-        skill_summary = QLabel(
-            f"Overall Level: {tree_summary['overall_level']} | "
-            f"Mastery: {tree_summary['overall_mastery']}% | "
-            f"Total XP: {tree_summary['total_xp']}"
+        # ── Top Leaks card ────────────────────────────────────────────
+        leak_count = min(4, len(leaks()))
+        leak_card = PokeCard(
+            "Top leaks",
+            num="A1",
+            sub=f"{leak_count} OPEN",
         )
-        skill_summary.setObjectName("Cyan")
-        skill_layout.addWidget(skill_summary)
+        leak_card.body_layout().setSpacing(0)
+        for leak in leaks()[:4]:
+            leak_card.add_to_body(_PokeLeakRow(leak))
+        leak_btn = PokeBtn("View all leaks", variant="ghost",
+                            size="sm", kbd="→")
+        leak_btn.clicked.connect(
+            lambda: self.navigate_requested.emit("Leak Finder"))
+        spacer = QWidget()
+        spacer.setFixedHeight(10)
+        leak_card.add_to_body(spacer)
+        leak_card.add_to_body(leak_btn)
+        middle.addWidget(leak_card, 2)
 
+        # ── Progress + Study Plan ─────────────────────────────────────
+        prog_card = PokeCard(
+            "7-day progress",
+            num="A2",
+            sub=f"{metrics['progress_7d'][-1]}%",
+        )
+        prog_card.body_layout().setSpacing(10)
+        spark_row = QHBoxLayout()
+        spark_row.setSpacing(10)
+        spark_row.addWidget(MiniSparkline(
+            [float(v) for v in metrics["progress_7d"]], t.ACCENT))
+        cur = QLabel(f"{metrics['progress_7d'][-1]}%")
+        cur.setStyleSheet(
+            f"color: {t.INK}; background: transparent; "
+            f"font-family: 'Space Grotesk'; font-weight: 700; font-size: 22px;"
+        )
+        spark_row.addWidget(cur)
+        spark_row.addStretch(1)
+        prog_card.add_layout_to_body(spark_row)
+
+        prog_card.add_to_body(_section_eyebrow("Most expensive spots"))
+        for spot in metrics["expensive_spots"][:3]:
+            prog_card.add_to_body(_grotesk(f"·  {spot}", t.INK_2,
+                                            size=12, weight=500, wrap=True))
+
+        prog_card.add_to_body(_section_eyebrow("Active study plan"))
+        for day in study_plan()[:3]:
+            prog_card.add_to_body(
+                _grotesk(f"{day['day'][:3].upper()}  ·  {day['focus']}",
+                          t.INK_2, size=12, weight=500, wrap=True))
+
+        plan_btn = PokeBtn("Open study planner", variant="ghost",
+                            size="sm", kbd="→")
+        plan_btn.clicked.connect(
+            lambda: self.navigate_requested.emit("Study Planner"))
+        prog_card.add_to_body(plan_btn)
+        middle.addWidget(prog_card, 2)
+
+        # ── Skill tree + Achievements ────────────────────────────────
+        skill_card = PokeCard(
+            "Skill tree",
+            num="A3",
+            sub=f"LV {tree_summary['overall_level']}  ·  "
+                f"{tree_summary['overall_mastery']}% MASTERY",
+        )
+        skill_card.body_layout().setSpacing(0)
         for node in tree_summary["categories"][:6]:
-            skill_layout.addWidget(SkillNodeWidget(node))
+            skill_card.add_to_body(_PokeSkillRow(node))
 
-        more_btn = QPushButton("View Full Skill Tree →")
-        more_btn.clicked.connect(lambda: self.navigate_requested.emit("Reports"))
-        skill_layout.addWidget(more_btn)
+        sp1 = QWidget(); sp1.setFixedHeight(10)
+        skill_card.add_to_body(sp1)
+        tree_btn = PokeBtn("View full tree", variant="ghost",
+                            size="sm", kbd="→")
+        tree_btn.clicked.connect(
+            lambda: self.navigate_requested.emit("Reports"))
+        skill_card.add_to_body(tree_btn)
 
-        # Achievements
-        ach_title = QLabel(f"🏆 Achievements ({tree_summary['achievements_unlocked']}/{tree_summary['achievements_total']})")
-        ach_title.setObjectName("SectionTitle")
-        skill_layout.addWidget(ach_title)
+        sp2 = QWidget(); sp2.setFixedHeight(6)
+        skill_card.add_to_body(sp2)
+        ach_eyebrow = QLabel(
+            f"▸  ACHIEVEMENTS  ·  "
+            f"{tree_summary['achievements_unlocked']}/"
+            f"{tree_summary['achievements_total']}"
+        )
+        ach_eyebrow.setStyleSheet(
+            f"color: {t.MUTED}; background: transparent; "
+            f"font-family: 'JetBrains Mono'; font-weight: 500; font-size: 10px;"
+        )
+        skill_card.add_to_body(ach_eyebrow)
 
         all_achievements = list(skill_tree.achievements.values())
-        unlocked_first = sorted(all_achievements, key=lambda a: (not a.unlocked, a.name))
-        for ach in unlocked_first[:5]:
-            skill_layout.addWidget(AchievementBadge(ach.to_dict()))
+        unlocked_first = sorted(all_achievements,
+                                  key=lambda a: (not a.unlocked, a.name))
+        for ach in unlocked_first[:4]:
+            skill_card.add_to_body(_PokeAchievementRow(ach.to_dict()))
 
-        skill_layout.addStretch(1)
-        middle.addWidget(skill_panel, 2)
+        middle.addWidget(skill_card, 2)
 
         layout.addLayout(middle)
 
-        # === ADAPTIVE ENGINE PANEL ===
+        # === ADAPTIVE TRAINING QUEUE (Poke) ===
         engine = state.adaptive_engine()
         sizes = engine.queue_size()
         weakness = engine.weakness_summary(top_n=5)
@@ -356,87 +562,94 @@ class DashboardScreen(QWidget):
         except Exception:
             imp_count = 0
 
-        ae_card = QFrame()
-        ae_card.setObjectName("DataPanel")
-        ae_layout = QVBoxLayout(ae_card)
-        ae_layout.setContentsMargins(14, 12, 14, 12)
-        ae_title_row = QHBoxLayout()
-        ae_title = QLabel("🧠 Adaptive Training Queue")
-        ae_title.setObjectName("SectionTitle")
-        ae_title_row.addWidget(ae_title)
-        ae_title_row.addStretch(1)
-        ae_practice_btn = QPushButton("▶ Resume training (next mistake)")
-        ae_practice_btn.setObjectName("PrimaryButton")
-        ae_practice_btn.clicked.connect(self._resume_training)
-        ae_title_row.addWidget(ae_practice_btn)
-        ae_layout.addLayout(ae_title_row)
+        ae_action = PokeBtn("Resume training", variant="primary",
+                             size="sm", kbd="↵")
+        ae_action.clicked.connect(self._resume_training)
+        ae_card = PokeCard(
+            "Adaptive training queue",
+            num="A4",
+            sub="NEXT MISTAKE FIRST",
+            action=ae_action,
+        )
+        ae_card.body_layout().setSpacing(14)
 
-        ae_metrics = QHBoxLayout()
-        for label, value, color in [
-            ("Tracked spots", str(sizes["tracked"]), "Cyan"),
-            ("Mistakes pending", str(sizes["mistakes_pending"]), "Red" if sizes["mistakes_pending"] else "Muted"),
-            ("Due for review", str(sizes["due_for_review"]), "Amber" if sizes["due_for_review"] else "Muted"),
-            ("Imported hands", str(imp_count), "Green" if imp_count else "Muted"),
-        ]:
-            cell = QFrame()
-            cell.setObjectName("Card")
-            cell_layout = QVBoxLayout(cell)
-            cell_layout.setContentsMargins(12, 8, 12, 8)
-            l1 = QLabel(label)
-            l1.setObjectName("Muted")
-            l2 = QLabel(value)
-            l2.setObjectName(color)
-            l2.setStyleSheet("font-size: 22px; font-weight: 800;")
-            cell_layout.addWidget(l1)
-            cell_layout.addWidget(l2)
-            ae_metrics.addWidget(cell)
-        ae_layout.addLayout(ae_metrics)
+        metric_row = QHBoxLayout()
+        metric_row.setSpacing(10)
+        metric_defs = [
+            ("Tracked spots",    str(sizes["tracked"]),          "neutral"),
+            ("Mistakes pending", str(sizes["mistakes_pending"]),
+             "r" if sizes["mistakes_pending"] else "neutral"),
+            ("Due for review",   str(sizes["due_for_review"]),
+             "y" if sizes["due_for_review"] else "neutral"),
+            ("Imported hands",   str(imp_count),
+             "g" if imp_count else "neutral"),
+        ]
+        for lbl, val, tone in metric_defs:
+            metric_row.addWidget(_PokeMetricCell(lbl, val, tone))
+        ae_card.add_layout_to_body(metric_row)
 
-        # 7-day progress chart (drills + hands + accuracy)
-        chart_title = QLabel("📈 Last 7 days")
-        chart_title.setObjectName("Muted")
-        ae_layout.addWidget(chart_title)
-        ae_layout.addWidget(WeeklyProgressChart())
+        ae_card.add_to_body(_section_eyebrow("Last 7 days"))
+        ae_card.add_to_body(WeeklyProgressChart())
 
         if weakness:
-            weak_title = QLabel("Top weaknesses (rolling EV loss):")
-            weak_title.setObjectName("Muted")
-            ae_layout.addWidget(weak_title)
+            ae_card.add_to_body(_section_eyebrow(
+                "Top weaknesses · rolling EV loss"))
             for w in weakness:
-                row = QHBoxLayout()
-                spot_lbl = QLabel(w["spot_id"])
-                spot_lbl.setObjectName("Cyan")
-                spot_lbl.setFixedWidth(120)
-                acc_lbl = QLabel(f"{w['accuracy']:.0f}% acc · {w['attempts']} att")
-                acc_lbl.setObjectName("Muted")
-                ev_lbl = QLabel(f"-{w['rolling_ev_loss']:.2f}bb")
-                ev_lbl.setObjectName("Red")
-                ev_lbl.setStyleSheet("font-weight: 800;")
-                row.addWidget(spot_lbl)
-                row.addWidget(acc_lbl, 1)
-                row.addWidget(ev_lbl)
-                ae_layout.addLayout(row)
+                row = QFrame()
+                row.setAttribute(Qt.WA_StyledBackground, True)
+                row.setStyleSheet(
+                    f"QFrame {{ background: transparent; "
+                    f"border-top: 1px solid {t.LINE}; }}"
+                )
+                rl = QHBoxLayout(row)
+                rl.setContentsMargins(0, 8, 0, 8)
+                rl.setSpacing(12)
+                spot = _mono(w["spot_id"], t.ACCENT, size=11, weight=600)
+                spot.setFixedWidth(140)
+                rl.addWidget(spot)
+                rl.addWidget(_mono(
+                    f"{w['accuracy']:.0f}% acc  ·  {w['attempts']} att",
+                    t.MUTED, size=10), 1)
+                ev = QLabel(f"-{w['rolling_ev_loss']:.2f}bb")
+                ev.setStyleSheet(
+                    f"color: {t.DANGER_2}; background: transparent; "
+                    f"font-family: 'JetBrains Mono'; "
+                    f"font-weight: 700; font-size: 14px;"
+                )
+                rl.addWidget(ev)
+                ae_card.add_to_body(row)
         else:
-            empty = QLabel("Henüz drill çözülmedi. Spot Practice Trainer'a git ve birkaç soruya cevap ver — burada zayıflıkların listelenecek.")
-            empty.setObjectName("Muted")
-            empty.setWordWrap(True)
-            ae_layout.addWidget(empty)
+            empty = _grotesk(
+                "Henüz drill çözülmedi. Spot Practice Trainer'a git ve birkaç "
+                "soruya cevap ver — burada zayıflıkların listelenecek.",
+                t.MUTED, size=12, weight=500, wrap=True)
+            ae_card.add_to_body(empty)
         layout.addWidget(ae_card)
 
-        # === COMPLIANCE STATUS ===
-        compliance = QFrame()
-        compliance.setObjectName("Card")
-        comp_layout = QHBoxLayout(compliance)
-        comp_layout.setContentsMargins(14, 8, 14, 8)
-        comp_icon = QLabel("🔒")
-        comp_text = QLabel("RTA Guard: Strict Mode Active — Offline-only training, no HUD/overlay/live advice")
-        comp_text.setObjectName("Green")
-        comp_btn = QPushButton("View Compliance →")
-        comp_btn.clicked.connect(lambda: self.navigate_requested.emit("Settings / Compliance Guard"))
-        comp_layout.addWidget(comp_icon)
-        comp_layout.addWidget(comp_text, 1)
-        comp_layout.addWidget(comp_btn)
-        layout.addWidget(compliance)
+        # === COMPLIANCE STATUS (Poke) ===
+        comp = QFrame()
+        comp.setAttribute(Qt.WA_StyledBackground, True)
+        comp.setObjectName("ComplianceBar")
+        comp.setStyleSheet(
+            f"#ComplianceBar {{ background: {t.SURFACE}; "
+            f"border: 1px solid {t.LINE}; }}"
+        )
+        cl = QHBoxLayout(comp)
+        cl.setContentsMargins(18, 12, 18, 12)
+        cl.setSpacing(12)
+        cl.addWidget(PokeTag("STRICT", tone="g", dot=True))
+        cl.addWidget(_grotesk(
+            "RTA Guard active  ·  Offline-only training  ·  "
+            "No HUD / overlay / live advice",
+            t.INK_2, size=12, weight=500))
+        cl.addStretch(1)
+        comp_btn = PokeBtn("View compliance", variant="ghost",
+                            size="sm", kbd="→")
+        comp_btn.clicked.connect(
+            lambda: self.navigate_requested.emit(
+                "Settings / Compliance Guard"))
+        cl.addWidget(comp_btn)
+        layout.addWidget(comp)
 
     def _resume_training(self) -> None:
         """Pick the top of the adaptive mistake queue (or top weakness) and route to Spot Trainer."""

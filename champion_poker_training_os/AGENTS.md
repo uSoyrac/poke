@@ -3,7 +3,7 @@
 **You are a coding agent.** This doc is the contract: read it once, become
 productive immediately, stop re-deriving the same context every session.
 
-Last verified: 2026-05-19 · commit pushed to `origin/claude/friendly-torvalds-0ecc83` · 270/270 tests passing · UI audit 20/0 issues.
+Last verified: 2026-05-19 · commit pushed to `origin/claude/friendly-torvalds-0ecc83` · 270/270 tests passing · UI audit 20/0 issues · Sidebar kbd chips · Dashboard bottom panels Poke · Spot Trainer chrome Poke.
 
 ---
 
@@ -336,14 +336,14 @@ See `app/ui/screens/poke_style_guide.py` for the live in-app reference.
 | Style Guide                      | ✅ Done            | (reference) |
 | Welcome                          | ✅ Done            | done |
 | Dashboard (top half)             | ✅ Done            | done |
-| **SidebarNav**                   | ✅ Done            | done — touches every screen |
+| **SidebarNav**                   | ✅ Done            | done — kbd chips ⌃1..⌃9 on right |
 | **TopStatusBar**                 | ✅ Done            | done — touches every screen |
-| Dashboard (bottom panels)        | ⚠️ Legacy         | medium |
-| Spot Trainer                     | ❌ Legacy         | **high** (most-used) |
+| Dashboard (bottom panels)        | ✅ Done            | done — leak/skill/adaptive rows are Poke |
+| Spot Trainer (chrome)            | ✅ Done            | done — 0 radius + lime accent + Poke tokens |
 | Tournament Play                  | ❌ Legacy         | high |
 | GTO Trainer (Range Studio)       | ❌ Legacy         | high |
 | AI Coach                         | ❌ Legacy         | medium |
-| Other 22 screens                 | ❌ Legacy         | low (background) |
+| Other 21 screens                 | ❌ Legacy         | low (background) |
 
 Each migration is one commit. Workflow per screen:
 
@@ -373,10 +373,9 @@ That gets a new agent productive in ~5K tokens instead of 50K.
 
 ## What's broken / known issues
 
-- **Bottom panels of Dashboard** still use legacy widgets (LeakCard, SkillNodeWidget,
-  AchievementBadge). They render but look out of place next to the Poke header.
-- **SidebarNav** and **TopStatusBar** use the old cyan-on-dark style.
-- **26 screens** still legacy-styled — same dark cyan theme as before.
+- **24 screens** still legacy-styled — same dark cyan theme as before
+  (Tournament Play, GTO Trainer, AI Coach, Range Studio, Math Lab, Combat,
+  Reports, Hands, etc.).
 - **`This plugin does not support propagateSizeHints()`** appears in headless
   boot. Harmless — Qt offscreen plugin limitation.
 

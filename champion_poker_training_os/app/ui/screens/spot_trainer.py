@@ -43,18 +43,20 @@ from app.ui.components.action_buttons import GtoActionButton as _SharedGtoButton
 from app.ui.components.action_chip import parse_action_string
 from app.ui.components.card_view import CardView
 from app.ui.components.oval_table import DEFAULT_POSITIONS_9, OvalTable
+from app.ui.components.poke import PokeBtn, PokePageHeader, PokeTag
+from app.ui.theme import poke_tokens as _t
 
 
-# ── colour constants ──────────────────────────────────────────────────────
-_C_BG       = "#0C1117"
-_C_CARD     = "#131A24"
-_C_BORDER   = "#1E2733"
-_C_MUTED    = "#6B7280"
-_C_TEXT     = "#E5E7EB"
-_C_CYAN     = "#22D3EE"
-_C_GREEN    = "#10B981"
-_C_RED      = "#EF4444"
-_C_AMBER    = "#F59E0B"
+# ── colour constants ─ Poke-aligned (preserves legacy names for diff sanity) ─
+_C_BG       = _t.BG
+_C_CARD     = _t.SURFACE
+_C_BORDER   = _t.LINE
+_C_MUTED    = _t.MUTED
+_C_TEXT     = _t.INK
+_C_CYAN     = _t.ACCENT       # was teal cyan — now Poke lime
+_C_GREEN    = _t.ACCENT
+_C_RED      = _t.DANGER
+_C_AMBER    = _t.WARN
 
 # Action button colour palettes: (background, border, text)
 _BTN_FOLD   = ("#1B2D4A", "#3B82F6", "#93C5FD")
@@ -119,7 +121,7 @@ class _GtoActionButton(QPushButton):
             QPushButton {{
                 background: {self._bg};
                 border: 2px solid {self._border};
-                border-radius: 10px;
+                border-radius:0;
                 color: {self._fg};
                 font-size: 15px;
                 font-weight: 800;
@@ -189,7 +191,7 @@ class _PositionChip(QLabel):
         self.setText(pos_html + (act_html if action_text else ""))
         self.setTextFormat(Qt.RichText)
         self.setStyleSheet(
-            f"QLabel {{ background:{bg}; border:1.5px solid {border}; border-radius:8px; padding:4px 8px; }}"
+            f"QLabel {{ background:{bg}; border:1.5px solid {border}; border-radius:0; padding:4px 8px; }}"
         )
 
 
@@ -226,7 +228,7 @@ class SpotTrainerScreen(QWidget):
             b = QPushButton(f"{icon} {mode}")
             b.setFixedHeight(34)
             b.setStyleSheet(
-                f"QPushButton{{background:{_C_BG};border:1px solid {_C_BORDER};border-radius:7px;"
+                f"QPushButton{{background:{_C_BG};border:1px solid {_C_BORDER};border-radius:0;"
                 f"padding:4px 10px;color:{_C_MUTED};font-size:12px;}}"
                 f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
             )
@@ -249,13 +251,13 @@ class SpotTrainerScreen(QWidget):
         # Source badge + reroll
         self.source_badge = QLabel("⚙ Mock")
         self.source_badge.setStyleSheet(
-            f"QLabel{{background:#5C1F22;color:#F87171;font-weight:800;padding:4px 10px;border-radius:8px;font-size:11px;}}"
+            f"QLabel{{background:#5C1F22;color:#F87171;font-weight:800;padding:4px 10px;border-radius:0;font-size:11px;}}"
         )
         reroll = QPushButton("🎲")
         reroll.setFixedSize(36, 36)
         reroll.setToolTip("Reroll seed")
         reroll.setStyleSheet(
-            f"QPushButton{{background:{_C_BG};border:1px solid {_C_BORDER};border-radius:8px;font-size:16px;}}"
+            f"QPushButton{{background:{_C_BG};border:1px solid {_C_BORDER};border-radius:0;font-size:16px;}}"
             f"QPushButton:hover{{border-color:{_C_CYAN};}}"
         )
         reroll.clicked.connect(self._reroll)
@@ -323,7 +325,7 @@ class SpotTrainerScreen(QWidget):
         spot_scroll.setStyleSheet(
             f"QScrollArea{{border:none;background:{_C_BG};}}"
             "QScrollBar:vertical{width:6px;background:transparent;}"
-            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:3px;}"
+            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:0;}"
         )
         self._spot_list_widget = QWidget()
         self._spot_list_widget.setStyleSheet(f"background:{_C_BG};")
@@ -377,7 +379,7 @@ class SpotTrainerScreen(QWidget):
         self._sizing_input.setFixedHeight(28)
         self._sizing_input.setStyleSheet(
             f"QLineEdit{{background:{_C_CARD};border:1px solid {_C_BORDER};"
-            f"border-radius:5px;padding:2px 8px;color:{_C_TEXT};font-size:12px;}}"
+            f"border-radius:0;padding:2px 8px;color:{_C_TEXT};font-size:12px;}}"
             f"QLineEdit:focus{{border-color:{_C_CYAN};}}"
         )
         cb_row.addWidget(self._sizing_input)
@@ -388,7 +390,7 @@ class SpotTrainerScreen(QWidget):
             pill.setFixedHeight(28)
             pill.setStyleSheet(
                 f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-                "border-radius:5px;padding:2px 10px;font-size:11px;}"
+                "border-radius:0;padding:2px 10px;font-size:11px;}"
                 f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
             )
             pill.clicked.connect(lambda _, v=pct: self._sizing_input.setText(v))
@@ -754,13 +756,13 @@ class SpotTrainerScreen(QWidget):
             self.source_badge.setText(f"✓ {label}")
             self.source_badge.setStyleSheet(
                 "QLabel{background:#0E2A1E;color:#10B981;font-weight:800;padding:4px 10px;"
-                "border-radius:8px;font-size:11px;}"
+                "border-radius:0;font-size:11px;}"
             )
         else:
             self.source_badge.setText("⚙ Mock solver")
             self.source_badge.setStyleSheet(
                 "QLabel{background:#5C1F22;color:#F87171;font-weight:800;padding:4px 10px;"
-                "border-radius:8px;font-size:11px;}"
+                "border-radius:0;font-size:11px;}"
             )
 
     # ── answer + feedback ─────────────────────────────────────────────────
@@ -910,7 +912,7 @@ class SpotTrainerScreen(QWidget):
         next_btn = QPushButton("Next Spot →")
         next_btn.setFixedHeight(38)
         next_btn.setStyleSheet(
-            f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:8px;"
+            f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:0;"
             "font-weight:800;font-size:13px;padding:4px 18px;}"
             f"QPushButton:hover{{background:#06B6D4;}}"
         )
@@ -921,7 +923,7 @@ class SpotTrainerScreen(QWidget):
         deep_btn.setFixedHeight(38)
         deep_btn.setStyleSheet(
             f"QPushButton{{background:#0F141C;color:{_C_TEXT};"
-            f"border:1px solid {_C_BORDER};border-radius:8px;"
+            f"border:1px solid {_C_BORDER};border-radius:0;"
             f"font-weight:700;font-size:12px;padding:4px 14px;}}"
             f"QPushButton:hover{{border-color:#A78BFA;color:#A78BFA;}}"
         )
@@ -947,7 +949,7 @@ class SpotTrainerScreen(QWidget):
             why_label.setWordWrap(True)
             why_label.setStyleSheet(
                 f"QLabel{{background:#0C1117;color:{_C_TEXT};font-size:13px;"
-                "padding:10px 14px;border-radius:8px;border:1px solid #1E2733;"
+                "padding:10px 14px;border-radius:0;border:1px solid #1E2733;"
                 "}"
             )
             self._feedback_layout.addWidget(why_label)
@@ -964,7 +966,7 @@ class SpotTrainerScreen(QWidget):
             pill.setAlignment(Qt.AlignCenter)
             pill.setStyleSheet(
                 f"QLabel{{background:{bg};border:2px solid {border};"
-                f"color:{fg};border-radius:8px;padding:6px 12px;font-size:12px;"
+                f"color:{fg};border-radius:0;padding:6px 12px;font-size:12px;"
                 "font-weight:700;}"
             )
             freq_row.addWidget(pill)
@@ -1146,11 +1148,11 @@ def _tab_btn_style(active: bool, small: bool = False) -> str:
     fs = "11px" if small else "12px"
     if active:
         return (
-            f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:6px;"
+            f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:0;"
             f"font-weight:700;font-size:{fs};padding:{px};border:none;height:{h};}}"
         )
     return (
-        f"QPushButton{{background:{_C_CARD};color:{_C_MUTED};border-radius:6px;"
+        f"QPushButton{{background:{_C_CARD};color:{_C_MUTED};border-radius:0;"
         f"font-weight:500;font-size:{fs};padding:{px};border:1px solid {_C_BORDER};height:{h};}}"
         f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_TEXT};}}"
     )
