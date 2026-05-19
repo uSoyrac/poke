@@ -602,8 +602,34 @@ class DashboardScreen(QWidget):
                 f"{tree_summary['overall_mastery']}% MASTERY",
         )
         skill_card.body_layout().setSpacing(0)
-        for node in tree_summary["categories"][:6]:
-            skill_card.add_to_body(_PokeSkillRow(node))
+        # Network-graph visualisation of the 12 skill categories. Clicks on
+        # a node route to the matching trainer screen so the user can act
+        # on the strongest / weakest area immediately.
+        from app.ui.components.skill_network import SkillNetworkWidget
+        skill_net = SkillNetworkWidget(tree_summary["categories"])
+        skill_net.setMinimumHeight(340)
+
+        def _skill_node_clicked(node_id: str) -> None:
+            mapping = {
+                "preflop":       "Range Studio",
+                "blind_defense": "Range Studio",
+                "three_bet":     "GTO Study Library",
+                "flop":          "Postflop Trainer",
+                "turn":          "Postflop Trainer",
+                "river":         "River Decision Trainer",
+                "icm":           "ICM / PKO Trainer",
+                "pko":           "ICM / PKO Trainer",
+                "math":          "Math Lab",
+                "mental":        "AI Poker Coach",
+                "tournament":    "Tournament Play Mode",
+                "exploit":       "Combat Trainer",
+            }
+            target = mapping.get(node_id)
+            if target:
+                self.navigate_requested.emit(target)
+
+        skill_net.clicked.connect(_skill_node_clicked)
+        skill_card.add_to_body(skill_net)
 
         sp1 = QWidget(); sp1.setFixedHeight(10)
         skill_card.add_to_body(sp1)

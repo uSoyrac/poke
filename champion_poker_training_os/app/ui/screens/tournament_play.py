@@ -747,7 +747,75 @@ class TournamentPlayScreen(QWidget):
             win.navigate("Reports")
 
     def _open_archive(self) -> None:
-        """Pop a simple list of past tournaments."""
+        """Open the Poke-styled archive review dialog."""
+        from app.ui.components.tournament_archive_dialog import (
+            TournamentArchiveDialog,
+        )
+        dlg = TournamentArchiveDialog(self)
+        # Replay: open the legacy hand-history pop-up for that tournament
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QListWidgetItem
+        def _replay(r):
+            item = QListWidgetItem("")
+            item.setData(Qt.UserRole, r)
+            dlg.accept()
+            self._open_hand_history(item)
+        # Drill these leaks: build a drill pack from this tournament's
+        # notable_mistakes + queue it in the trainer
+        def _drill(r):
+            from app.db.drill_catalog import build_full_catalog
+            from app.db.mistakes_queue import MistakeEntry
+            from app.training.drill_recommender import (
+                pack_from_leaks, queue_pack_in_state,
+            )
+            entries = []
+            for m in (r.notable_mistakes or []):
+                entries.append(MistakeEntry(
+                    id=str(m.get("id") or m.get("mistake_id") or ""),
+                    logged_at=str(m.get("logged_at") or ""),
+                    context="tournament_archive",
+                    spot_id=str(m.get("spot_id") or ""),
+                    position=str(m.get("position") or ""),
+                    stack_bb=float(m.get("stack_bb") or 0),
+                    pot_type=str(m.get("pot_type") or "SRP"),
+                    hero_action=str(m.get("hero_action") or ""),
+                    gto_action=str(m.get("gto_action") or ""),
+                    ev_loss=float(m.get("ev_loss") or 0),
+                ))
+            if not entries:
+                self.coach_message.emit(
+                    "Bu turnuvada drill için yeterli notable_mistake yok."
+                )
+                return
+            pack = pack_from_leaks(entries, build_full_catalog(), max_size=10,
+                                    pack_name=f"Leak repair · {r.tournament_name}")
+            try:
+                from app.db.repository import save_drill_pack
+                save_drill_pack(pack)
+            except Exception:
+                pass
+            queued = queue_pack_in_state(pack, self.state)
+            dlg.accept()
+            self.coach_message.emit(
+                f"⚡  Drill pack hazır — {queued} spot · "
+                f"'{r.tournament_name}' leak repair. Spot Trainer açılıyor."
+            )
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(50, lambda: self._navigate_to_trainer())
+
+        dlg.hand_history_requested.connect(_replay)
+        dlg.drill_pack_requested.connect(_drill)
+        dlg.exec()
+        return
+
+    def _navigate_to_trainer(self) -> None:
+        """Bridge: ask the parent MainWindow to switch to Spot Trainer."""
+        win = self.window()
+        if hasattr(win, "navigate"):
+            win.navigate("Spot Practice Trainer")
+
+    def _open_archive_legacy_unused(self) -> None:
+        """LEGACY — kept here only for reference; the Poke archive replaces it."""
         from PySide6.QtWidgets import QDialog, QListWidget, QListWidgetItem
         records = load_archive()
         dlg = QDialog(self)

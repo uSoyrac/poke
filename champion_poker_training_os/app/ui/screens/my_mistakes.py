@@ -155,11 +155,16 @@ class MyMistakesScreen(QWidget):
         hr.addWidget(self._title_lbl)
         hr.addStretch(1)
 
+        # New: auto-generate a drill pack from all open mistakes
+        autodrill_btn = _btn("⚡  Auto drill pack", primary=True)
+        autodrill_btn.clicked.connect(self._generate_pack_from_all)
+        hr.addWidget(autodrill_btn)
+
         clear_btn = _btn("Tümünü Temizle")
         clear_btn.clicked.connect(self._clear_all)
         hr.addWidget(clear_btn)
 
-        refresh_btn = _btn("↻  Yenile", primary=True)
+        refresh_btn = _btn("↻  Yenile")
         refresh_btn.clicked.connect(self._refresh)
         hr.addWidget(refresh_btn)
         outer.addWidget(header)
@@ -270,5 +275,39 @@ class MyMistakesScreen(QWidget):
         self.coach_message.emit(
             f"Drilling '{signature}' — {len(mistakes)} kayıtlı hata. "
             f"Spot Trainer'da benzer spotlar açılacak."
+        )
+        self.navigate_requested.emit("Spot Practice Trainer")
+
+    def _generate_pack_from_all(self) -> None:
+        """Build a drill pack from EVERY open mistake, persist it, queue
+        the spots in the trainer and navigate."""
+        mistakes = [m for m in load_mistakes() if not m.drilled]
+        if not mistakes:
+            self.coach_message.emit(
+                "Hiç açık hata yok — önce birkaç drill çöz ya da el oyna. "
+                "Sonra burada otomatik drill paketi üretebilirim."
+            )
+            return
+        from app.db.drill_catalog import build_full_catalog
+        from app.db.repository import save_drill_pack
+        from app.training.drill_recommender import (
+            pack_from_leaks, queue_pack_in_state,
+        )
+        catalog = build_full_catalog()
+        pack = pack_from_leaks(mistakes, catalog, max_size=10)
+        try:
+            save_drill_pack(pack)
+        except Exception:
+            pass
+        queued = queue_pack_in_state(pack, self._state)
+        if queued == 0:
+            self.coach_message.emit(
+                "Drill pack üretildi ama eşleşen spot bulunamadı. "
+                "Catalog'a yeni spotlar eklenince tekrar dene."
+            )
+            return
+        self.coach_message.emit(
+            f"⚡  Auto drill pack hazır — {queued} spot · "
+            f"'{pack['name']}'. Spot Trainer açılıyor."
         )
         self.navigate_requested.emit("Spot Practice Trainer")
