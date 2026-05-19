@@ -9,6 +9,18 @@ QMainWindow, QWidget#RootWindow {
   background: #0B0F14;
 }
 
+/* Container surfaces — fill the middle-pane gaps so legacy screens that
+   don't set their own root background no longer leak the macOS grey
+   default. Uses the Poke BG token. */
+QStackedWidget,
+QStackedWidget > QWidget,
+QScrollArea,
+QScrollArea > QWidget,
+QAbstractScrollArea > QWidget#qt_scrollarea_viewport,
+QAbstractScrollArea > QWidget#qt_scrollarea_viewport > QWidget {
+  background: #0a0c0a;
+}
+
 QFrame#Sidebar {
   background: #0E141C;
   border-right: 1px solid #1E2733;

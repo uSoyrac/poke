@@ -33,12 +33,20 @@ from app.data.pro_profiles import PROS, format_pro, search_pros
 from app.training.concept_routing import APPLICATION_NAV, route_for
 
 
-_C_BG     = "#0A0E14"
-_C_PANEL  = "#0F141C"
-_C_BORDER = "#1E2733"
-_C_TEXT   = "#E5E7EB"
-_C_MUTED  = "#9CA3AF"
-_C_CYAN   = "#22D3EE"
+# Poke-aligned constants (legacy _C_* names preserved for diff sanity)
+from app.ui.theme import poke_tokens as _t
+_C_BG     = _t.BG
+_C_CARD   = _t.SURFACE
+_C_PANEL  = _t.SURFACE
+_C_BORDER = _t.LINE
+_C_MUTED  = _t.MUTED
+_C_TEXT   = _t.INK
+_C_CYAN   = _t.ACCENT
+_C_GREEN  = _t.ACCENT
+_C_RED    = _t.DANGER
+_C_BLUE   = _t.INFO
+_C_AMBER  = _t.WARN
+_C_PURPLE = _t.INFO
 
 _CATEGORY_LABELS = {
     "position":  "📍 Pozisyon",
@@ -135,7 +143,7 @@ class KnowledgeBaseScreen(QWidget):
         )
         self._gloss_search.setStyleSheet(
             f"QLineEdit{{background:{_C_PANEL};color:{_C_TEXT};"
-            f"border:1px solid {_C_BORDER};border-radius:6px;padding:8px 12px;font-size:13px;}}"
+            f"border:1px solid {_C_BORDER};border-radius:0;padding:8px 12px;font-size:13px;}}"
         )
         self._gloss_search.textChanged.connect(self._gloss_refresh)
         v.addWidget(self._gloss_search)
@@ -151,7 +159,7 @@ class KnowledgeBaseScreen(QWidget):
         self._gloss_detail.setReadOnly(True)
         self._gloss_detail.setStyleSheet(
             f"QTextEdit{{background:{_C_PANEL};color:{_C_TEXT};"
-            f"border:1px solid {_C_BORDER};border-radius:6px;padding:16px;"
+            f"border:1px solid {_C_BORDER};border-radius:0;padding:16px;"
             f"font-size:13px;}}"
         )
         split.addWidget(self._gloss_list)
@@ -211,7 +219,7 @@ class KnowledgeBaseScreen(QWidget):
         )
         self._pro_search.setStyleSheet(
             f"QLineEdit{{background:{_C_PANEL};color:{_C_TEXT};"
-            f"border:1px solid {_C_BORDER};border-radius:6px;padding:8px 12px;font-size:13px;}}"
+            f"border:1px solid {_C_BORDER};border-radius:0;padding:8px 12px;font-size:13px;}}"
         )
         self._pro_search.textChanged.connect(self._pros_refresh)
         v.addWidget(self._pro_search)
@@ -224,7 +232,7 @@ class KnowledgeBaseScreen(QWidget):
         self._pro_detail.setReadOnly(True)
         self._pro_detail.setStyleSheet(
             f"QTextEdit{{background:{_C_PANEL};color:{_C_TEXT};"
-            f"border:1px solid {_C_BORDER};border-radius:6px;padding:16px;"
+            f"border:1px solid {_C_BORDER};border-radius:0;padding:16px;"
             f"font-size:13px;}}"
         )
         split.addWidget(self._pro_list)
@@ -265,7 +273,7 @@ class KnowledgeBaseScreen(QWidget):
         self._concept_search.setPlaceholderText("Search concepts: MDF, Bayes, ICM, blockers...")
         self._concept_search.setStyleSheet(
             f"QLineEdit{{background:{_C_PANEL};color:{_C_TEXT};"
-            f"border:1px solid {_C_BORDER};border-radius:6px;padding:8px 12px;font-size:13px;}}"
+            f"border:1px solid {_C_BORDER};border-radius:0;padding:8px 12px;font-size:13px;}}"
         )
         self._concept_search.returnPressed.connect(self._concepts_render)
         v.addWidget(self._concept_search)
@@ -333,9 +341,9 @@ class KnowledgeBaseScreen(QWidget):
     def _list_style() -> str:
         return (
             f"QListWidget{{background:{_C_PANEL};color:{_C_TEXT};"
-            f"border:1px solid {_C_BORDER};border-radius:6px;font-size:12px;"
+            f"border:1px solid {_C_BORDER};border-radius:0;font-size:12px;"
             f"padding:6px;}}"
-            f"QListWidget::item{{padding:6px 8px;border-radius:4px;}}"
+            f"QListWidget::item{{padding:6px 8px;border-radius:0;}}"
             f"QListWidget::item:selected{{background:#0D2030;color:{_C_CYAN};}}"
             f"QListWidget::item:hover{{background:#13202E;}}"
         )
@@ -362,7 +370,7 @@ class _ConceptCard(QFrame):
         source_pill = QLabel(card["source"])
         source_pill.setStyleSheet(
             "background:#1B2A3D;color:#22D3EE;font-weight:700;"
-            "padding:3px 10px;border-radius:11px;"
+            "padding:3px 10px;border-radius:0;"
         )
         header.addWidget(source_pill)
         layout.addLayout(header)
@@ -392,7 +400,7 @@ class _ConceptCard(QFrame):
         practice_btn.setObjectName("PrimaryButton")
         practice_btn.setStyleSheet(
             "QPushButton{background:#10B981;color:#04110D;font-weight:800;"
-            "padding:7px 14px;border-radius:7px;border:none;}"
+            "padding:7px 14px;border-radius:0;border:none;}"
             "QPushButton:hover{background:#34D399;}"
         )
         practice_btn.setCursor(Qt.PointingHandCursor)

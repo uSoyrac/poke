@@ -22,15 +22,32 @@ from PySide6.QtWidgets import QSizePolicy, QWidget
 
 
 # Palette tuned to APT's reference (light pink / mint green pills)
-_C_RED_BG    = "#F6C5C5"   # out-of-range body
-_C_RED_LINE  = "#D67878"
-_C_GRN_BG    = "#C6E9C8"   # in-range body
-_C_GRN_LINE  = "#5DB36F"
-_C_NEUTRAL   = "#1F2937"   # no-data fill
-_C_BUBBLE_BG = "#FFFFFF"
-_C_BUBBLE_BR = "#374151"
-_C_TEXT      = "#0F1419"
-_C_MUTED     = "#6B7280"
+# Poke-aligned constants (legacy _C_* names preserved for diff sanity)
+from app.ui.theme import poke_tokens as _t
+_C_BG     = _t.BG
+_C_CARD   = _t.SURFACE
+_C_PANEL  = _t.SURFACE
+_C_BORDER = _t.LINE
+_C_MUTED  = _t.MUTED
+_C_TEXT   = _t.INK
+_C_CYAN   = _t.ACCENT
+_C_GREEN  = _t.ACCENT
+_C_RED    = _t.DANGER
+_C_BLUE   = _t.INFO
+_C_AMBER  = _t.WARN
+_C_PURPLE = _t.INFO
+
+# RangeBar paintEvent palette — these are the soft pink/mint/grey pills that
+# the APT-style report needs. Kept as inline hex (not Poke tokens) because
+# the pill recipe is the whole point of this widget. Without these the
+# paintEvent referenced undefined names and the process segfaulted.
+_C_GRN_BG     = "#0E2A1E"
+_C_GRN_LINE   = "#10B981"
+_C_RED_BG     = "#3D0E10"
+_C_RED_LINE   = "#EF4444"
+_C_NEUTRAL    = "#1E2733"
+_C_BUBBLE_BG  = "#0F141C"
+_C_BUBBLE_BR  = _t.ACCENT
 
 
 class RangeBar(QWidget):

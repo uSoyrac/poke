@@ -36,15 +36,20 @@ from app.ui.components.range_matrix import RangeMatrix
 from app.ui.components.solver_bar import SolverFrequencyBar
 
 # colours
-_C_BG     = "#0C1117"
-_C_CARD   = "#131A24"
-_C_BORDER = "#1E2733"
-_C_MUTED  = "#6B7280"
-_C_TEXT   = "#E5E7EB"
-_C_CYAN   = "#22D3EE"
-_C_GREEN  = "#10B981"
-_C_RED    = "#EF4444"
-_C_AMBER  = "#F59E0B"
+# Poke-aligned constants (legacy _C_* names preserved for diff sanity)
+from app.ui.theme import poke_tokens as _t
+_C_BG     = _t.BG
+_C_CARD   = _t.SURFACE
+_C_PANEL  = _t.SURFACE
+_C_BORDER = _t.LINE
+_C_MUTED  = _t.MUTED
+_C_TEXT   = _t.INK
+_C_CYAN   = _t.ACCENT
+_C_GREEN  = _t.ACCENT
+_C_RED    = _t.DANGER
+_C_BLUE   = _t.INFO
+_C_AMBER  = _t.WARN
+_C_PURPLE = _t.INFO
 
 FORMAT_TAGS = [
     ("All",               "All"),
@@ -69,11 +74,11 @@ def _tab_style(active: bool, small: bool = False) -> str:
     fs = "11px" if small else "12px"
     if active:
         return (
-            f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:7px;"
+            f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:0;"
             f"font-weight:700;font-size:{fs};padding:{pad};border:none;}}"
         )
     return (
-        f"QPushButton{{background:{_C_CARD};color:{_C_MUTED};border-radius:7px;"
+        f"QPushButton{{background:{_C_CARD};color:{_C_MUTED};border-radius:0;"
         f"font-weight:500;font-size:{fs};padding:{pad};"
         f"border:1px solid {_C_BORDER};}}"
         f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_TEXT};}}"
@@ -169,7 +174,7 @@ class StudyLibraryScreen(QWidget):
         scroll.setStyleSheet(
             f"QScrollArea{{border:none;background:{_C_BG};}}"
             "QScrollBar:vertical{width:6px;background:transparent;}"
-            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:3px;}"
+            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:0;}"
         )
         self._list_container = QWidget()
         self._list_container.setStyleSheet(f"background:{_C_BG};")
@@ -210,7 +215,7 @@ class StudyLibraryScreen(QWidget):
             b.setFixedHeight(36)
             if action == "practice":
                 b.setStyleSheet(
-                    f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:8px;"
+                    f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:0;"
                     "font-weight:700;font-size:13px;padding:4px 16px;border:none;}"
                     f"QPushButton:hover{{background:#06B6D4;}}"
                 )
@@ -218,14 +223,14 @@ class StudyLibraryScreen(QWidget):
             elif action == "coach":
                 b.setStyleSheet(
                     f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-                    "border-radius:8px;font-size:13px;padding:4px 14px;}"
+                    "border-radius:0;font-size:13px;padding:4px 14px;}"
                     f"QPushButton:hover{{border-color:{_C_CYAN};}}"
                 )
                 b.clicked.connect(lambda: self.coach_message.emit(explain_spot(self.current)))
             else:
                 b.setStyleSheet(
                     f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-                    "border-radius:8px;font-size:13px;padding:4px 14px;}"
+                    "border-radius:0;font-size:13px;padding:4px 14px;}"
                     f"QPushButton:hover{{border-color:{_C_CYAN};}}"
                 )
                 if action == "compare":

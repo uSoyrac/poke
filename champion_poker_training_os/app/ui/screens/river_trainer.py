@@ -41,6 +41,11 @@ class RiverTrainerScreen(QWidget):
 
     def __init__(self, state: AppState):
         super().__init__()
+        self.setObjectName('RiverTrainerScreenRoot')
+        from app.ui.theme import poke_tokens as _pt_bg
+        from PySide6.QtCore import Qt as _Qt_bg
+        self.setAttribute(_Qt_bg.WA_StyledBackground, True)
+        self.setStyleSheet(f"#RiverTrainerScreenRoot {{ background: {_pt_bg.BG}; }}")
         self.state = state
         self.all_drills = [d for d in generate_spot_drills(120) if d["street"] == "river"]
         self.drills = list(self.all_drills)
@@ -230,7 +235,7 @@ class RiverTrainerScreen(QWidget):
             sf.setWordWrap(True)
             sf.setStyleSheet(
                 "QLabel{background:#0C1117;color:#E5E7EB;font-size:12px;"
-                "padding:8px 12px;border-radius:6px;border-left:3px solid #F59E0B;}"
+                "padding:8px 12px;border-radius:0;border-left:3px solid #F59E0B;}"
             )
             self.feedback_layout.addWidget(sf)
 

@@ -55,7 +55,7 @@ class CollapsibleGroup(QFrame):
         self.pill.setFixedSize(32, 18)
         self.pill.setCursor(Qt.PointingHandCursor)
         self.pill.setStyleSheet(
-            "QPushButton { background: #1F2937; border: 1px solid #2A3647; border-radius: 9px; "
+            "QPushButton { background: #1F2937; border: 1px solid #2A3647; border-radius:0; "
             "color: #4B5563; padding: 0; text-align: left; padding-left: 4px; }"
             "QPushButton:checked { background: #10B981; color: #04110D; "
             "padding-left: 16px; border-color: #10B981; }"
@@ -140,7 +140,7 @@ class TableSettingsScreen(QWidget):
         save_btn = QPushButton("✓  SAVE")
         save_btn.setStyleSheet(
             "QPushButton { background: #10B981; color: #04110D; font-weight: 800; "
-            "padding: 9px 22px; border-radius: 8px; border: none; }"
+            "padding: 9px 22px; border-radius:0; border: none; }"
             "QPushButton:hover { background: #34D399; }"
         )
         save_btn.clicked.connect(
@@ -215,7 +215,7 @@ class TableSettingsScreen(QWidget):
                 b.setChecked(True)
             b.setStyleSheet(
                 "QPushButton { background: #131A24; border: 1px solid #1E2733; "
-                "border-radius: 6px; padding: 6px 14px; color: #8B95A7; font-weight: 700; }"
+                "border-radius:0; padding: 6px 14px; color: #8B95A7; font-weight: 700; }"
                 "QPushButton:checked { background: #1B2A3D; color: #22D3EE; border-color: #22D3EE; }"
             )
             self.reroll_buttons.addButton(b, i)
@@ -227,7 +227,7 @@ class TableSettingsScreen(QWidget):
         # Choose Timed lock-style notice
         timed_notice = QFrame()
         timed_notice.setStyleSheet(
-            "QFrame { background: #131A24; border: 1px solid #1E2733; border-radius: 6px; }"
+            "QFrame { background: #131A24; border: 1px solid #1E2733; border-radius:0; }"
         )
         tn_layout = QHBoxLayout(timed_notice)
         tn_layout.setContentsMargins(10, 8, 10, 8)
@@ -306,7 +306,7 @@ class TableSettingsScreen(QWidget):
         custom.setValue(150)
         custom.setSuffix(" %")
         custom.setStyleSheet(
-            "QSpinBox { background: #131A24; border: 1px solid #1E2733; border-radius: 6px; "
+            "QSpinBox { background: #131A24; border: 1px solid #1E2733; border-radius:0; "
             "padding: 6px 8px; color: #E5E7EB; min-width: 90px; }"
         )
         size_row.addWidget(custom)
@@ -315,7 +315,7 @@ class TableSettingsScreen(QWidget):
             b = QPushButton(s)
             b.setStyleSheet(
                 "QPushButton { background: #131A24; border: 1px solid #1E2733; "
-                "border-radius: 6px; padding: 6px 14px; color: #E5E7EB; font-weight: 700; }"
+                "border-radius:0; padding: 6px 14px; color: #E5E7EB; font-weight: 700; }"
                 "QPushButton:hover { border-color: #22D3EE; color: #22D3EE; }"
             )
             size_row.addWidget(b)
@@ -346,7 +346,7 @@ class TableSettingsScreen(QWidget):
         b.setFixedSize(38, 20)
         b.setCursor(Qt.PointingHandCursor)
         b.setStyleSheet(
-            "QPushButton { background: #1F2937; border: 1px solid #2A3647; border-radius: 10px; "
+            "QPushButton { background: #1F2937; border: 1px solid #2A3647; border-radius:0; "
             "color: #4B5563; text-align: left; padding-left: 5px; }"
             "QPushButton:checked { background: #10B981; color: #04110D; "
             "padding-left: 21px; border-color: #10B981; }"
@@ -364,7 +364,7 @@ class TableSettingsScreen(QWidget):
             b.setChecked(True)
             b.setStyleSheet(
                 "QPushButton { background: #131A24; border: 1px solid #1E2733; "
-                "border-radius: 11px; padding: 4px 10px; color: #8B95A7; font-weight: 700; }"
+                "border-radius:0; padding: 4px 10px; color: #8B95A7; font-weight: 700; }"
                 "QPushButton:checked { background: #1B2A3D; color: #22D3EE; border-color: #22D3EE; }"
             )
             layout.addWidget(b)

@@ -26,13 +26,20 @@ from PySide6.QtWidgets import (
 from app.ui.components.oval_table import OvalTable
 
 
-_C_BG     = "#0A0E14"
-_C_PANEL  = "#0F141C"
-_C_BORDER = "#1E2733"
-_C_TEXT   = "#E5E7EB"
-_C_MUTED  = "#9CA3AF"
-_C_CYAN   = "#22D3EE"
-_C_AMBER  = "#F59E0B"
+# Poke-aligned constants (legacy _C_* names preserved for diff sanity)
+from app.ui.theme import poke_tokens as _t
+_C_BG     = _t.BG
+_C_CARD   = _t.SURFACE
+_C_PANEL  = _t.SURFACE
+_C_BORDER = _t.LINE
+_C_MUTED  = _t.MUTED
+_C_TEXT   = _t.INK
+_C_CYAN   = _t.ACCENT
+_C_GREEN  = _t.ACCENT
+_C_RED    = _t.DANGER
+_C_BLUE   = _t.INFO
+_C_AMBER  = _t.WARN
+_C_PURPLE = _t.INFO
 
 
 def _ctrl_btn(label: str, tooltip: str = "") -> QPushButton:
@@ -43,7 +50,7 @@ def _ctrl_btn(label: str, tooltip: str = "") -> QPushButton:
         b.setToolTip(tooltip)
     b.setStyleSheet(
         f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};"
-        f"border:1px solid {_C_BORDER};border-radius:6px;font-size:14px;font-weight:700;}}"
+        f"border:1px solid {_C_BORDER};border-radius:0;font-size:14px;font-weight:700;}}"
         f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
         f"QPushButton:disabled{{color:#374151;border-color:#1E2733;}}"
     )
@@ -93,7 +100,7 @@ class HandFrameReplayDialog(QDialog):
         close.setFixedHeight(34)
         close.setStyleSheet(
             f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-            f"border-radius:6px;padding:0 16px;}}"
+            f"border-radius:0;padding:0 16px;}}"
             f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
         )
         close.clicked.connect(self.accept)

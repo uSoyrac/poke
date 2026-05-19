@@ -233,7 +233,7 @@ class PlaySessionScreen(QWidget):
         self.next_btn.setMinimumHeight(40)
         self.next_btn.setStyleSheet(
             "QPushButton#PrimaryButton{background:#22D3EE;color:#061018;"
-            "border:none;border-radius:8px;font-size:14px;font-weight:800;"
+            "border:none;border-radius:0;font-size:14px;font-weight:800;"
             "padding:6px 24px;}"
             "QPushButton#PrimaryButton:hover{background:#0EA9C2;}"
         )

@@ -3,7 +3,7 @@
 **You are a coding agent.** This doc is the contract: read it once, become
 productive immediately, stop re-deriving the same context every session.
 
-Last verified: 2026-05-19 · commit pushed to `origin/claude/friendly-torvalds-0ecc83` · **276/276 tests passing** · UI audit 20/0 issues · 28/28 screens boot clean · Sidebar kbd chips · Dashboard bottom panels Poke · Spot Trainer / Tournament Play / GTO Trainer chrome Poke · Tournament Play 3 visible bugs fixed (top-seat overlap, raw Markdown coach tip, clipped log column).
+Last verified: 2026-05-19 · commit pushed to `origin/claude/friendly-torvalds-0ecc83` · **276/276 tests passing** · UI audit 20/0 issues · 28/28 screens boot clean · all 28 screens now Poke-toned (0 radius + lime accent + Poke surfaces) · grey-pane bleed fixed via QStackedWidget/QScrollArea QSS rule.
 
 ---
 
@@ -335,16 +335,28 @@ See `app/ui/screens/poke_style_guide.py` for the live in-app reference.
 |---|---|---|
 | Style Guide                      | ✅ Done            | (reference) |
 | Welcome                          | ✅ Done            | done |
-| Dashboard (top half)             | ✅ Done            | done |
+| Dashboard (whole screen)         | ✅ Done            | done |
 | **SidebarNav**                   | ✅ Done            | done — kbd chips ⌃1..⌃9 on right |
 | **TopStatusBar**                 | ✅ Done            | done — touches every screen |
-| Dashboard (bottom panels)        | ✅ Done            | done — leak/skill/adaptive rows are Poke |
-| Spot Trainer (chrome)            | ✅ Done            | done — 0 radius + lime accent + Poke tokens |
-| Tournament Play (chrome + bugs)  | ✅ Done            | done — top-seat fix, Markdown coach, wider log, Poke tokens |
-| GTO Trainer (Range Studio)       | ✅ Done            | done — 0 radius + Poke tokens (range matrix still uses semantic colors) |
-| MTT Setup Dialog                 | ✅ Done            | done — 0 radius |
-| AI Coach                         | ⚠️ Partial        | medium — colour swap; layout still legacy |
-| Other 20 screens                 | ❌ Legacy         | low (background) |
+| Spot Trainer                     | ✅ Done            | done |
+| Tournament Play                  | ✅ Done            | done — top-seat fix, Markdown coach, wider log |
+| GTO Trainer                      | ✅ Done            | done |
+| MTT Setup Dialog                 | ✅ Done            | done |
+| AI Coach                         | ✅ Done (tokens)   | layout legacy but visually Poke |
+| River Decision Trainer           | ✅ Done            | done |
+| Postflop Trainer                 | ✅ Done            | done |
+| ICM / PKO Trainer                | ✅ Done            | done |
+| Heads-Up Trainer                 | ✅ Done            | done |
+| Math Lab · Combat Trainer        | ✅ Done            | done |
+| Leak Finder · Skills Report      | ✅ Done            | done |
+| Knowledge Base · Study Library   | ✅ Done            | done |
+| My Mistakes · Hands · Hand Analyzer | ✅ Done         | done |
+| Reports · Agg. Reports           | ✅ Done            | done |
+| Fast Play Simulator · Tour. Sim. | ✅ Done            | done |
+| Drill Builder · Range Studio     | ✅ Done            | done |
+| Settings · Table Settings · Study Planner | ✅ Done   | done |
+| Play Session                     | ✅ Done            | done |
+| Range Viewer                     | ✅ Done            | done |
 
 Each migration is one commit. Workflow per screen:
 
@@ -374,12 +386,14 @@ That gets a new agent productive in ~5K tokens instead of 50K.
 
 ## What's broken / known issues
 
-- **20 screens** still legacy-styled — same dark cyan theme as before
-  (Range Studio, Math Lab, Combat, Reports, Hands, Heads-Up, ICM, River,
-  Postflop, Knowledge Base, Study Planner, Settings, Skills Report, etc.).
-- AI Coach: colour constants point at Poke tokens but the layout (chat panel,
-  quick-access pills) is still the legacy cyan composition — a layout pass
-  is still needed.
+- All 28 screens are now Poke-toned (0 radius, lime accent, Poke surface
+  tokens). The migration completed in 3 commits. The remaining cosmetic
+  polish (replacing emoji-laden section titles with mono uppercase labels,
+  full PokeCard wrap for content blocks) is incremental and low-priority.
+- Some screens still use the legacy `setObjectName("Card"|"DataPanel"...)`
+  hooks for layout rather than `PokeCard`. They look right because
+  `dark_flat.qss` maps those object names to Poke-friendly surfaces, but
+  a structural rewrite would let us drop dark_flat.qss entirely.
 - **`This plugin does not support propagateSizeHints()`** appears in headless
   boot. Harmless — Qt offscreen plugin limitation.
 

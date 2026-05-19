@@ -32,6 +32,11 @@ class HandAnalyzerScreen(QWidget):
 
     def __init__(self, state: AppState):
         super().__init__()
+        self.setObjectName('HandAnalyzerScreenRoot')
+        from app.ui.theme import poke_tokens as _pt_bg
+        from PySide6.QtCore import Qt as _Qt_bg
+        self.setAttribute(_Qt_bg.WA_StyledBackground, True)
+        self.setStyleSheet(f"#HandAnalyzerScreenRoot {{ background: {_pt_bg.BG}; }}")
         self.state = state
         self.demo_hands = generate_hands(100)
         self.played_hands: list[dict] = []

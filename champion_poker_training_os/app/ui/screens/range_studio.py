@@ -29,12 +29,20 @@ from app.ui.screens.range_trainer import RangeTrainerScreen
 from app.ui.screens.range_viewer import RangeViewerScreen
 
 
-_C_BG       = "#0A0E14"
-_C_PANEL    = "#0F141C"
-_C_BORDER   = "#1E2733"
-_C_TEXT     = "#E5E7EB"
-_C_MUTED    = "#9CA3AF"
-_C_CYAN     = "#22D3EE"
+# Poke-aligned constants (legacy _C_* names preserved for diff sanity)
+from app.ui.theme import poke_tokens as _t
+_C_BG     = _t.BG
+_C_CARD   = _t.SURFACE
+_C_PANEL  = _t.SURFACE
+_C_BORDER = _t.LINE
+_C_MUTED  = _t.MUTED
+_C_TEXT   = _t.INK
+_C_CYAN   = _t.ACCENT
+_C_GREEN  = _t.ACCENT
+_C_RED    = _t.DANGER
+_C_BLUE   = _t.INFO
+_C_AMBER  = _t.WARN
+_C_PURPLE = _t.INFO
 
 
 def _tab_btn(label: str, active: bool) -> QPushButton:

@@ -31,6 +31,11 @@ class CombatTrainerScreen(QWidget):
 
     def __init__(self, state: AppState):
         super().__init__()
+        self.setObjectName('CombatTrainerScreenRoot')
+        from app.ui.theme import poke_tokens as _pt_bg
+        from PySide6.QtCore import Qt as _Qt_bg
+        self.setAttribute(_Qt_bg.WA_StyledBackground, True)
+        self.setStyleSheet(f"#CombatTrainerScreenRoot {{ background: {_pt_bg.BG}; }}")
         self.state = state
         self.packs = combat_packs()
         self.active_pack = None

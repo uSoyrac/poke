@@ -32,15 +32,20 @@ from app.db.mistakes_queue import (
 )
 
 
-_C_BG       = "#0A0E14"
-_C_PANEL    = "#0F141C"
-_C_BORDER   = "#1E2733"
-_C_TEXT     = "#E5E7EB"
-_C_MUTED    = "#9CA3AF"
-_C_CYAN     = "#22D3EE"
-_C_AMBER    = "#F59E0B"
-_C_RED      = "#EF4444"
-_C_GREEN    = "#10B981"
+# Poke-aligned constants (legacy _C_* names preserved for diff sanity)
+from app.ui.theme import poke_tokens as _t
+_C_BG     = _t.BG
+_C_CARD   = _t.SURFACE
+_C_PANEL  = _t.SURFACE
+_C_BORDER = _t.LINE
+_C_MUTED  = _t.MUTED
+_C_TEXT   = _t.INK
+_C_CYAN   = _t.ACCENT
+_C_GREEN  = _t.ACCENT
+_C_RED    = _t.DANGER
+_C_BLUE   = _t.INFO
+_C_AMBER  = _t.WARN
+_C_PURPLE = _t.INFO
 
 
 def _btn(label: str, primary: bool = False) -> QPushButton:
@@ -50,13 +55,13 @@ def _btn(label: str, primary: bool = False) -> QPushButton:
     if primary:
         b.setStyleSheet(
             f"QPushButton{{background:{_C_CYAN};color:#061018;border:none;"
-            f"border-radius:6px;padding:0 18px;font-size:12px;font-weight:800;}}"
+            f"border-radius:0;padding:0 18px;font-size:12px;font-weight:800;}}"
             f"QPushButton:hover{{background:#0EA9C2;}}"
         )
     else:
         b.setStyleSheet(
             f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};"
-            f"border:1px solid {_C_BORDER};border-radius:6px;padding:0 14px;"
+            f"border:1px solid {_C_BORDER};border-radius:0;padding:0 14px;"
             f"font-size:12px;font-weight:600;}}"
             f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
         )
@@ -67,7 +72,7 @@ def _leak_card(signature: str, mistakes: list[MistakeEntry],
                on_drill, on_resolve=None) -> QFrame:
     f = QFrame()
     f.setStyleSheet(
-        f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:8px;}}"
+        f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:0;}}"
         f"QFrame:hover{{border-color:{_C_CYAN};}}"
     )
     v = QVBoxLayout(f)
@@ -157,7 +162,7 @@ class MyMistakesScreen(QWidget):
         scroll.setStyleSheet(
             "QScrollArea{background:transparent;border:none;}"
             "QScrollBar:vertical{width:8px;background:transparent;}"
-            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:4px;min-height:24px;}"
+            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:0;min-height:24px;}"
         )
         self._content = QWidget()
         self._content.setStyleSheet(f"background:{_C_BG};")
@@ -214,7 +219,7 @@ class MyMistakesScreen(QWidget):
         )
         banner.setStyleSheet(
             f"background:#0E2A1E;color:#6EE7B7;font-size:12px;font-weight:700;"
-            f"padding:10px 14px;border-radius:6px;border:1px solid #10B981;"
+            f"padding:10px 14px;border-radius:0;border:1px solid #10B981;"
         )
         self._content_layout.addWidget(banner)
 

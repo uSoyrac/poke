@@ -40,8 +40,8 @@ class SolverFrequencyBar(QFrame):
             # Solid green chunk for imported solver to distinguish from mock cyan
             bar.setStyleSheet(
                 "QProgressBar { background: #0E141C; border: 1px solid #1E2733; "
-                "border-radius: 5px; text-align: center; color: #E5E7EB; height: 12px; }"
-                "QProgressBar::chunk { background: #10B981; border-radius: 4px; }"
+                "border-radius:0; text-align: center; color: #E5E7EB; height: 12px; }"
+                "QProgressBar::chunk { background: #10B981; border-radius:0; }"
             )
 
         sizing_label = QLabel(sizing or "no sizing")

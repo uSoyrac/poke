@@ -35,6 +35,11 @@ class FastPlaySimulatorScreen(QWidget):
 
     def __init__(self, state: AppState):
         super().__init__()
+        self.setObjectName('FastPlaySimulatorScreenRoot')
+        from app.ui.theme import poke_tokens as _pt_bg
+        from PySide6.QtCore import Qt as _Qt_bg
+        self.setAttribute(_Qt_bg.WA_StyledBackground, True)
+        self.setStyleSheet(f"#FastPlaySimulatorScreenRoot {{ background: {_pt_bg.BG}; }}")
         self.state = state
         self.game: PokerGame | None = None
         self.auto_fold_weak = False

@@ -86,7 +86,7 @@ class SettingsScreen(QWidget):
         import_btn = QPushButton("📥  Import solver CSV…")
         import_btn.setStyleSheet(
             "QPushButton { background: #10B981; color: #04110D; font-weight: 800; "
-            "padding: 8px 16px; border-radius: 7px; border: none; }"
+            "padding: 8px 16px; border-radius:0; border: none; }"
             "QPushButton:hover { background: #34D399; }"
         )
         import_btn.setCursor(Qt.PointingHandCursor)
@@ -128,7 +128,7 @@ class SettingsScreen(QWidget):
         reset_mistakes_btn = QPushButton("Hataları Temizle")
         reset_mistakes_btn.setStyleSheet(
             "QPushButton { background: #1B2330; color: #FCA5A5; font-weight: 700; "
-            "padding: 8px 16px; border-radius: 7px; border:1px solid #7F1D1D; }"
+            "padding: 8px 16px; border-radius:0; border:1px solid #7F1D1D; }"
             "QPushButton:hover { background: #2A1F1F; border-color: #DC2626; }"
         )
         reset_mistakes_btn.clicked.connect(self._reset_mistakes)
@@ -137,7 +137,7 @@ class SettingsScreen(QWidget):
         reset_archive_btn = QPushButton("Turnuva Arşivini Temizle")
         reset_archive_btn.setStyleSheet(
             "QPushButton { background: #1B2330; color: #FCA5A5; font-weight: 700; "
-            "padding: 8px 16px; border-radius: 7px; border:1px solid #7F1D1D; }"
+            "padding: 8px 16px; border-radius:0; border:1px solid #7F1D1D; }"
             "QPushButton:hover { background: #2A1F1F; border-color: #DC2626; }"
         )
         reset_archive_btn.clicked.connect(self._reset_archive)
@@ -146,7 +146,7 @@ class SettingsScreen(QWidget):
         reset_all_btn = QPushButton("⚠  TÜMÜNÜ SIL (Reset)")
         reset_all_btn.setStyleSheet(
             "QPushButton { background: #DC2626; color: #FFF; font-weight: 800; "
-            "padding: 8px 18px; border-radius: 7px; border: none; }"
+            "padding: 8px 18px; border-radius:0; border: none; }"
             "QPushButton:hover { background: #B91C1C; }"
         )
         reset_all_btn.clicked.connect(self._reset_all_data)

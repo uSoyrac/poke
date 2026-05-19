@@ -71,7 +71,7 @@ class HelpOverlay(QDialog):
         close.setFixedHeight(34)
         close.setStyleSheet(
             "QPushButton{background:#0F141C;color:#E5E7EB;border:1px solid #1E2733;"
-            "border-radius:6px;padding:0 18px;font-size:12px;}"
+            "border-radius:0;padding:0 18px;font-size:12px;}"
             "QPushButton:hover{border-color:#22D3EE;color:#22D3EE;}"
         )
         close.clicked.connect(self.accept)
@@ -85,7 +85,7 @@ class HelpOverlay(QDialog):
         scroll.setStyleSheet(
             "QScrollArea{background:transparent;border:none;}"
             "QScrollBar:vertical{width:8px;background:transparent;}"
-            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:4px;min-height:24px;}"
+            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:0;min-height:24px;}"
         )
         body_w = QWidget()
         body_w.setStyleSheet("background:transparent;")
@@ -99,7 +99,7 @@ class HelpOverlay(QDialog):
         for section_title, shortcuts in _SHORTCUTS:
             block = QFrame()
             block.setStyleSheet(
-                "QFrame{background:#0F141C;border:1px solid #1E2733;border-radius:8px;}"
+                "QFrame{background:#0F141C;border:1px solid #1E2733;border-radius:0;}"
             )
             v = QVBoxLayout(block)
             v.setContentsMargins(16, 12, 16, 12)
@@ -124,7 +124,7 @@ class HelpOverlay(QDialog):
                 k_lbl.setStyleSheet(
                     "background:#1B2330;color:#22D3EE;font-family:'SF Mono',Monaco,monospace;"
                     "font-size:11px;font-weight:700;padding:3px 10px;"
-                    "border:1px solid #2A3441;border-radius:4px;"
+                    "border:1px solid #2A3441;border-radius:0;"
                 )
                 k_lbl.setAlignment(Qt.AlignCenter)
                 k_lbl.setFixedHeight(22)

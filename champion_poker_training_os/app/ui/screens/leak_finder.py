@@ -146,6 +146,11 @@ class LeakFinderScreen(QWidget):
 
     def __init__(self, state: AppState):
         super().__init__()
+        self.setObjectName('LeakFinderScreenRoot')
+        from app.ui.theme import poke_tokens as _pt_bg
+        from PySide6.QtCore import Qt as _Qt_bg
+        self.setAttribute(_Qt_bg.WA_StyledBackground, True)
+        self.setStyleSheet(f"#LeakFinderScreenRoot {{ background: {_pt_bg.BG}; }}")
         self.state = state
         self.all_leaks = EXTENDED_LEAKS
         self.real_leaks: list[dict] = []

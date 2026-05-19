@@ -20,10 +20,20 @@ from app.ai.coach_engine import explain_spot
 from app.core.app_state import AppState
 
 # Color tokens for verdict styling
-_C_GREEN  = "#10B981"
-_C_AMBER  = "#F59E0B"
-_C_RED    = "#EF4444"
-_C_CYAN   = "#22D3EE"
+# Poke-aligned constants (legacy _C_* names preserved for diff sanity)
+from app.ui.theme import poke_tokens as _t
+_C_BG     = _t.BG
+_C_CARD   = _t.SURFACE
+_C_PANEL  = _t.SURFACE
+_C_BORDER = _t.LINE
+_C_MUTED  = _t.MUTED
+_C_TEXT   = _t.INK
+_C_CYAN   = _t.ACCENT
+_C_GREEN  = _t.ACCENT
+_C_RED    = _t.DANGER
+_C_BLUE   = _t.INFO
+_C_AMBER  = _t.WARN
+_C_PURPLE = _t.INFO
 from app.db.repository import save_decision_review
 from app.db.tournament_archive import load_archive
 from app.engine.hand_state import positions_for

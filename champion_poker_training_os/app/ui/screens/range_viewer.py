@@ -354,7 +354,7 @@ class RangeViewerScreen(QWidget):
             btn.setCheckable(True)
             btn.setStyleSheet(
                 "QPushButton { background: #131A24; border: 1px solid #1E2733; "
-                "border-radius: 7px; padding: 8px 18px; color: #8B95A7; font-weight: 700; }"
+                "border-radius:0; padding: 8px 18px; color: #8B95A7; font-weight: 700; }"
                 "QPushButton:checked { background: #1B2A3D; color: #22D3EE; border-color: #2A4257; }"
             )
             self.tabs.addButton(btn, i)
@@ -470,7 +470,7 @@ class RangeViewerScreen(QWidget):
         practice_btn.setObjectName("PrimaryButton")
         practice_btn.setStyleSheet(
             "QPushButton { background: #10B981; color: #04110D; font-weight: 800; "
-            "padding: 8px 18px; border-radius: 7px; border: none; }"
+            "padding: 8px 18px; border-radius:0; border: none; }"
             "QPushButton:hover { background: #34D399; }"
         )
         practice_btn.clicked.connect(self._launch_practice)

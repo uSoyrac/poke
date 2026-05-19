@@ -96,7 +96,7 @@ class FilterChip(QFrame):
         super().__init__()
         self.key = label
         self.setStyleSheet(
-            "QFrame { background: #131A24; border: 1px solid #1E2733; border-radius: 14px; }"
+            "QFrame { background: #131A24; border: 1px solid #1E2733; border-radius:0; }"
         )
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 4, 8, 4)
@@ -231,6 +231,11 @@ class HandsListScreen(QWidget):
 
     def __init__(self, state: AppState):
         super().__init__()
+        self.setObjectName('HandsListScreenRoot')
+        from app.ui.theme import poke_tokens as _pt_bg
+        from PySide6.QtCore import Qt as _Qt_bg
+        self.setAttribute(_Qt_bg.WA_StyledBackground, True)
+        self.setStyleSheet(f"#HandsListScreenRoot {{ background: {_pt_bg.BG}; }}")
         self.state = state
         self.active_filters: dict[str, str] = {"Source": "PokerArena"}
         self.all_hands = self._load_hands()
@@ -254,7 +259,7 @@ class HandsListScreen(QWidget):
 
         site_btn = QPushButton("⚔  PokerArena")
         site_btn.setStyleSheet(
-            "QPushButton { background: #131A24; border: 1px solid #2A3647; border-radius: 7px; "
+            "QPushButton { background: #131A24; border: 1px solid #2A3647; border-radius:0; "
             "color: #E5E7EB; padding: 8px 14px; font-weight: 700; }"
         )
         all_reports = QPushButton("☰  All Reports")
@@ -262,13 +267,13 @@ class HandsListScreen(QWidget):
         save_report = QPushButton("Save Report")
         for b in (all_reports, new_report, save_report):
             b.setStyleSheet(
-                "QPushButton { background: #131A24; border: 1px solid #1E2733; border-radius: 7px; "
+                "QPushButton { background: #131A24; border: 1px solid #1E2733; border-radius:0; "
                 "color: #8B95A7; padding: 8px 14px; }"
             )
         import_btn = QPushButton("📥  Import Hand History")
         import_btn.setStyleSheet(
             "QPushButton { background: #10B981; color: #04110D; font-weight: 800; "
-            "padding: 8px 16px; border-radius: 7px; border: none; }"
+            "padding: 8px 16px; border-radius:0; border: none; }"
             "QPushButton:hover { background: #34D399; }"
         )
         import_btn.setCursor(Qt.PointingHandCursor)
@@ -290,7 +295,7 @@ class HandsListScreen(QWidget):
         date_to.setCalendarPopup(True)
         for d in (date_from, date_to):
             d.setStyleSheet(
-                "QDateEdit { background: #0E141C; border: 1px solid #1E2733; border-radius: 7px; "
+                "QDateEdit { background: #0E141C; border: 1px solid #1E2733; border-radius:0; "
                 "color: #8B95A7; padding: 6px 10px; min-width: 130px; }"
             )
         title_row.addWidget(QLabel("📅"))
@@ -315,7 +320,7 @@ class HandsListScreen(QWidget):
                 "color: #8B95A7; font-weight: 600; border-bottom: 2px solid transparent; }"
                 "QPushButton:hover { color: #E5E7EB; }"
                 "QPushButton:checked { color: #E5E7EB; font-weight: 800; border-bottom: 2px solid transparent; "
-                "background: #1B2330; border-radius: 7px; }"
+                "background: #1B2330; border-radius:0; }"
             )
             if i == 1:
                 btn.setChecked(True)
@@ -340,7 +345,7 @@ class HandsListScreen(QWidget):
         self._render_active_filters()
         clear_all = QPushButton("✕")
         clear_all.setStyleSheet(
-            "QPushButton { background: #131A24; border: 1px solid #1E2733; border-radius: 12px; "
+            "QPushButton { background: #131A24; border: 1px solid #1E2733; border-radius:0; "
             "color: #8B95A7; min-width: 24px; min-height: 24px; }"
             "QPushButton:hover { color: #EF4444; border-color: #EF4444; }"
         )

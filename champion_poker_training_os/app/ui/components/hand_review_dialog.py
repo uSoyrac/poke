@@ -28,14 +28,20 @@ from PySide6.QtWidgets import (
 from app.ui.components.card_view import CardView
 
 
-_C_BG     = "#0A0E14"
-_C_PANEL  = "#0F141C"
-_C_BORDER = "#1E2733"
-_C_TEXT   = "#E5E7EB"
-_C_MUTED  = "#9CA3AF"
-_C_CYAN   = "#22D3EE"
-_C_GREEN  = "#10B981"
-_C_RED    = "#EF4444"
+# Poke-aligned constants (legacy _C_* names preserved for diff sanity)
+from app.ui.theme import poke_tokens as _t
+_C_BG     = _t.BG
+_C_CARD   = _t.SURFACE
+_C_PANEL  = _t.SURFACE
+_C_BORDER = _t.LINE
+_C_MUTED  = _t.MUTED
+_C_TEXT   = _t.INK
+_C_CYAN   = _t.ACCENT
+_C_GREEN  = _t.ACCENT
+_C_RED    = _t.DANGER
+_C_BLUE   = _t.INFO
+_C_AMBER  = _t.WARN
+_C_PURPLE = _t.INFO
 
 
 def _section_label(text: str) -> QLabel:
@@ -50,7 +56,7 @@ def _section_label(text: str) -> QLabel:
 def _stat_pill(caption: str, value: str, accent: str = _C_TEXT) -> QFrame:
     f = QFrame()
     f.setStyleSheet(
-        f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:6px;}}"
+        f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:0;}}"
     )
     f.setMinimumWidth(110)
     v = QVBoxLayout(f)
@@ -127,13 +133,13 @@ class HandReviewDialog(QDialog):
             badge = QLabel(f"🏆  KAZANDI  ·  {sign}{delta:,.0f}")
             badge.setStyleSheet(
                 f"background:#0E2A1E;color:#6EE7B7;font-size:13px;font-weight:800;"
-                f"padding:8px 14px;border-radius:6px;border:1px solid #10B981;"
+                f"padding:8px 14px;border-radius:0;border:1px solid #10B981;"
             )
         else:
             badge = QLabel(f"❌  KAYBETTİ  ·  {sign}{delta:,.0f}")
             badge.setStyleSheet(
                 f"background:#2A0E0E;color:#FCA5A5;font-size:13px;font-weight:800;"
-                f"padding:8px 14px;border-radius:6px;border:1px solid #7F1D1D;"
+                f"padding:8px 14px;border-radius:0;border:1px solid #7F1D1D;"
             )
         head.addWidget(badge)
         root.addLayout(head)
@@ -160,7 +166,7 @@ class HandReviewDialog(QDialog):
         # ── Hero cards ─────────────────────────────────────────────
         hero_block = QFrame()
         hero_block.setStyleSheet(
-            f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:8px;}}"
+            f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:0;}}"
         )
         hero_layout = QVBoxLayout(hero_block)
         hero_layout.setContentsMargins(16, 12, 16, 12)
@@ -171,7 +177,7 @@ class HandReviewDialog(QDialog):
         # ── Board ──────────────────────────────────────────────────
         board_block = QFrame()
         board_block.setStyleSheet(
-            f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:8px;}}"
+            f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:0;}}"
         )
         board_layout = QVBoxLayout(board_block)
         board_layout.setContentsMargins(16, 12, 16, 12)
@@ -184,7 +190,7 @@ class HandReviewDialog(QDialog):
         if actions:
             action_block = QFrame()
             action_block.setStyleSheet(
-                f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:8px;}}"
+                f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:0;}}"
             )
             al = QVBoxLayout(action_block)
             al.setContentsMargins(16, 12, 16, 12)
@@ -235,7 +241,7 @@ class HandReviewDialog(QDialog):
             replay.setFixedHeight(38)
             replay.setStyleSheet(
                 f"QPushButton{{background:#0E2A1E;color:#6EE7B7;"
-                f"border:1px solid #10B981;border-radius:7px;padding:0 18px;"
+                f"border:1px solid #10B981;border-radius:0;padding:0 18px;"
                 f"font-size:12px;font-weight:700;}}"
                 f"QPushButton:hover{{background:#0F3320;color:#34D399;}}"
             )
@@ -246,7 +252,7 @@ class HandReviewDialog(QDialog):
         drill.setFixedHeight(38)
         drill.setStyleSheet(
             f"QPushButton{{background:{_C_CYAN};color:#061018;border:none;"
-            f"border-radius:7px;padding:0 22px;font-size:13px;font-weight:800;}}"
+            f"border-radius:0;padding:0 22px;font-size:13px;font-weight:800;}}"
             f"QPushButton:hover{{background:#0EA9C2;}}"
         )
         drill.clicked.connect(lambda: (self.drill_requested.emit(self._hand), self.accept()))
@@ -256,7 +262,7 @@ class HandReviewDialog(QDialog):
         close.setFixedHeight(38)
         close.setStyleSheet(
             f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};"
-            f"border:1px solid {_C_BORDER};border-radius:7px;padding:0 22px;}}"
+            f"border:1px solid {_C_BORDER};border-radius:0;padding:0 22px;}}"
             f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
         )
         close.clicked.connect(self.accept)

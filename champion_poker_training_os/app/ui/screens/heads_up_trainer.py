@@ -32,6 +32,11 @@ class HeadsUpTrainerScreen(QWidget):
 
     def __init__(self, state: AppState):
         super().__init__()
+        self.setObjectName('HeadsUpTrainerScreenRoot')
+        from app.ui.theme import poke_tokens as _pt_bg
+        from PySide6.QtCore import Qt as _Qt_bg
+        self.setAttribute(_Qt_bg.WA_StyledBackground, True)
+        self.setStyleSheet(f"#HeadsUpTrainerScreenRoot {{ background: {_pt_bg.BG}; }}")
         self.state = state
         self.game: PokerGame | None = None
         self._current_decision_reviews: list[dict] = []
@@ -232,7 +237,7 @@ class HeadsUpTrainerScreen(QWidget):
         self.next_btn.setMinimumHeight(46)
         self.next_btn.setStyleSheet(
             "QPushButton#PrimaryButton{background:#22D3EE;color:#061018;"
-            "border:none;border-radius:8px;font-size:14px;font-weight:800;"
+            "border:none;border-radius:0;font-size:14px;font-weight:800;"
             "padding:8px 24px;}"
             "QPushButton#PrimaryButton:hover{background:#0EA9C2;}"
         )

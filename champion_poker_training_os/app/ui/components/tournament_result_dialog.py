@@ -95,7 +95,7 @@ def _payout_pyramid(prize_pool: float, places_paid: int) -> List[float]:
 def _kpi_card(header: str, value: str, header_bg: str = _C_HDR_BLUE) -> QFrame:
     f = QFrame()
     f.setStyleSheet(
-        f"QFrame{{background:{_C_CARD_WHITE};border:1px solid #D1D5DB;border-radius:6px;}}"
+        f"QFrame{{background:{_C_CARD_WHITE};border:1px solid #D1D5DB;border-radius:0;}}"
     )
     f.setMinimumHeight(110)
     v = QVBoxLayout(f)
@@ -126,7 +126,7 @@ def _winners_panel(winners: List[tuple], hero_place: int, hero_name: str,
                    hero_payout: float, total_places: int) -> QFrame:
     f = QFrame()
     f.setStyleSheet(
-        f"QFrame{{background:{_C_CARD_WHITE};border:1px solid #D1D5DB;border-radius:6px;}}"
+        f"QFrame{{background:{_C_CARD_WHITE};border:1px solid #D1D5DB;border-radius:0;}}"
     )
     f.setMinimumWidth(280)
     v = QVBoxLayout(f); v.setContentsMargins(0, 0, 0, 0); v.setSpacing(0)
@@ -230,7 +230,7 @@ class TournamentResultDialog(QDialog):
         self.setStyleSheet(
             f"QDialog{{background:{_C_BG};}}"
             f"QPushButton#ActionBtn{{background:{_C_RED};color:white;"
-            f"border:none;border-radius:5px;font-size:13px;font-weight:700;padding:8px 18px;}}"
+            f"border:none;border-radius:0;font-size:13px;font-weight:700;padding:8px 18px;}}"
             f"QPushButton#ActionBtn:hover{{background:#B91C1C;}}"
         )
 
@@ -314,7 +314,7 @@ class TournamentResultDialog(QDialog):
         close.setFixedHeight(36)
         close.setStyleSheet(
             f"QPushButton{{background:#1F2937;color:{_C_TEXT};"
-            f"border:1px solid #374151;border-radius:6px;padding:0 22px;}}"
+            f"border:1px solid #374151;border-radius:0;padding:0 22px;}}"
             f"QPushButton:hover{{border-color:#22D3EE;color:#22D3EE;}}"
         )
         close.clicked.connect(self.accept)

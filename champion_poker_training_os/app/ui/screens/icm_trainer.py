@@ -101,6 +101,11 @@ class IcmTrainerScreen(QWidget):
 
     def __init__(self, state: AppState):
         super().__init__()
+        self.setObjectName('IcmTrainerScreenRoot')
+        from app.ui.theme import poke_tokens as _pt_bg
+        from PySide6.QtCore import Qt as _Qt_bg
+        self.setAttribute(_Qt_bg.WA_StyledBackground, True)
+        self.setStyleSheet(f"#IcmTrainerScreenRoot {{ background: {_pt_bg.BG}; }}")
         self.state = state
         self.drills = _generate_icm_drills(40)
         # Random start so each session opens on a different spot

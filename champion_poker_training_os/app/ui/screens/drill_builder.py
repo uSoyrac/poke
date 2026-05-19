@@ -104,12 +104,12 @@ class PillToggleButton(QPushButton):
         if self.isChecked():
             self.setStyleSheet(
                 "QPushButton { background: #1B2A3D; border: 1px solid #22D3EE; "
-                "border-radius: 14px; padding: 6px 14px; color: #22D3EE; font-weight: 700; }"
+                "border-radius:0; padding: 6px 14px; color: #22D3EE; font-weight: 700; }"
             )
         else:
             self.setStyleSheet(
                 "QPushButton { background: #131A24; border: 1px solid #1E2733; "
-                "border-radius: 14px; padding: 6px 14px; color: #8B95A7; font-weight: 600; }"
+                "border-radius:0; padding: 6px 14px; color: #8B95A7; font-weight: 600; }"
                 "QPushButton:hover { color: #E5E7EB; border-color: #2A3647; }"
             )
 
@@ -122,6 +122,11 @@ class DrillBuilderScreen(QWidget):
 
     def __init__(self, state: AppState):
         super().__init__()
+        self.setObjectName('DrillBuilderScreenRoot')
+        from app.ui.theme import poke_tokens as _pt_bg
+        from PySide6.QtCore import Qt as _Qt_bg
+        self.setAttribute(_Qt_bg.WA_StyledBackground, True)
+        self.setStyleSheet(f"#DrillBuilderScreenRoot {{ background: {_pt_bg.BG}; }}")
         self.state = state
 
         scroll = QScrollArea()
@@ -176,7 +181,7 @@ class DrillBuilderScreen(QWidget):
         self.drill_list.setStyleSheet(
             "QListWidget { background: transparent; border: none; color: #E5E7EB; }"
             "QListWidget::item { padding: 8px 6px; }"
-            "QListWidget::item:selected { background: #1B2A3D; color: #22D3EE; border-radius: 4px; }"
+            "QListWidget::item:selected { background: #1B2A3D; color: #22D3EE; border-radius:0; }"
         )
         self.drill_list.itemClicked.connect(self._on_pack_picked)
         side_layout.addWidget(self.drill_list, 1)
@@ -186,14 +191,14 @@ class DrillBuilderScreen(QWidget):
         self.save_pack_btn = QPushButton("💾 Save")
         self.save_pack_btn.setStyleSheet(
             "QPushButton { background: #10B981; color: #04110D; font-weight: 700; "
-            "padding: 6px 10px; border-radius: 6px; border: none; }"
+            "padding: 6px 10px; border-radius:0; border: none; }"
             "QPushButton:hover { background: #34D399; }"
         )
         self.save_pack_btn.clicked.connect(self._save_pack)
         self.delete_pack_btn = QPushButton("🗑")
         self.delete_pack_btn.setStyleSheet(
             "QPushButton { background: #131A24; border: 1px solid #1E2733; "
-            "color: #EF4444; padding: 6px 10px; border-radius: 6px; }"
+            "color: #EF4444; padding: 6px 10px; border-radius:0; }"
             "QPushButton:hover { border-color: #EF4444; }"
         )
         self.delete_pack_btn.clicked.connect(self._delete_pack)
@@ -234,7 +239,7 @@ class DrillBuilderScreen(QWidget):
         self.badge = QLabel("21")
         self.badge.setStyleSheet(
             "background: #10B981; color: #04110D; font-weight: 800; "
-            "padding: 3px 9px; border-radius: 11px;"
+            "padding: 3px 9px; border-radius:0;"
         )
         gear = QLabel("⚙")
         gear.setStyleSheet("color: #8B95A7; font-size: 16px;")
@@ -295,7 +300,7 @@ class DrillBuilderScreen(QWidget):
         self.start_btn = QPushButton("▶  START TRAINING")
         self.start_btn.setStyleSheet(
             "QPushButton { background: #10B981; color: #04110D; font-weight: 800; "
-            "padding: 12px 26px; border-radius: 8px; border: none; }"
+            "padding: 12px 26px; border-radius:0; border: none; }"
             "QPushButton:hover { background: #34D399; }"
             "QPushButton:disabled { background: #1F3D24; color: #4B5563; }"
         )
@@ -368,7 +373,7 @@ class DrillBuilderScreen(QWidget):
         self.training_library.setColumnWidth(2, 80)
         self.training_library.setColumnWidth(3, 80)
         self.training_library.setStyleSheet(
-            "QTableWidget { background: #111827; border: 1px solid #2D3748; border-radius: 8px; "
+            "QTableWidget { background: #111827; border: 1px solid #2D3748; border-radius:0; "
             "color: #E5E7EB; alternate-background-color: #0F151D; }"
             "QHeaderView::section { background: #1F2937; color: #E5E7EB; border: none; "
             "padding: 8px; font-weight: 800; }"

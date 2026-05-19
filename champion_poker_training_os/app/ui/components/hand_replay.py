@@ -112,13 +112,13 @@ class StreetTab(QPushButton):
         if self.isChecked():
             self.setStyleSheet(
                 "QPushButton { background: #1B2A3D; border: 1px solid #22D3EE; "
-                "border-radius: 14px; padding: 6px 16px; color: #22D3EE; font-weight: 800; }"
+                "border-radius:0; padding: 6px 16px; color: #22D3EE; font-weight: 800; }"
             )
         else:
             base_color = "#E5E7EB" if self._enabled_actions else "#4B5563"
             self.setStyleSheet(
                 f"QPushButton {{ background: #131A24; border: 1px solid #1E2733; "
-                f"border-radius: 14px; padding: 6px 16px; color: {base_color}; font-weight: 600; }}"
+                f"border-radius:0; padding: 6px 16px; color: {base_color}; font-weight: 600; }}"
                 "QPushButton:hover { color: #22D3EE; border-color: #2A3647; }"
             )
 

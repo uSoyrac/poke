@@ -24,13 +24,22 @@ from app.core.app_state import AppState
 from app.ui.components.range_bar import RangeBar
 
 
-_C_BG       = "#0A0E14"
-_C_PANEL    = "#0F141C"
-_C_BORDER   = "#1E2733"
-_C_TEXT     = "#E5E7EB"
-_C_MUTED    = "#9CA3AF"
-_C_CYAN     = "#22D3EE"
-_C_HEADER   = "#FEF3C7"   # warm banner like APT
+# Poke-aligned constants (legacy _C_* names preserved for diff sanity)
+from app.ui.theme import poke_tokens as _t
+_C_BG     = _t.BG
+_C_CARD   = _t.SURFACE
+_C_PANEL  = _t.SURFACE
+_C_BORDER = _t.LINE
+_C_MUTED  = _t.MUTED
+_C_TEXT   = _t.INK
+_C_CYAN   = _t.ACCENT
+_C_GREEN  = _t.ACCENT
+_C_RED    = _t.DANGER
+_C_BLUE   = _t.INFO
+_C_AMBER  = _t.WARN
+_C_PURPLE = _t.INFO
+# Soft-amber header pill (was lost in the Poke sweep — restore as WARN)
+_C_HEADER = _t.WARN
 
 
 # (question, description, list of (stage_label, value, low, high))
@@ -122,7 +131,7 @@ SKILL_QUESTIONS: list[dict] = [
 def _question_block(q: dict) -> QFrame:
     f = QFrame()
     f.setStyleSheet(
-        f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:8px;}}"
+        f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:0;}}"
     )
     v = QVBoxLayout(f)
     v.setContentsMargins(20, 16, 20, 16)
@@ -170,7 +179,7 @@ class SkillsReportScreen(QWidget):
         scroll.setStyleSheet(
             "QScrollArea{background:transparent;border:none;}"
             "QScrollBar:vertical{width:8px;background:transparent;}"
-            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:4px;min-height:24px;}"
+            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:0;min-height:24px;}"
         )
 
         content = QWidget()
@@ -199,7 +208,7 @@ class SkillsReportScreen(QWidget):
         )
         warning.setStyleSheet(
             f"background:{_C_HEADER};color:#92400E;font-size:12px;"
-            f"padding:8px 12px;border-radius:5px;font-weight:600;"
+            f"padding:8px 12px;border-radius:0;font-weight:600;"
         )
         warning.setWordWrap(True)
         root.addWidget(warning)

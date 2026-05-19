@@ -75,6 +75,11 @@ class MathLabScreen(QWidget):
 
     def __init__(self, state: AppState):
         super().__init__()
+        self.setObjectName('MathLabScreenRoot')
+        from app.ui.theme import poke_tokens as _pt_bg
+        from PySide6.QtCore import Qt as _Qt_bg
+        self.setAttribute(_Qt_bg.WA_StyledBackground, True)
+        self.setStyleSheet(f"#MathLabScreenRoot {{ background: {_pt_bg.BG}; }}")
         self.state = state
         self.all_drills = generate_math_drills(60)
         self.active_category = "all"

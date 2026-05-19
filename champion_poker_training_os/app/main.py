@@ -157,6 +157,15 @@ class MainWindow(QMainWindow):
         self.coach = CoachPanel()
         self.coach.ask_requested.connect(self.explain_selected_spot)
         self.stack = QStackedWidget()
+        # Paint the stack background with the Poke BG token so any legacy
+        # screen that doesn't fill its own root no longer leaks the macOS
+        # light-grey default into the middle pane.
+        from app.ui.theme import poke_tokens as _pt_bg
+        self.stack.setObjectName("ScreenStack")
+        self.stack.setAttribute(Qt.WA_StyledBackground, True)
+        self.stack.setStyleSheet(
+            f"QStackedWidget#ScreenStack {{ background: {_pt_bg.BG}; }}"
+        )
         self.screens: dict[str, QWidget] = {}
         self._create_screens()
 
@@ -246,12 +255,27 @@ class MainWindow(QMainWindow):
             "Settings / Compliance Guard": SettingsScreen,
             "Style Guide": PokeStyleGuideScreen,
         }
+        # Every screen gets an explicit dark root background. Some legacy
+        # screens never set their own — without this they fall through to
+        # the QMainWindow default (light grey on macOS) and the middle
+        # pane visibly bleeds white. We apply a per-class QSS selector so
+        # children with their own backgrounds remain unaffected.
+        from app.ui.theme import poke_tokens as _pt
+        from PySide6.QtCore import Qt as _Qt
         for name in NAV_ITEMS:
             screen = factories[name](self.state)
             if hasattr(screen, "coach_message"):
                 screen.coach_message.connect(self.coach.set_message)
             if hasattr(screen, "navigate_requested"):
                 screen.navigate_requested.connect(self.navigate)
+            screen.setAttribute(_Qt.WA_StyledBackground, True)
+            cls_name = type(screen).__name__
+            bg_rule = f"{cls_name} {{ background: {_pt.BG}; }}"
+            existing = screen.styleSheet() or ""
+            if cls_name not in existing:
+                # Prepend rather than append so any later rules from the
+                # screen's own setStyleSheet still win at conflict.
+                screen.setStyleSheet(bg_rule + "\n" + existing)
             self.screens[name] = screen
             self.stack.addWidget(screen)
 

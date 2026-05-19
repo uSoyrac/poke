@@ -208,6 +208,11 @@ class AggregatedReportsScreen(QWidget):
 
     def __init__(self, state: AppState):
         super().__init__()
+        self.setObjectName('AggregatedReportsScreenRoot')
+        from app.ui.theme import poke_tokens as _pt_bg
+        from PySide6.QtCore import Qt as _Qt_bg
+        self.setAttribute(_Qt_bg.WA_StyledBackground, True)
+        self.setStyleSheet(f"#AggregatedReportsScreenRoot {{ background: {_pt_bg.BG}; }}")
         self.state = state
         self.rows = sorted(_gen_flops(60), key=lambda r: -r.bet_66)
 
@@ -237,7 +242,7 @@ class AggregatedReportsScreen(QWidget):
             btn.setCheckable(True)
             btn.setStyleSheet(
                 "QPushButton { background: #131A24; border: 1px solid #1E2733; "
-                "border-radius: 7px; color: #8B95A7; padding: 8px 16px; font-weight: 600; }"
+                "border-radius:0; color: #8B95A7; padding: 8px 16px; font-weight: 600; }"
                 "QPushButton:hover { color: #E5E7EB; }"
                 "QPushButton:checked { background: #1B2A3D; color: #22D3EE; border-color: #2A4257; }"
             )
@@ -263,7 +268,7 @@ class AggregatedReportsScreen(QWidget):
                 pill.setChecked(opt == "OOP")
                 pill.setStyleSheet(
                     "QPushButton { background: #0E141C; border: 1px solid #1E2733; "
-                    "border-radius: 11px; padding: 4px 10px; color: #8B95A7; font-weight: 700; }"
+                    "border-radius:0; padding: 4px 10px; color: #8B95A7; font-weight: 700; }"
                     "QPushButton:checked { background: #1B2A3D; color: #22D3EE; border-color: #2A4257; }"
                 )
                 grp.addWidget(pill)

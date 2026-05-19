@@ -157,7 +157,7 @@ class GtoActionButton(QPushButton):
             QPushButton {{
                 background: #DC2626;
                 border: 3px solid #FCA5A5;
-                border-radius: 10px;
+                border-radius:0;
                 color: #FFF;
                 font-size: 15px;
                 font-weight: 900;
@@ -175,7 +175,7 @@ class GtoActionButton(QPushButton):
             QPushButton {{
                 background: {self._bg};
                 border: 2px solid {self._border};
-                border-radius: 10px;
+                border-radius:0;
                 color: {self._fg};
                 font-size: 15px;
                 font-weight: 800;

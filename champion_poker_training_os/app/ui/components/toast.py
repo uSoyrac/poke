@@ -40,7 +40,7 @@ class Toast(QFrame):
         bg, border, fg = _PALETTES.get(kind, _PALETTES["info"])
         self.setStyleSheet(
             f"QFrame{{background:{bg};border:1px solid {border};"
-            f"border-radius:8px;}}"
+            f"border-radius:0;}}"
         )
 
         layout = QHBoxLayout(self)
