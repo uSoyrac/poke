@@ -3,7 +3,7 @@
 **You are a coding agent.** This doc is the contract: read it once, become
 productive immediately, stop re-deriving the same context every session.
 
-Last verified: 2026-05-19 · commit pushed to `origin/claude/friendly-torvalds-0ecc83` · 270/270 tests passing · UI audit 20/0 issues · Sidebar kbd chips · Dashboard bottom panels Poke · Spot Trainer chrome Poke.
+Last verified: 2026-05-19 · commit pushed to `origin/claude/friendly-torvalds-0ecc83` · **276/276 tests passing** · UI audit 20/0 issues · 28/28 screens boot clean · Sidebar kbd chips · Dashboard bottom panels Poke · Spot Trainer / Tournament Play / GTO Trainer chrome Poke · Tournament Play 3 visible bugs fixed (top-seat overlap, raw Markdown coach tip, clipped log column).
 
 ---
 
@@ -340,10 +340,11 @@ See `app/ui/screens/poke_style_guide.py` for the live in-app reference.
 | **TopStatusBar**                 | ✅ Done            | done — touches every screen |
 | Dashboard (bottom panels)        | ✅ Done            | done — leak/skill/adaptive rows are Poke |
 | Spot Trainer (chrome)            | ✅ Done            | done — 0 radius + lime accent + Poke tokens |
-| Tournament Play                  | ❌ Legacy         | high |
-| GTO Trainer (Range Studio)       | ❌ Legacy         | high |
-| AI Coach                         | ❌ Legacy         | medium |
-| Other 21 screens                 | ❌ Legacy         | low (background) |
+| Tournament Play (chrome + bugs)  | ✅ Done            | done — top-seat fix, Markdown coach, wider log, Poke tokens |
+| GTO Trainer (Range Studio)       | ✅ Done            | done — 0 radius + Poke tokens (range matrix still uses semantic colors) |
+| MTT Setup Dialog                 | ✅ Done            | done — 0 radius |
+| AI Coach                         | ⚠️ Partial        | medium — colour swap; layout still legacy |
+| Other 20 screens                 | ❌ Legacy         | low (background) |
 
 Each migration is one commit. Workflow per screen:
 
@@ -373,9 +374,12 @@ That gets a new agent productive in ~5K tokens instead of 50K.
 
 ## What's broken / known issues
 
-- **24 screens** still legacy-styled — same dark cyan theme as before
-  (Tournament Play, GTO Trainer, AI Coach, Range Studio, Math Lab, Combat,
-  Reports, Hands, etc.).
+- **20 screens** still legacy-styled — same dark cyan theme as before
+  (Range Studio, Math Lab, Combat, Reports, Hands, Heads-Up, ICM, River,
+  Postflop, Knowledge Base, Study Planner, Settings, Skills Report, etc.).
+- AI Coach: colour constants point at Poke tokens but the layout (chat panel,
+  quick-access pills) is still the legacy cyan composition — a layout pass
+  is still needed.
 - **`This plugin does not support propagateSizeHints()`** appears in headless
   boot. Harmless — Qt offscreen plugin limitation.
 

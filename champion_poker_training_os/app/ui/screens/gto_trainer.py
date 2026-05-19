@@ -39,18 +39,19 @@ from app.ui.components.action_chip import parse_action_string
 from app.ui.components.live_poker_table import LivePokerTable
 from app.ui.components.range_matrix import RangeMatrix
 
-# colour constants
-_C_BG     = "#0A0E14"
-_C_CARD   = "#0F141C"
-_C_PANEL  = "#131A24"
-_C_BORDER = "#1E2733"
-_C_MUTED  = "#6B7280"
-_C_TEXT   = "#E5E7EB"
-_C_CYAN   = "#22D3EE"
-_C_GREEN  = "#10B981"
-_C_RED    = "#E11D48"
-_C_BLUE   = "#2563EB"
-_C_AMBER  = "#F59E0B"
+# Poke-aligned constants (legacy _C_* names preserved)
+from app.ui.theme import poke_tokens as _t
+_C_BG     = _t.BG
+_C_CARD   = _t.BG_2
+_C_PANEL  = _t.SURFACE
+_C_BORDER = _t.LINE
+_C_MUTED  = _t.MUTED
+_C_TEXT   = _t.INK
+_C_CYAN   = _t.ACCENT
+_C_GREEN  = _t.ACCENT
+_C_RED    = _t.DANGER
+_C_BLUE   = _t.INFO
+_C_AMBER  = _t.WARN
 
 
 # ── pretty action label ───────────────────────────────────────────────────
@@ -124,7 +125,7 @@ class _PositionChip(QFrame):
             elif "call" in k or "check" in k: bg, fg = "#0E2A1E", "#6EE7B7"
             else:                             bg, fg = "#2A1B1B", "#FCA5A5"
             pill.setStyleSheet(
-                f"QLabel{{background:{bg};color:{fg};border-radius:4px;"
+                f"QLabel{{background:{bg};color:{fg};border-radius:0;"
                 "font-size:10px;font-weight:600;padding:2px 6px;}"
             )
             v.addWidget(pill)
@@ -133,7 +134,7 @@ class _PositionChip(QFrame):
     def _apply_style(self) -> None:
         border = _C_GREEN if self._is_hero else _C_BORDER
         self.setStyleSheet(
-            f"QFrame{{background:{_C_PANEL};border:2px solid {border};border-radius:8px;}}"
+            f"QFrame{{background:{_C_PANEL};border:2px solid {border};border-radius:0;}}"
             f"QFrame:hover{{border-color:{_C_CYAN};}}"
         )
 
@@ -153,7 +154,7 @@ class _StrategyBar(QFrame):
         pct = frequency * 100
         # Solid coloured bar with text overlay
         self.setStyleSheet(
-            f"QFrame{{background:{bg};border:1px solid {border};border-radius:6px;}}"
+            f"QFrame{{background:{bg};border:1px solid {border};border-radius:0;}}"
         )
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 4, 12, 4)
@@ -186,7 +187,7 @@ class _HandComboCard(QFrame):
         self.setFixedSize(130, 86)
         self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet(
-            f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:7px;}}"
+            f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:0;}}"
             f"QFrame:hover{{border-color:{_C_CYAN};}}"
         )
         v = QVBoxLayout(self)
@@ -201,7 +202,7 @@ class _HandComboCard(QFrame):
             c.setAlignment(Qt.AlignCenter)
             c.setFixedSize(28, 36)
             c.setStyleSheet(
-                f"QLabel{{background:{card['bg']};color:white;border-radius:3px;"
+                f"QLabel{{background:{card['bg']};color:white;border-radius:0;"
                 "font-size:14px;font-weight:800;}"
             )
             cards.addWidget(c)
@@ -260,7 +261,7 @@ class TrainerScenarioDialog(QDialog):
         # Settings card
         settings_card = QFrame()
         settings_card.setStyleSheet(
-            f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:8px;}}"
+            f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:0;}}"
         )
         sl = QVBoxLayout(settings_card)
         sl.setContentsMargins(20, 16, 20, 16)
@@ -301,7 +302,7 @@ class TrainerScenarioDialog(QDialog):
 
         spot_card = QFrame()
         spot_card.setStyleSheet(
-            f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:8px;}}"
+            f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:0;}}"
         )
         sc = QVBoxLayout(spot_card)
         sc.setContentsMargins(20, 14, 20, 14)
@@ -319,7 +320,7 @@ class TrainerScenarioDialog(QDialog):
 
         seat_card = QFrame()
         seat_card.setStyleSheet(
-            f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:8px;}}"
+            f"QFrame{{background:{_C_PANEL};border:1px solid {_C_BORDER};border-radius:0;}}"
         )
         seat_v = QVBoxLayout(seat_card)
         seat_v.setContentsMargins(20, 14, 20, 14)
@@ -343,7 +344,7 @@ class TrainerScenarioDialog(QDialog):
         close_btn.setFixedHeight(38)
         close_btn.setStyleSheet(
             f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-            "border-radius:8px;padding:4px 22px;font-weight:600;}"
+            "border-radius:0;padding:4px 22px;font-weight:600;}"
         )
         close_btn.clicked.connect(self.reject)
         save_btn = QPushButton("📌 Save Preset")
@@ -352,7 +353,7 @@ class TrainerScenarioDialog(QDialog):
         start_btn = QPushButton("Start Training")
         start_btn.setFixedHeight(38)
         start_btn.setStyleSheet(
-            f"QPushButton{{background:{_C_GREEN};color:#000;border-radius:8px;"
+            f"QPushButton{{background:{_C_GREEN};color:#000;border-radius:0;"
             "padding:4px 22px;font-weight:800;font-size:13px;border:none;}"
         )
         start_btn.clicked.connect(self._accept_with_result)
@@ -398,16 +399,16 @@ def _make_toggle_group(options: list[str], active: str, disabled: Optional[list[
         if is_disabled:
             return (
                 f"QPushButton{{background:{_C_PANEL};color:#374151;border:1px solid {_C_BORDER};"
-                "border-radius:6px;padding:6px 14px;font-size:12px;}"
+                "border-radius:0;padding:6px 14px;font-size:12px;}"
             )
         if is_active:
             return (
                 f"QPushButton{{background:{_C_PANEL};color:{_C_GREEN};border:1px solid {_C_GREEN};"
-                "border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;}"
+                "border-radius:0;padding:6px 14px;font-size:12px;font-weight:700;}"
             )
         return (
             f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-            "border-radius:6px;padding:6px 14px;font-size:12px;}"
+            "border-radius:0;padding:6px 14px;font-size:12px;}"
             f"QPushButton:hover{{border-color:{_C_GREEN};}}"
         )
 
@@ -442,16 +443,16 @@ def _make_toggle_grid(rows: list[list[str]], active: str, disabled: Optional[lis
         if is_disabled:
             return (
                 f"QPushButton{{background:{_C_PANEL};color:#374151;border:1px solid {_C_BORDER};"
-                "border-radius:6px;padding:6px 14px;font-size:12px;}"
+                "border-radius:0;padding:6px 14px;font-size:12px;}"
             )
         if is_active:
             return (
                 f"QPushButton{{background:{_C_PANEL};color:{_C_GREEN};border:1px solid {_C_GREEN};"
-                "border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;}"
+                "border-radius:0;padding:6px 14px;font-size:12px;font-weight:700;}"
             )
         return (
             f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-            "border-radius:6px;padding:6px 14px;font-size:12px;}"
+            "border-radius:0;padding:6px 14px;font-size:12px;}"
         )
 
     def make_handler(opt: str):
@@ -490,7 +491,7 @@ class GTOTrainerScreen(QWidget):
         """Two-line pill: small caption + bold value. Used in scenario bar."""
         f = QFrame()
         f.setStyleSheet(
-            f"QFrame{{background:#0F141C;border:1px solid #1E2733;border-radius:6px;}}"
+            f"QFrame{{background:#0F141C;border:1px solid #1E2733;border-radius:0;}}"
         )
         v = QVBoxLayout(f)
         v.setContentsMargins(10, 4, 10, 4)
@@ -619,7 +620,7 @@ class GTOTrainerScreen(QWidget):
         self._spot_search.setPlaceholderText("🔍  Search spots… (e.g. 'BTN AKs', 'BB defense')")
         self._spot_search.setStyleSheet(
             f"QLineEdit{{background:#0A0E14;border:1px solid {_C_BORDER};"
-            f"border-radius:5px;color:{_C_TEXT};font-size:11px;padding:6px 10px;"
+            f"border-radius:0;color:{_C_TEXT};font-size:11px;padding:6px 10px;"
             f"margin:0 14px 8px;}}"
             f"QLineEdit:focus{{border-color:{_C_CYAN};}}"
         )
@@ -638,7 +639,7 @@ class GTOTrainerScreen(QWidget):
             f"QListWidget::item:hover{{background:{_C_PANEL};}}"
             f"QListWidget::item:selected{{background:#1B2A3D;color:{_C_CYAN};}}"
             "QScrollBar:vertical{width:6px;background:transparent;}"
-            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:3px;min-height:20px;}"
+            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:0;min-height:20px;}"
         )
         # Populate from full catalog grouped by category
         self._populate_spot_library()
@@ -685,7 +686,7 @@ class GTOTrainerScreen(QWidget):
         combos_scroll.setStyleSheet(
             f"QScrollArea{{border:none;background:transparent;}}"
             "QScrollBar:vertical{width:5px;background:transparent;}"
-            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:2px;}"
+            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:0;}"
         )
         combos_w = QWidget()
         self._combos_grid = QGridLayout(combos_w)
@@ -961,7 +962,7 @@ class GTOTrainerScreen(QWidget):
             bg, border, fg = _action_colour_qss(action)
             btn = QPushButton(label)
             btn.setStyleSheet(
-                f"QPushButton{{background:{bg};border:2px solid {border};border-radius:10px;"
+                f"QPushButton{{background:{bg};border:2px solid {border};border-radius:0;"
                 f"color:{fg};font-size:15px;font-weight:800;padding:12px 24px;"
                 "min-height:58px;min-width:120px;}"
                 f"QPushButton:hover{{background:{bg}dd;}}"
@@ -1060,7 +1061,7 @@ class GTOTrainerScreen(QWidget):
                 w = QLabel(line)
                 w.setStyleSheet(
                     f"QLabel{{background:#0C1117;color:{_C_TEXT};font-size:12px;"
-                    f"padding:6px 10px;border-left:3px solid {_C_AMBER};border-radius:4px;}}"
+                    f"padding:6px 10px;border-left:3px solid {_C_AMBER};border-radius:0;}}"
                 )
                 w.setWordWrap(True)
                 self._tbl_fb_layout.addWidget(w)
@@ -1252,13 +1253,13 @@ class GTOTrainerScreen(QWidget):
 def _pill_style(active: bool) -> str:
     if active:
         return (
-            f"QPushButton{{background:{_C_GREEN};color:#000;border-radius:6px;"
+            f"QPushButton{{background:{_C_GREEN};color:#000;border-radius:0;"
             "padding:5px 14px;font-weight:700;font-size:12px;border:none;}"
             f"QPushButton:hover{{background:#0EA371;}}"
         )
     return (
         f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-        "border-radius:6px;padding:5px 14px;font-size:12px;}"
+        "border-radius:0;padding:5px 14px;font-size:12px;}"
         f"QPushButton:hover{{border-color:{_C_CYAN};}}"
     )
 

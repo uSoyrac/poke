@@ -47,16 +47,17 @@ from app.simulator.field_simulator import FieldSimulator
 from app.ui.components.mtt_setup_dialog import MttConfig, MttSetupDialog
 from app.ui.components.tournament_result_dialog import TournamentResultDialog
 
-# ── colour constants ───────────────────────────────────────────────────────
-_C_BG     = "#0C1117"
-_C_CARD   = "#131A24"
-_C_BORDER = "#1E2733"
-_C_MUTED  = "#6B7280"
-_C_TEXT   = "#E5E7EB"
-_C_CYAN   = "#22D3EE"
-_C_GREEN  = "#10B981"
-_C_RED    = "#EF4444"
-_C_AMBER  = "#F59E0B"
+# ── Poke-aligned colour constants (legacy _C_* names preserved) ─────────────
+from app.ui.theme import poke_tokens as _t
+_C_BG     = _t.BG
+_C_CARD   = _t.SURFACE
+_C_BORDER = _t.LINE
+_C_MUTED  = _t.MUTED
+_C_TEXT   = _t.INK
+_C_CYAN   = _t.ACCENT     # was cyan teal — Poke uses lime as the brand accent
+_C_GREEN  = _t.ACCENT
+_C_RED    = _t.DANGER
+_C_AMBER  = _t.WARN
 
 # Blind structures: list of (level, sb, bb, ante)
 BLIND_STRUCTURES: dict[str, list[tuple]] = {
@@ -134,7 +135,7 @@ def _btn_qss(action_type: ActionType) -> str:
     bg, border, fg = palettes.get(action_type, (_C_CARD, _C_BORDER, _C_TEXT))
     return (
         f"QPushButton{{background:{bg};border:2px solid {border};"
-        f"border-radius:10px;color:{fg};font-size:15px;font-weight:800;"
+        f"border-radius:0;color:{fg};font-size:15px;font-weight:800;"
         f"padding:10px 20px;min-height:60px;min-width:110px;}}"
         f"QPushButton:hover{{background:{bg}dd;}}"
     )
@@ -222,7 +223,7 @@ class TournamentPlayScreen(QWidget):
         self.start_btn = QPushButton("▶  New Tournament…")
         self.start_btn.setFixedHeight(36)
         self.start_btn.setStyleSheet(
-            f"QPushButton{{background:{_C_GREEN};color:#061018;border-radius:8px;"
+            f"QPushButton{{background:{_C_GREEN};color:#061018;border-radius:0;"
             "font-weight:800;font-size:13px;padding:4px 18px;border:none;}"
             f"QPushButton:hover{{background:#0EA371;}}"
         )
@@ -238,7 +239,7 @@ class TournamentPlayScreen(QWidget):
         self.auto_btn.setCheckable(True)
         self.auto_btn.setStyleSheet(
             f"QPushButton{{background:{_C_CARD};color:{_C_MUTED};"
-            f"border:1px solid {_C_BORDER};border-radius:8px;font-size:12px;"
+            f"border:1px solid {_C_BORDER};border-radius:0;font-size:12px;"
             f"padding:4px 14px;font-weight:700;}}"
             f"QPushButton:checked{{background:#0D2030;color:{_C_CYAN};border-color:{_C_CYAN};}}"
         )
@@ -249,7 +250,7 @@ class TournamentPlayScreen(QWidget):
         self.archive_btn.setFixedHeight(36)
         self.archive_btn.setStyleSheet(
             f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-            "border-radius:8px;font-size:12px;padding:4px 14px;}"
+            "border-radius:0;font-size:12px;padding:4px 14px;}"
             f"QPushButton:hover{{border-color:{_C_CYAN};color:{_C_CYAN};}}"
         )
         self.archive_btn.clicked.connect(self._open_archive)
@@ -260,7 +261,7 @@ class TournamentPlayScreen(QWidget):
         self.reset_btn.setVisible(False)
         self.reset_btn.setStyleSheet(
             f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-            "border-radius:8px;font-size:12px;padding:4px 12px;}"
+            "border-radius:0;font-size:12px;padding:4px 12px;}"
             f"QPushButton:hover{{border-color:{_C_RED};color:{_C_RED};}}"
         )
         self.reset_btn.clicked.connect(self._reset)
@@ -375,13 +376,15 @@ class TournamentPlayScreen(QWidget):
         body.addWidget(left, 3)
 
         # RIGHT — stats + mistake log
+        # Widened from 300→340 so messages like
+        # "Masa birleşmesi: 9-max → 4-max (kalan: 5)" stay on one line.
         right = QWidget()
-        right.setFixedWidth(300)
+        right.setFixedWidth(340)
         right.setStyleSheet(f"background:{_C_CARD};border-left:1px solid {_C_BORDER};")
         rv = QVBoxLayout(right); rv.setContentsMargins(12,12,12,12); rv.setSpacing(8)
 
         stats_f = QFrame()
-        stats_f.setStyleSheet(f"background:{_C_BG};border-radius:8px;")
+        stats_f.setStyleSheet(f"background:{_C_BG};border-radius:0;")
         sv = QVBoxLayout(stats_f); sv.setContentsMargins(10,8,10,8); sv.setSpacing(3)
         sv.addWidget(_section("Session Stats"))
         self._stat: dict[str, QLabel] = {}
@@ -407,9 +410,16 @@ class TournamentPlayScreen(QWidget):
             "Turnuva başlatıldığında bot mix'e göre exploit önerisi gelecek."
         )
         self._coach_tip.setWordWrap(True)
+        # Markdown is enabled so `**bold**` and `*italic*` from the
+        # bot-mix coaching template render properly instead of showing
+        # the raw asterisks (which was the previous behaviour).
+        try:
+            self._coach_tip.setTextFormat(Qt.MarkdownText)
+        except Exception:
+            pass
         self._coach_tip.setStyleSheet(
             f"QLabel{{background:#0F1E2A;color:{_C_TEXT};font-size:11px;"
-            f"padding:10px 12px;border-radius:6px;border-left:3px solid {_C_CYAN};"
+            f"padding:10px 12px;border-radius:0;border-left:3px solid {_C_CYAN};"
             f"font-weight:500;}}"
         )
         rv.addWidget(self._coach_tip)
@@ -421,7 +431,7 @@ class TournamentPlayScreen(QWidget):
         log_scroll.setStyleSheet(
             f"QScrollArea{{border:none;background:{_C_BG};}}"
             "QScrollBar:vertical{width:5px;background:transparent;}"
-            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:2px;}"
+            "QScrollBar::handle:vertical{background:#2A3A50;border-radius:0;}"
         )
         self._log_w = QWidget()
         self._log_w.setStyleSheet(f"background:{_C_BG};")
@@ -434,7 +444,7 @@ class TournamentPlayScreen(QWidget):
         drill_btn = QPushButton("📋  Drill My Mistakes")
         drill_btn.setFixedHeight(36)
         drill_btn.setStyleSheet(
-            f"QPushButton{{background:{_C_AMBER};color:#000;border-radius:8px;"
+            f"QPushButton{{background:{_C_AMBER};color:#000;border-radius:0;"
             "font-weight:700;font-size:12px;border:none;}"
         )
         drill_btn.clicked.connect(self._queue_mistakes)
@@ -741,7 +751,7 @@ class TournamentPlayScreen(QWidget):
         lst = QListWidget()
         lst.setStyleSheet(
             f"QListWidget{{background:{_C_CARD};color:{_C_TEXT};"
-            f"border:1px solid {_C_BORDER};border-radius:6px;font-size:12px;}}"
+            f"border:1px solid {_C_BORDER};border-radius:0;font-size:12px;}}"
             f"QListWidget::item{{padding:8px 10px;border-bottom:1px solid {_C_BORDER};}}"
             f"QListWidget::item:selected{{background:#0D2030;color:{_C_CYAN};}}"
         )
@@ -774,7 +784,7 @@ class TournamentPlayScreen(QWidget):
         close.setFixedHeight(34)
         close.setStyleSheet(
             f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};border:1px solid {_C_BORDER};"
-            f"border-radius:6px;padding:0 18px;}}"
+            f"border-radius:0;padding:0 18px;}}"
         )
         close.clicked.connect(dlg.accept)
         row = QHBoxLayout()
@@ -805,7 +815,7 @@ class TournamentPlayScreen(QWidget):
         lst = QListWidget()
         lst.setStyleSheet(
             f"QListWidget{{background:{_C_CARD};color:{_C_TEXT};"
-            f"border:1px solid {_C_BORDER};border-radius:6px;font-size:12px;"
+            f"border:1px solid {_C_BORDER};border-radius:0;font-size:12px;"
             f"font-family:'SF Mono', Monaco, monospace;}}"
             f"QListWidget::item{{padding:6px 10px;border-bottom:1px solid {_C_BORDER};}}"
             f"QListWidget::item:selected{{background:#0D2030;color:{_C_CYAN};}}"
@@ -840,7 +850,7 @@ class TournamentPlayScreen(QWidget):
         close.setFixedHeight(34)
         close.setStyleSheet(
             f"QPushButton{{background:{_C_CARD};color:{_C_TEXT};"
-            f"border:1px solid {_C_BORDER};border-radius:6px;padding:0 18px;}}"
+            f"border:1px solid {_C_BORDER};border-radius:0;padding:0 18px;}}"
         )
         close.clicked.connect(dlg.accept)
         row = QHBoxLayout(); row.addStretch(1); row.addWidget(close)
@@ -977,7 +987,7 @@ class TournamentPlayScreen(QWidget):
             placeholder = QLabel("⬚")
             placeholder.setFixedSize(52, 72)
             placeholder.setAlignment(Qt.AlignCenter)
-            placeholder.setStyleSheet(f"color:#374151;font-size:28px;background:#0A0F16;border:1px dashed #1F2937;border-radius:6px;")
+            placeholder.setStyleSheet(f"color:#374151;font-size:28px;background:#0A0F16;border:1px dashed #1F2937;border-radius:0;")
             self._board_row.addWidget(placeholder)
 
         # Context label
@@ -1232,10 +1242,15 @@ class TournamentPlayScreen(QWidget):
             return
         from PySide6.QtWidgets import QLabel
         lbl = QLabel(text)
+        # Long event lines (e.g. "Masa birleşmesi: 9-max → 4-max (kalan: 5)")
+        # were previously clipped because the right rail is narrow. Enable
+        # word-wrap and disable horizontal clipping so the full message stays
+        # readable.
+        lbl.setWordWrap(True)
         color = accent or _C_MUTED
         lbl.setStyleSheet(
             f"QLabel{{color:{color};font-size:11px;font-weight:600;"
-            f"padding:6px 10px;background:{_C_CARD};border-radius:5px;"
+            f"padding:6px 10px;background:{_C_CARD};border-radius:0;"
             f"border-left:3px solid {color};}}"
         )
         # Newest event on top
@@ -1262,7 +1277,7 @@ class TournamentPlayScreen(QWidget):
         next_btn.setCursor(Qt.PointingHandCursor)
         next_btn.setToolTip("Klavye: Space / Enter / N — veya panele tıkla")
         next_btn.setStyleSheet(
-            f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:7px;"
+            f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:0;"
             "font-weight:800;font-size:12px;padding:4px 14px;border:none;}"
         )
         next_btn.clicked.connect(self._next_hand)
@@ -1282,7 +1297,7 @@ class TournamentPlayScreen(QWidget):
             why_lbl.setWordWrap(True)
             why_lbl.setStyleSheet(
                 f"QLabel{{background:{_C_BG};color:{_C_TEXT};font-size:12px;"
-                f"padding:8px 12px;border-radius:7px;border:1px solid {_C_BORDER};}}"
+                f"padding:8px 12px;border-radius:0;border:1px solid {_C_BORDER};}}"
             )
             self._fb_layout.addWidget(why_lbl)
 
@@ -1298,7 +1313,7 @@ class TournamentPlayScreen(QWidget):
             pill.setAlignment(Qt.AlignCenter)
             pill.setStyleSheet(
                 f"QLabel{{background:{_C_BG};border:1.5px solid {color};"
-                f"color:{color};border-radius:7px;padding:5px 10px;"
+                f"color:{color};border-radius:0;padding:5px 10px;"
                 "font-size:11px;font-weight:700;}"
             )
             freq_row.addWidget(pill)
@@ -1427,7 +1442,7 @@ class TournamentPlayScreen(QWidget):
         self._act_layout.addWidget(finish)
         again = QPushButton("🔄  Tekrar Oyna")
         again.setStyleSheet(
-            f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:8px;"
+            f"QPushButton{{background:{_C_CYAN};color:#000;border-radius:0;"
             "font-weight:800;font-size:13px;padding:6px 20px;border:none;}"
         )
         again.clicked.connect(self._reset)
@@ -1463,7 +1478,7 @@ class TournamentPlayScreen(QWidget):
     def _add_to_log(self, m: MistakeEntry) -> None:
         card = QFrame()
         card.setStyleSheet(
-            f"QFrame{{background:{_C_CARD};border-radius:6px;border:1px solid {_C_BORDER};}}"
+            f"QFrame{{background:{_C_CARD};border-radius:0;border:1px solid {_C_BORDER};}}"
         )
         cv = QVBoxLayout(card); cv.setContentsMargins(8,5,8,5); cv.setSpacing(2)
         hdr = QHBoxLayout()

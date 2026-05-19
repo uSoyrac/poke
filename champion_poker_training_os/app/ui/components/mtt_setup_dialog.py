@@ -132,17 +132,17 @@ class MttSetupDialog(QDialog):
             f"QDialog {{ background:#0A0E14; }}"
             f"QSpinBox, QComboBox {{"
             f"  background:{_C_PANEL}; color:{_C_TEXT};"
-            f"  border:1px solid {_C_BORDER}; border-radius:6px;"
+            f"  border:1px solid {_C_BORDER}; border-radius:0;"
             f"  padding:5px 8px; font-size:13px; min-height:24px;"
             f"}}"
             f"QSpinBox:focus, QComboBox:focus {{ border-color:{_C_CYAN}; }}"
             f"QCheckBox {{ color:{_C_TEXT}; font-size:13px; spacing:8px; }}"
             f"QCheckBox::indicator {{ width:16px; height:16px; }}"
             f"QCheckBox::indicator:unchecked {{"
-            f"  background:{_C_PANEL}; border:1.5px solid {_C_BORDER}; border-radius:3px;"
+            f"  background:{_C_PANEL}; border:1.5px solid {_C_BORDER}; border-radius:0;"
             f"}}"
             f"QCheckBox::indicator:checked {{"
-            f"  background:{_C_CYAN}; border:1.5px solid {_C_CYAN}; border-radius:3px;"
+            f"  background:{_C_CYAN}; border:1.5px solid {_C_CYAN}; border-radius:0;"
             f"}}"
         )
 
@@ -162,7 +162,7 @@ class MttSetupDialog(QDialog):
         # ── Basic Options panel ────────────────────────────────────────
         basic = QFrame()
         basic.setStyleSheet(
-            f"QFrame {{ background:{_C_PANEL}; border:1px solid {_C_BORDER}; border-radius:8px; }}"
+            f"QFrame {{ background:{_C_PANEL}; border:1px solid {_C_BORDER}; border-radius:0; }}"
         )
         bl = QVBoxLayout(basic)
         bl.setContentsMargins(16, 12, 16, 14)
@@ -342,7 +342,7 @@ class MttSetupDialog(QDialog):
         cancel.setFixedHeight(36)
         cancel.setStyleSheet(
             f"QPushButton{{background:{_C_PANEL};color:{_C_TEXT};"
-            f"border:1px solid {_C_BORDER};border-radius:6px;font-size:13px;padding:0 18px;}}"
+            f"border:1px solid {_C_BORDER};border-radius:0;font-size:13px;padding:0 18px;}}"
         )
         cancel.clicked.connect(self.reject)
         bottom.addWidget(cancel)
@@ -351,7 +351,7 @@ class MttSetupDialog(QDialog):
         submit.setFixedHeight(40)
         submit.setStyleSheet(
             f"QPushButton{{background:{_C_GREEN};color:#061018;"
-            f"border:none;border-radius:6px;font-size:14px;font-weight:800;padding:0 22px;}}"
+            f"border:none;border-radius:0;font-size:14px;font-weight:800;padding:0 22px;}}"
             f"QPushButton:hover{{background:#0EA371;}}"
         )
         submit.clicked.connect(self._accept)

@@ -141,7 +141,10 @@ class LivePokerTable(QWidget):
         # Felt: subtle dark oval — leave room at top for status banner
         # and at bottom for hero name pill below seat
         margin_x = 100
-        margin_y_top = 84
+        # When the tournament-status banner is showing, push the oval down
+        # so the top seat (and its name/stack pill above the avatar) doesn't
+        # collide with the badge. Without this, the topmost seat gets cut.
+        margin_y_top = 124 if self.field_status else 84
         margin_y_bot = 130    # generous space for hero name+stack pill
         oval = QRectF(margin_x, margin_y_top, w - margin_x * 2,
                        max(120, h - margin_y_top - margin_y_bot))

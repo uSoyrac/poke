@@ -51,7 +51,7 @@ class AiCoachScreen(QWidget):
             b = QPushButton(term)
             b.setStyleSheet(
                 "QPushButton{background:#0F141C;color:#22D3EE;"
-                "border:1px solid #1E2733;border-radius:6px;padding:6px 12px;"
+                "border:1px solid #1E2733;border-radius:0;padding:6px 12px;"
                 "font-size:11px;font-weight:700;}"
                 "QPushButton:hover{border-color:#22D3EE;background:#0D2030;}"
             )
