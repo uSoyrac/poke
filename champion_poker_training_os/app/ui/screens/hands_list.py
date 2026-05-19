@@ -251,11 +251,17 @@ class HandsListScreen(QWidget):
         layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(14)
 
-        # --- Title row ---
+        # Poke editorial header
+        from app.ui.components.poke import PokePageHeader as _PokePageHeader
+        page_header = _PokePageHeader(
+            num="15 / Hands",
+            title="Your <em>played</em> hands.",
+            sub="Imported sessions · played-against-bot history · per-hand review.",
+        )
+        layout.addWidget(page_header)
+
+        # --- Site / report row ---
         title_row = QHBoxLayout()
-        title = QLabel("Hands")
-        title.setObjectName("Title")
-        title_row.addWidget(title)
 
         site_btn = QPushButton("⚔  PokerArena")
         site_btn.setStyleSheet(

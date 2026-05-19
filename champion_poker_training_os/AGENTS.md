@@ -3,7 +3,7 @@
 **You are a coding agent.** This doc is the contract: read it once, become
 productive immediately, stop re-deriving the same context every session.
 
-Last verified: 2026-05-19 · commit pushed to `origin/claude/friendly-torvalds-0ecc83` · **276/276 tests passing** · UI audit 20/0 issues · 28/28 screens boot clean · all 28 screens Poke-toned (0 radius + lime accent + Poke surfaces) · grey-pane bleed fixed · AI Coach fully Poke-composed (PokePageHeader + 2 PokeCards) · section labels migrated to mono uppercase ▸ FORMAT.
+Last verified: 2026-05-19 · commit pushed to `origin/claude/friendly-torvalds-0ecc83` · **279/279 tests passing** · UI audit 20/0 issues · 28/28 screens boot clean · all screens Poke-toned · 14 screens upgraded to PokePageHeader · AI Coach chat history now persists across navigation.
 
 ---
 

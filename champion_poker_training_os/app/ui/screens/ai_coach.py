@@ -236,10 +236,35 @@ class AiCoachScreen(QWidget):
 
     def _clear_history(self) -> None:
         self.history.clear()
+        # Also drop the persisted snapshot so it doesn't reappear on next show.
+        try:
+            self.state.coach_chat_history = ""
+        except Exception:
+            pass
+
+    # ── Chat history persistence ─────────────────────────────────────
+    def _save_history(self) -> None:
+        """Snapshot the chat transcript into AppState so it survives nav."""
+        try:
+            self.state.coach_chat_history = self.history.toPlainText()
+        except Exception:
+            pass
+
+    def hideEvent(self, event) -> None:
+        self._save_history()
+        super().hideEvent(event)
 
     def showEvent(self, event) -> None:
-        """Auto-trigger a deep-dive if Spot Trainer set context."""
+        """Restore chat from AppState, then auto-trigger deep-dive context."""
         super().showEvent(event)
+        # Restore prior transcript if there is one
+        stored = getattr(self.state, "coach_chat_history", "") or ""
+        # Only restore if the current view is the default placeholder — i.e.
+        # we haven't already populated this session — to avoid double-fill.
+        cur = self.history.toPlainText().strip()
+        placeholder_prefix = "Hazır. Soru yaz"
+        if stored and (cur == "" or cur.startswith(placeholder_prefix)):
+            self.history.setPlainText(stored)
         # Refresh spot context label
         sp = self.state.selected_spot
         if sp:

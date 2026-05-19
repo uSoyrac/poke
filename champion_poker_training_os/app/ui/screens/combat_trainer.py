@@ -73,13 +73,13 @@ class CombatTrainerScreen(QWidget):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(14)
 
-        title = QLabel("Combat Trainer")
-        title.setObjectName("Title")
-        subtitle = QLabel("Select a combat pack to start solving spots. Complete the pack to unlock the boss hand.")
-        subtitle.setObjectName("Muted")
-        subtitle.setWordWrap(True)
-        layout.addWidget(title)
-        layout.addWidget(subtitle)
+        from app.ui.components.poke import PokePageHeader as _PokePageHeader
+        page_header = _PokePageHeader(
+            num="18 / Combat",
+            title="<em>Boss</em> hands.",
+            sub="Pick a combat pack · solve every spot · unlock the boss hand.",
+        )
+        layout.addWidget(page_header)
 
         grid = QGridLayout()
         for idx, pack in enumerate(self.packs):

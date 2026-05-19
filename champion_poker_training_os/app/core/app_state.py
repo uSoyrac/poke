@@ -27,6 +27,10 @@ class AppState:
     # When set by Spot Trainer's '🤖 Coach Açıkla' button, AI Coach screen
     # picks this up on showEvent to render a personalised explanation.
     coach_deepdive_context: dict[str, Any] = field(default_factory=dict)
+    # AI Coach chat transcript — survives navigation between screens so the
+    # user doesn't lose their conversation when they switch to a trainer
+    # and come back. Restored by AiCoachScreen.showEvent.
+    coach_chat_history: str = ""
     # Singleton adaptive engine — lazily created so unit tests don't pay setup cost
     _adaptive_engine: Any = None
 

@@ -111,15 +111,18 @@ class MathLabScreen(QWidget):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(14)
 
-        title_row = QHBoxLayout()
-        title = QLabel("Math Lab")
-        title.setObjectName("Title")
-        title_row.addWidget(title)
-        title_row.addStretch(1)
-        self.streak_label = QLabel("Streak 0 · Best 0")
-        self.streak_label.setObjectName("Cyan")
-        title_row.addWidget(self.streak_label)
-        layout.addLayout(title_row)
+        from app.ui.components.poke import PokePageHeader as _PokePageHeader
+        from app.ui.components.poke import PokeTag as _PokeTag
+        self.streak_tag = _PokeTag("STREAK 0 · BEST 0", tone="g")
+        page_header = _PokePageHeader(
+            num="17 / Math Lab",
+            title="Sharpen the <em>reflex</em>.",
+            sub="MDF · pot odds · alpha · ICM math — solve under time pressure.",
+            actions=self.streak_tag,
+        )
+        layout.addWidget(page_header)
+        # Keep the streak_label name so downstream setters still work
+        self.streak_label = self.streak_tag
 
         # Category filter cards
         cat_grid = QGridLayout()
@@ -269,7 +272,7 @@ class MathLabScreen(QWidget):
             self.feedback.style().polish(self.feedback)
             self.feedback.setText("Süre doldu — quick-fire kuralı: cevap saymıyor. Sonraki soruya geç.")
             self.streak = 0
-            self.streak_label.setText(f"Streak 0 · Best {self.best_streak}")
+            self.streak_label.setText(f"STREAK 0 · BEST {self.best_streak}")
             self.deadline = None
             return
         self.timer_label.setText(f"⏱ {remaining:0.1f}s")
@@ -328,7 +331,7 @@ class MathLabScreen(QWidget):
         self.stat_answered.setText(f"Answered: {self.answered}")
         self.stat_correct.setText(f"Correct: {self.correct}")
         self.stat_score.setText(f"Math Reflex Score: {reflex}")
-        self.streak_label.setText(f"Streak {self.streak} · Best {self.best_streak}")
+        self.streak_label.setText(f"STREAK {self.streak} · BEST {self.best_streak}")
         self.state.completed_drills += 1
 
         self.index += 1

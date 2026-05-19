@@ -97,8 +97,13 @@ class KnowledgeBaseScreen(QWidget):
         hl = QVBoxLayout(header)
         hl.setContentsMargins(24, 14, 24, 8)
         hl.setSpacing(8)
-        title = QLabel("🧠  Knowledge Base")
-        title.setStyleSheet(f"color:{_C_TEXT};font-size:20px;font-weight:800;")
+        # Poke editorial header — section number + italic emphasis
+        from app.ui.components.poke import PokePageHeader as _PokePageHeader
+        title = _PokePageHeader(
+            num="22 / Knowledge",
+            title="The <em>library</em>.",
+            sub="98 sözlük terimi · 14 pro profili · core poker concepts.",
+        )
         hl.addWidget(title)
 
         # Tabs

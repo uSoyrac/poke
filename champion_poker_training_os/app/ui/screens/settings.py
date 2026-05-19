@@ -39,9 +39,13 @@ class SettingsScreen(QWidget):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(14)
 
-        title = QLabel("Settings / Compliance Guard")
-        title.setObjectName("Title")
-        layout.addWidget(title)
+        from app.ui.components.poke import PokePageHeader as _PokePageHeader
+        page_header = _PokePageHeader(
+            num="28 / Settings",
+            title="Stay <em>offline</em>.",
+            sub="RTA guard · compliance · solver library · reset data.",
+        )
+        layout.addWidget(page_header)
 
         # --- RTA Guard card ---
         rta_card = QFrame()

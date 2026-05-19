@@ -119,19 +119,27 @@ class ReportsScreen(QWidget):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(14)
 
-        # Header
-        header = QHBoxLayout()
-        title = QLabel("Reports")
-        title.setObjectName("Title")
-        header.addWidget(title)
+        # Poke editorial header
+        from app.ui.components.poke import PokePageHeader as _PokePageHeader
+        from app.ui.components.poke import PokeBtn as _PokeBtn
+        export = _PokeBtn("Export HTML / PDF report", variant="primary",
+                            size="md", kbd="↵")
+        export.clicked.connect(lambda: self.status.setText(
+            "✓ Demo report exported: HTML/PDF adapter ready."))
+        page_header = _PokePageHeader(
+            num="24 / Reports",
+            title="Your week, <em>summarized</em>.",
+            sub="Skill score · drills · EV trend · position breakdown.",
+            actions=export,
+        )
+        layout.addWidget(page_header)
+        # Period selector below the header
+        period_row = QHBoxLayout()
         self.period = QComboBox()
         self.period.addItems(["Weekly", "Monthly", "Session"])
-        header.addWidget(self.period)
-        export = QPushButton("Export HTML/PDF Report")
-        export.setObjectName("PrimaryButton")
-        export.clicked.connect(lambda: self.status.setText("✓ Demo report exported: HTML/PDF adapter ready."))
-        header.addWidget(export)
-        layout.addLayout(header)
+        period_row.addWidget(self.period)
+        period_row.addStretch(1)
+        layout.addLayout(period_row)
 
         self.status = QLabel("Weekly report ready.")
         self.status.setObjectName("Green")

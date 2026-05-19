@@ -166,11 +166,17 @@ class LeakFinderScreen(QWidget):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(14)
 
-        # Header
+        # Poke editorial header
+        from app.ui.components.poke import PokePageHeader as _PokePageHeader
+        page_header = _PokePageHeader(
+            num="19 / Leak Finder",
+            title="Find what <em>bleeds</em>.",
+            sub="Real-leak aggregator from imported + played hands.",
+        )
+        layout.addWidget(page_header)
+
+        # Source + refresh row
         header = QHBoxLayout()
-        title = QLabel("Leak Finder")
-        title.setObjectName("Title")
-        header.addWidget(title)
         self.source_combo = QComboBox()
         self.source_combo.addItems([
             "Real leaks (imported + played)",

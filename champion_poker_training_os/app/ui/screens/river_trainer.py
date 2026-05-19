@@ -65,10 +65,13 @@ class RiverTrainerScreen(QWidget):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(14)
 
-        # Header
-        title = QLabel("River Decision Trainer")
-        title.setObjectName("Title")
-        layout.addWidget(title)
+        from app.ui.components.poke import PokePageHeader as _PokePageHeader
+        page_header = _PokePageHeader(
+            num="16 / River",
+            title="The <em>last</em> street.",
+            sub="Bluff-catch · blockers · MDF · thin value · overbet response.",
+        )
+        layout.addWidget(page_header)
 
         # Controls
         controls = QHBoxLayout()

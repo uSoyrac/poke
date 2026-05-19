@@ -188,19 +188,16 @@ class SkillsReportScreen(QWidget):
         root.setContentsMargins(28, 24, 28, 28)
         root.setSpacing(16)
 
-        # Header
-        title = QLabel("📊  Skills Report")
-        title.setStyleSheet(f"color:{_C_TEXT};font-size:24px;font-weight:800;background:transparent;")
-        root.addWidget(title)
-
-        sub = QLabel(
-            "Her bir leak için kişisel değerin önerilen aralıkla karşılaştırılır. "
-            "Yeşil = aralık içinde, kırmızı = dışında. 'No Data' = bu kategori için "
-            "henüz yeterli el oynamadın."
+        # Poke editorial header — section number + italic emphasis
+        from app.ui.components.poke import PokePageHeader as _PokePageHeader
+        header = _PokePageHeader(
+            num="20 / Skills",
+            title="Audit your <em>leaks</em>.",
+            sub=("Her leak için kişisel değer önerilen aralıkla karşılaştırılır. "
+                 "Yeşil = aralık içinde, kırmızı = dışında. "
+                 "'No Data' = bu kategori için yeterli el oynamadın."),
         )
-        sub.setStyleSheet(f"color:{_C_MUTED};font-size:13px;background:transparent;")
-        sub.setWordWrap(True)
-        root.addWidget(sub)
+        root.addWidget(header)
 
         warning = QLabel(
             "⚠  Warning! Bu raporun anlamlı olması için 100+ el oyna. "

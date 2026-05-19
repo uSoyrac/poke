@@ -539,8 +539,19 @@ class GTOTrainerScreen(QWidget):
         sb.setContentsMargins(16, 6, 16, 6)
         sb.setSpacing(10)
 
-        title = QLabel("🎯  GTO Trainer")
-        title.setStyleSheet(f"color:{_C_TEXT};font-weight:700;font-size:14px;")
+        # Compact mono eyebrow + name (top bar = 52px tall)
+        eyebrow = QLabel("07 /")
+        eyebrow.setStyleSheet(
+            f"color:{_C_MUTED}; background: transparent; "
+            f"font-family: 'JetBrains Mono'; font-weight: 500; font-size: 10px; "
+            f"padding-right: 8px;"
+        )
+        sb.addWidget(eyebrow)
+        title = QLabel("GTO Trainer")
+        title.setStyleSheet(
+            f"color:{_C_TEXT}; background: transparent; "
+            f"font-family: 'Space Grotesk'; font-weight: 600; font-size: 14px;"
+        )
         sb.addWidget(title)
         sb.addSpacing(20)
 

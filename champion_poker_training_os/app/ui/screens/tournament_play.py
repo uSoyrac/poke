@@ -209,8 +209,19 @@ class TournamentPlayScreen(QWidget):
         sr.setContentsMargins(16, 8, 16, 8)
         sr.setSpacing(10)
 
-        title = QLabel("🏆  Tournament Play Mode")
-        title.setStyleSheet(f"color:{_C_TEXT};font-size:16px;font-weight:700;")
+        # Mono eyebrow + name — compact for the 56px top bar
+        eyebrow = QLabel("12 /")
+        eyebrow.setStyleSheet(
+            f"color:{_C_MUTED}; background: transparent; "
+            f"font-family: 'JetBrains Mono'; font-weight: 500; font-size: 10px; "
+            f"padding-right: 8px;"
+        )
+        sr.addWidget(eyebrow)
+        title = QLabel("Tournament Play")
+        title.setStyleSheet(
+            f"color:{_C_TEXT}; background: transparent; "
+            f"font-family: 'Space Grotesk'; font-weight: 700; font-size: 16px;"
+        )
         sr.addWidget(title)
         sr.addSpacing(20)
 

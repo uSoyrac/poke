@@ -116,11 +116,15 @@ class TournamentSimulatorScreen(QWidget):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(14)
 
-        # Title row
+        from app.ui.components.poke import PokePageHeader as _PokePageHeader
+        page_header = _PokePageHeader(
+            num="11 / Tour. Sim",
+            title="<em>Karar</em> pratiği.",
+            sub="MTT spot drills · ICM-aware payout ladder · 100-player fields.",
+        )
+        layout.addWidget(page_header)
+        # Actions row
         title_row = QHBoxLayout()
-        title = QLabel("🎰  Tournament Simulator  (MTT karar pratiği)")
-        title.setObjectName("Title")
-        title_row.addWidget(title)
         title_row.addStretch(1)
         self.setup_btn = QPushButton("⚙  Yapılandır")
         self.setup_btn.clicked.connect(self._open_setup)

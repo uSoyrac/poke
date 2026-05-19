@@ -139,9 +139,18 @@ class MyMistakesScreen(QWidget):
         )
         hr = QHBoxLayout(header)
         hr.setContentsMargins(24, 12, 24, 12)
-        self._title_lbl = QLabel("🩺  My Mistakes")
+        # Mono eyebrow + section title (compact for the top bar)
+        eyebrow = QLabel("21 /")
+        eyebrow.setStyleSheet(
+            f"color:{_C_MUTED}; background: transparent; "
+            f"font-family: 'JetBrains Mono'; font-weight: 500; font-size: 10px; "
+            f"padding-right: 8px;"
+        )
+        hr.addWidget(eyebrow)
+        self._title_lbl = QLabel("My mistakes")
         self._title_lbl.setStyleSheet(
-            f"color:{_C_TEXT};font-size:18px;font-weight:800;background:transparent;"
+            f"color:{_C_TEXT}; background: transparent; "
+            f"font-family: 'Space Grotesk'; font-weight: 700; font-size: 18px;"
         )
         hr.addWidget(self._title_lbl)
         hr.addStretch(1)
@@ -189,9 +198,9 @@ class MyMistakesScreen(QWidget):
         # tracks open vs drilled separately)
         mistakes = [m for m in all_mistakes if not m.drilled]
         drilled_count = len(all_mistakes) - len(mistakes)
-        title_extra = f" · ✓ {drilled_count} çözüldü" if drilled_count else ""
+        title_extra = f" · {drilled_count} çözüldü" if drilled_count else ""
         self._title_lbl.setText(
-            f"🩺  My Mistakes  ({len(mistakes)} açık{title_extra})"
+            f"My mistakes  ({len(mistakes)} açık{title_extra})"
         )
 
         if not mistakes:

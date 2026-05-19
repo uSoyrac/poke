@@ -126,11 +126,16 @@ class IcmTrainerScreen(QWidget):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(14)
 
-        # Header
+        from app.ui.components.poke import PokePageHeader as _PokePageHeader
+        page_header = _PokePageHeader(
+            num="14 / ICM",
+            title="Survive the <em>bubble</em>.",
+            sub="ICM · PKO · final table · risk-premium-aware decision drills.",
+        )
+        layout.addWidget(page_header)
+
+        # Filter row
         header = QHBoxLayout()
-        title = QLabel("ICM / PKO Trainer")
-        title.setObjectName("Title")
-        header.addWidget(title)
         self.stage_filter = QComboBox()
         self.stage_filter.addItems(["All", "bubble", "final table", "PKO", "satellite", "chipEV"])
         self.stage_filter.currentTextChanged.connect(self._filter_changed)
@@ -141,6 +146,7 @@ class IcmTrainerScreen(QWidget):
         header.addWidget(self.stage_filter)
         header.addWidget(QLabel("Type"))
         header.addWidget(self.type_filter)
+        header.addStretch(1)
         layout.addLayout(header)
 
         # Stats cards

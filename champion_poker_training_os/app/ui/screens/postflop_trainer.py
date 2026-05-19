@@ -75,10 +75,13 @@ class PostflopTrainerScreen(QWidget):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(14)
 
-        # Header
-        title = QLabel("Postflop Trainer")
-        title.setObjectName("Title")
-        layout.addWidget(title)
+        from app.ui.components.poke import PokePageHeader as _PokePageHeader
+        page_header = _PokePageHeader(
+            num="15 / Postflop",
+            title="Flop. Turn. <em>Decide</em>.",
+            sub="C-bet · barrel · range vs nut advantage — concept-aware drills.",
+        )
+        layout.addWidget(page_header)
 
         # Controls
         controls = QHBoxLayout()

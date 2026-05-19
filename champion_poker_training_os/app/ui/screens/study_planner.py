@@ -98,11 +98,16 @@ class StudyPlannerScreen(QWidget):
         root.setContentsMargins(18, 18, 18, 18)
         root.setSpacing(14)
 
-        # Header
+        from app.ui.components.poke import PokePageHeader as _PokePageHeader
+        page_header = _PokePageHeader(
+            num="25 / Study Plan",
+            title="Plan your <em>week</em>.",
+            sub="Pick a 7-day template · daily focus · trackable targets.",
+        )
+        root.addWidget(page_header)
+
+        # Plan controls row
         header = QHBoxLayout()
-        title = QLabel("Study Planner")
-        title.setObjectName("Title")
-        header.addWidget(title)
         self.plan_type = QComboBox()
         self.plan_type.addItems(list(PLAN_TEMPLATES.keys()))
         self.plan_type.currentTextChanged.connect(self.render)

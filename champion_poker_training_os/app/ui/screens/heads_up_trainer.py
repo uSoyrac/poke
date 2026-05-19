@@ -64,15 +64,13 @@ class HeadsUpTrainerScreen(QWidget):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(12)
 
-        # Header
-        header = QHBoxLayout()
-        title = QLabel("🎯 Heads-Up Trainer")
-        title.setObjectName("Title")
-        header.addWidget(title)
-        subtitle = QLabel("1v1 aggressive play — BTN vs BB dynamics")
-        subtitle.setObjectName("Muted")
-        header.addWidget(subtitle, 1)
-        layout.addLayout(header)
+        from app.ui.components.poke import PokePageHeader as _PokePageHeader
+        page_header = _PokePageHeader(
+            num="13 / Heads-Up",
+            title="One-on-<em>one</em>.",
+            sub="BTN vs BB heads-up dynamics — aggressive 3-bet/4-bet trees.",
+        )
+        layout.addWidget(page_header)
 
         # Setup panel
         self.setup_frame = QFrame()

@@ -57,15 +57,13 @@ class FastPlaySimulatorScreen(QWidget):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(12)
 
-        # Header
-        header = QHBoxLayout()
-        title = QLabel("⚡ Fast Play Simulator")
-        title.setObjectName("Title")
-        header.addWidget(title)
-        subtitle = QLabel("High-volume rapid decision training. 200+ hands/hour.")
-        subtitle.setObjectName("Muted")
-        header.addWidget(subtitle, 1)
-        layout.addLayout(header)
+        from app.ui.components.poke import PokePageHeader as _PokePageHeader
+        page_header = _PokePageHeader(
+            num="10 / Fast Play",
+            title="Volume. <em>Reps</em>.",
+            sub="Rapid-fire decisions — 200+ hands/hour to build reflex.",
+        )
+        layout.addWidget(page_header)
 
         # Setup row — players spinbox supports 2-11
         setup = QHBoxLayout()

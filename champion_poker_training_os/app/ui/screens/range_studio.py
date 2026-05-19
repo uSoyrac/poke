@@ -85,9 +85,19 @@ class RangeStudioScreen(QWidget):
         bar_layout.setContentsMargins(20, 4, 20, 4)
         bar_layout.setSpacing(0)
 
-        title = QLabel("🎯  Range Studio")
+        # Compact section eyebrow + name — fits the 52px top bar
+        ebrow = QLabel("06 /")
+        ebrow.setStyleSheet(
+            f"color:{_C_MUTED}; background: transparent; "
+            f"font-family: 'JetBrains Mono'; font-weight: 500; font-size: 10px; "
+            f"padding-right: 8px;"
+        )
+        bar_layout.addWidget(ebrow)
+        title = QLabel("Range Studio")
         title.setStyleSheet(
-            f"color:{_C_TEXT};font-size:15px;font-weight:800;padding-right:30px;"
+            f"color:{_C_TEXT}; background: transparent; "
+            f"font-family: 'Space Grotesk'; font-weight: 600; font-size: 14px; "
+            f"padding-right: 30px;"
         )
         bar_layout.addWidget(title)
 
