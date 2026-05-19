@@ -13,7 +13,7 @@ Anatomy (mirrors theme.css `.top` rules):
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QLineEdit, QWidget
 
 from app.core.app_state import AppState
@@ -57,8 +57,13 @@ class ComplianceStatusBadge(QLabel):
 class TopStatusBar(QFrame):
     """Brutalist editorial topbar."""
 
+    # Emitted when the user clicks the IMPORT cell — MainWindow opens
+    # the hand-history import dialog on this signal.
+    import_clicked = Signal()
+
     def __init__(self, state: AppState):
         super().__init__()
+        self._state_ref = state
         self.setObjectName("TopBar")
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setFixedHeight(t.TOPBAR_H)
@@ -124,13 +129,24 @@ class TopStatusBar(QFrame):
         right_h.addWidget(self._wrap_cell(self.compliance))
         right_h.addWidget(_vsep())
 
-        # Last import cell
-        self.import_label = QLabel(f"IMPORT  {state.last_import}".upper())
+        # Last import cell — clickable. Opens the import dialog.
+        self.import_label = QLabel(
+            f"▸  IMPORT  {state.last_import}".upper()
+        )
         self.import_label.setStyleSheet(
             f"color: {t.INK_2}; background: transparent; "
             f"font-family: 'JetBrains Mono'; font-size: 11px; "
             f"font-weight: 500; padding: 0 16px;"
         )
+        self.import_label.setCursor(Qt.PointingHandCursor)
+        self.import_label.setToolTip(
+            "Click to import PokerStars / CoinPoker / GG hand histories"
+        )
+        # QLabel doesn't emit signals natively — wrap mousePressEvent so a
+        # click on the cell fires our import_clicked signal.
+        def _label_clicked(_ev, sig=self.import_clicked):
+            sig.emit()
+        self.import_label.mousePressEvent = _label_clicked
         right_h.addWidget(self._wrap_cell(self.import_label))
         right_h.addWidget(_vsep())
 

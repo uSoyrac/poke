@@ -323,45 +323,91 @@ class DashboardScreen(QWidget):
         skill_tree = demo_skill_tree()
         tree_summary = skill_tree.get_summary()
 
-        # ── Live data overlay — read from mistakes_queue + tournament_archive ──
+        # ── Live data overlay — pull real KPIs from SQLite where available ──
+        # Strategy: layer real values on top of demo `metrics`. A field is
+        # only overridden if we have enough data to make it meaningful.
+        # Caller can tell which fields are real via the `_real_fields` set.
+        self._real_fields: set[str] = set()
+
+        # 1) Mistakes queue → per-street accuracy + EV-loss tally
         try:
             from app.db.mistakes_queue import load_mistakes
             all_m = load_mistakes()
-            open_leaks    = [m for m in all_m if not m.drilled]
+            open_leaks = [m for m in all_m if not m.drilled]
             drilled_leaks = [m for m in all_m if m.drilled]
-            # Recompute accuracy from real persisted mistakes
             if state.completed_drills > 0:
                 metrics["drills_today"] = state.completed_drills
+                self._real_fields.add("drills_today")
                 metrics["skill_score"] = max(50, 100 - len(open_leaks) * 2)
-            # Replace ev_loss_per_100 with real running tally
+                self._real_fields.add("skill_score")
             if open_leaks:
                 metrics["ev_loss_per_100"] = round(
                     sum(m.ev_loss for m in open_leaks) * 100
                     / max(1, len(open_leaks) * 10), 1
                 )
-            # Per-street accuracy bucketed from mistakes
+                self._real_fields.add("ev_loss_per_100")
             preflop_m  = [m for m in open_leaks if m.pot_type in ("SRP","3BP","4BP")]
             postflop_m = [m for m in open_leaks if m.context in
                           ("postflop_trainer", "river_trainer")]
             river_m    = [m for m in open_leaks if m.context == "river_trainer"]
             icm_m      = [m for m in open_leaks if m.pot_type == "ICM"]
-            # Lower accuracy if more open leaks of that type
             if preflop_m:
                 metrics["preflop_accuracy"]  = max(40, 95 - len(preflop_m) * 3)
+                self._real_fields.add("preflop_accuracy")
             if postflop_m:
                 metrics["postflop_accuracy"] = max(40, 90 - len(postflop_m) * 3)
+                self._real_fields.add("postflop_accuracy")
             if river_m:
                 metrics["river_score"]       = max(40, 85 - len(river_m) * 3)
+                self._real_fields.add("river_score")
             if icm_m:
                 metrics["icm_discipline"]    = max(40, 88 - len(icm_m) * 4)
+                self._real_fields.add("icm_discipline")
         except Exception:
             pass
+
+        # 2) Decision review summary — accuracy + EV-loss from played hands
+        try:
+            from app.db.repository import get_decision_review_summary
+            ds = get_decision_review_summary(limit=500)
+            if ds.get("count", 0) > 0:
+                # Use accuracy as the global skill_score floor (60..100)
+                acc = float(ds["accuracy"])
+                metrics["skill_score"] = max(metrics.get("skill_score", 60),
+                                                round(60 + acc * 0.4))
+                self._real_fields.add("skill_score")
+                # EV-loss real running tally if larger than the mistakes-q one
+                ev_loss_pct100 = round(ds["ev_loss"] * 100 / max(ds["count"], 1), 1)
+                if ev_loss_pct100 > 0:
+                    metrics["ev_loss_per_100"] = ev_loss_pct100
+                    self._real_fields.add("ev_loss_per_100")
+                # Math reflex piggybacks on review accuracy too
+                metrics["math_reflex"] = max(int(acc), 0)
+                self._real_fields.add("math_reflex")
+        except Exception:
+            pass
+
+        # 3) Player stats from played hands — bb/100 (display as ev-loss surrogate)
+        try:
+            from app.db.repository import get_player_stats
+            ps = get_player_stats()
+            if ps.get("total_hands", 0) > 50:
+                # If hero is profitable, ev_loss/100 floors at 0; if losing,
+                # show abs(bb_per_100) as the EV-leak surrogate.
+                bb100 = float(ps.get("bb_per_100", 0))
+                if bb100 < 0:
+                    metrics["ev_loss_per_100"] = round(abs(bb100), 1)
+                    self._real_fields.add("ev_loss_per_100")
+        except Exception:
+            pass
+
+        # 4) Tournament archive — cashed-tournament streak
         try:
             from app.db.tournament_archive import load_archive
             arch = load_archive()
             if arch:
-                cashed = sum(1 for r in arch if r.cashed)
-                metrics["streak"] = cashed
+                metrics["streak"] = sum(1 for r in arch if r.cashed)
+                self._real_fields.add("streak")
         except Exception:
             pass
 
@@ -405,7 +451,7 @@ class DashboardScreen(QWidget):
         )
         layout.addWidget(header)
 
-        # === SECONDARY ACTION ROW (chip-like buttons) ===
+        # === SECONDARY ACTION ROW (chip-like buttons + data status tag) ===
         action_row = QHBoxLayout()
         action_row.setSpacing(10)
         for label, screen in [
@@ -419,6 +465,28 @@ class DashboardScreen(QWidget):
                               self.navigate_requested.emit(tgt))
             action_row.addWidget(b)
         action_row.addStretch(1)
+
+        # Live-data status pill — number of KPIs that reflect real DB data
+        n_real = len(self._real_fields)
+        total_kpis = 8
+        if n_real == 0:
+            data_tag = PokeTag("DEMO DATA", tone="y", dot=True)
+            data_tag.setToolTip(
+                "Henüz yeterli el / drill yok. Tüm KPI'lar demo değer."
+            )
+        elif n_real >= 5:
+            data_tag = PokeTag(f"LIVE · {n_real}/{total_kpis}", tone="g",
+                                dot=True)
+            data_tag.setToolTip(
+                f"{n_real} KPI gerçek verinden hesaplandı."
+            )
+        else:
+            data_tag = PokeTag(f"PARTIAL · {n_real}/{total_kpis}", tone="b",
+                                dot=True)
+            data_tag.setToolTip(
+                f"{n_real} KPI gerçek veriden; geri kalanlar demo."
+            )
+        action_row.addWidget(data_tag)
         layout.addLayout(action_row)
 
         # === KPI STATS GRID (8 cards) ===
@@ -434,15 +502,30 @@ class DashboardScreen(QWidget):
         kpi_grid = QGridLayout()
         kpi_grid.setHorizontalSpacing(10)
         kpi_grid.setVerticalSpacing(10)
+
+        def _badge(field: str, default: str) -> str:
+            """Stamp the KPI sub-line with LIVE or DEMO so the user can tell
+            at a glance which numbers are sourced from real data."""
+            return "● LIVE" if field in self._real_fields else default
+
         kpi_data = [
-            ("Drills today",  str(metrics["drills_today"]),   None,    "daily pace"),
-            ("Preflop acc",   f"{metrics['preflop_accuracy']}",  "%",  "range work"),
-            ("Postflop acc",  f"{metrics['postflop_accuracy']}", "%",  "flop / turn"),
-            ("River score",   f"{metrics['river_score']}",       "%",  "blocker aware"),
-            ("ICM discipline",f"{metrics['icm_discipline']}",    "%",  "bubble calls"),
-            ("Math reflex",   f"{metrics['math_reflex']}",       "%",  "alpha / MDF"),
-            ("EV loss / 100", f"{metrics['ev_loss_per_100']:.1f}", "bb", "target < 20bb"),
-            ("Skill score",   str(metrics["skill_score"]),     None,   leak_detail),
+            ("Drills today",  str(metrics["drills_today"]),   None,
+                _badge("drills_today", "daily pace")),
+            ("Preflop acc",   f"{metrics['preflop_accuracy']}",  "%",
+                _badge("preflop_accuracy", "range work")),
+            ("Postflop acc",  f"{metrics['postflop_accuracy']}", "%",
+                _badge("postflop_accuracy", "flop / turn")),
+            ("River score",   f"{metrics['river_score']}",       "%",
+                _badge("river_score", "blocker aware")),
+            ("ICM discipline",f"{metrics['icm_discipline']}",    "%",
+                _badge("icm_discipline", "bubble calls")),
+            ("Math reflex",   f"{metrics['math_reflex']}",       "%",
+                _badge("math_reflex", "alpha / MDF")),
+            ("EV loss / 100", f"{metrics['ev_loss_per_100']:.1f}", "bb",
+                _badge("ev_loss_per_100", "target < 20bb")),
+            ("Skill score",   str(metrics["skill_score"]),     None,
+                leak_detail if "skill_score" not in self._real_fields
+                else f"● LIVE · {leak_detail}"),
         ]
         for idx, (lbl, val, unit, sub) in enumerate(kpi_data):
             kpi_grid.addWidget(PokeStat(lbl, val, unit=unit, sub=sub),

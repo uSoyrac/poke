@@ -154,6 +154,7 @@ class MainWindow(QMainWindow):
         self.sidebar = SidebarNav(NAV_ITEMS, shortcuts=sidebar_kbd)
         self.sidebar.navigation_requested.connect(self.navigate)
         self.topbar = TopStatusBar(self.state)
+        self.topbar.import_clicked.connect(self.open_import_dialog)
         self.coach = CoachPanel()
         self.coach.ask_requested.connect(self.explain_selected_spot)
         self.stack = QStackedWidget()
@@ -217,11 +218,47 @@ class MainWindow(QMainWindow):
             sc = QShortcut(QKeySequence(f"Ctrl+{i}"), self)
             sc.activated.connect(lambda idx=i-1: self.navigate(NAV_ITEMS[idx]))
 
+        # Ctrl+B — toggle the sidebar between full and icon-only widths.
+        # Once user explicitly toggles, the auto-collapse-on-resize logic
+        # backs off so we don't fight the user's preference.
+        self._sidebar_toggle_sc = QShortcut(QKeySequence("Ctrl+B"), self)
+
+        def _user_toggle():
+            self._user_set_sidebar = True
+            self.sidebar.toggle_collapsed()
+
+        self._sidebar_toggle_sc.activated.connect(_user_toggle)
+        # Also flip the flag when the user clicks the in-sidebar « » button
+        self.sidebar.collapse_toggled.connect(
+            lambda _collapsed: setattr(self, "_user_set_sidebar", True)
+        )
+
     def show_help(self) -> None:
         """Pop the keyboard-shortcut help overlay."""
         from app.ui.components.help_overlay import HelpOverlay
         dlg = HelpOverlay(self)
         dlg.exec()
+
+    # Width threshold below which the sidebar auto-collapses. Picked so a
+    # 13" laptop (1366 px) keeps the full sidebar but a side-by-side window
+    # gets the compact one. Hysteresis avoids flicker around the threshold.
+    _AUTO_COLLAPSE_BELOW = 1180
+    _AUTO_EXPAND_ABOVE   = 1320
+
+    def resizeEvent(self, event) -> None:
+        """Auto-collapse the sidebar on narrow windows. Manual toggle still
+        takes precedence — once the user has set a preference we leave it
+        alone."""
+        super().resizeEvent(event)
+        if getattr(self, "_user_set_sidebar", False):
+            return
+        if not hasattr(self, "sidebar"):
+            return
+        w = self.width()
+        if w < self._AUTO_COLLAPSE_BELOW and not self.sidebar.is_collapsed():
+            self.sidebar.set_collapsed(True)
+        elif w > self._AUTO_EXPAND_ABOVE and self.sidebar.is_collapsed():
+            self.sidebar.set_collapsed(False)
 
     def _create_screens(self) -> None:
         factories = {
@@ -310,6 +347,37 @@ class MainWindow(QMainWindow):
             self.coach.set_message(explain_spot(self.state.selected_spot))
         else:
             self.coach.set_message("Önce bir trainer, analyzer veya study spot seç; sonra nedenini birlikte parçalayalım.")
+
+    def open_import_dialog(self) -> None:
+        """Topbar IMPORT cell click → Poke hand-history import flow."""
+        from app.ui.components.import_dialog import HandHistoryImportDialog
+        from app.db.repository import imported_hands_count
+        dlg = HandHistoryImportDialog(self)
+        if dlg.exec() == dlg.Accepted:
+            summary = dlg.result_summary
+            saved = summary.get("saved", 0)
+            total = imported_hands_count()
+            self.state.last_import = (
+                f"+{saved} HANDS · {total} TOTAL"
+            )
+            # Refresh the topbar label so the user sees the update
+            self.topbar.import_label.setText(
+                f"▸  IMPORT  {self.state.last_import}".upper()
+            )
+            self.coach.set_message(
+                f"Hand history import: {saved} new hands "
+                f"({summary.get('site', '—')}). "
+                f"Total in DB: {total}. Hands list ekranında geçmişi gör, "
+                "Hand History Analyzer'da replay aç."
+            )
+            # Live-refresh the Hands list if it's already built
+            hands_screen = self.screens.get("Hands")
+            if hands_screen is not None and hasattr(hands_screen, "_load_hands"):
+                try:
+                    hands_screen.all_hands = hands_screen._load_hands()
+                    hands_screen._populate()
+                except Exception:
+                    pass
 
 
 def main() -> int:

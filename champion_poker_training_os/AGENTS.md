@@ -3,7 +3,7 @@
 **You are a coding agent.** This doc is the contract: read it once, become
 productive immediately, stop re-deriving the same context every session.
 
-Last verified: 2026-05-19 · commit pushed to `origin/claude/friendly-torvalds-0ecc83` · **279/279 tests passing** · UI audit 20/0 issues · 28/28 screens boot clean · `dark_flat.qss` rewritten using Poke tokens — every legacy `setObjectName("Card"|"Cyan"|"PrimaryButton"...)` call site now renders Poke automatically; no per-screen edits required for the design-system flip.
+Last verified: 2026-05-19 · commit pushed to `origin/claude/friendly-torvalds-0ecc83` · **285/285 tests passing** · UI audit 20/0 issues · 28/28 screens boot clean · global hand-history import dialog wired to the topbar `▸ IMPORT` cell · Dashboard KPIs flow from real SQLite data with `● LIVE` badges (mistakes_queue + decision_reviews + player_stats + tournament_archive) · Sidebar collapses to icon-only 56 px via `Ctrl+B` or the « » brand-row button, and auto-collapses below 1180 px window width.
 
 ---
 
