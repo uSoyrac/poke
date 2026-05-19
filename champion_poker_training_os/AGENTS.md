@@ -3,7 +3,7 @@
 **You are a coding agent.** This doc is the contract: read it once, become
 productive immediately, stop re-deriving the same context every session.
 
-Last verified: 2026-05-19 · commit pushed to `origin/claude/friendly-torvalds-0ecc83` · **279/279 tests passing** · UI audit 20/0 issues · 28/28 screens boot clean · all screens Poke-toned · 14 screens upgraded to PokePageHeader · AI Coach chat history now persists across navigation.
+Last verified: 2026-05-19 · commit pushed to `origin/claude/friendly-torvalds-0ecc83` · **279/279 tests passing** · UI audit 20/0 issues · 28/28 screens boot clean · `dark_flat.qss` rewritten using Poke tokens — every legacy `setObjectName("Card"|"Cyan"|"PrimaryButton"...)` call site now renders Poke automatically; no per-screen edits required for the design-system flip.
 
 ---
 
@@ -387,13 +387,19 @@ That gets a new agent productive in ~5K tokens instead of 50K.
 ## What's broken / known issues
 
 - All 28 screens are now Poke-toned (0 radius, lime accent, Poke surface
-  tokens). The migration completed in 3 commits. The remaining cosmetic
-  polish (replacing emoji-laden section titles with mono uppercase labels,
-  full PokeCard wrap for content blocks) is incremental and low-priority.
-- Some screens still use the legacy `setObjectName("Card"|"DataPanel"...)`
-  hooks for layout rather than `PokeCard`. They look right because
-  `dark_flat.qss` maps those object names to Poke-friendly surfaces, but
-  a structural rewrite would let us drop dark_flat.qss entirely.
+  tokens). The legacy `setObjectName("Card"|"DataPanel"|"PrimaryButton"
+  |"Cyan"|"Green"|"Amber"|"Red"|"Title"|"SectionTitle"|"Muted"...)`
+  hooks still exist in screen code, but `dark_flat.qss` now maps every
+  one of those names to a Poke token. So a screen can either:
+  • Use the legacy `setObjectName("Card")` pattern → picks up Poke
+    surfaces via the global QSS, OR
+  • Use the structural `PokeCard` / `PokeStat` / `PokeBtn` primitives
+    directly for new code.
+  Both paths produce the same visual output.
+- "Cyan" and "Green" are now both the Poke lime accent (`#5db75b`).
+  This is intentional — there's only one accent in the Poke palette.
+  If a screen needs a second hue it should use the semantic tokens
+  (DANGER / WARN / INFO) rather than re-introducing cyan.
 - **`This plugin does not support propagateSizeHints()`** appears in headless
   boot. Harmless — Qt offscreen plugin limitation.
 
