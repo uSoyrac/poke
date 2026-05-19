@@ -3,7 +3,7 @@
 **You are a coding agent.** This doc is the contract: read it once, become
 productive immediately, stop re-deriving the same context every session.
 
-Last verified: 2026-05-19 · commit pushed to `origin/claude/friendly-torvalds-0ecc83` · **276/276 tests passing** · UI audit 20/0 issues · 28/28 screens boot clean · all 28 screens now Poke-toned (0 radius + lime accent + Poke surfaces) · grey-pane bleed fixed via QStackedWidget/QScrollArea QSS rule.
+Last verified: 2026-05-19 · commit pushed to `origin/claude/friendly-torvalds-0ecc83` · **276/276 tests passing** · UI audit 20/0 issues · 28/28 screens boot clean · all 28 screens Poke-toned (0 radius + lime accent + Poke surfaces) · grey-pane bleed fixed · AI Coach fully Poke-composed (PokePageHeader + 2 PokeCards) · section labels migrated to mono uppercase ▸ FORMAT.
 
 ---
 
@@ -342,7 +342,7 @@ See `app/ui/screens/poke_style_guide.py` for the live in-app reference.
 | Tournament Play                  | ✅ Done            | done — top-seat fix, Markdown coach, wider log |
 | GTO Trainer                      | ✅ Done            | done |
 | MTT Setup Dialog                 | ✅ Done            | done |
-| AI Coach                         | ✅ Done (tokens)   | layout legacy but visually Poke |
+| AI Coach                         | ✅ Done            | rewritten with PokePageHeader + 2 PokeCards |
 | River Decision Trainer           | ✅ Done            | done |
 | Postflop Trainer                 | ✅ Done            | done |
 | ICM / PKO Trainer                | ✅ Done            | done |

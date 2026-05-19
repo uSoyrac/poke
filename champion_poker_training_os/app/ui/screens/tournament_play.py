@@ -1519,7 +1519,20 @@ def _lbl(text: str) -> QLabel:
     l = QLabel(text); l.setStyleSheet(f"color:{_C_MUTED};font-size:12px;"); return l
 
 def _section(text: str) -> QLabel:
-    l = QLabel(text); l.setStyleSheet(f"color:{_C_TEXT};font-weight:700;font-size:13px;"); return l
+    """Section label in Poke mono-uppercase style.
+
+    Strips any leading emoji + leading whitespace and prepends ▸ so the
+    label matches the rest of the Poke design system (compare
+    `▸  PROGRESS` in poke_style_guide).
+    """
+    import re as _re
+    clean = _re.sub(r'^[^A-Za-z0-9ÇŞĞIİÖÜçşğıiöü]+', '', text).strip()
+    l = QLabel(f"▸  {clean.upper()}")
+    l.setStyleSheet(
+        f"color:{_C_MUTED}; background: transparent; "
+        f"font-family: 'JetBrains Mono'; font-weight: 500; font-size: 10px;"
+    )
+    return l
 
 def _small(text: str) -> QLabel:
     l = QLabel(text); l.setStyleSheet(f"color:{_C_MUTED};font-size:10px;"); return l

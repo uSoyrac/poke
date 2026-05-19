@@ -382,10 +382,16 @@ class TrainerScenarioDialog(QDialog):
         return self._result
 
 
-# Helper for toggle button groups
+# Helper for toggle button groups — Poke mono-uppercase eyebrow.
 def _section_label(text: str) -> QLabel:
-    l = QLabel(text)
-    l.setStyleSheet(f"color:{_C_MUTED};font-size:12px;font-weight:600;margin-bottom:4px;")
+    import re as _re
+    clean = _re.sub(r'^[^A-Za-z0-9ÇŞĞIİÖÜçşğıiöü]+', '', text).strip()
+    l = QLabel(f"▸  {clean.upper()}")
+    l.setStyleSheet(
+        f"color:{_C_MUTED}; background: transparent; "
+        f"font-family: 'JetBrains Mono'; font-weight: 500; font-size: 10px; "
+        f"margin-bottom: 4px;"
+    )
     return l
 
 
