@@ -15,9 +15,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional, Sequence, Tuple
 
-from PySide6.QtCore import Qt, QPointF, QRectF
+from PySide6.QtCore import Qt, QPointF, QRectF, QTimer
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QRadialGradient
-from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from app.ui.components.card_view import CardBackView, CardPlaceholder, CardView
 
@@ -568,6 +568,7 @@ class LivePokerTable(QWidget):
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setMinimumHeight(380)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setAutoFillBackground(False)
 
@@ -687,13 +688,27 @@ class LivePokerTable(QWidget):
                                  to_call=to_call)
         self.dealer_btn.setVisible(self._dealer_slot_idx >= 0)
 
+        # Lay out immediately AND on the next event-loop tick. The deferred
+        # pass catches the case where render_state runs before the parent
+        # layout has resized this widget — width()/height() at this instant
+        # may still be small / default, and chips would be placed against
+        # those wrong bounds. The deferred pass corrects them once Qt has
+        # finalised our geometry.
         self._layout_children()
+        QTimer.singleShot(0, self._layout_children)
         self.update()
 
     # ── LAYOUT / PAINT ─────────────────────────────────────────────
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
+        self._layout_children()
+
+    def showEvent(self, event) -> None:  # type: ignore[override]
+        super().showEvent(event)
+        # Qt only finalises this widget's geometry when it's actually shown —
+        # rerun layout here so chips/cards land at the correct screen
+        # coordinates even if render_state ran before the first show.
         self._layout_children()
 
     def _felt_rect(self) -> QRectF:
@@ -771,8 +786,10 @@ class LivePokerTable(QWidget):
                 continue
             sx, sy = self._slot_positions[slot]
             p = self._slot_xy(sx, sy)
-            tx2 = p.x() + (cx - p.x()) * 0.10
-            ty2 = p.y() + (cy - p.y()) * 0.10
+            # 28% toward center — clears the seat tile (which is ±4% wide)
+            # AND stays well clear of the bet chip at 55%.
+            tx2 = p.x() + (cx - p.x()) * 0.28
+            ty2 = p.y() + (cy - p.y()) * 0.28
             gap2 = 2
             total_w2 = sum(w.width() for w in ws) + gap2 * (len(ws) - 1)
             wh2 = ws[0].height()
@@ -782,15 +799,14 @@ class LivePokerTable(QWidget):
                 start_x2 += w.width() + gap2
 
         # Bet chips — fixed-size, positioned 55% from seat toward center.
-        # Always runs (not guarded by hero_cards), so every visible chip
-        # lands at its slot regardless of board state.
+        # We iterate over ALL chip slots (not just visible ones) so a chip
+        # that's about to be shown lands at the right coordinates *before*
+        # Qt's first paint, never at the parent's (0, 0) origin.
         cw, ch = _BetChip._CHIP_W, _BetChip._CHIP_H
         for slot_idx, (xp, yp) in enumerate(self._slot_positions):
             if slot_idx >= len(self._bet_chips):
                 break
             chip = self._bet_chips[slot_idx]
-            if not chip.isVisible():
-                continue
             p = self._slot_xy(xp, yp)
             tx = p.x() + (cx - p.x()) * 0.55
             ty = p.y() + (cy - p.y()) * 0.55

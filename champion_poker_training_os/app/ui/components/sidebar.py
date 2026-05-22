@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import (
-    QButtonGroup, QFrame, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget,
+    QButtonGroup, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
 
 
@@ -41,44 +41,59 @@ NAV_GROUPS = [
 class SidebarNav(QFrame):
     navigation_requested = Signal(str)
 
+    EXPANDED_WIDTH = 232
+    COLLAPSED_WIDTH = 52
+
     def __init__(self, items: list[str]):
         super().__init__()
         self.setObjectName("Sidebar")
-        self.setFixedWidth(232)
+        self.setFixedWidth(self.EXPANDED_WIDTH)
         self.buttons: dict[str, QPushButton] = {}
+        self._collapsed = False
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # Brand block
+        # Brand block + collapse toggle
         brand_box = QFrame()
         brand_box.setStyleSheet("border-bottom: 1px solid #23271f;")
-        brand_l = QVBoxLayout(brand_box)
-        brand_l.setContentsMargins(20, 16, 20, 16)
-        brand_l.setSpacing(2)
-        brand_row = QFrame()
-        brand_row_l = QVBoxLayout(brand_row)
-        brand_row_l.setContentsMargins(0, 0, 0, 0)
-        brand_row_l.setSpacing(2)
-        brand = QLabel("POKE.")
-        brand.setObjectName("BrandMark")
-        tag = QLabel("CHAMPION OS / v2.0")
-        tag.setObjectName("BrandTag")
-        brand_row_l.addWidget(brand)
-        brand_row_l.addWidget(tag)
-        brand_l.addWidget(brand_row)
+        brand_l = QHBoxLayout(brand_box)
+        brand_l.setContentsMargins(20, 16, 12, 16)
+        brand_l.setSpacing(8)
+
+        brand_text_col = QVBoxLayout()
+        brand_text_col.setContentsMargins(0, 0, 0, 0)
+        brand_text_col.setSpacing(2)
+        self.brand_label = QLabel("POKE.")
+        self.brand_label.setObjectName("BrandMark")
+        self.brand_tag = QLabel("CHAMPION OS / v2.0")
+        self.brand_tag.setObjectName("BrandTag")
+        brand_text_col.addWidget(self.brand_label)
+        brand_text_col.addWidget(self.brand_tag)
+        brand_l.addLayout(brand_text_col, 1)
+
+        self.toggle_btn = QPushButton("◀")
+        self.toggle_btn.setObjectName("GhostButton")
+        self.toggle_btn.setCursor(Qt.PointingHandCursor)
+        self.toggle_btn.setFixedSize(28, 28)
+        self.toggle_btn.setToolTip("Collapse sidebar (⌘B)")
+        self.toggle_btn.clicked.connect(self.toggle_collapsed)
+        brand_l.addWidget(self.toggle_btn, 0, Qt.AlignTop)
+
         root.addWidget(brand_box)
 
         # Scrollable nav body
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         body = QWidget()
         body_l = QVBoxLayout(body)
         body_l.setContentsMargins(0, 10, 0, 14)
         body_l.setSpacing(0)
+        self._body = body
+        self._group_labels: list[QLabel] = []
 
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
@@ -91,6 +106,7 @@ class SidebarNav(QFrame):
                 continue
             label = QLabel(group_name)
             label.setObjectName("NavGroupLabel")
+            self._group_labels.append(label)
             body_l.addSpacing(8)
             body_l.addWidget(label)
             for item in valid:
@@ -103,6 +119,7 @@ class SidebarNav(QFrame):
         if leftover:
             label = QLabel("OTHER")
             label.setObjectName("NavGroupLabel")
+            self._group_labels.append(label)
             body_l.addSpacing(8)
             body_l.addWidget(label)
             for item in leftover:
@@ -110,13 +127,13 @@ class SidebarNav(QFrame):
                 body_l.addWidget(btn)
 
         body_l.addStretch(1)
-        scroll.setWidget(body)
-        root.addWidget(scroll, 1)
+        self.scroll.setWidget(body)
+        root.addWidget(self.scroll, 1)
 
         # Footer / user
-        footer = QFrame()
-        footer.setStyleSheet("border-top: 1px solid #23271f;")
-        f_l = QVBoxLayout(footer)
+        self._footer = QFrame()
+        self._footer.setStyleSheet("border-top: 1px solid #23271f;")
+        f_l = QVBoxLayout(self._footer)
         f_l.setContentsMargins(20, 10, 20, 12)
         f_l.setSpacing(1)
         user = QLabel("UYGAR")
@@ -126,7 +143,7 @@ class SidebarNav(QFrame):
         meta.setStyleSheet("color: #5ad17a;")
         f_l.addWidget(user)
         f_l.addWidget(meta)
-        root.addWidget(footer)
+        root.addWidget(self._footer)
 
         if items:
             self.set_active(items[0])
@@ -144,3 +161,27 @@ class SidebarNav(QFrame):
     def set_active(self, item: str) -> None:
         if item in self.buttons:
             self.buttons[item].setChecked(True)
+
+    def toggle_collapsed(self) -> None:
+        """Toggle between full sidebar and a narrow rail with just the toggle.
+
+        When collapsed: shows only the toggle button so the play area gets
+        the screen back. Click the ▶ chevron (or press ⌘B) to expand again.
+        """
+        self._collapsed = not self._collapsed
+        if self._collapsed:
+            self.setFixedWidth(self.COLLAPSED_WIDTH)
+            self.brand_label.hide()
+            self.brand_tag.hide()
+            self.scroll.hide()
+            self._footer.hide()
+            self.toggle_btn.setText("▶")
+            self.toggle_btn.setToolTip("Expand sidebar (⌘B)")
+        else:
+            self.setFixedWidth(self.EXPANDED_WIDTH)
+            self.brand_label.show()
+            self.brand_tag.show()
+            self.scroll.show()
+            self._footer.show()
+            self.toggle_btn.setText("◀")
+            self.toggle_btn.setToolTip("Collapse sidebar (⌘B)")

@@ -10,6 +10,7 @@ if __package__ is None or __package__ == "":
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from PySide6.QtCore import QDir, QLibraryInfo, Qt, QTimer
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QMainWindow, QStackedWidget, QVBoxLayout, QWidget
 
 from app.ai.coach_engine import explain_spot
@@ -146,8 +147,7 @@ class MainWindow(QMainWindow):
         content_row.setSpacing(10)
         content_row.addWidget(self.stack, 1)
         content_row.addWidget(self.coach, 0)
-        self.coach.setMinimumWidth(330)
-        self.coach.setMaximumWidth(390)
+        # CoachPanel manages its own width (expanded / collapsed) — don't override.
         main_col.addLayout(content_row, 1)
         main_col.addWidget(bottom)
 
@@ -155,8 +155,12 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.sidebar)
-        self.sidebar.setFixedWidth(250)
+        # SidebarNav manages its own fixed width — don't force a value here.
         layout.addLayout(main_col, 1)
+
+        # Keyboard shortcuts: ⌘B toggles sidebar, ⌘J toggles coach panel.
+        QShortcut(QKeySequence("Ctrl+B"), self, activated=self.sidebar.toggle_collapsed)
+        QShortcut(QKeySequence("Ctrl+J"), self, activated=self.coach.toggle_collapsed)
 
         self.scan_compliance()
         self.navigate("Dashboard")

@@ -311,7 +311,8 @@ class PlaySessionScreen(QWidget):
         self.allin_btn.clicked.connect(lambda: self._hero_action(ActionType.ALL_IN))
 
         for b in (self.fold_btn, self.check_btn, self.call_btn, self.raise_btn, self.allin_btn):
-            b.setMinimumWidth(110)
+            # 150px fits "CALL ALL-IN 100.0 bb" without truncation
+            b.setMinimumWidth(150)
             b.setMinimumHeight(46)
             b.setCursor(Qt.PointingHandCursor)
             acts.addWidget(b)

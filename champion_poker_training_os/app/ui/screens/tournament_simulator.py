@@ -411,7 +411,8 @@ class TournamentSimulatorScreen(QWidget):
         self.allin_btn.clicked.connect(lambda: self._hero_action(ActionType.ALL_IN))
 
         for b in (self.fold_btn, self.check_btn, self.call_btn, self.raise_btn, self.allin_btn):
-            b.setMinimumWidth(120)
+            # 160px fits "CALL ALL-IN 100.0 bb" comfortably even when 5 buttons share the row
+            b.setMinimumWidth(160)
             b.setMinimumHeight(46)
             b.setCursor(Qt.PointingHandCursor)
             actions_box.addWidget(b)
