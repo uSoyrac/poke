@@ -908,6 +908,15 @@ def seats_from_hand(
     while visited < n:
         p = players[cur]
         if not getattr(p, "is_eliminated", False):
+            # Showdown reveal — every contestant still in the hand at
+            # hand-complete time gets their hole cards exposed face-up.
+            hole_codes: Optional[List[str]] = None
+            if (is_complete
+                    and not bool(getattr(p, "is_folded", False))
+                    and not p.is_hero
+                    and getattr(p, "hole_cards", None)):
+                hole_codes = [c.display for c in p.hole_cards[:2]]
+
             st = SeatState(
                 pos=getattr(p, "position", "") or "",
                 name=p.name if not p.is_hero else "",
@@ -920,6 +929,7 @@ def seats_from_hand(
                 is_eliminated=False,
                 is_blind_post=(cur in blind_posters),
                 is_winner=(is_complete and cur in winners_set),
+                hole=hole_codes,
                 stack_unit=unit,
             )
             if villain_seat is not None and cur == villain_seat:

@@ -65,7 +65,9 @@ class SidebarNav(QFrame):
         brand_text_col = QVBoxLayout()
         brand_text_col.setContentsMargins(0, 0, 0, 0)
         brand_text_col.setSpacing(2)
-        self.brand_label = QLabel("POKE.")
+        # Style Guide § nav__brand-mark — "POKE" + lime "." dot
+        self.brand_label = QLabel("POKE<span style='color:#5ad17a;'>.</span>")
+        self.brand_label.setTextFormat(Qt.RichText)
         self.brand_label.setObjectName("BrandMark")
         self.brand_tag = QLabel("CHAMPION OS / v2.0")
         self.brand_tag.setObjectName("BrandTag")
