@@ -248,9 +248,27 @@ class PlaySessionScreen(QWidget):
         # Action deck
         deck = QFrame()
         deck.setStyleSheet("background: #0f1210; border-top: 2px solid #23271f;")
-        dl = QHBoxLayout(deck)
-        dl.setContentsMargins(22, 12, 22, 12)
+        deck_v = QVBoxLayout(deck)
+        deck_v.setContentsMargins(22, 8, 22, 12)
+        deck_v.setSpacing(6)
+
+        # TO CALL banner — pulled out of the felt center so hero cards
+        # can't overlap it. Shows required call in bb + % pot.
+        self.to_call_banner = QLabel("")
+        self.to_call_banner.setAlignment(Qt.AlignCenter)
+        self.to_call_banner.setStyleSheet(
+            "font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; "
+            "font-weight: 700; letter-spacing: 1.4px; color: #5ad17a; "
+            "padding: 4px 12px; border: 1px solid #2a4a30; background: #0f1d11;"
+        )
+        self.to_call_banner.hide()
+        banner_row = QHBoxLayout()
+        banner_row.addStretch(1); banner_row.addWidget(self.to_call_banner); banner_row.addStretch(1)
+        deck_v.addLayout(banner_row)
+
+        dl = QHBoxLayout()
         dl.setSpacing(12)
+        deck_v.addLayout(dl)
 
         sizing = QVBoxLayout()
         sizing.setSpacing(4)
@@ -425,6 +443,15 @@ class PlaySessionScreen(QWidget):
             show_opponent_backs=not hand.is_complete,
             to_call=hero_to_call,
         )
+
+        # TO CALL banner in the action deck — visible only when it's hero's
+        # turn AND there's something to call. Shows bb + % of current pot.
+        if self.game.is_waiting_for_hero and hero_to_call > 0 and hand.pot > 0:
+            pct = int(round(100 * hero_to_call / hand.pot))
+            self.to_call_banner.setText(f"TO CALL  {hero_to_call:.1f} bb  ·  {pct}% POT")
+            self.to_call_banner.show()
+        else:
+            self.to_call_banner.hide()
 
         # Stats
         stats = self.game.get_session_stats()

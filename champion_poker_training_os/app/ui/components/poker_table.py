@@ -422,24 +422,12 @@ class _Center(QFrame):
         )
         v.addWidget(self.note)
 
-    def __init_to_call__(self) -> None:
-        """Lazy-init the TO CALL hint row (called from update_state)."""
-        if hasattr(self, "to_call_label"):
-            return
-        self.to_call_label = QLabel("")
-        self.to_call_label.setAlignment(Qt.AlignCenter)
-        self.to_call_label.setStyleSheet(
-            f"font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; "
-            f"letter-spacing:1.4px; color:{ACCENT}; padding:3px 10px; "
-            f"border:1px solid {ACCENT}; background:#11241a;"
-        )
-        self.to_call_label.hide()
-        self.layout().addWidget(self.to_call_label)
-
     def update_state(self, street: str, board: Sequence[str], pot: float,
                      unit: str, note: str, big_pot: bool,
                      to_call: float = 0.0) -> None:
-        self.__init_to_call__()
+        # TO CALL is rendered by the action deck now (see LivePokerTable
+        # docstring + screens), not in the center — keeps the felt clean
+        # under the hero hole cards.
         self.street_tag.setText(street.upper())
         _clear_layout(self.board_row)
         size = "md"
@@ -463,18 +451,6 @@ class _Center(QFrame):
         self.note.setText(note)
         self.note.setVisible(bool(note))
 
-        # TO CALL hint — show hero's required call amount in bb + % of pot
-        if to_call > 0 and pot > 0:
-            pct = int(round(100 * to_call / max(pot, 0.01)))
-            if unit == "chips":
-                txt = f"TO CALL {int(to_call):,} · {pct}% POT"
-            else:
-                txt = f"TO CALL {to_call:.1f} bb · {pct}% POT"
-            self.to_call_label.setText(txt)
-            self.to_call_label.show()
-        else:
-            self.to_call_label.hide()
-
 
 # ───────────────────────── DEALER + BET CHIP ──────────────────────────
 
@@ -496,16 +472,23 @@ class _BetChip(QFrame):
     user can see at a glance who put what in.
     """
 
+    # Fixed size — Qt sizeHint() is unreliable for freshly-created child widgets
+    # that haven't been through a layout pass yet, so we lock the chip's
+    # geometry instead of trusting adjustSize().
+    _CHIP_W = 96
+    _CHIP_H = 58
+
     def __init__(self, parent: QWidget):
         super().__init__(parent)
         self.setObjectName("PTBetChip")
         self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setFixedSize(self._CHIP_W, self._CHIP_H)
         v = QVBoxLayout(self)
-        v.setContentsMargins(6, 4, 6, 4)
+        v.setContentsMargins(6, 3, 6, 3)
         v.setSpacing(1)
         v.setAlignment(Qt.AlignCenter)
 
-        # Chip stack (3 rectangular bands stacked, sharp corners — Poke brutalist)
+        # Chip stack (rectangular bands, sharp corners — Poke brutalist)
         self.chips = QLabel("▬▬▬")
         self.chips.setAlignment(Qt.AlignCenter)
         v.addWidget(self.chips)
@@ -754,14 +737,15 @@ class LivePokerTable(QWidget):
             p = self._slot_xy(xp, yp)
             seat.setGeometry(int(p.x() - sw / 2), int(p.y() - shh / 2), sw, shh)
 
-        # Hero hole cards — 38% toward center from hero slot (further in than
-        # the bet chip at 60%, so they can't overlap)
+        cx, cy = self._center_point().x(), self._center_point().y()
+
+        # Hero hole cards — 22% toward center from hero slot. Closer to the
+        # hero seat (and well clear of the pot/TO-CALL area in the center).
         if self._hero_cards and self._hero_slot_idx < len(self._slot_positions):
             xp, yp = self._slot_positions[self._hero_slot_idx]
             hero_point = self._slot_xy(xp, yp)
-            cx, cy = self._center_point().x(), self._center_point().y()
-            tx = hero_point.x() + (cx - hero_point.x()) * 0.38
-            ty = hero_point.y() + (cy - hero_point.y()) * 0.38
+            tx = hero_point.x() + (cx - hero_point.x()) * 0.22
+            ty = hero_point.y() + (cy - hero_point.y()) * 0.22
             hero_holes = self._hole_widgets[:2]
             if hero_holes:
                 gap = 6
@@ -772,34 +756,35 @@ class LivePokerTable(QWidget):
                     w.setGeometry(int(start_x), int(ty - wh / 2), w.width(), w.height())
                     start_x += w.width() + gap
 
-            # Opponent back/face cards — kept tight against their seat tile (12%)
-            # so they read as "cards in front of that player" instead of
-            # floating between the player and the pot where bet chips live.
-            remaining = self._hole_widgets[2:]
-            by_slot: dict[int, list[QWidget]] = {}
-            for w in remaining:
-                slot = getattr(w, "_slot_idx", None)
-                if slot is None:
-                    continue
-                by_slot.setdefault(slot, []).append(w)
-            for slot, ws in by_slot.items():
-                if slot >= len(self._slot_positions):
-                    continue
-                sx, sy = self._slot_positions[slot]
-                p = self._slot_xy(sx, sy)
-                tx2 = p.x() + (cx - p.x()) * 0.14
-                ty2 = p.y() + (cy - p.y()) * 0.14
-                gap2 = 2
-                total_w2 = sum(w.width() for w in ws) + gap2 * (len(ws) - 1)
-                wh2 = ws[0].height()
-                start_x2 = tx2 - total_w2 / 2
-                for w in ws:
-                    w.setGeometry(int(start_x2), int(ty2 - wh2 / 2), w.width(), w.height())
-                    start_x2 += w.width() + gap2
+        # Opponent back/face cards — tight against their seat tile (10%).
+        # NB: this MUST run independently of `if self._hero_cards` above,
+        # otherwise opponent cards stay at (0,0) whenever hero has no cards.
+        opponent_card_widgets = self._hole_widgets[2:] if self._hero_cards else self._hole_widgets
+        by_slot: dict[int, list[QWidget]] = {}
+        for w in opponent_card_widgets:
+            slot = getattr(w, "_slot_idx", None)
+            if slot is None:
+                continue
+            by_slot.setdefault(slot, []).append(w)
+        for slot, ws in by_slot.items():
+            if slot >= len(self._slot_positions):
+                continue
+            sx, sy = self._slot_positions[slot]
+            p = self._slot_xy(sx, sy)
+            tx2 = p.x() + (cx - p.x()) * 0.10
+            ty2 = p.y() + (cy - p.y()) * 0.10
+            gap2 = 2
+            total_w2 = sum(w.width() for w in ws) + gap2 * (len(ws) - 1)
+            wh2 = ws[0].height()
+            start_x2 = tx2 - total_w2 / 2
+            for w in ws:
+                w.setGeometry(int(start_x2), int(ty2 - wh2 / 2), w.width(), w.height())
+                start_x2 += w.width() + gap2
 
-        # Bet chips — 60% from seat toward center (well inside the felt, past
-        # hero hole cards at 38%, but well away from the center pot)
-        cx, cy = self._center_point().x(), self._center_point().y()
+        # Bet chips — fixed-size, positioned 55% from seat toward center.
+        # Always runs (not guarded by hero_cards), so every visible chip
+        # lands at its slot regardless of board state.
+        cw, ch = _BetChip._CHIP_W, _BetChip._CHIP_H
         for slot_idx, (xp, yp) in enumerate(self._slot_positions):
             if slot_idx >= len(self._bet_chips):
                 break
@@ -807,13 +792,9 @@ class LivePokerTable(QWidget):
             if not chip.isVisible():
                 continue
             p = self._slot_xy(xp, yp)
-            tx = p.x() + (cx - p.x()) * 0.60
-            ty = p.y() + (cy - p.y()) * 0.60
-            chip.adjustSize()
-            sh = chip.sizeHint()
-            chip.setGeometry(int(tx - sh.width() / 2),
-                             int(ty - sh.height() / 2),
-                             max(sh.width(), 78), sh.height())
+            tx = p.x() + (cx - p.x()) * 0.55
+            ty = p.y() + (cy - p.y()) * 0.55
+            chip.setGeometry(int(tx - cw / 2), int(ty - ch / 2), cw, ch)
 
         # Dealer button — 22% toward center from dealer's slot
         if self._dealer_slot_idx >= 0 and self._dealer_slot_idx < len(self._slot_positions):
