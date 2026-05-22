@@ -53,6 +53,7 @@ class PokerGame:
         bot_archetype: str = "Balanced Reg",
         bot_archetypes: Optional[List[str]] = None,
         player_names: Optional[List[str]] = None,
+        paced_bots: bool = False,
     ):
         self.num_players = max(2, min(num_players, 9))
         self.starting_stack = starting_stack
@@ -63,6 +64,11 @@ class PokerGame:
         self.hand_count = 0
         self.dealer_idx = 0
         self.deck = Deck()
+        # When True, start_hand() and hero_act() return after posting
+        # blinds / applying the hero action without running any bot. The
+        # caller (UI) drives bot decisions one at a time via step_action()
+        # so the user sees the action order play out visibly.
+        self.paced_bots = paced_bots
 
         # Bot archetypes — either single archetype repeated, or list.
         # "Karma (Mixed)" is a meta-archetype: spread the KARMA_MIX roster
@@ -172,7 +178,10 @@ class PokerGame:
         # Set up action queue for preflop
         self._build_action_queue(preflop=True)
         self._waiting_for_hero = False
-        self._run_until_hero_or_complete()
+        # Paced mode → caller drives bots via step_action(). Synchronous
+        # mode (default, for tests) → run until hero or hand complete.
+        if not self.paced_bots:
+            self._run_until_hero_or_complete()
         return self.current_hand
 
     def hero_act(self, action_type: ActionType, amount: float = 0.0) -> HandState:
@@ -185,7 +194,8 @@ class PokerGame:
         action_type, amount = self._coerce_action(hero_idx, action_type, amount)
         self._apply_action(hero_idx, action_type, amount)
         self._waiting_for_hero = False
-        self._run_until_hero_or_complete()
+        if not self.paced_bots:
+            self._run_until_hero_or_complete()
         return self.current_hand
 
     # ── INTERNAL: SETUP ────────────────────────────────────────────
@@ -347,66 +357,85 @@ class PokerGame:
             for idx in new_queue:
                 self.players[idx].has_acted = False
 
-    def _run_until_hero_or_complete(self) -> None:
+    def step_action(self) -> bool:
+        """Process ONE engine step — a single bot action, street advance,
+        or a queue-pop of an inactive seat.
+
+        Returns:
+            True  → work was done; call again to continue.
+            False → engine is now either ``is_waiting_for_hero`` or the
+                    hand is complete. Stop the loop.
+
+        This is what `_run_until_hero_or_complete` calls in a tight loop.
+        The UI can also call it directly with a QTimer between calls to
+        pace bot decisions visually (UTG first, then UTG+1, …) instead
+        of seeing every opponent's action materialise at once.
+        """
         hand = self.current_hand
         if not hand or hand.is_complete:
-            return
+            return False
 
-        while True:
-            # If only one player remains in the hand, award pot
-            if hand.active_count <= 1:
-                self._finish_hand()
-                return
+        # If only one player remains in the hand, award pot
+        if hand.active_count <= 1:
+            self._finish_hand()
+            return False
 
-            # If betting is concluded (no one left in queue and all bets matched), advance street
+        # If betting is concluded, advance street
+        if not self._action_queue:
+            if self._betting_round_complete():
+                if self._all_in_runout_needed():
+                    self._runout_remaining_streets()
+                    self._finish_hand()
+                    return False
+                if hand.street == Street.RIVER:
+                    self._finish_hand()
+                    return False
+                self._advance_street()
+                return True
+            # Defensive rebuild
+            self._build_action_queue(preflop=(hand.street == Street.PREFLOP))
             if not self._action_queue:
-                # Check if all active players have matched current_bet
-                if self._betting_round_complete():
-                    if self._all_in_runout_needed():
-                        self._runout_remaining_streets()
-                        self._finish_hand()
-                        return
-                    if hand.street == Street.RIVER:
-                        self._finish_hand()
-                        return
-                    self._advance_street()
-                    continue
-                else:
-                    # Shouldn't happen, but build queue defensively
-                    self._build_action_queue(preflop=(hand.street == Street.PREFLOP))
-                    if not self._action_queue:
-                        # No one can act — runout
-                        if hand.street == Street.RIVER:
-                            self._finish_hand()
-                            return
-                        self._advance_street()
-                        continue
+                if hand.street == Street.RIVER:
+                    self._finish_hand()
+                    return False
+                self._advance_street()
+                return True
 
-            next_idx = self._action_queue[0]
-            player = self.players[next_idx]
-            if not player.is_active:
-                self._action_queue.pop(0)
-                continue
+        next_idx = self._action_queue[0]
+        player = self.players[next_idx]
+        if not player.is_active:
+            self._action_queue.pop(0)
+            return True
 
-            if player.is_hero:
-                self._waiting_for_hero = True
-                return
+        if player.is_hero:
+            self._waiting_for_hero = True
+            return False
 
-            # Bot turn
-            bot = self.bots.get(next_idx)
-            if not bot:
-                # Safety net: treat as check/fold
-                self._action_queue.pop(0)
-                to_call = hand.to_call(next_idx)
-                if to_call > 0:
-                    self._apply_action(next_idx, ActionType.FOLD, 0)
-                else:
-                    self._apply_action(next_idx, ActionType.CHECK, 0)
-                continue
+        # Bot turn — one decision, one apply
+        bot = self.bots.get(next_idx)
+        if not bot:
+            self._action_queue.pop(0)
+            to_call = hand.to_call(next_idx)
+            if to_call > 0:
+                self._apply_action(next_idx, ActionType.FOLD, 0)
+            else:
+                self._apply_action(next_idx, ActionType.CHECK, 0)
+            return True
 
-            action_type, amount = bot.decide(hand, next_idx)
-            action_type, amount = self._coerce_action(next_idx, action_type, amount)
-            self._apply_action(next_idx, action_type, amount)
+        action_type, amount = bot.decide(hand, next_idx)
+        action_type, amount = self._coerce_action(next_idx, action_type, amount)
+        self._apply_action(next_idx, action_type, amount)
+        return True
+
+    def _run_until_hero_or_complete(self) -> None:
+        """Synchronous: run all bots until hero acts or hand ends.
+
+        Kept for backward-compat (existing tests rely on this). The UI
+        now prefers paced stepping via ``step_action()`` to visualise
+        the action order.
+        """
+        while self.step_action():
+            pass
 
     def _betting_round_complete(self) -> bool:
         hand = self.current_hand

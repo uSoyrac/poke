@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
     QPushButton, QScrollArea, QSlider, QVBoxLayout, QWidget,
@@ -159,8 +159,14 @@ class PlaySessionScreen(QWidget):
             small_blind=0.5, big_blind=1.0,
             hero_seat=0,
             bot_archetype=bot,
+            paced_bots=True,       # UI drives bot pacing via QTimer
         )
         self._build_play()
+        # Bot-pacing timer — fires step_action() so the user sees actions
+        # land one at a time (UTG → UTG+1 → … → SB → BB).
+        self._bot_timer = QTimer(self)
+        self._bot_timer.setInterval(450)
+        self._bot_timer.timeout.connect(self._tick_bot)
         self._deal_next()
         self.coach_message.emit(f"Yeni session: {num}-max, {stack_bb}bb, {bot} bot. İyi eller.")
 
@@ -225,11 +231,15 @@ class PlaySessionScreen(QWidget):
 
         # Session control row
         ctrl = QHBoxLayout()
-        next_btn = QPushButton("DEAL NEXT HAND")
+        next_btn = QPushButton("DEAL NEXT HAND  ⎵")
         next_btn.setObjectName("PrimaryButton")
+        next_btn.setToolTip("Deal next hand (Space)")
         next_btn.clicked.connect(self._deal_next)
         self.next_btn = next_btn
         next_btn.hide()
+        # Space = deal next hand. Only fires when next_btn is visible (i.e.
+        # the previous hand is over and we're idle).
+        QShortcut(QKeySequence(Qt.Key_Space), self, activated=self._space_pressed)
         self.review_btn = QPushButton("REVIEW LAST")
         self.review_btn.setObjectName("GhostButton")
         self.review_btn.clicked.connect(self._review_last)
@@ -335,6 +345,9 @@ class PlaySessionScreen(QWidget):
             self.next_btn.hide()
         self.game.start_hand()
         self._refresh()
+        # Kick off paced bot processing
+        if not self.game.is_waiting_for_hero and not self.game.current_hand.is_complete:
+            self._bot_timer.start()
 
     def _hero_action(self, action_type: ActionType):
         if not self.game or not self.game.is_waiting_for_hero:
@@ -352,6 +365,26 @@ class PlaySessionScreen(QWidget):
         self._refresh()
         if hand.is_complete:
             self._on_complete()
+        else:
+            # Resume paced bot loop after hero acts
+            self._bot_timer.start()
+
+    def _tick_bot(self):
+        """Process one bot action, refresh, repeat on next tick."""
+        if not self.game or not self.game.current_hand:
+            self._bot_timer.stop()
+            return
+        keep_going = self.game.step_action()
+        self._refresh()
+        if not keep_going:
+            self._bot_timer.stop()
+            if self.game.current_hand.is_complete:
+                self._on_complete()
+
+    def _space_pressed(self):
+        """Spacebar — deals the next hand iff we're idle between hands."""
+        if hasattr(self, "next_btn") and self.next_btn and self.next_btn.isVisible():
+            self._deal_next()
 
     def _size_amount_bb(self) -> float:
         """Translate the sizing slider into a legal raise/bet amount in bb.

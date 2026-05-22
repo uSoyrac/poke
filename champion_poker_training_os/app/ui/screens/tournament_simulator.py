@@ -5,7 +5,7 @@ Flow: setup → play (single table) → leak analysis
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
     QPushButton, QScrollArea, QSlider, QSpinBox, QVBoxLayout, QWidget,
@@ -219,7 +219,16 @@ class TournamentSimulatorScreen(QWidget):
             bot_mix=mix,
         )
         self.tournament = Tournament(config)
+        # Drive bot pacing from the UI (one bot per timer tick) so the
+        # user sees actions land in true poker order: UTG → … → SB → BB.
+        self.tournament.game.paced_bots = True
+        self._bot_timer = QTimer(self)
+        self._bot_timer.setInterval(450)
+        self._bot_timer.timeout.connect(self._tick_bot)
+        self._between_hands = False
         self._build_play()
+        # Spacebar = skip waiting period / advance to next hand
+        QShortcut(QKeySequence(Qt.Key_Space), self, activated=self._space_pressed)
         self._deal_next_hand()
         self.coach_message.emit(
             f"Turnuva başladı: {config.name}, {config.field_size} oyuncu, {config.starting_chips} chip start, "
@@ -430,6 +439,10 @@ class TournamentSimulatorScreen(QWidget):
             return
         self.tournament.start_hand()
         self._refresh_table()
+        # Begin paced bot processing
+        if (not self.tournament.game.is_waiting_for_hero
+                and not self.tournament.game.current_hand.is_complete):
+            self._bot_timer.start()
 
     def _hero_action(self, action_type: ActionType):
         if not self.tournament or self.tournament.is_complete:
@@ -444,8 +457,6 @@ class TournamentSimulatorScreen(QWidget):
         if action_type in (ActionType.BET, ActionType.RAISE):
             chips_target = self._compute_size_chips()
             if action_type == ActionType.RAISE:
-                # `amount` = chips added by hero on top of their current bet
-                # size_slider gives "chips on top of pot" effectively — interpret as target raise size
                 amount = max(hand.last_full_raise_size, chips_target)
             else:
                 amount = max(hand.big_blind, chips_target)
@@ -459,6 +470,20 @@ class TournamentSimulatorScreen(QWidget):
 
         if hand.is_complete:
             self._on_hand_complete()
+        else:
+            self._bot_timer.start()
+
+    def _tick_bot(self):
+        """Run one engine step (one bot action) per tick — see PokerGame.step_action."""
+        if not self.tournament or not self.tournament.game.current_hand:
+            self._bot_timer.stop()
+            return
+        keep_going = self.tournament.game.step_action()
+        self._refresh_table()
+        if not keep_going:
+            self._bot_timer.stop()
+            if self.tournament.game.current_hand.is_complete:
+                self._on_hand_complete()
 
     def _compute_size_chips(self) -> float:
         """Slider → legal raise/bet amount in tournament chips.
@@ -703,10 +728,24 @@ class TournamentSimulatorScreen(QWidget):
 
         # Tournament complete?
         if self.tournament.is_complete:
+            self._between_hands = False
             QTimer.singleShot(900, self._build_report)
         else:
-            # Auto-deal next hand after a short pause
-            QTimer.singleShot(1400, self._deal_next_hand)
+            # Brief pause so the showdown is readable, then auto-deal.
+            # Spacebar can skip the wait — _space_pressed checks the flag.
+            self._between_hands = True
+            QTimer.singleShot(1400, self._maybe_auto_deal_next)
+
+    def _maybe_auto_deal_next(self):
+        if self._between_hands:
+            self._between_hands = False
+            self._deal_next_hand()
+
+    def _space_pressed(self):
+        """Spacebar — skip the inter-hand wait to deal immediately."""
+        if self._between_hands:
+            self._between_hands = False
+            self._deal_next_hand()
 
     # ── REPORT ────────────────────────────────────────────────────
 
