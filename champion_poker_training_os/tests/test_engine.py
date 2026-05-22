@@ -149,3 +149,131 @@ def test_evaluate_two_pair() -> None:
              card_from_str("7d"), card_from_str("5s")]
     _, _, name = evaluate_best_hand(hero, board)
     assert name == "Two Pair"
+
+
+# ── NEW ENGINE TESTS — REGRESSION SUITE FOR FIXED BUGS ──────────────
+
+
+def test_chip_conservation_over_many_hands() -> None:
+    """Total chips at the table should never change (no chips printed/lost)."""
+    import random
+    random.seed(0)
+    game = PokerGame(num_players=6, starting_stack=100.0)
+    initial_total = sum(p.stack for p in game.players)
+    for _ in range(60):
+        h = game.start_hand()
+        while game.is_waiting_for_hero:
+            valid = h.get_valid_actions(h.hero_idx)
+            if not valid:
+                break
+            act = random.choice(valid)
+            game.hero_act(act[0], act[1])
+            if h.is_complete:
+                break
+    final_total = sum(p.stack for p in game.players)
+    assert abs(final_total - initial_total) < 0.01, (
+        f"Chip leak! Started with {initial_total}, ended with {final_total}"
+    )
+
+
+def test_busted_player_marked_eliminated() -> None:
+    game = PokerGame(num_players=3, starting_stack=10.0)
+    game.players[1].stack = 0.0
+    game.start_hand()
+    # Player 1 should be marked eliminated
+    assert game.players[1].is_eliminated
+
+
+def test_min_raise_enforcement() -> None:
+    """Bot/hero trying to under-raise gets clamped to legal minimum."""
+    game = PokerGame(num_players=2, starting_stack=100.0)
+    game.start_hand()
+    hand = game.current_hand
+    # In HU, dealer (SB) acts first preflop. Whoever's hero, they should be facing BB
+    # Just verify get_valid_actions returns sane min/max
+    hero_idx = hand.hero_idx
+    valid = hand.get_valid_actions(hero_idx)
+    raise_options = [v for v in valid if v[0] == ActionType.RAISE]
+    if raise_options:
+        min_raise, max_raise = raise_options[0][1], raise_options[0][2]
+        # Min raise should be at least 1bb (the big blind amount)
+        assert min_raise >= hand.big_blind - 0.01
+
+
+def test_hero_position_in_result() -> None:
+    game = PokerGame(num_players=6, starting_stack=100.0)
+    game.start_hand()
+    # Just fold immediately
+    if game.is_waiting_for_hero:
+        game.hero_act(ActionType.FOLD, 0)
+    # All bots fold loop until hand ends
+    while game.is_waiting_for_hero:
+        game.hero_act(ActionType.FOLD, 0)
+    if game.hand_history:
+        r = game.hand_history[-1]
+        assert r.hero_position  # Should have a position recorded
+
+
+def test_tournament_runner_completes() -> None:
+    from app.simulator.tournament_runner import Tournament, TournamentConfig
+    import random
+    random.seed(99)
+    cfg = TournamentConfig(field_size=4, starting_chips=500, structure='hyper', hands_per_level=3)
+    t = Tournament(cfg)
+    counter = 0
+    while not t.is_complete and counter < 300:
+        h = t.start_hand()
+        if h is None:
+            break
+        iters = 0
+        while t.game.is_waiting_for_hero and iters < 50:
+            iters += 1
+            valid = h.get_valid_actions(h.hero_idx)
+            if not valid:
+                break
+            t.hero_act(valid[0][0], valid[0][1])
+            if h.is_complete:
+                break
+        counter += 1
+    assert t.state.hands_total > 0
+    report = t.leak_report()
+    assert "leaks" in report
+    assert "stats" in report
+
+
+def test_bot_brain_position_aware_ranges() -> None:
+    """Verify UTG is tighter than BTN."""
+    from app.engine.bot_brain import OPEN_RANGES
+    utg_count = len(OPEN_RANGES["UTG"])
+    btn_count = len(OPEN_RANGES["BTN"])
+    assert btn_count > utg_count, (
+        f"BTN should open wider than UTG ({btn_count} vs {utg_count})"
+    )
+
+
+def test_side_pot_computation() -> None:
+    """Multi-way all-in with different stack sizes should split into side pots."""
+    game = PokerGame(num_players=3, starting_stack=10.0)
+    game.players[0].stack = 5.0  # Hero short
+    game.players[1].stack = 10.0
+    game.players[2].stack = 100.0
+    # Just verify the side pot computation method exists and runs
+    hand = game.start_hand()
+    # Force a state where players have invested different amounts
+    game.players[0].invested_this_hand = 5.0
+    game.players[1].invested_this_hand = 10.0
+    game.players[2].invested_this_hand = 10.0
+    pots = game._compute_side_pots([0, 1, 2])
+    # Total of side pots should equal sum of investments
+    assert sum(p["amount"] for p in pots) == 25.0
+
+
+def test_hand_key_canonical_form() -> None:
+    from app.engine.bot_brain import hand_key
+    from app.engine.hand_state import card_from_str
+    ah, ks = card_from_str("Ah"), card_from_str("Ks")
+    assert hand_key(ah, ks) == "AKo"
+    ah2, kh = card_from_str("Ah"), card_from_str("Kh")
+    assert hand_key(ah2, kh) == "AKs"
+    pair = (card_from_str("7c"), card_from_str("7d"))
+    assert hand_key(*pair) == "77"

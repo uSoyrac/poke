@@ -1,51 +1,58 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtCore import Qt, QPoint
+from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPolygon, QLinearGradient
 from PySide6.QtWidgets import QWidget
 
 
-SUIT_COLORS = {
-    "♥": "#EF4444", "♦": "#3B82F6",
-    "♠": "#E5E7EB", "♣": "#10B981",
-    "h": "#EF4444", "d": "#3B82F6",
-    "s": "#E5E7EB", "c": "#10B981",
+SUIT_GLYPH = {
+    "h": "♥", "d": "♦",
+    "s": "♠", "c": "♣",
+    "♥": "♥", "♦": "♦",
+    "♠": "♠", "♣": "♣",
 }
 
-SUIT_MAP = {"h": "♥", "d": "♦", "s": "♠", "c": "♣"}
+RED_SUITS = {"♥", "h", "♦", "d"}
 
 
 class CardView(QWidget):
-    """Premium poker card widget with custom painting."""
+    """Brutalist poker card — sharp corners, mono rank, suit glyph."""
 
-    def __init__(self, text: str, face_down: bool = False):
+    def __init__(self, text: str, face_down: bool = False, size: str = "md"):
         super().__init__()
-        self.card_text = text.strip()
+        self.card_text = (text or "").strip()
         self.face_down = face_down
-        self.setFixedSize(52, 72)
-        self.setMinimumSize(52, 72)
+        self.size_key = size
 
-        # Parse rank and suit
+        sizes = {
+            "xs": (22, 30),
+            "sm": (32, 44),
+            "md": (44, 60),
+            "lg": (60, 84),
+            "xl": (80, 112),
+        }
+        w, h = sizes.get(size, sizes["md"])
+        self.setFixedSize(w, h)
+
         self.rank = ""
-        self.suit = ""
-        self.suit_symbol = ""
-        self.suit_color = QColor("#E5E7EB")
-
+        self.suit_char = ""
+        self.suit_glyph = ""
+        self.is_red = False
         if len(self.card_text) >= 2 and not face_down:
-            # Handle both "A♥" and "Ah" formats
-            self.rank = self.card_text[0]
-            suit_char = self.card_text[1]
-            if suit_char in SUIT_MAP:
-                self.suit_symbol = SUIT_MAP[suit_char]
+            self.rank = self.card_text[0].upper()
+            if self.rank == "1" and self.card_text[1] == "0":
+                self.rank = "T"
+                suit_raw = self.card_text[2] if len(self.card_text) > 2 else ""
             else:
-                self.suit_symbol = suit_char
-            self.suit_color = QColor(SUIT_COLORS.get(suit_char, SUIT_COLORS.get(self.suit_symbol, "#E5E7EB")))
+                suit_raw = self.card_text[1]
+            self.suit_glyph = SUIT_GLYPH.get(suit_raw, suit_raw)
+            self.is_red = suit_raw in RED_SUITS
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.Antialiasing, False)
+        painter.setRenderHint(QPainter.TextAntialiasing, True)
         w, h = self.width(), self.height()
-
         if self.face_down:
             self._paint_back(painter, w, h)
         else:
@@ -53,81 +60,65 @@ class CardView(QWidget):
         painter.end()
 
     def _paint_back(self, painter: QPainter, w: int, h: int) -> None:
-        # Card back — dark with pattern
-        painter.setPen(QPen(QColor("#374151"), 2))
-        painter.setBrush(QColor("#1F2937"))
-        painter.drawRoundedRect(1, 1, w - 2, h - 2, 6, 6)
-
-        # Cross-hatch pattern
-        painter.setPen(QPen(QColor("#4B5563"), 1))
-        for i in range(3, w, 6):
-            painter.drawLine(i, 4, i, h - 4)
-        for j in range(4, h, 6):
-            painter.drawLine(3, j, w - 3, j)
-
-        # Center diamond
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor("#22D3EE"))
-        cx, cy = w // 2, h // 2
-        from PySide6.QtGui import QPolygon
-        from PySide6.QtCore import QPoint
-        painter.drawPolygon(QPolygon([
-            QPoint(cx, cy - 8), QPoint(cx + 6, cy),
-            QPoint(cx, cy + 8), QPoint(cx - 6, cy),
-        ]))
+        painter.fillRect(0, 0, w, h, QColor("#5ad17a"))
+        # diagonal stripes
+        painter.setPen(QPen(QColor("#0a0c0a"), 1))
+        for i in range(-h, w, 4):
+            painter.drawLine(i, 0, i + h, h)
+        # frame
+        painter.setPen(QPen(QColor("#0a0c0a"), 2))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRect(0, 0, w - 1, h - 1)
 
     def _paint_front(self, painter: QPainter, w: int, h: int) -> None:
-        # Card background — white with subtle gradient
-        painter.setPen(QPen(QColor("#6B7280"), 1))
-        painter.setBrush(QColor("#F9FAFB"))
-        painter.drawRoundedRect(1, 1, w - 2, h - 2, 6, 6)
-
-        # Inner highlight
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(255, 255, 255, 60))
-        painter.drawRoundedRect(3, 3, w - 6, h // 3, 4, 4)
+        # Card body — solid ink (--ink: #f4f5ee)
+        painter.fillRect(0, 0, w, h, QColor("#f4f5ee"))
+        painter.setPen(QPen(QColor("#33382c"), 1))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRect(0, 0, w - 1, h - 1)
 
         if not self.rank:
             return
 
-        # Top-left rank
-        font = QFont("Inter", 13, QFont.Bold)
-        painter.setFont(font)
-        painter.setPen(QPen(self.suit_color, 1))
-        painter.drawText(5, 17, self.rank)
+        text_color = QColor("#e87474") if self.is_red else QColor("#0a0c0a")
 
-        # Top-left suit (small)
-        suit_font = QFont("Inter", 9)
+        # Big centered rank
+        rank_size = max(14, int(h * 0.42))
+        rank_font = QFont("Space Grotesk", rank_size)
+        rank_font.setWeight(QFont.Bold)
+        rank_font.setLetterSpacing(QFont.AbsoluteSpacing, -1.5)
+        painter.setFont(rank_font)
+        painter.setPen(QPen(text_color, 1))
+        painter.drawText(0, 0, w, h, Qt.AlignCenter, self.rank)
+
+        # Bottom-right suit glyph
+        suit_size = max(8, int(h * 0.16))
+        suit_font = QFont("Space Grotesk", suit_size)
+        suit_font.setWeight(QFont.Bold)
         painter.setFont(suit_font)
-        painter.drawText(5, 29, self.suit_symbol)
+        painter.drawText(0, 0, w - 4, h - 3, Qt.AlignRight | Qt.AlignBottom, self.suit_glyph)
 
-        # Center suit (large)
-        center_font = QFont("Inter", 22)
-        painter.setFont(center_font)
-        painter.drawText(
-            0, 0, w, h,
-            Qt.AlignCenter,
-            self.suit_symbol,
-        )
-
-        # Bottom-right rank (inverted)
-        painter.setFont(font)
-        painter.save()
-        painter.translate(w - 5, h - 5)
-        painter.rotate(180)
-        painter.drawText(0, 12, self.rank)
-        painter.restore()
-
-        # Bottom-right suit
-        painter.setFont(suit_font)
-        painter.save()
-        painter.translate(w - 5, h - 18)
-        painter.rotate(180)
-        painter.drawText(0, 12, self.suit_symbol)
-        painter.restore()
+        # Top-left suit glyph
+        painter.drawText(4, 3, w, h, Qt.AlignLeft | Qt.AlignTop, self.suit_glyph)
 
 
 class CardBackView(CardView):
-    """Convenience class for face-down cards."""
-    def __init__(self):
-        super().__init__("??", face_down=True)
+    def __init__(self, size: str = "md"):
+        super().__init__("??", face_down=True, size=size)
+
+
+class CardPlaceholder(QWidget):
+    """Empty card slot (faint outline)."""
+    def __init__(self, size: str = "md"):
+        super().__init__()
+        sizes = {"xs": (22, 30), "sm": (32, 44), "md": (44, 60), "lg": (60, 84)}
+        w, h = sizes.get(size, sizes["md"])
+        self.setFixedSize(w, h)
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        pen = QPen(QColor("#23271f"), 1, Qt.DashLine)
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRect(0, 0, self.width() - 1, self.height() - 1)
+        painter.end()

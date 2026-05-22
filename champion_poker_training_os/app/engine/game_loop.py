@@ -1,19 +1,29 @@
+"""Texas Hold'em game engine.
+
+Fixes vs previous version:
+- Proper action-order continuation after a raise (no recursion, no restart from UTG)
+- Min-raise validation (illegal raise = bumped up to legal min, or treated as call)
+- All-in for less than min-raise does NOT reopen action for already-acted players
+- Side pots correctly distributed on multi-way all-in showdowns
+- Busted (stack=0) players auto-skipped, dealer button advances over them
+- Hero profit computed per-hand directly (not from running totals)
+- Ante support
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Tuple
 
-from app.engine.bot_brain import BotBrain, BotProfile, BOT_ARCHETYPES
+from app.engine.bot_brain import BotBrain, BotProfile, BOT_ARCHETYPES, KARMA_MIX
 from app.engine.evaluator import determine_winners
 from app.engine.hand_state import (
     Action, ActionType, Card, Deck, HandState, PlayerSeat,
-    Street, POSITIONS_6MAX, POSITIONS_HU,
+    Street, POSITIONS_BY_SIZE,
 )
 
 
 @dataclass
 class HandResult:
-    """Summary of a completed hand."""
     hand_id: int
     hero_cards: str
     community: str
@@ -25,10 +35,12 @@ class HandResult:
     actions: List[Action] = field(default_factory=list)
     hero_invested: float = 0.0
     streets_seen: int = 0
+    hero_position: str = ""
+    final_stacks: Dict[int, float] = field(default_factory=dict)
 
 
 class PokerGame:
-    """Manages a full poker game session with multiple hands."""
+    """Manages a full poker game session (cash or tournament hand-by-hand)."""
 
     def __init__(
         self,
@@ -36,63 +48,106 @@ class PokerGame:
         starting_stack: float = 100.0,
         small_blind: float = 0.5,
         big_blind: float = 1.0,
+        ante: float = 0.0,
         hero_seat: int = 0,
         bot_archetype: str = "Balanced Reg",
+        bot_archetypes: Optional[List[str]] = None,
+        player_names: Optional[List[str]] = None,
     ):
-        self.num_players = min(max(num_players, 2), 9)
+        self.num_players = max(2, min(num_players, 9))
         self.starting_stack = starting_stack
         self.small_blind = small_blind
         self.big_blind = big_blind
+        self.ante = ante
         self.hero_seat = hero_seat
         self.hand_count = 0
         self.dealer_idx = 0
         self.deck = Deck()
 
-        # Create players
-        positions = POSITIONS_HU if num_players == 2 else POSITIONS_6MAX[:num_players]
-        bot_profiles = list(BOT_ARCHETYPES.values())
+        # Bot archetypes — either single archetype repeated, or list.
+        # "Karma (Mixed)" is a meta-archetype: spread the KARMA_MIX roster
+        # across opponents so every seat plays a different style.
+        if bot_archetypes is None:
+            if bot_archetype == "Karma (Mixed)":
+                bot_archetypes = list(KARMA_MIX)
+            else:
+                bot_archetypes = [bot_archetype] * (self.num_players - 1)
+        bot_archetypes = list(bot_archetypes)
 
+        # Build players
+        positions = POSITIONS_BY_SIZE.get(self.num_players, POSITIONS_BY_SIZE[6])
         self.players: List[PlayerSeat] = []
         self.bots: Dict[int, BotBrain] = {}
 
+        bot_idx = 0
+        default_names = ["villain_42", "BluffMaster", "icmer_X", "shovingsteve",
+                         "justplaying", "deepstacked", "blockerOnly", "stationboy"]
         for i in range(self.num_players):
             pos = positions[i % len(positions)]
             if i == hero_seat:
                 self.players.append(PlayerSeat(
-                    name="Hero", stack=starting_stack,
-                    position=pos, is_hero=True,
+                    name="Hero", stack=starting_stack, position=pos, is_hero=True,
                 ))
             else:
-                profile = bot_profiles[i % len(bot_profiles)]
+                name = (player_names[bot_idx] if player_names and bot_idx < len(player_names)
+                        else default_names[bot_idx % len(default_names)])
+                profile_name = bot_archetypes[bot_idx % len(bot_archetypes)]
+                profile = BOT_ARCHETYPES.get(profile_name, BOT_ARCHETYPES["Balanced Reg"])
                 self.players.append(PlayerSeat(
-                    name=profile.name, stack=starting_stack,
-                    position=pos, is_hero=False,
+                    name=name, stack=starting_stack, position=pos, is_hero=False,
                 ))
                 self.bots[i] = BotBrain(profile)
+                bot_idx += 1
 
         self.current_hand: Optional[HandState] = None
         self.hand_history: List[HandResult] = []
         self._waiting_for_hero = False
-        self._hero_action_callback: Optional[Callable] = None
+        self._action_queue: List[int] = []  # FIFO of player indices yet to act this round
+        self._last_aggressor: Optional[int] = None
+
+    # ── PUBLIC API ─────────────────────────────────────────────────
 
     @property
     def is_waiting_for_hero(self) -> bool:
         return self._waiting_for_hero
 
+    @property
+    def active_players_count(self) -> int:
+        """Players with chips remaining (in the session)."""
+        return sum(1 for p in self.players if p.stack > 0 and not p.is_eliminated)
+
+    def set_blinds(self, small_blind: float, big_blind: float, ante: float = 0.0) -> None:
+        self.small_blind = small_blind
+        self.big_blind = big_blind
+        self.ante = ante
+
     def start_hand(self) -> HandState:
-        """Deal a new hand and run until hero needs to act or hand completes."""
+        """Deal a new hand. Runs until hero needs to act or hand ends."""
         self.hand_count += 1
+        self.deck = Deck()
         self.deck.shuffle()
 
-        # Reset players
+        # Eliminate busted players (no chips)
+        for p in self.players:
+            if p.stack <= 0 and not p.is_eliminated:
+                p.is_eliminated = True
+
+        in_game = [i for i, p in enumerate(self.players) if not p.is_eliminated]
+        if len(in_game) < 2:
+            # Game over — only one player remains
+            self.current_hand = HandState(hand_id=self.hand_count, players=self.players)
+            self.current_hand.is_complete = True
+            return self.current_hand
+
+        # Reset players for new hand
         for p in self.players:
             p.reset_for_hand()
 
-        # Assign positions
-        positions = POSITIONS_HU if self.num_players == 2 else POSITIONS_6MAX[:self.num_players]
-        for i in range(self.num_players):
-            idx = (self.dealer_idx + i) % self.num_players
-            self.players[idx].position = positions[i]
+        # Advance dealer to next non-eliminated player
+        self._advance_dealer()
+
+        # Assign positions (rotating from dealer)
+        self._assign_positions()
 
         # Create hand state
         self.current_hand = HandState(
@@ -101,150 +156,331 @@ class PokerGame:
             dealer_idx=self.dealer_idx,
             small_blind=self.small_blind,
             big_blind=self.big_blind,
+            ante=self.ante,
+            current_bet=0.0,
+            min_raise=self.big_blind,
+            last_full_raise_size=self.big_blind,
         )
 
-        # Post blinds
+        self._post_antes()
         self._post_blinds()
 
         # Deal hole cards
-        for p in self.players:
-            p.hole_cards = self.deck.deal(2)
+        for i in in_game:
+            self.players[i].hole_cards = self.deck.deal(2)
 
-        # Start preflop action
+        # Set up action queue for preflop
+        self._build_action_queue(preflop=True)
+        self._waiting_for_hero = False
         self._run_until_hero_or_complete()
         return self.current_hand
 
     def hero_act(self, action_type: ActionType, amount: float = 0.0) -> HandState:
-        """Process hero's action and continue the hand."""
+        """Apply hero's chosen action."""
         if not self._waiting_for_hero or not self.current_hand:
             return self.current_hand
 
         hero_idx = self.current_hand.hero_idx
+        # Validate / coerce amount to legal value
+        action_type, amount = self._coerce_action(hero_idx, action_type, amount)
         self._apply_action(hero_idx, action_type, amount)
         self._waiting_for_hero = False
-
-        # Continue running
         self._run_until_hero_or_complete()
         return self.current_hand
 
+    # ── INTERNAL: SETUP ────────────────────────────────────────────
+
+    def _advance_dealer(self) -> None:
+        n = self.num_players
+        active_seats = [i for i, p in enumerate(self.players) if not p.is_eliminated]
+        if not active_seats:
+            return
+        if self.hand_count == 1:
+            self.dealer_idx = active_seats[0]
+            return
+        for step in range(1, n + 1):
+            cand = (self.dealer_idx + step) % n
+            if not self.players[cand].is_eliminated:
+                self.dealer_idx = cand
+                return
+
+    def _assign_positions(self) -> None:
+        in_game = [i for i, p in enumerate(self.players) if not p.is_eliminated]
+        size = len(in_game)
+        if size < 2:
+            return
+        positions = POSITIONS_BY_SIZE.get(size, POSITIONS_BY_SIZE[max(in_game and 2 or 2, 2)])
+        # Sorted order starting from SB
+        # In poker rotation: BTN = dealer. SB = dealer+1, BB = dealer+2.
+        # Exception HU: BTN = SB (acts first preflop). We'll mark dealer as "SB/BTN".
+        ordered = []
+        n = self.num_players
+        for step in range(n):
+            seat = (self.dealer_idx + 1 + step) % n
+            if not self.players[seat].is_eliminated:
+                ordered.append(seat)
+        # Now ordered[0] = SB-equivalent. Map to positions.
+        # For HU: ordered = [SB/BTN, BB] but SB is also BTN. Use HU labels.
+        if size == 2:
+            # dealer = button = SB acts first preflop. ordered[0] (= dealer+1) = BB.
+            # We want SB/BTN first. Re-derive: SB/BTN = dealer.
+            self.players[self.dealer_idx].position = "SB/BTN"
+            other = [i for i in in_game if i != self.dealer_idx][0]
+            self.players[other].position = "BB"
+        else:
+            for i, seat in enumerate(ordered):
+                self.players[seat].position = positions[i] if i < len(positions) else f"S{i}"
+
+    def _post_antes(self) -> None:
+        if self.ante <= 0 or not self.current_hand:
+            return
+        hand = self.current_hand
+        for p in self.players:
+            if p.is_eliminated:
+                continue
+            a = min(self.ante, p.stack)
+            p.stack -= a
+            p.invested_this_hand += a
+            hand.pot += a
+            if p.stack <= 0:
+                p.is_all_in = True
+
     def _post_blinds(self) -> None:
         hand = self.current_hand
-        n = self.num_players
+        in_game = [i for i, p in enumerate(self.players) if not p.is_eliminated]
+        n_in = len(in_game)
+        if n_in < 2:
+            return
 
-        if n == 2:
+        if n_in == 2:
+            # HU: dealer = SB, other = BB
             sb_idx = self.dealer_idx
-            bb_idx = (self.dealer_idx + 1) % n
+            bb_idx = next(i for i in in_game if i != self.dealer_idx)
         else:
-            sb_idx = (self.dealer_idx + 1) % n
-            bb_idx = (self.dealer_idx + 2) % n
+            sb_idx = self._next_in_game(self.dealer_idx)
+            bb_idx = self._next_in_game(sb_idx)
 
-        # Post small blind
         sb = min(hand.small_blind, self.players[sb_idx].stack)
         self.players[sb_idx].stack -= sb
         self.players[sb_idx].current_bet = sb
-        self.players[sb_idx].invested_this_hand = sb
+        self.players[sb_idx].invested_this_hand += sb
         hand.pot += sb
+        if self.players[sb_idx].stack <= 0:
+            self.players[sb_idx].is_all_in = True
 
-        # Post big blind
         bb = min(hand.big_blind, self.players[bb_idx].stack)
         self.players[bb_idx].stack -= bb
         self.players[bb_idx].current_bet = bb
-        self.players[bb_idx].invested_this_hand = bb
+        self.players[bb_idx].invested_this_hand += bb
         hand.pot += bb
+        if self.players[bb_idx].stack <= 0:
+            self.players[bb_idx].is_all_in = True
 
         hand.current_bet = hand.big_blind
+        hand.last_full_raise_size = hand.big_blind
         hand.min_raise = hand.big_blind
 
-    def _get_action_order(self) -> List[int]:
-        """Get player indices in action order for current street."""
+    def _next_in_game(self, from_idx: int) -> int:
+        n = self.num_players
+        for step in range(1, n + 1):
+            cand = (from_idx + step) % n
+            if not self.players[cand].is_eliminated:
+                return cand
+        return from_idx
+
+    # ── INTERNAL: BETTING ROUND ────────────────────────────────────
+
+    def _build_action_queue(self, preflop: bool = False) -> None:
+        """Build the initial action queue for current street."""
         hand = self.current_hand
         n = self.num_players
+        in_game = [i for i, p in enumerate(self.players) if not p.is_eliminated]
+        n_in = len(in_game)
 
-        if hand.street == Street.PREFLOP:
-            if n == 2:
-                start = self.dealer_idx  # SB acts first preflop in HU
+        # First-to-act seat
+        if preflop:
+            if n_in == 2:
+                start = self.dealer_idx  # SB acts first HU
             else:
-                start = (self.dealer_idx + 3) % n  # UTG
+                # UTG = SB+2 (i.e. dealer+3 in non-HU)
+                bb = self._next_in_game(self._next_in_game(self.dealer_idx))
+                start = self._next_in_game(bb)
         else:
-            if n == 2:
-                start = (self.dealer_idx + 1) % n
-            else:
-                start = (self.dealer_idx + 1) % n  # SB
+            # Postflop: first active player left of dealer
+            start = self._next_in_game(self.dealer_idx)
 
-        order = []
-        for i in range(n):
-            idx = (start + i) % n
-            if self.players[idx].is_active:
-                order.append(idx)
-        return order
+        self._action_queue = []
+        cursor = start
+        for _ in range(n):
+            if self.players[cursor].is_active:
+                self._action_queue.append(cursor)
+            cursor = (cursor + 1) % n
+            if cursor == start:
+                break
+        # Ensure all eligible active players are queued (in case `start` is folded/all-in)
+        if not self._action_queue:
+            for idx in range(n):
+                cand = (start + idx) % n
+                if self.players[cand].is_active:
+                    self._action_queue.append(cand)
+        self._last_aggressor = None
+
+    def _on_raise_rebuild_queue(self, raiser_idx: int, reopens: bool) -> None:
+        """After a raise, players who already acted (other than raiser) need to act again.
+        If `reopens` is False (short all-in below min raise), already-acted players don't re-act.
+        """
+        n = self.num_players
+        new_queue: List[int] = []
+        cursor = (raiser_idx + 1) % n
+        for _ in range(n):
+            if cursor == raiser_idx:
+                break
+            p = self.players[cursor]
+            if p.is_active and (reopens or not p.has_acted or p.current_bet < self.current_hand.current_bet):
+                # If reopens: everyone else must act again. If not: only those who haven't matched the new bet.
+                if reopens or p.current_bet < self.current_hand.current_bet:
+                    new_queue.append(cursor)
+            cursor = (cursor + 1) % n
+        self._action_queue = new_queue
+        if reopens:
+            self._last_aggressor = raiser_idx
+            for idx in new_queue:
+                self.players[idx].has_acted = False
 
     def _run_until_hero_or_complete(self) -> None:
-        """Run the hand forward until hero needs to act or hand is done."""
         hand = self.current_hand
         if not hand or hand.is_complete:
             return
 
         while True:
-            # Check if hand is over
+            # If only one player remains in the hand, award pot
             if hand.active_count <= 1:
                 self._finish_hand()
                 return
 
-            if hand.street == Street.SHOWDOWN:
-                self._finish_hand()
-                return
+            # If betting is concluded (no one left in queue and all bets matched), advance street
+            if not self._action_queue:
+                # Check if all active players have matched current_bet
+                if self._betting_round_complete():
+                    if self._all_in_runout_needed():
+                        self._runout_remaining_streets()
+                        self._finish_hand()
+                        return
+                    if hand.street == Street.RIVER:
+                        self._finish_hand()
+                        return
+                    self._advance_street()
+                    continue
+                else:
+                    # Shouldn't happen, but build queue defensively
+                    self._build_action_queue(preflop=(hand.street == Street.PREFLOP))
+                    if not self._action_queue:
+                        # No one can act — runout
+                        if hand.street == Street.RIVER:
+                            self._finish_hand()
+                            return
+                        self._advance_street()
+                        continue
 
-            # Run betting round
-            if self._run_betting_round_step():
-                return  # Waiting for hero
-
-            # Betting round complete — advance street
-            if hand.active_count <= 1:
-                self._finish_hand()
-                return
-
-            self._advance_street()
-
-    def _run_betting_round_step(self) -> bool:
-        """Run one step of betting. Returns True if waiting for hero."""
-        hand = self.current_hand
-        order = self._get_action_order()
-
-        # Find the next player who hasn't acted or needs to respond to a raise
-        for idx in order:
-            player = self.players[idx]
+            next_idx = self._action_queue[0]
+            player = self.players[next_idx]
             if not player.is_active:
-                continue
-
-            needs_to_act = (
-                not player.has_acted or
-                player.current_bet < hand.current_bet
-            )
-
-            if not needs_to_act:
+                self._action_queue.pop(0)
                 continue
 
             if player.is_hero:
                 self._waiting_for_hero = True
-                return True  # Pause for hero input
-            else:
-                # Bot decides
-                bot = self.bots.get(idx)
-                if bot:
-                    action_type, amount = bot.decide(hand, idx)
-                    self._apply_action(idx, action_type, amount)
+                return
 
-                    # After a raise, other players may need to act again
-                    if action_type in (ActionType.RAISE, ActionType.BET):
-                        return self._run_betting_round_step()
+            # Bot turn
+            bot = self.bots.get(next_idx)
+            if not bot:
+                # Safety net: treat as check/fold
+                self._action_queue.pop(0)
+                to_call = hand.to_call(next_idx)
+                if to_call > 0:
+                    self._apply_action(next_idx, ActionType.FOLD, 0)
+                else:
+                    self._apply_action(next_idx, ActionType.CHECK, 0)
+                continue
 
-        # All players have acted
-        return False
+            action_type, amount = bot.decide(hand, next_idx)
+            action_type, amount = self._coerce_action(next_idx, action_type, amount)
+            self._apply_action(next_idx, action_type, amount)
 
-    def _apply_action(self, player_idx: int, action_type: ActionType, amount: float) -> None:
-        """Apply an action to the hand state."""
+    def _betting_round_complete(self) -> bool:
+        hand = self.current_hand
+        for p in self.players:
+            if not p.is_active:
+                continue
+            if p.current_bet < hand.current_bet:
+                return False
+            if not p.has_acted:
+                return False
+        return True
+
+    def _all_in_runout_needed(self) -> bool:
+        """If <=1 active players remain but multiple in hand, runout the board."""
+        hand = self.current_hand
+        return hand.active_count >= 2 and hand.can_act_count <= 1
+
+    # ── INTERNAL: ACTION APPLICATION ───────────────────────────────
+
+    def _coerce_action(self, player_idx: int, action_type: ActionType, amount: float) -> Tuple[ActionType, float]:
+        """Ensure the action is legal; clamp amounts; convert raise<minraise to all-in."""
         hand = self.current_hand
         player = self.players[player_idx]
+        to_call = hand.to_call(player_idx)
+
+        if action_type == ActionType.FOLD:
+            if to_call == 0:
+                return ActionType.CHECK, 0.0
+            return ActionType.FOLD, 0.0
+
+        if action_type == ActionType.CHECK:
+            if to_call > 0:
+                return ActionType.FOLD, 0.0
+            return ActionType.CHECK, 0.0
+
+        if action_type == ActionType.CALL:
+            call_amt = min(to_call, player.stack)
+            if call_amt >= player.stack:
+                return ActionType.ALL_IN, player.stack
+            return ActionType.CALL, call_amt
+
+        if action_type == ActionType.BET:
+            if to_call > 0:
+                # Not a bet — must be raise
+                action_type = ActionType.RAISE
+            else:
+                amount = max(hand.big_blind, min(amount, player.stack))
+                if amount >= player.stack:
+                    return ActionType.ALL_IN, player.stack
+                return ActionType.BET, amount
+
+        if action_type == ActionType.RAISE:
+            # `amount` is the chips to add (delta from current bet)
+            # Total new bet level = player.current_bet + amount
+            min_raise_to = hand.current_bet + max(hand.last_full_raise_size, hand.big_blind)
+            min_amount_to_add = min_raise_to - player.current_bet
+            amount = max(min_amount_to_add, amount)
+            amount = min(amount, player.stack)
+            if amount >= player.stack:
+                return ActionType.ALL_IN, player.stack
+            return ActionType.RAISE, amount
+
+        if action_type == ActionType.ALL_IN:
+            return ActionType.ALL_IN, player.stack
+
+        return ActionType.CHECK, 0.0
+
+    def _apply_action(self, player_idx: int, action_type: ActionType, amount: float) -> None:
+        hand = self.current_hand
+        player = self.players[player_idx]
+
+        # Pop from queue
+        if self._action_queue and self._action_queue[0] == player_idx:
+            self._action_queue.pop(0)
 
         if action_type == ActionType.FOLD:
             player.is_folded = True
@@ -254,190 +490,257 @@ class PokerGame:
             player.has_acted = True
 
         elif action_type == ActionType.CALL:
-            to_call = min(hand.current_bet - player.current_bet, player.stack)
-            player.stack -= to_call
-            player.current_bet += to_call
-            player.invested_this_hand += to_call
-            hand.pot += to_call
+            call_amt = min(amount, player.stack)
+            player.stack -= call_amt
+            player.current_bet += call_amt
+            player.invested_this_hand += call_amt
+            hand.pot += call_amt
             if player.stack <= 0:
                 player.is_all_in = True
             player.has_acted = True
 
         elif action_type in (ActionType.BET, ActionType.RAISE):
-            amount = min(amount, player.stack)
-            old_bet = player.current_bet
-            player.stack -= amount
-            player.current_bet += amount
-            player.invested_this_hand += amount
-            hand.pot += amount
+            chips_added = min(amount, player.stack)
+            player.stack -= chips_added
+            new_bet = player.current_bet + chips_added
+            raise_size = new_bet - hand.current_bet
+            player.current_bet = new_bet
+            player.invested_this_hand += chips_added
+            hand.pot += chips_added
 
-            raise_size = player.current_bet - hand.current_bet
+            # Full raise: reopens action
+            reopens = raise_size >= hand.last_full_raise_size
             if raise_size > 0:
-                hand.min_raise = raise_size
-            hand.current_bet = player.current_bet
+                if reopens:
+                    hand.last_full_raise_size = raise_size
+                hand.current_bet = new_bet
+                hand.min_raise = hand.last_full_raise_size
 
             if player.stack <= 0:
                 player.is_all_in = True
 
-            # Reset other players' has_acted
-            for i, p in enumerate(self.players):
-                if i != player_idx and p.is_active:
-                    p.has_acted = False
             player.has_acted = True
+            self._on_raise_rebuild_queue(player_idx, reopens=reopens)
 
         elif action_type == ActionType.ALL_IN:
-            all_in_amount = player.stack
-            player.current_bet += all_in_amount
-            player.invested_this_hand += all_in_amount
-            hand.pot += all_in_amount
+            chips_added = player.stack
             player.stack = 0
+            new_bet = player.current_bet + chips_added
+            raise_size = new_bet - hand.current_bet
+            player.current_bet = new_bet
+            player.invested_this_hand += chips_added
+            hand.pot += chips_added
             player.is_all_in = True
-
-            if player.current_bet > hand.current_bet:
-                raise_size = player.current_bet - hand.current_bet
-                hand.min_raise = max(hand.min_raise, raise_size)
-                hand.current_bet = player.current_bet
-                for i, p in enumerate(self.players):
-                    if i != player_idx and p.is_active:
-                        p.has_acted = False
             player.has_acted = True
+
+            if raise_size > 0:
+                reopens = raise_size >= hand.last_full_raise_size
+                if reopens:
+                    hand.last_full_raise_size = raise_size
+                hand.current_bet = new_bet
+                hand.min_raise = hand.last_full_raise_size
+                self._on_raise_rebuild_queue(player_idx, reopens=reopens)
+            # else: all-in for a partial call — no reopen
 
         # Record action
         hand.actions.append(Action(
             player_idx=player_idx,
             action_type=action_type,
-            amount=amount,
+            amount=round(amount, 2),
             street=hand.street,
+            total_bet=round(player.current_bet, 2),
+            pot_after=round(hand.pot, 2),
         ))
 
-    def _advance_street(self) -> None:
-        """Deal community cards and advance to next street."""
-        hand = self.current_hand
+    # ── INTERNAL: STREETS ──────────────────────────────────────────
 
-        # Reset for new street
+    def _advance_street(self) -> None:
+        hand = self.current_hand
         for p in self.players:
             p.reset_for_street()
-        hand.current_bet = 0
+        hand.current_bet = 0.0
         hand.min_raise = hand.big_blind
+        hand.last_full_raise_size = hand.big_blind
 
-        next_street = hand.street.next_street
-        if not next_street or next_street == Street.SHOWDOWN:
+        nxt = hand.street.next_street
+        if not nxt or nxt == Street.SHOWDOWN:
             hand.street = Street.SHOWDOWN
             return
 
-        hand.street = next_street
-
-        if next_street == Street.FLOP:
-            self.deck.deal(1)  # Burn
+        hand.street = nxt
+        if nxt == Street.FLOP:
+            self.deck.deal(1)
             hand.community.extend(self.deck.deal(3))
-        elif next_street == Street.TURN:
-            self.deck.deal(1)  # Burn
+        elif nxt in (Street.TURN, Street.RIVER):
+            self.deck.deal(1)
             hand.community.extend(self.deck.deal(1))
-        elif next_street == Street.RIVER:
-            self.deck.deal(1)  # Burn
-            hand.community.extend(self.deck.deal(1))
+
+        self._build_action_queue(preflop=False)
+        # If no one can act (all all-in), skip to next street via outer loop
+        if not self._action_queue:
+            return
+
+    def _runout_remaining_streets(self) -> None:
+        hand = self.current_hand
+        while hand.street != Street.RIVER:
+            self._advance_street()
+            if hand.street == Street.SHOWDOWN:
+                break
+
+    # ── INTERNAL: SHOWDOWN & SIDE POTS ─────────────────────────────
 
     def _finish_hand(self) -> None:
-        """Resolve the hand: showdown or last player standing."""
         hand = self.current_hand
         hand.is_complete = True
+        hand.street = Street.SHOWDOWN if hand.active_count > 1 else hand.street
 
-        active_players = [(i, p) for i, p in enumerate(self.players) if not p.is_folded]
+        contestants = [i for i, p in enumerate(self.players) if p.is_in_hand]
 
-        if len(active_players) == 1:
-            # Last player standing
-            winner_idx = active_players[0][0]
+        if len(contestants) == 1:
+            # Last player standing — collect the whole pot
+            winner_idx = contestants[0]
             hand.winners = [winner_idx]
-            hand.winner_hand_name = "Last player standing"
+            hand.winner_hand_name = "Uncontested"
             self.players[winner_idx].stack += hand.pot
+            hand.pots = [{"amount": hand.pot, "winners": [winner_idx], "name": "Main pot"}]
         else:
-            # Showdown — deal remaining community cards if needed
+            # Showdown — runout remaining streets if needed
             while len(hand.community) < 5:
-                self.deck.deal(1)  # Burn
+                self.deck.deal(1)
                 hand.community.extend(self.deck.deal(1))
 
-            # Evaluate hands
-            players_hands = [(i, p.hole_cards) for i, p in active_players]
-            winners, hand_name = determine_winners(players_hands, hand.community)
-            hand.winners = winners
-            hand.winner_hand_name = hand_name
+            # Compute side pots
+            side_pots = self._compute_side_pots(contestants)
+            hand.winners = []
+            hand.pots = []
+            winner_hand_names: List[str] = []
 
-            # Distribute pot
-            share = hand.pot / len(winners)
-            for w in winners:
-                self.players[w].stack += share
+            for sp in side_pots:
+                eligible = sp["eligible"]
+                if not eligible:
+                    continue
+                hands = [(i, self.players[i].hole_cards) for i in eligible]
+                winners, hand_name = determine_winners(hands, hand.community)
+                share = sp["amount"] / max(len(winners), 1)
+                for w in winners:
+                    self.players[w].stack += share
+                for w in winners:
+                    if w not in hand.winners:
+                        hand.winners.append(w)
+                hand.pots.append({
+                    "amount": sp["amount"],
+                    "winners": winners,
+                    "name": sp.get("name", "Pot"),
+                    "hand_name": hand_name,
+                })
+                winner_hand_names.append(hand_name)
 
-        # Record result
+            hand.winner_hand_name = " / ".join(dict.fromkeys(winner_hand_names)) or "Showdown"
+
+        # Build result for hero
         hero_idx = hand.hero_idx
         hero = self.players[hero_idx]
-        hero_profit = hero.stack - self.starting_stack - sum(
-            r.hero_profit for r in self.hand_history
-        )
-        # More precise: profit = current stack - (start of hand stack)
-        pre_hand_stack = hero.invested_this_hand + hero.stack
-        if hero_idx in hand.winners:
-            share = hand.pot / len(hand.winners)
-            hero_profit = share - hero.invested_this_hand
-        else:
-            hero_profit = -hero.invested_this_hand
+        # Hero profit = (chips collected from pots) - invested
+        chips_collected = 0.0
+        for sp in hand.pots:
+            if hero_idx in sp["winners"]:
+                chips_collected += sp["amount"] / len(sp["winners"])
+        hero_profit = chips_collected - hero.invested_this_hand
 
         result = HandResult(
             hand_id=hand.hand_id,
             hero_cards=hero.cards_display,
             community=hand.community_display,
-            pot=hand.pot,
+            pot=round(hand.pot, 2),
             winners=hand.winners,
             winner_hand_name=hand.winner_hand_name,
             hero_won=hero_idx in hand.winners,
             hero_profit=round(hero_profit, 2),
             actions=list(hand.actions),
-            hero_invested=hero.invested_this_hand,
+            hero_invested=round(hero.invested_this_hand, 2),
             streets_seen=_count_streets(hand),
+            hero_position=hero.position,
+            final_stacks={i: round(p.stack, 2) for i, p in enumerate(self.players)},
         )
         self.hand_history.append(result)
 
-        # Advance dealer
-        self.dealer_idx = (self.dealer_idx + 1) % self.num_players
+    def _compute_side_pots(self, contestants: List[int]) -> List[dict]:
+        """Compute main + side pots from invested_this_hand commitments."""
+        invests = {i: self.players[i].invested_this_hand for i in range(self.num_players)}
+        contestants = sorted(contestants, key=lambda i: invests[i])
+
+        side_pots: List[dict] = []
+        prev_level = 0.0
+
+        # Compute pots level-by-level using sorted contestants
+        contestant_set = set(contestants)
+        used = set()
+        # Include folded players' contributions: their chips go to the lowest pot
+        # but they are not eligible to win it.
+        sorted_invests = sorted(set(invests[i] for i in contestants))
+
+        for level in sorted_invests:
+            pot_amount = 0.0
+            for j in range(self.num_players):
+                contrib = min(invests[j], level) - min(invests[j], prev_level)
+                if contrib > 0:
+                    pot_amount += contrib
+            eligible = [i for i in contestants if invests[i] >= level]
+            if pot_amount > 0:
+                side_pots.append({
+                    "amount": round(pot_amount, 2),
+                    "eligible": eligible,
+                    "name": "Main pot" if not side_pots else f"Side pot {len(side_pots)}",
+                })
+            prev_level = level
+
+        return side_pots
+
+    # ── STATS ──────────────────────────────────────────────────────
 
     def get_session_stats(self) -> dict:
-        """Calculate running session statistics."""
         if not self.hand_history:
             return {
-                "hands": 0, "profit": 0, "vpip": 0, "pfr": 0,
-                "wtsd": 0, "win_rate": 0, "biggest_pot": 0,
+                "hands": 0, "profit": 0, "profit_bb": 0, "vpip": 0, "pfr": 0,
+                "wtsd": 0, "win_rate": 0, "biggest_pot": 0, "bb_per_100": 0,
+                "showdowns": 0, "preflop_raises": 0,
             }
-
         total = len(self.hand_history)
         wins = sum(1 for h in self.hand_history if h.hero_won)
         profit = sum(h.hero_profit for h in self.hand_history)
-        vpip_count = sum(1 for h in self.hand_history if h.hero_invested > self.big_blind)
+        vpip_count = sum(
+            1 for h in self.hand_history
+            if any(
+                a.player_idx == self.hero_seat and a.street == Street.PREFLOP
+                and a.action_type in (ActionType.CALL, ActionType.BET, ActionType.RAISE, ActionType.ALL_IN)
+                for a in h.actions
+            )
+        )
         pfr_count = sum(
             1 for h in self.hand_history
             if any(
-                a.action_type in (ActionType.BET, ActionType.RAISE)
-                and a.player_idx == self.hero_seat
-                and a.street == Street.PREFLOP
+                a.player_idx == self.hero_seat and a.street == Street.PREFLOP
+                and a.action_type in (ActionType.BET, ActionType.RAISE, ActionType.ALL_IN)
                 for a in h.actions
             )
         )
         showdown = sum(1 for h in self.hand_history if h.streets_seen >= 4)
         biggest = max(h.pot for h in self.hand_history)
-
         return {
             "hands": total,
             "profit": round(profit, 2),
-            "profit_bb": round(profit / self.big_blind, 1),
+            "profit_bb": round(profit / max(self.big_blind, 0.0001), 1),
             "vpip": round(100 * vpip_count / total, 1) if total else 0,
             "pfr": round(100 * pfr_count / total, 1) if total else 0,
             "wtsd": round(100 * showdown / total, 1) if total else 0,
             "win_rate": round(100 * wins / total, 1) if total else 0,
             "biggest_pot": round(biggest, 2),
             "bb_per_100": round(100 * profit / (total * self.big_blind), 1) if total else 0,
+            "showdowns": showdown,
+            "preflop_raises": pfr_count,
         }
 
 
 def _count_streets(hand: HandState) -> int:
-    streets_with_actions = set()
-    for a in hand.actions:
-        streets_with_actions.add(a.street)
-    return len(streets_with_actions)
+    streets = {a.street for a in hand.actions}
+    return len(streets)
