@@ -843,6 +843,7 @@ def seats_from_hand(
     villain_seat: Optional[int] = None,
     unit: str = "bb",
     hand=None,
+    bb_divisor: float = 1.0,
 ) -> Tuple[List[SeatState], int, int]:
     """Map a list of PlayerSeat (game engine) → slot-ordered SeatState list.
 
@@ -851,6 +852,11 @@ def seats_from_hand(
     When ``hand`` is provided, SB/BB players whose only commitment on this
     street is the forced blind get flagged as ``is_blind_post`` so the UI
     can show a distinct "SB POST 0.5" / "BB POST 1.0" chip.
+
+    ``bb_divisor``: divide raw chip values (stack, bet) by this before
+    storing — used by the tournament screen to display everything in BB
+    instead of raw chips. Pass ``hand.big_blind`` for BB conversion, or
+    leave at 1.0 to keep chips.
     """
     n = len(players)
     if n == 0:
@@ -882,14 +888,15 @@ def seats_from_hand(
     hero_slot_idx = 0
     cur = hero_seat
     visited = 0
+    div = max(bb_divisor, 1e-9)
     while visited < n:
         p = players[cur]
         if not getattr(p, "is_eliminated", False):
             st = SeatState(
                 pos=getattr(p, "position", "") or "",
                 name=p.name if not p.is_hero else "",
-                stack=float(p.stack),
-                bet=float(getattr(p, "current_bet", 0.0) or 0.0),
+                stack=float(p.stack) / div,
+                bet=float(getattr(p, "current_bet", 0.0) or 0.0) / div,
                 is_hero=p.is_hero,
                 is_acting=(cur == action_queue_top),
                 is_folded=bool(getattr(p, "is_folded", False)),

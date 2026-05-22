@@ -266,10 +266,12 @@ class TournamentSimulatorScreen(QWidget):
         cl.setContentsMargins(22, 18, 22, 22)
         cl.setSpacing(16)
 
-        # Unified poker table — identical experience to Play Session,
-        # just measured in tournament chips instead of bb.
+        # Unified poker table — same BB convention as cash games. Modern
+        # online poker (PokerStars, GG, ClubGG) all display tournament
+        # stacks/bets/pot in BB, not raw chips. The engine still runs in
+        # chips; we only translate at the UI boundary.
         self.table = LivePokerTable()
-        self.table.set_unit("chips")
+        self.table.set_unit("bb")
         self.table.setMinimumHeight(460)
         cl.addWidget(self.table)
 
@@ -490,11 +492,14 @@ class TournamentSimulatorScreen(QWidget):
             return
         hand = self.tournament.game.current_hand
         chips = self._compute_size_chips()
-        pot = max(hand.pot, 1)
-        bb_eq = chips / max(hand.big_blind, 1)
-        pct_pot = int(round(100 * chips / pot))
+        bb = max(hand.big_blind, 1)
+        bb_eq = chips / bb
+        pot_bb = max(hand.pot / bb, 0.01)
+        pct_pot = int(round(100 * bb_eq / pot_bb))
+        # BB-first display, matching the felt — chips kept as a small hint
+        # at the end so the player still knows the absolute amount.
         self.size_value_label.setText(
-            f"{int(chips):,} chips  ·  {bb_eq:.1f} bb  ·  {pct_pot}% pot"
+            f"{bb_eq:.1f} bb  ·  {pct_pot}% pot  ·  {int(chips):,} chips"
         )
 
     # ── REFRESH UI ────────────────────────────────────────────────
@@ -520,10 +525,14 @@ class TournamentSimulatorScreen(QWidget):
         self.meta_cells["PRIZE"]._value_label.setText(f"${config.prize_pool:.0f}")
 
         # ── Feed the unified poker table ────────────────────────────
+        # Display everything in BB on the felt — divide chip values by
+        # the current big blind. Matches real online poker convention.
+        bb = max(hand.big_blind, 1.0)
         action_top = game._action_queue[0] if game._action_queue else -1
         seats, hero_slot, dealer_slot = seats_from_hand(
             hand.players, hand.hero_idx,
-            action_queue_top=action_top, unit="chips", hand=hand,
+            action_queue_top=action_top, unit="bb", hand=hand,
+            bb_divisor=bb,
         )
         # Flag the most-aggressive non-hero as villain
         villain_idx = None
@@ -564,19 +573,19 @@ class TournamentSimulatorScreen(QWidget):
             dealer_slot_idx=dealer_slot,
             street=hand.street_name,
             board=board,
-            pot=hand.pot,
+            pot=hand.pot / bb,
             hero_cards=hero_cards,
             note=note,
             big_pot=big_pot,
             show_opponent_backs=not hand.is_complete,
-            to_call=hero_to_call,
+            to_call=hero_to_call / bb,
         )
 
-        # TO CALL banner in the action deck — only when it's hero's turn.
+        # TO CALL banner — BB-first, matches the table display.
         if game.is_waiting_for_hero and hero_to_call > 0 and hand.pot > 0:
             pct = int(round(100 * hero_to_call / hand.pot))
             self.to_call_banner.setText(
-                f"TO CALL  {int(hero_to_call):,} chips  ·  {hero_to_call / hand.big_blind:.1f} bb  ·  {pct}% POT"
+                f"TO CALL  {hero_to_call / bb:.1f} bb  ·  {pct}% POT"
             )
             self.to_call_banner.show()
         else:
@@ -609,16 +618,17 @@ class TournamentSimulatorScreen(QWidget):
         to_call = hand.to_call(hero_idx)
 
         hero = hand.hero
+        bb = max(hand.big_blind, 1)
         if ActionType.FOLD in valid_types:
             self.fold_btn.show(); self.fold_btn.setEnabled(True)
         if ActionType.CHECK in valid_types:
             self.check_btn.show(); self.check_btn.setEnabled(True)
         if ActionType.CALL in valid_types:
-            self.call_btn.setText(f"CALL  {int(to_call):,}")
+            self.call_btn.setText(f"CALL  {to_call / bb:.1f} bb")
             self.call_btn.show(); self.call_btn.setEnabled(True)
         elif to_call > 0 and ActionType.ALL_IN in valid_types and hero and hero.stack > 0:
             # Calling requires going all-in — still show the green CALL button.
-            self.call_btn.setText(f"CALL ALL-IN  {int(hero.stack):,}")
+            self.call_btn.setText(f"CALL ALL-IN  {hero.stack / bb:.1f} bb")
             self.call_btn.show(); self.call_btn.setEnabled(True)
         if ActionType.BET in valid_types:
             self.raise_btn.setText("BET")
@@ -627,7 +637,7 @@ class TournamentSimulatorScreen(QWidget):
             self.raise_btn.setText("RAISE")
             self.raise_btn.show(); self.raise_btn.setEnabled(True)
         if hero and hero.stack > 0 and to_call < hero.stack:
-            self.allin_btn.setText(f"ALL-IN  {int(hero.stack):,}")
+            self.allin_btn.setText(f"ALL-IN  {hero.stack / bb:.1f} bb")
             self.allin_btn.show(); self.allin_btn.setEnabled(True)
 
     def _on_hand_complete(self):
