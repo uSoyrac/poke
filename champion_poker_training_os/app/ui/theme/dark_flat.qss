@@ -259,6 +259,29 @@ QPushButton#GhostButton:hover {
   background: #131613;
 }
 
+/* Collapse / rail toggles for sidebar + coach panel.
+   Per Style Guide: 1px hairline, flat, accent on hover. */
+QPushButton#PaneToggle {
+  background: transparent;
+  border: 1px solid #33382c;
+  color: #898d80;
+  padding: 0;
+  font-family: "JetBrains Mono", "Menlo", monospace;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+QPushButton#PaneToggle:hover {
+  border-color: #5ad17a;
+  color: #5ad17a;
+  background: #11241a;
+}
+
+QPushButton#PaneToggle:pressed {
+  background: #5ad17a;
+  color: #0a0c0a;
+}
+
 QPushButton#NavButton {
   text-align: left;
   background: transparent;

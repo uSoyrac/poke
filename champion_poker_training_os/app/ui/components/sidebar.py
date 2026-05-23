@@ -76,7 +76,7 @@ class SidebarNav(QFrame):
         brand_l.addLayout(brand_text_col, 1)
 
         self.toggle_btn = QPushButton("◀")
-        self.toggle_btn.setObjectName("GhostButton")
+        self.toggle_btn.setObjectName("PaneToggle")  # styled per design (accent on hover)
         self.toggle_btn.setCursor(Qt.PointingHandCursor)
         self.toggle_btn.setFixedSize(28, 28)
         self.toggle_btn.setToolTip("Collapse sidebar (⌘B)")

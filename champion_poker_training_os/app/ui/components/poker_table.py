@@ -754,13 +754,14 @@ class LivePokerTable(QWidget):
 
         cx, cy = self._center_point().x(), self._center_point().y()
 
-        # Hero hole cards — 22% toward center from hero slot. Closer to the
-        # hero seat (and well clear of the pot/TO-CALL area in the center).
+        # Hero hole cards — 32% toward center. Far enough from the seat
+        # tile that the position/stack stays readable behind the cards;
+        # close enough that they don't crowd the pot.
         if self._hero_cards and self._hero_slot_idx < len(self._slot_positions):
             xp, yp = self._slot_positions[self._hero_slot_idx]
             hero_point = self._slot_xy(xp, yp)
-            tx = hero_point.x() + (cx - hero_point.x()) * 0.22
-            ty = hero_point.y() + (cy - hero_point.y()) * 0.22
+            tx = hero_point.x() + (cx - hero_point.x()) * 0.32
+            ty = hero_point.y() + (cy - hero_point.y()) * 0.32
             hero_holes = self._hole_widgets[:2]
             if hero_holes:
                 gap = 6
@@ -798,19 +799,28 @@ class LivePokerTable(QWidget):
                 w.setGeometry(int(start_x2), int(ty2 - wh2 / 2), w.width(), w.height())
                 start_x2 += w.width() + gap2
 
-        # Bet chips — fixed-size, positioned 55% from seat toward center.
+        # Bet chips — fixed-size, positioned 52% from seat toward center.
         # We iterate over ALL chip slots (not just visible ones) so a chip
         # that's about to be shown lands at the right coordinates *before*
         # Qt's first paint, never at the parent's (0, 0) origin.
+        # Belt-and-braces: both setGeometry() and move() — the move() call
+        # wins against any latent layout pass that might still own the
+        # widget. raise_() keeps visible chips on top of the felt paint.
         cw, ch = _BetChip._CHIP_W, _BetChip._CHIP_H
         for slot_idx, (xp, yp) in enumerate(self._slot_positions):
             if slot_idx >= len(self._bet_chips):
                 break
             chip = self._bet_chips[slot_idx]
             p = self._slot_xy(xp, yp)
-            tx = p.x() + (cx - p.x()) * 0.55
-            ty = p.y() + (cy - p.y()) * 0.55
-            chip.setGeometry(int(tx - cw / 2), int(ty - ch / 2), cw, ch)
+            tx = p.x() + (cx - p.x()) * 0.52
+            ty = p.y() + (cy - p.y()) * 0.52
+            x = int(tx - cw / 2)
+            y = int(ty - ch / 2)
+            chip.setFixedSize(cw, ch)
+            chip.setGeometry(x, y, cw, ch)
+            chip.move(x, y)
+            if chip.isVisible():
+                chip.raise_()
 
         # Dealer button — 22% toward center from dealer's slot
         if self._dealer_slot_idx >= 0 and self._dealer_slot_idx < len(self._slot_positions):

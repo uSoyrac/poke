@@ -320,13 +320,16 @@ class PlaySessionScreen(QWidget):
         self.raise_btn.clicked.connect(lambda: self._hero_action(ActionType.RAISE))
         self.allin_btn.clicked.connect(lambda: self._hero_action(ActionType.ALL_IN))
 
+        from PySide6.QtWidgets import QSizePolicy
         for b in (self.fold_btn, self.check_btn, self.call_btn, self.raise_btn, self.allin_btn):
-            # 150px fits "CALL ALL-IN 100.0 bb" without truncation
+            # Min width fits "CALL ALL-IN 100.0" without truncation; equal
+            # stretch lets the row reflow when sidebar/coach collapse.
             b.setMinimumWidth(150)
-            b.setMinimumHeight(46)
+            b.setMinimumHeight(48)
             b.setCursor(Qt.PointingHandCursor)
-            acts.addWidget(b)
-        dl.addLayout(acts, 3)
+            b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            acts.addWidget(b, 1)
+        dl.addLayout(acts, 4)
         pl.addWidget(deck)
 
         self.stack_layout.addWidget(page)
@@ -520,16 +523,20 @@ class PlaySessionScreen(QWidget):
         valid_types = {v[0] for v in valid}
         to_call = hand.to_call(hero_idx)
 
+        # Treat dust stacks (rounding artefact) as zero so we don't render
+        # "CALL ALL-IN  0" garbage for an effectively-busted hero.
+        stack_meaningful = (hero and hero.stack >= 0.05)
+
         if ActionType.FOLD in valid_types:
             self.fold_btn.show(); self.fold_btn.setEnabled(True)
         if ActionType.CHECK in valid_types:
             self.check_btn.show(); self.check_btn.setEnabled(True)
         if ActionType.CALL in valid_types:
-            self.call_btn.setText(f"CALL  {to_call:.1f}")
+            self.call_btn.setText(f"CALL  {to_call:.1f} bb")
             self.call_btn.show(); self.call_btn.setEnabled(True)
-        elif to_call > 0 and ActionType.ALL_IN in valid_types and hero and hero.stack > 0:
-            # Calling requires going all-in — still surface a green CALL button.
-            self.call_btn.setText(f"CALL ALL-IN  {hero.stack:.0f}")
+        elif (to_call > 0 and ActionType.ALL_IN in valid_types and stack_meaningful):
+            # Calling requires going all-in — surface the green CALL button.
+            self.call_btn.setText(f"CALL ALL-IN  {hero.stack:.1f}")
             self.call_btn.show(); self.call_btn.setEnabled(True)
         if ActionType.BET in valid_types:
             self.raise_btn.setText("BET")
@@ -537,9 +544,9 @@ class PlaySessionScreen(QWidget):
         if ActionType.RAISE in valid_types:
             self.raise_btn.setText("RAISE")
             self.raise_btn.show(); self.raise_btn.setEnabled(True)
-        if hero and hero.stack > 0 and to_call < hero.stack:
+        if stack_meaningful and to_call < hero.stack:
             # Only show explicit ALL-IN when it's distinct from "call all-in"
-            self.allin_btn.setText(f"ALL-IN  {hero.stack:.0f}")
+            self.allin_btn.setText(f"ALL-IN  {hero.stack:.1f}")
             self.allin_btn.show(); self.allin_btn.setEnabled(True)
 
     def _on_complete(self):

@@ -419,14 +419,17 @@ class TournamentSimulatorScreen(QWidget):
         self.allin_btn.setObjectName("ActionAllin")
         self.allin_btn.clicked.connect(lambda: self._hero_action(ActionType.ALL_IN))
 
+        from PySide6.QtWidgets import QSizePolicy
         for b in (self.fold_btn, self.check_btn, self.call_btn, self.raise_btn, self.allin_btn):
-            # 160px fits "CALL ALL-IN 100.0 bb" comfortably even when 5 buttons share the row
+            # Min width fits "CALL ALL-IN  100.0 bb"; equal stretch reflows
+            # cleanly when the user toggles sidebar/coach.
             b.setMinimumWidth(160)
-            b.setMinimumHeight(46)
+            b.setMinimumHeight(48)
             b.setCursor(Qt.PointingHandCursor)
-            actions_box.addWidget(b)
+            b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            actions_box.addWidget(b, 1)
 
-        dl.addLayout(actions_box, 3)
+        dl.addLayout(actions_box, 4)
         return deck
 
     # ── GAME LOOP ─────────────────────────────────────────────────
