@@ -1,0 +1,286 @@
+/* poker-table.css — visual spec for the PokerTable component.
+   All tokens reference theme.css. No new colors introduced. */
+
+/* ───────── TABLE CONTAINER ───────── */
+.pt {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  overflow: hidden;
+  font-family: 'Space Grotesk', sans-serif;
+}
+.pt--grid {
+  background:
+    repeating-linear-gradient(0deg,  var(--grid-line) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px 64px),
+    var(--bg);
+}
+
+/* the table felt (stadium / hex / rect) */
+.pt-felt {
+  position: absolute;
+  top: 12%; left: 8%; right: 8%; bottom: 12%;
+  border: 2px solid var(--line-2);
+  background:
+    radial-gradient(ellipse 70% 60% at center,
+      color-mix(in oklch, var(--accent) 14%, transparent),
+      transparent 80%);
+  z-index: 1;
+}
+.pt-felt--stadium { border-radius: 50% / 40%; }
+.pt-felt--hex     { clip-path: polygon(8% 0, 92% 0, 100% 50%, 92% 100%, 8% 100%, 0 50%); border-radius: 0; }
+.pt-felt--rect    { border-radius: 0; }
+
+/* a softer inner ring of light */
+.pt-felt__glow {
+  position: absolute;
+  top: 18%; left: 14%; right: 14%; bottom: 18%;
+  background:
+    radial-gradient(ellipse 60% 50% at center,
+      color-mix(in oklch, var(--accent) 8%, transparent),
+      transparent 75%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ───────── CENTER: pot + board + street ───────── */
+.pt-center {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  z-index: 4;
+}
+.pt-board {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  background: rgba(0,0,0,0.22);
+  border: 1px solid var(--line-2);
+}
+.pt-board__placeholder {
+  width: 38px; height: 52px;
+  border: 1px dashed var(--line-2);
+  background: transparent;
+}
+.pt-center__lbl {
+  letter-spacing: 0.22em !important;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.pt-pot {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 40px;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.pt-pot--xl { font-size: 64px; letter-spacing: -0.05em; }
+.pt-pot small {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-left: 6px;
+}
+.pt-pot--xl small { font-size: 18px; }
+.pt-center__sub {
+  margin-top: 4px;
+  color: var(--dim);
+  letter-spacing: 0.16em !important;
+}
+
+/* ───────── SEAT ───────── */
+.pt-seat {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  z-index: 3;
+  min-width: 116px;
+  transition: opacity 240ms ease;
+}
+.pt-seat__tag {
+  font-size: 9px !important;
+  letter-spacing: 0.2em !important;
+  padding: 1px 4px;
+  margin-bottom: -2px;
+}
+.pt-seat--hero .pt-seat__tag { color: var(--accent); }
+.pt-seat--villain .pt-seat__tag { color: var(--danger-2); }
+
+.pt-seat__card {
+  border: 1px solid var(--line-2);
+  background: var(--bg-2);
+  padding: 8px 12px;
+  min-width: 116px;
+  position: relative;
+}
+.pt-seat--hero .pt-seat__card {
+  border-color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 10%, var(--bg-2));
+}
+.pt-seat--villain .pt-seat__card {
+  border-color: var(--danger);
+  background: color-mix(in oklch, var(--danger) 8%, var(--bg-2));
+}
+.pt-seat--out .pt-seat__card,
+.pt-seat--folded .pt-seat__card { opacity: 0.44; }
+
+.pt-seat__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.pt-seat__pos {
+  color: var(--muted);
+  letter-spacing: 0.14em !important;
+}
+.pt-seat--hero .pt-seat__pos { color: var(--accent); }
+.pt-seat--villain .pt-seat__pos { color: var(--danger-2); }
+.pt-seat__stk {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.pt-seat__name {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  margin-top: 2px;
+}
+
+/* thin timebank meter under stack */
+.pt-seat__timebank {
+  margin-top: 6px;
+  height: 2px;
+  background: var(--line);
+  position: relative;
+}
+.pt-seat__timebank i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent);
+}
+
+/* action label below seat */
+.pt-seat__act {
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  letter-spacing: 0.14em !important;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+.pt-seat__act--fold {
+  background: var(--bg-2); color: var(--muted); border-color: var(--line-2);
+}
+.pt-seat__act--check {
+  background: var(--bg-2); color: var(--info); border-color: var(--info);
+}
+.pt-seat__act--call {
+  background: var(--info); color: var(--bg);
+}
+.pt-seat__act--raise {
+  background: var(--danger); color: #fff;
+}
+.pt-seat__act--jam {
+  background: var(--danger); color: #fff;
+  border: 2px solid var(--danger-2);
+}
+
+/* empty seat placeholder */
+.pt-seat--empty .pt-seat__card {
+  border: 1px dashed var(--line-2);
+  background: transparent;
+  opacity: 0.5;
+}
+.pt-seat__empty {
+  font-size: 10px;
+  color: var(--dim);
+  letter-spacing: 0.18em;
+  text-align: center;
+}
+
+/* ───────── DEALER BUTTON ───────── */
+.pt-button {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 22px; height: 22px;
+  background: var(--ink);
+  color: var(--bg);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+  z-index: 5;
+  letter-spacing: 0 !important;
+}
+
+/* ───────── BET CHIPS at seats ───────── */
+.pt-bet {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  z-index: 3;
+}
+.pt-bet__val {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.pt-bet--hero .pt-bet__val    { color: var(--accent); }
+.pt-bet--villain .pt-bet__val { color: var(--danger-2); }
+
+/* ───────── HOLE CARDS ───────── */
+.pt-hole {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  gap: 6px;
+  z-index: 3;
+}
+.pt-hole--small { gap: 2px; }
+.pt-hole--small .pc { width: 22px; height: 30px; font-size: 13px; }
+.pt-hole--small .pc__suit { font-size: 8px; bottom: 2px; right: 3px; }
+
+/* ───────── DIM FOLDED SEATS ───────── */
+.pt-seat--folded { opacity: 0.6; }
+.pt-seat--folded .pt-seat__pos { color: var(--dim); }
+.pt-seat--folded .pt-seat__stk { color: var(--dim); }
+
+/* ───────── ANNOTATION LINES (spec view only) ───────── */
+.pt-annot {
+  position: absolute;
+  pointer-events: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  z-index: 6;
+}
+.pt-annot__line {
+  position: absolute;
+  background: var(--accent);
+}
+.pt-annot__dot {
+  position: absolute;
+  width: 6px; height: 6px;
+  background: var(--accent);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+}

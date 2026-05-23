@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<title>Poke — Style Guide</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="theme.css">
+<style>
+  body { overflow: auto; }
+  .sg { max-width: 1480px; margin: 0 auto; padding: 48px 40px 80px; }
+  .sg__hero {
+    padding: 56px 0 40px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 56px;
+  }
+  .sg__num {
+    font-family: 'JetBrains Mono'; font-size: 11px; color: var(--muted);
+    letter-spacing: 0.16em; margin-bottom: 16px;
+  }
+  .sg__title {
+    font-family: 'Space Grotesk'; font-weight: 700;
+    font-size: clamp(48px, 8vw, 120px);
+    letter-spacing: -0.05em; line-height: 0.9; margin: 0 0 24px;
+  }
+  .sg__title em {
+    font-family: 'Instrument Serif'; font-style: italic; font-weight: 400; letter-spacing: -0.02em;
+  }
+  .sg__lede { font-size: 17px; color: var(--muted); max-width: 60ch; line-height: 1.5; }
+  .sg__meta { display: flex; gap: 18px; margin-top: 28px; flex-wrap: wrap; }
+  .sg__meta-cell {
+    padding: 10px 14px; border: 1px solid var(--line-2); background: var(--bg-2);
+    font-family: 'JetBrains Mono'; font-size: 11px; color: var(--ink-2);
+    letter-spacing: 0.06em;
+  }
+  .sg__meta-cell span { color: var(--muted); margin-right: 8px; }
+
+  .sec {
+    padding: 56px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .sec__hd {
+    display: grid; grid-template-columns: 80px 1fr auto; gap: 24px; align-items: baseline;
+    margin-bottom: 36px;
+  }
+  .sec__num {
+    font-family: 'JetBrains Mono'; font-size: 12px; color: var(--accent);
+    letter-spacing: 0.18em;
+  }
+  .sec__title {
+    font-family: 'Space Grotesk'; font-weight: 700;
+    font-size: clamp(28px, 4vw, 44px); letter-spacing: -0.04em; line-height: 1;
+    margin: 0;
+  }
+  .sec__title em { font-family: 'Instrument Serif'; font-style: italic; font-weight: 400; }
+  .sec__sub { font-family: 'JetBrains Mono'; font-size: 11px; color: var(--muted); letter-spacing: 0.08em; }
+
+  .swatch { display: grid; gap: 0; }
+  .swatch__row {
+    display: grid; grid-template-columns: 80px 1fr 110px 100px; gap: 0;
+    align-items: stretch; border-bottom: 1px solid var(--line);
+  }
+  .swatch__chip {
+    height: 56px; border-right: 1px solid var(--line);
+  }
+  .swatch__name { padding: 14px 18px; border-right: 1px solid var(--line); }
+  .swatch__name b { display: block; font-weight: 600; font-size: 14px; letter-spacing: -0.01em; }
+  .swatch__name span { font-family: 'JetBrains Mono'; font-size: 10px; color: var(--muted); letter-spacing: 0.08em; }
+  .swatch__token { padding: 14px 16px; font-family: 'JetBrains Mono'; font-size: 11px; color: var(--ink-2); border-right: 1px solid var(--line); }
+  .swatch__hex { padding: 14px 16px; font-family: 'JetBrains Mono'; font-size: 11px; color: var(--muted); }
+
+  .type-row {
+    display: grid; grid-template-columns: 130px 1fr 200px; gap: 24px;
+    padding: 20px 0; border-bottom: 1px solid var(--line);
+    align-items: baseline;
+  }
+  .type-row > .meta {
+    font-family: 'JetBrains Mono'; font-size: 10px; color: var(--muted);
+    letter-spacing: 0.12em; align-self: center;
+  }
+  .type-row > .spec {
+    font-family: 'JetBrains Mono'; font-size: 11px; color: var(--ink-2);
+    align-self: center; text-align: right;
+  }
+
+  .demo-grid { display: grid; gap: 18px; }
+  .gx-2 { grid-template-columns: repeat(2, 1fr); }
+  .gx-3 { grid-template-columns: repeat(3, 1fr); }
+  .gx-4 { grid-template-columns: repeat(4, 1fr); }
+
+  .icon-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 0;
+    border: 1px solid var(--line);
+  }
+  .icon-cell {
+    display: grid; place-items: center; gap: 6px;
+    padding: 18px; border: 1px solid var(--line); margin: -1px 0 0 -1px;
+    background: var(--surface);
+  }
+  .icon-cell svg { stroke: var(--ink); }
+  .icon-cell span { font-family: 'JetBrains Mono'; font-size: 10px; color: var(--muted); letter-spacing: 0.08em; }
+
+  .spacing-bar { display: flex; align-items: flex-end; gap: 14px; padding: 20px 0; }
+  .spacing-step {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .spacing-step__bar { background: var(--accent); width: 24px; }
+  .spacing-step__lbl { font-family: 'JetBrains Mono'; font-size: 10px; color: var(--muted); }
+
+  .kbd {
+    font-family: 'JetBrains Mono'; font-size: 11px;
+    padding: 3px 8px; border: 1px solid var(--line-2); background: var(--bg);
+    color: var(--accent); letter-spacing: 0.06em;
+  }
+  .demo-block {
+    padding: 24px; border: 1px solid var(--line); background: var(--surface);
+  }
+  .label-row { font-family:'JetBrains Mono'; font-size:10px; letter-spacing:0.12em; color: var(--muted); margin-bottom:10px; text-transform:uppercase; }
+
+  @media print {
+    body { background: white !important; color: black !important; }
+    .sec { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="ui.jsx"></script>
+
+<script type="text/babel">
+const { useState } = React;
+
+// ─── DATA ────────────────────────────────────────────────────────
+const COLORS = [
+  { tok: '--bg',         hex: '#0a0c0a', name: 'Background',     use: 'App background' },
+  { tok: '--bg-2',       hex: '#0f1210', name: 'Background alt', use: 'Sidebar, raised' },
+  { tok: '--surface',    hex: '#131613', name: 'Surface',        use: 'Cards, modals' },
+  { tok: '--surface-2',  hex: '#181b17', name: 'Surface alt',    use: 'Hover, headers' },
+  { tok: '--line',       hex: '#23271f', name: 'Line',           use: '1px hairlines' },
+  { tok: '--line-2',     hex: '#33382c', name: 'Line strong',    use: 'Strong borders' },
+  { tok: '--ink',        hex: '#f4f5ee', name: 'Ink',            use: 'Primary text' },
+  { tok: '--ink-2',      hex: '#d6d8cf', name: 'Ink secondary',  use: 'Secondary text' },
+  { tok: '--muted',      hex: '#898d80', name: 'Muted',          use: 'Labels, tertiary' },
+  { tok: '--dim',        hex: '#5a5e54', name: 'Dim',            use: 'Off-state' },
+  { tok: '--accent',     hex: 'oklch(72% 0.18 145)', name: 'Accent', use: 'Brand · CTA' },
+  { tok: '--danger',     hex: 'oklch(64% 0.22 25)',  name: 'Danger', use: 'Raise · error' },
+  { tok: '--warn',       hex: 'oklch(80% 0.16 80)',  name: 'Warn',   use: 'Caution' },
+  { tok: '--info',       hex: 'oklch(72% 0.14 235)', name: 'Info',   use: 'Fold · neutral' },
+];
+
+const TYPE_SCALE = [
+  { name:'H1 / Page title', sample:'Plug your leaks.', family:'Space Grotesk 700', size:'52px', spec:'-0.045em · 0.96 LH', cls:'t-display', style:{fontSize:52} },
+  { name:'H2 / Modal title', sample:'Trainer Scenario', family:'Space Grotesk 700', size:'22px', spec:'-0.03em', cls:'t-display', style:{fontSize:22} },
+  { name:'H3 / Section', sample:'Today\'s training block', family:'Space Grotesk 600', size:'14px', spec:'-0.01em', style:{fontFamily:'Space Grotesk', fontWeight:600, fontSize:14, letterSpacing:'-0.01em'} },
+  { name:'Body', sample:'Drill solver-verified spots, get coached on your hands.', family:'Space Grotesk 500', size:'14px', spec:'1.4 LH', style:{fontSize:14, lineHeight:1.4} },
+  { name:'Caption', sample:'EV-loss trending down (-0.05bb/hand).', family:'Space Grotesk 500', size:'12px', spec:'muted', style:{fontSize:12, color:'var(--muted)'} },
+  { name:'Label', sample:'WINRATE · BB/100', family:'JetBrains Mono 500', size:'10px', spec:'0.12em · uppercase', cls:'t-label', style:{} },
+  { name:'KPI Value', sample:'7.2', family:'Space Grotesk 700', size:'40px', spec:'tabular-nums', style:{fontFamily:'Space Grotesk', fontWeight:700, fontSize:40, letterSpacing:'-0.04em', fontVariantNumeric:'tabular-nums'} },
+  { name:'KPI Value Lg', sample:'2.50', family:'Space Grotesk 700', size:'64px', spec:'-0.05em · tabular', style:{fontFamily:'Space Grotesk', fontWeight:700, fontSize:64, letterSpacing:'-0.05em', fontVariantNumeric:'tabular-nums'} },
+  { name:'Editorial italic', sample:'— Sharpen your edge.', family:'Instrument Serif 400 italic', size:'inherits', spec:'inside <em>', style:{fontFamily:'Instrument Serif', fontStyle:'italic', fontSize:36, letterSpacing:'-0.02em'} },
+  { name:'Mono / data', sample:'1422 · −0.84 · 38%', family:'JetBrains Mono 500', size:'13px', spec:'tabular-nums', style:{fontFamily:'JetBrains Mono', fontVariantNumeric:'tabular-nums', fontSize:13} },
+];
+
+const ICONS = [
+  'home','play','target','grid','leak','brain','chart','book','crown','sparkles','bolt','history',
+  'cards','coach','settings','moon','sun','search','arrowR','arrowL','plus','x','check','chip',
+  'flame','flag','save','filter','chev','eye','spade','diamond','heart','club','upload','refresh','note',
+];
+
+const SPACING = [4, 6, 8, 12, 16, 20, 24, 32, 48, 64];
+
+// ─── COMPONENTS ──────────────────────────────────────────────────
+function StyleGuide() {
+  return (
+    <div className="sg">
+      <Hero/>
+      <Section n="01" t="Color" sub="14 tokens">
+        <ColorPalette/>
+      </Section>
+      <Section n="02" t={`<em>Type</em> · 3 families`} sub="space grotesk · jetbrains mono · instrument serif">
+        <TypeScale/>
+      </Section>
+      <Section n="03" t="Spacing & Borders" sub="0 radius · 1px borders · 10 step scale">
+        <SpacingDemo/>
+      </Section>
+      <Section n="04" t="Buttons" sub="4 variants × 3 sizes">
+        <ButtonsDemo/>
+      </Section>
+      <Section n="05" t="Tags" sub="5 tones · with/without dot">
+        <TagsDemo/>
+      </Section>
+      <Section n="06" t="Stats / KPI" sub="primary metric pattern">
+        <StatsDemo/>
+      </Section>
+      <Section n="07" t="Controls" sub="seg · slider · toggle · input">
+        <ControlsDemo/>
+      </Section>
+      <Section n="08" t="Cards" sub="anatomy">
+        <CardsDemo/>
+      </Section>
+      <Section n="09" t="Poker primitives" sub="card · chip · seat · range">
+        <PokerDemo/>
+      </Section>
+      <Section n="10" t="Iconography" sub={`${ICONS.length} icons · 24×24 · 1.6 stroke`}>
+        <div className="icon-grid">
+          {ICONS.map(n => (
+            <div key={n} className="icon-cell">
+              <Icon name={n} size={20}/>
+              <span>{n}</span>
+            </div>
+          ))}
+        </div>
+      </Section>
+      <Section n="11" t="App layout" sub="sidebar + main + status">
+        <LayoutDemo/>
+      </Section>
+      <Section n="12" t="Keyboard" sub="every action without your mouse">
+        <KeyboardDemo/>
+      </Section>
+      <Section n="13" t={`<em>Don't</em> & Do`} sub="aesthetic rules">
+        <DosAndDonts/>
+      </Section>
+      <Footer/>
+    </div>
+  );
+}
+
+function Hero() {
+  return (
+    <div className="sg__hero">
+      <div className="sg__num">POKE / DESIGN SYSTEM · MAY 2026 · v0.9</div>
+      <h1 className="sg__title">A <em>brutalist editorial</em><br/>poker training OS.</h1>
+      <div className="sg__lede">
+        One language for 11 screens. Sharp corners, heavy display type, tabular monospace numbers.
+        Built for low cognitive load — every screen has one primary action, every spot has a number, every leak has a verdict.
+      </div>
+      <div className="sg__meta">
+        <div className="sg__meta-cell"><span>TYPE</span>Space Grotesk · JetBrains Mono · Instrument Serif</div>
+        <div className="sg__meta-cell"><span>ACCENT</span>oklch(72% 0.18 145) · LIME</div>
+        <div className="sg__meta-cell"><span>RADIUS</span>0px (sharp corners)</div>
+        <div className="sg__meta-cell"><span>STACK</span>HTML · React · CSS Grid</div>
+        <div className="sg__meta-cell"><span>TARGET</span>Desktop · 1280×800 minimum</div>
+      </div>
+    </div>
+  );
+}
+
+function Section({ n, t, sub, children }) {
+  return (
+    <section className="sec">
+      <div className="sec__hd">
+        <span className="sec__num">{n}</span>
+        <h2 className="sec__title" dangerouslySetInnerHTML={{__html: t}}/>
+        {sub && <span className="sec__sub">— {sub.toUpperCase()}</span>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ColorPalette() {
+  return (
+    <div className="swatch">
+      {COLORS.map(c => (
+        <div key={c.tok} className="swatch__row">
+          <div className="swatch__chip" style={{background: `var(${c.tok})`}}/>
+          <div className="swatch__name">
+            <b>{c.name}</b>
+            <span>{c.use}</span>
+          </div>
+          <div className="swatch__token">{c.tok}</div>
+          <div className="swatch__hex">{c.hex}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TypeScale() {
+  return (
+    <div>
+      {TYPE_SCALE.map(t => (
+        <div key={t.name} className="type-row">
+          <div className="meta">{t.name.toUpperCase()}</div>
+          <div className={t.cls} style={t.style}>{t.sample}</div>
+          <div className="spec">{t.family} · {t.size}<br/>{t.spec}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SpacingDemo() {
+  return (
+    <div>
+      <div className="label-row">SPACING SCALE · PX</div>
+      <div className="spacing-bar">
+        {SPACING.map(s => (
+          <div key={s} className="spacing-step">
+            <div className="spacing-step__bar" style={{height: s * 1.5}}/>
+            <span className="spacing-step__lbl">{s}</span>
+          </div>
+        ))}
+      </div>
+      <div className="hr"/>
+      <div className="label-row">BORDERS</div>
+      <div className="demo-grid gx-3">
+        <div className="demo-block" style={{border:'1px solid var(--line)'}}>
+          <div className="t-label" style={{marginBottom:8}}>1PX · LINE</div>
+          <div style={{fontFamily:'JetBrains Mono', fontSize:11, color:'var(--muted)'}}>--line · default hairline</div>
+        </div>
+        <div className="demo-block" style={{border:'1px solid var(--line-2)'}}>
+          <div className="t-label" style={{marginBottom:8}}>1PX · STRONG</div>
+          <div style={{fontFamily:'JetBrains Mono', fontSize:11, color:'var(--muted)'}}>--line-2 · interactive</div>
+        </div>
+        <div className="demo-block" style={{border:'2px solid var(--accent)'}}>
+          <div className="t-label" style={{marginBottom:8, color:'var(--accent)'}}>2PX · ACCENT</div>
+          <div style={{fontFamily:'JetBrains Mono', fontSize:11, color:'var(--muted)'}}>focus · active</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ButtonsDemo() {
+  return (
+    <div className="demo-grid" style={{gap:24}}>
+      <div>
+        <div className="label-row">VARIANTS</div>
+        <div style={{display:'flex', gap:10, flexWrap:'wrap'}}>
+          <Btn variant="primary" icon="play" kbd="↵">Start training</Btn>
+          <Btn icon="upload">Import HH</Btn>
+          <Btn variant="ghost" icon="filter">Filter</Btn>
+          <Btn variant="danger" icon="x">Reset</Btn>
+        </div>
+      </div>
+      <div>
+        <div className="label-row">SIZES</div>
+        <div style={{display:'flex', gap:10, alignItems:'center', flexWrap:'wrap'}}>
+          <Btn>Default</Btn>
+          <Btn lg variant="primary" icon="play">Large</Btn>
+          <Btn variant="ghost">With kbd <span className="k">⌘K</span></Btn>
+        </div>
+      </div>
+      <div>
+        <div className="label-row">BLOCK</div>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, maxWidth: 480}}>
+          <Btn block icon="target">Drill</Btn>
+          <Btn block variant="primary" icon="play">Continue</Btn>
+        </div>
+      </div>
+      <div>
+        <div className="label-row">DISABLED</div>
+        <Btn disabled icon="check">Disabled</Btn>
+      </div>
+    </div>
+  );
+}
+
+function TagsDemo() {
+  return (
+    <div className="demo-grid" style={{gap:18}}>
+      <div>
+        <div className="label-row">TONES · WITH DOT</div>
+        <div style={{display:'flex', gap:10, flexWrap:'wrap'}}>
+          <Tag dot>NEUTRAL</Tag>
+          <Tag tone="g" dot>ACTIVE</Tag>
+          <Tag tone="r" dot>CRITICAL</Tag>
+          <Tag tone="y" dot>MEDIUM</Tag>
+          <Tag tone="b" dot>FOLD</Tag>
+        </div>
+      </div>
+      <div>
+        <div className="label-row">TONES · WITHOUT DOT</div>
+        <div style={{display:'flex', gap:10, flexWrap:'wrap'}}>
+          <Tag>3B</Tag>
+          <Tag tone="g">CLEAN</Tag>
+          <Tag tone="r">LEARN</Tag>
+          <Tag tone="y">PRO</Tag>
+          <Tag tone="b">PREFLOP</Tag>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatsDemo() {
+  return (
+    <div className="demo-grid gx-4">
+      <Stat label="WINRATE" value="7.2" unit="bb/100" delta="1.4" deltaSign="+" sub="vs last 7d"/>
+      <Stat label="EV-LOSS" value="0.17" unit="bb/h" delta="0.05" deltaSign="−" sub="trending down"/>
+      <Stat label="STREAK"  value="14" unit="d" delta="1" deltaSign="+" sub="best yet"/>
+      <Stat label="VERDICT" value="JAM" mono sub="solver agrees"/>
+    </div>
+  );
+}
+
+function ControlsDemo() {
+  const [seg, setSeg] = useState('30d');
+  return (
+    <div className="demo-grid" style={{gap:24}}>
+      <div>
+        <div className="label-row">SEG · SEGMENTED CONTROL</div>
+        <div style={{display:'flex', gap:14, flexWrap:'wrap'}}>
+          <Seg options={['7d','30d','All']} value={seg} onChange={setSeg}/>
+          <Seg options={[{value:'r',label:'RAISE'},{value:'c',label:'CALL'},{value:'f',label:'FOLD'}]} value="r" onChange={() => {}}/>
+        </div>
+      </div>
+      <div>
+        <div className="label-row">SLIDER / RANGE</div>
+        <div style={{display:'flex', alignItems:'center', gap:14, maxWidth: 480}}>
+          <span className="t-label">SIZE</span>
+          <input type="range" min="0" max="100" defaultValue="65" style={{flex:1, accentColor:'var(--accent)'}}/>
+          <div style={{border:'1px solid var(--line-2)', padding:'6px 12px', minWidth:80, background:'var(--bg)'}} className="t-mono">15.0 bb</div>
+        </div>
+      </div>
+      <div>
+        <div className="label-row">TOGGLE</div>
+        <div style={{display:'flex', gap:24}}>
+          <Toggle label="On" on={true}/>
+          <Toggle label="Off" on={false}/>
+        </div>
+      </div>
+      <div>
+        <div className="label-row">INPUT</div>
+        <div style={{maxWidth: 320}}>
+          <input className="input" placeholder="Search hands, ranges, concepts…"/>
+        </div>
+      </div>
+      <div>
+        <div className="label-row">PROGRESS BAR</div>
+        <div style={{maxWidth: 480, display:'grid', gap:8}}>
+          <Bar value={84} tone="g"/>
+          <Bar value={48} tone="y"/>
+          <Bar value={28} tone="r"/>
+        </div>
+      </div>
+    </div>
+  );
+}
+function Toggle({ on, label }) {
+  return (
+    <div style={{display:'flex', alignItems:'center', gap:10}}>
+      <span style={{width:36, height:18, border:'1px solid var(--line-2)', background: on ? 'var(--accent)' : 'var(--bg)', position:'relative'}}>
+        <span style={{position:'absolute', top:1, left: on ? 18 : 1, width:14, height:14, background: on ? 'var(--accent-ink)' : 'var(--muted)'}}/>
+      </span>
+      <span style={{fontSize:13, color: on ? 'var(--ink)' : 'var(--muted)'}}>{label}</span>
+    </div>
+  );
+}
+
+function CardsDemo() {
+  return (
+    <div className="demo-grid gx-2">
+      <Card num="A1" title="Today's training block" sub="4 SPOTS · ~25 MIN" action={<Btn variant="ghost" icon="refresh">Re-roll</Btn>}>
+        <div className="t-label" style={{marginBottom:10}}>WITH HEADER · NUMBERED</div>
+        <div style={{fontSize:13, color:'var(--muted)', lineHeight:1.6}}>
+          Card header pattern: <code style={{fontFamily:'JetBrains Mono', color:'var(--ink-2)'}}>num · title · sub · action</code>.
+          Header has 14×18 padding and a hairline bottom border. Body has 18px padding by default.
+        </div>
+      </Card>
+      <Card title="No number">
+        <div className="t-label" style={{marginBottom:10}}>SIMPLE</div>
+        <div style={{fontSize:13, color:'var(--muted)', lineHeight:1.6}}>
+          Cards without a number prefix are also valid — typical for less structured screens like Coach or Welcome.
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function PokerDemo() {
+  return (
+    <div className="demo-grid" style={{gap:24}}>
+      <div>
+        <div className="label-row">POKER CARDS · 3 SIZES + BACK</div>
+        <div style={{display:'flex', gap:18, alignItems:'flex-end'}}>
+          <div style={{display:'flex', gap:4}}>
+            <PCard card="As" size="lg"/><PCard card="Ks" size="lg"/>
+          </div>
+          <div style={{display:'flex', gap:4}}>
+            <PCard card="Qh"/><PCard card="Jd"/>
+          </div>
+          <div style={{display:'flex', gap:3}}>
+            <PCard card="9c" size="xs"/><PCard card="8h" size="xs"/>
+          </div>
+          <div style={{display:'flex', gap:4}}>
+            <PCard back/><PCard back/>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div className="label-row">CHIP STACK</div>
+        <div style={{display:'flex', gap:24, alignItems:'flex-end'}}>
+          {[2, 3, 4, 5].map(n => (
+            <div key={n} style={{display:'flex', flexDirection:'column', alignItems:'center', gap:6}}>
+              <span className="chip-stack">
+                {Array.from({length: n}).map((_, i) => <i key={i}/>)}
+              </span>
+              <span className="t-label">{n} CHIPS</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div>
+        <div className="label-row">SEAT · 4 STATES</div>
+        <div style={{display:'flex', gap:14}}>
+          <Seat pos="HJ" stack="40.00" hero/>
+          <Seat pos="BTN" stack="33.10" villain/>
+          <Seat pos="UTG" stack="40.00" folded/>
+          <Seat pos="CO" stack="40.00"/>
+        </div>
+      </div>
+      <div>
+        <div className="label-row">13×13 RANGE GRID · TRI-COLOR (RAISE / CALL / FOLD)</div>
+        <div style={{maxWidth: 600}}>
+          <RangeGrid ranges={SAMPLE_RANGE_UTG}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Seat({ pos, stack, hero, villain, folded }) {
+  const ring = hero ? 'var(--accent)' : villain ? 'var(--danger)' : 'var(--line-2)';
+  return (
+    <div style={{border:`1px solid ${ring}`, background:'var(--bg-2)', padding:'7px 14px', minWidth: 108, opacity: folded ? 0.36 : 1}}>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline'}}>
+        <span className="t-label" style={{color: hero ? 'var(--accent)' : 'var(--muted)'}}>{pos}</span>
+        <span className="t-mono" style={{fontSize:13, fontWeight:500}}>{stack}</span>
+      </div>
+    </div>
+  );
+}
+
+function LayoutDemo() {
+  return (
+    <div style={{
+      border:'1px solid var(--line-2)', height: 320,
+      display:'grid', gridTemplateColumns:'140px 1fr', gridTemplateRows:'40px 1fr 24px',
+      gridTemplateAreas: '"nav top" "nav main" "nav bot"',
+    }}>
+      <div style={{gridArea:'nav', background:'var(--bg-2)', borderRight:'1px solid var(--line)', padding:16}}>
+        <div style={{fontFamily:'Space Grotesk', fontWeight:700, fontSize:18, letterSpacing:'-0.04em'}}>poke<span style={{color:'var(--accent)'}}>.</span></div>
+        <div className="t-label" style={{marginTop:8}}>SIDEBAR · 232PX</div>
+        <div style={{marginTop:14, display:'grid', gap:6}}>
+          {['Dashboard','Live Table','Trainer','Studio'].map((s, i) => (
+            <div key={s} className="t-mono" style={{fontSize:11, color: i === 1 ? 'var(--accent)' : 'var(--muted)', padding: '4px 0', borderLeft: i === 1 ? '2px solid var(--accent)' : '2px solid transparent', paddingLeft:8}}>{s}</div>
+          ))}
+        </div>
+      </div>
+      <div style={{gridArea:'top', borderBottom:'1px solid var(--line)', padding:'0 16px', display:'flex', alignItems:'center', gap:10}}>
+        <span className="t-mono" style={{fontSize:10, color:'var(--dim)'}}>01 /</span>
+        <span style={{fontSize:13, fontWeight:600}}>Live Table</span>
+        <span className="t-label" style={{marginLeft:'auto'}}>RTA-GUARD ACTIVE</span>
+      </div>
+      <div style={{gridArea:'main', padding:16, display:'grid', placeItems:'center'}}>
+        <div style={{fontFamily:'Instrument Serif', fontStyle:'italic', fontSize:32, color:'var(--muted)', textAlign:'center'}}>
+          Main scroll area
+          <br/>
+          <span className="t-label" style={{fontFamily:'JetBrains Mono', fontStyle:'normal', display:'block', marginTop:8}}>PAGE OR FULL-BLEED</span>
+        </div>
+      </div>
+      <div style={{gridArea:'bot', borderTop:'1px solid var(--line)', background:'var(--bg-2)', padding:'0 16px', display:'flex', alignItems:'center', gap:14}}>
+        <span className="t-label" style={{color:'var(--accent)'}}>● CONNECTED</span>
+        <span className="t-label">SOLVER CACHE 84%</span>
+      </div>
+    </div>
+  );
+}
+
+function KeyboardDemo() {
+  const groups = [
+    { t: "NAV", items: [["Dashboard","1"],["Live Table","2"],["Trainer","3"],["Tournament","4"],["Studio","5"],["Leaks","6"],["Analyzer","7"],["Library","8"],["Coach","9"],["Reports","0"]] },
+    { t: "LIVE TABLE", items: [["Fold","F"],["Call","C"],["Raise","R"],["All-in","A"],["Next hand","SPACE"]] },
+    { t: "GLOBAL", items: [["Coach","?"],["Settings",","],["Welcome","W"],["Close modal","ESC"]] },
+  ];
+  return (
+    <div className="demo-grid gx-3">
+      {groups.map(g => (
+        <div key={g.t}>
+          <div className="label-row">{g.t}</div>
+          <div style={{display:'grid', gap:4}}>
+            {g.items.map(([l, k]) => (
+              <div key={l} style={{display:'flex', justifyContent:'space-between', padding:'8px 12px', border:'1px solid var(--line)', background:'var(--bg-2)'}}>
+                <span style={{fontSize:13}}>{l}</span>
+                <span className="kbd">{k}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DosAndDonts() {
+  const rows = [
+    { d: "❌ Don't", items: [
+      "Round corners — radius is 0 everywhere.",
+      "Drop shadows or glassmorphism.",
+      "New accent colors — stick to 4 semantic.",
+      "Inter / Roboto / system fonts.",
+      "Decorative animations on non-info elements.",
+      "Emoji except 🔥 for streaks (debatable).",
+      "Filler copy like 'Expected Value Loss'. Use 'EV-LOSS'.",
+    ]},
+    { d: "✅ Do", items: [
+      "Use tabular-nums on every changing number.",
+      "Number cards (A1, B2) and sections.",
+      "Italic <em> for editorial accents only.",
+      "Resize-aware layouts via <Split>.",
+      "One primary action per page.",
+      "JetBrains Mono uppercase for section labels.",
+      "Test at 1180px (collapse) and 920px (further collapse).",
+    ]},
+  ];
+  return (
+    <div className="demo-grid gx-2" style={{gap:18}}>
+      {rows.map(r => (
+        <div key={r.d} style={{padding:24, border:'1px solid var(--line)', background:'var(--surface)'}}>
+          <div style={{fontFamily:'Space Grotesk', fontWeight:700, fontSize:24, letterSpacing:'-0.03em', marginBottom:16}}>{r.d}</div>
+          <ul style={{margin:0, padding:0, listStyle:'none'}}>
+            {r.items.map((it, i) => (
+              <li key={i} style={{padding:'10px 0', borderBottom: i < r.items.length-1 ? '1px dashed var(--line)' : '0', fontSize:13, color:'var(--ink-2)'}}>{it}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Footer() {
+  return (
+    <div style={{padding:'40px 0 0', borderTop:'1px solid var(--line)', marginTop:32, display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, alignItems:'baseline'}}>
+      <div>
+        <div className="t-label" style={{marginBottom:6}}>POKE / DESIGN SYSTEM</div>
+        <div style={{fontSize:13, color:'var(--muted)', lineHeight:1.5, maxWidth:'52ch'}}>
+          For interactive walkthrough open <code style={{fontFamily:'JetBrains Mono', color:'var(--accent)'}}>Poke.html</code>.
+          For PySide6 implementation see <code style={{fontFamily:'JetBrains Mono', color:'var(--accent)'}}>HANDOFF.md</code>.
+          For text spec see <code style={{fontFamily:'JetBrains Mono', color:'var(--accent)'}}>UI_GUIDE.md</code>.
+        </div>
+      </div>
+      <div style={{textAlign:'right'}}>
+        <div className="t-label">v0.9 · MAY 17 2026</div>
+        <div style={{fontFamily:'Instrument Serif', fontStyle:'italic', fontSize:24, color:'var(--muted)', marginTop:6}}>Print or screenshot for Figma reference.</div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<StyleGuide/>);
+</script>
+</body>
+</html>

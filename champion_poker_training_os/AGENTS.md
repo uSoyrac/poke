@@ -18,6 +18,10 @@ sidebar nav.
 - **Test:** `.venv/bin/python -m pytest tests/ -q` (42 tests, all expected
   to pass)
 - **Repo:** https://github.com/uSoyrac/poke.git (branch `main`)
+- **Design source bundle URLs** (only fetch if you need binary assets;
+  the relevant text files are mirrored at `docs/design/`):
+  - Poker Table — `https://api.anthropic.com/v1/design/h/F_M6HFBVSLnhvl1LEi-r0g?open_file=Poker+Table.html`
+  - Style Guide — `https://api.anthropic.com/v1/design/h/zXOGR9AImpY9DLg-rtRoDA?open_file=Style+Guide.html`
 
 ---
 
@@ -26,7 +30,7 @@ sidebar nav.
 | Concern | File |
 |---|---|
 | Design tokens, type, animations | `app/ui/theme/dark_flat.qss` (Qt port of `theme.css` from the design bundle) |
-| Style Guide reference | `/tmp/style_guide_design/poke/project/UI_GUIDE.md` (gone on reboot — re-fetch from `https://api.anthropic.com/v1/design/h/zXOGR9AImpY9DLg-rtRoDA` if needed) |
+| **Design source — read FIRST** | `docs/design/` — mirrored copies of `UI_GUIDE.md`, `theme.css`, `poker-table.css`, `poker-table.jsx`, `Poker-Table.html`, `Style-Guide.html`. See `docs/design/README.md` for what each file is for. |
 | Poker felt / seats / chips | `app/ui/components/poker_table.py` (`LivePokerTable`, `SeatState`, `seats_from_hand`) — **legacy** `PokerTableView` kept here too because trainer screens still import it |
 | Card rendering (4-Color Deck) | `app/ui/components/card_view.py` — `SUIT_COLORS` maps each suit to its hex |
 | Shortcut registry | `app/ui/components/shortcuts.py` (`SHORTCUTS` list + `ShortcutsDialog`) |

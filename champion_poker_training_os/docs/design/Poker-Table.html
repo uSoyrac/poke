@@ -1,0 +1,909 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Poke · Poker Table Spec</title>
+<link rel="stylesheet" href="theme.css"/>
+<link rel="stylesheet" href="poker-table.css"/>
+<style>
+  /* Override design-canvas warm-paper bg with Poke dark to match design system */
+  body, .dc-canvas, [data-dc-canvas] { background: #18170f !important; }
+  /* Spec-page typography hooks */
+  .spec-section-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 28px;
+    letter-spacing: -0.04em;
+    color: var(--ink);
+  }
+  .spec-section-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  .spec-card-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  /* Spec sheet */
+  .spec-sheet {
+    background: var(--bg);
+    color: var(--ink);
+    padding: 32px 36px;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .spec-sheet h2 {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+  }
+  .spec-sheet h2 .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.16em;
+    margin-right: 10px;
+  }
+  .spec-sheet p, .spec-sheet li {
+    font-size: 12.5px;
+    color: var(--ink-2);
+    line-height: 1.55;
+  }
+  .spec-sheet ul { padding-left: 18px; margin: 0 0 14px; }
+  .spec-sheet code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    padding: 1px 5px;
+    color: var(--accent);
+  }
+  .spec-sheet table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 16px;
+  }
+  .spec-sheet th, .spec-sheet td {
+    text-align: left;
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--line);
+    font-size: 11.5px;
+  }
+  .spec-sheet th {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 500;
+    font-size: 10px;
+    background: var(--bg-2);
+  }
+  .spec-sheet td.t-mono { font-family: 'JetBrains Mono', monospace; color: var(--ink); }
+  .spec-sheet .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .spec-sheet .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  /* swatch row inside spec sheet */
+  .sw-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin: 6px 0 14px; }
+  .sw {
+    height: 56px; border: 1px solid var(--line-2);
+    display: flex; flex-direction: column;
+    justify-content: space-between;
+    padding: 6px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    color: var(--ink-2);
+  }
+  .sw .v { font-size: 10px; color: var(--ink); }
+
+  /* component anatomy callouts */
+  .anatomy-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 24px;
+    padding: 32px;
+    background: var(--bg);
+    height: 100%;
+  }
+  .anatomy-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 18px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    position: relative;
+  }
+  .anatomy-cell .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 0.16em;
+  }
+  .anatomy-cell .name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .anatomy-cell .desc {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--muted);
+    line-height: 1.5;
+    letter-spacing: 0.04em;
+  }
+  .anatomy-stage {
+    width: 100%;
+    min-height: 140px;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    display: grid;
+    place-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* full-bleed table demo wrapper inside artboards */
+  .pt-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: var(--bg);
+  }
+
+  /* table header strip used on play scenarios */
+  .scn-strip {
+    position: absolute;
+    top: 14px; left: 14px;
+    display: flex; gap: 10px; align-items: center;
+    background: rgba(15,18,16,0.85);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--line-2);
+    padding: 8px 12px;
+    z-index: 8;
+  }
+  .scn-strip .ttl {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+  .scn-strip .sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* annotated table */
+  .annot-line {
+    stroke: var(--accent);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+    fill: none;
+  }
+  .annot-dot { fill: var(--accent); }
+  .annot-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    fill: var(--accent);
+    letter-spacing: 0.1em;
+  }
+
+  /* big page intro panel */
+  .intro-panel {
+    background: var(--bg);
+    color: var(--ink);
+    padding: 56px 64px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
+    border-right: 1px solid var(--line);
+  }
+  .intro-panel .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.18em;
+    margin-bottom: 18px;
+  }
+  .intro-panel h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 56px;
+    letter-spacing: -0.045em;
+    line-height: 0.95;
+    margin: 0 0 24px;
+  }
+  .intro-panel h1 em {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+  }
+  .intro-panel .lead {
+    font-size: 15px;
+    color: var(--ink-2);
+    line-height: 1.5;
+    max-width: 50ch;
+    margin-bottom: 32px;
+  }
+  .intro-panel .meta {
+    display: grid; grid-template-columns: repeat(3, auto); gap: 36px;
+    margin-top: auto;
+    padding-top: 24px; border-top: 1px solid var(--line);
+  }
+  .intro-panel .meta .k {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .intro-panel .meta .v {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: -0.03em;
+    margin-top: 4px;
+  }
+
+  /* tighten DC headers since we use dark scheme */
+  .dc-labeltext, .dc-section-title { color: #e8e6dc !important; }
+  .dc-subtitle, .dc-label { color: #a3a094 !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="poker-table.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+/* ─────────────────────────────────────────────────────────────
+   SCENARIOS — the table doesn't care; we just feed it props.
+   ───────────────────────────────────────────────────────────── */
+
+// 1. 8-MAX MTT preflop — current Poke default
+const SC_PREFLOP_8MAX = {
+  layout: "eight",
+  pot: 2.5,
+  street: "PREFLOP",
+  heroCards: ["As","3s"],
+  note: "BLINDS 0.5 / 1 · ANTE 12.5%",
+  bigPot: true,
+  seats: {
+    "UTG":   { stack: 40,   action: "FOLD", folded: true },
+    "UTG+1": { stack: 40,   action: "FOLD", folded: true },
+    "LJ":    { stack: 40,   action: "FOLD", folded: true },
+    "HJ":    { stack: 37.7, action: "RAISE", bet: 2.3, hero: true },
+    "CO":    { stack: 40,   action: "FOLD", folded: true },
+    "BTN":   { stack: 33.1, action: "3-BET", bet: 6.9, villain: true },
+    "SB":    { stack: 39.5, action: "FOLD", folded: true },
+    "BB":    { stack: 39,   action: "FOLD", folded: true },
+  },
+};
+
+// 2. 9-MAX live cash — pre-action
+const SC_PREFLOP_9MAX = {
+  layout: "nine",
+  pot: 1.5,
+  street: "PREFLOP",
+  heroCards: ["Kh","Kd"],
+  note: "BLINDS 0.5 / 1",
+  bigPot: true,
+  seats: {
+    "UTG":   { stack: 100, name: "P. Aoki" },
+    "UTG+1": { stack: 142, name: "T. Salov" },
+    "MP":    { stack: 98,  action: "FOLD", folded: true },
+    "LJ":    { stack: 220, name: "Vela" },
+    "HJ":    { stack: 100, hero: true, isActing: true },
+    "CO":    { stack: 87,  name: "K. Liu" },
+    "BTN":   { stack: 134, name: "J. Park" },
+    "SB":    { stack: 99.5, bet: 0.5 },
+    "BB":    { stack: 99,   bet: 1 },
+  },
+};
+
+// 3. 6-MAX cash — flop cbet
+const SC_FLOP_6MAX = {
+  layout: "six",
+  pot: 7,
+  street: "FLOP",
+  board: ["Qd","7h","2c"],
+  heroCards: ["Ah","Kc"],
+  note: "100bb CASH · 6-MAX",
+  seats: {
+    "UTG": { stack: 100, action: "FOLD", folded: true },
+    "HJ":  { stack: 100, action: "FOLD", folded: true },
+    "CO":  { stack: 100, action: "FOLD", folded: true },
+    "BTN": { stack: 97,  action: "RAISE", bet: 2.5, hero: true },
+    "SB":  { stack: 99.5, action: "FOLD", folded: true },
+    "BB":  { stack: 97.5, action: "CHECK", villain: true, isActing: true },
+  },
+};
+
+// 4. Heads-up — river bluff catch
+const SC_RIVER_HU = {
+  layout: "hu",
+  pot: 24,
+  street: "RIVER",
+  board: ["Ks","9d","4h","2c","Jc"],
+  heroCards: ["8h","8c"],
+  note: "100bb HU CASH",
+  seats: {
+    "BTN/SB": { stack: 67, action: "BET", bet: 18, villain: true },
+    "BB":     { stack: 76, action: "CHECK", hero: true, isActing: true },
+  },
+};
+
+// 5. 3-handed final table (ICM) — showdown
+const SC_SHOWDOWN_3 = {
+  layout: "three",
+  pot: 142,
+  street: "SHOWDOWN",
+  board: ["Ts","Th","6c","2d","Jh"],
+  heroCards: ["Ah","Ad"],
+  note: "FINAL TABLE · ICM · 1ST $128K",
+  seats: {
+    "BTN": { stack: 0,   action: "ALL-IN", hero: true, hole: ["Ah","Ad"] },
+    "SB":  { stack: 0,   action: "ALL-IN", villain: true, hole: ["Th","Jc"] },
+    "BB":  { stack: 220, action: "FOLD", folded: true },
+  },
+};
+
+// 6. Turn overbet defense
+const SC_TURN_OVERBET = {
+  layout: "six",
+  pot: 14,
+  street: "TURN",
+  board: ["Jc","8s","2d","Ah"],
+  heroCards: ["Qh","Jh"],
+  note: "100bb · TURN OVERBET",
+  seats: {
+    "UTG": { stack: 100, action: "FOLD", folded: true },
+    "HJ":  { stack: 100, action: "FOLD", folded: true },
+    "CO":  { stack: 100, action: "FOLD", folded: true },
+    "BTN": { stack: 75,  action: "BET", bet: 21, villain: true },
+    "SB":  { stack: 99.5, action: "FOLD", folded: true },
+    "BB":  { stack: 78,  action: "CHECK", hero: true, isActing: true },
+  },
+};
+
+// 7. Empty seats demo (cash table mid-fill)
+const SC_EMPTY = {
+  layout: "eight",
+  pot: 0,
+  street: "WAITING",
+  note: "WAITING FOR PLAYERS",
+  bigPot: true,
+  seats: {
+    "HJ":  { stack: 100, name: "Vela", hero: true },
+    "CO":  { stack: 87,  name: "K. Liu" },
+    "SB":  { stack: 220, name: "J. Park" },
+    "BB":  { stack: 134, name: "T. Salov" },
+  },
+};
+
+// 8. All-in showdown 8-max
+const SC_ALLIN_8 = {
+  layout: "eight",
+  pot: 162,
+  street: "SHOWDOWN",
+  board: ["Ks","Qs","2d","Jh","9s"],
+  heroCards: ["As","Ts"],
+  note: "ROYAL DRAW HIT · POT 162 BB",
+  seats: {
+    "UTG":   { stack: 200, action: "FOLD", folded: true },
+    "UTG+1": { stack: 200, action: "FOLD", folded: true },
+    "LJ":    { stack: 200, action: "FOLD", folded: true },
+    "HJ":    { stack: 200, action: "FOLD", folded: true },
+    "CO":    { stack: 0,   action: "ALL-IN", villain: true, hole: ["Kc","Qc"] },
+    "BTN":   { stack: 0,   action: "ALL-IN", hero: true },
+    "SB":    { stack: 199.5, action: "FOLD", folded: true },
+    "BB":    { stack: 199,   action: "FOLD", folded: true },
+  },
+};
+
+/* ─────────────────────────────────────────────────────────────
+   SCENARIO STRIP — small overlay in top-left of demo tables
+   ───────────────────────────────────────────────────────────── */
+function ScnStrip({ ttl, sub }) {
+  return (
+    <div className="scn-strip">
+      <span className="tag tag--g"><span className="dot"/>{sub.split(" · ")[0] || "LIVE"}</span>
+      <div>
+        <div className="ttl">{ttl}</div>
+        <div className="sub">{sub}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ANATOMY CELLS — small isolated component demos
+   ───────────────────────────────────────────────────────────── */
+function AnatomyCell({ label, name, desc, children }) {
+  return (
+    <div className="anatomy-cell">
+      <div className="label">{label}</div>
+      <div className="anatomy-stage">{children}</div>
+      <div>
+        <div className="name">{name}</div>
+        <div className="desc">{desc}</div>
+      </div>
+    </div>
+  );
+}
+
+/* Small inline seat used in anatomy */
+function StandaloneSeat({ tone = "default", action, bet, stack = 100, pos = "HJ", isActing = false, name }) {
+  const cls = [
+    "pt-seat",
+    `pt-seat--${tone}`,
+    isActing ? "pt-seat--acting anim-pulse" : "",
+  ].filter(Boolean).join(" ");
+  return (
+    <div className={cls} style={{ position:"relative", left:"auto", top:"auto", transform:"none" }}>
+      {(tone === "hero" || tone === "villain") && (
+        <div className="pt-seat__tag t-label">{tone === "hero" ? "HERO" : "VILLAIN"}</div>
+      )}
+      <div className="pt-seat__card">
+        <div className="pt-seat__row">
+          <span className="t-label pt-seat__pos">{pos}</span>
+          <span className="t-mono pt-seat__stk">{stack.toFixed(2)}</span>
+        </div>
+        {name && <div className="pt-seat__name t-mono">{name}</div>}
+      </div>
+      {action && (
+        <div className={`pt-seat__act t-label pt-seat__act--${
+          action === "FOLD" ? "fold" :
+          action === "CHECK" ? "check" :
+          action === "CALL" || action === "OPEN" ? "call" :
+          action === "ALL-IN" || action === "JAM" ? "jam" : "raise"
+        }`}>{action}{bet != null ? ` · ${bet.toFixed(1)}` : ""}</div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   INTRO PANEL — left-rail headline
+   ───────────────────────────────────────────────────────────── */
+function IntroPanel() {
+  return (
+    <div className="intro-panel">
+      <div className="num">P-01 / COMPONENT · POKERTABLE</div>
+      <h1>The <em>table.</em><br/>One component,<br/>every seat count.</h1>
+      <p className="lead">
+        Drop-in poker felt for every Poke screen — Live Table, Trainer, Tournament,
+        Analyzer, Hand Replayer. Parameterised by layout, seats and street.
+        Sharp corners, mono numbers, lime accent — Poke brutalist editorial,
+        end to end.
+      </p>
+      <div className="meta">
+        <div><div className="k">LAYOUTS</div><div className="v">5</div></div>
+        <div><div className="k">STREETS</div><div className="v">5</div></div>
+        <div><div className="k">SEAT STATES</div><div className="v">8</div></div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SPEC SHEET — the handoff document for Claude Code
+   ───────────────────────────────────────────────────────────── */
+function SpecSheet() {
+  return (
+    <div className="spec-sheet">
+      <div className="spec-section-sub" style={{marginBottom: 6}}>P-09 / SPEC</div>
+      <div className="spec-section-title" style={{marginBottom: 24}}>PokerTable — implementation spec</div>
+
+      <h2><span className="num">01</span>Files</h2>
+      <ul>
+        <li><code>poker-table.jsx</code> — React component (this canvas uses it directly)</li>
+        <li><code>poker-table.css</code> — all visual rules, tokens come from <code>theme.css</code></li>
+        <li>Drop both into <code>app/ui/components/poker_table/</code> and re-export from <code>ui.jsx</code></li>
+      </ul>
+
+      <h2><span className="num">02</span>Public API</h2>
+      <table>
+        <thead><tr><th>Prop</th><th>Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td className="t-mono">layout</td><td className="t-mono">"hu"|"three"|"six"|"eight"|"nine"</td><td>Seat geometry preset. See LAYOUTS in poker-table.jsx</td></tr>
+          <tr><td className="t-mono">seats</td><td className="t-mono">{`{ [pos]: SeatState }`}</td><td>Map keyed by position name</td></tr>
+          <tr><td className="t-mono">pot</td><td className="t-mono">number</td><td>Big blinds, animated via AnimatedNumber</td></tr>
+          <tr><td className="t-mono">board</td><td className="t-mono">string[] | null</td><td>Array of card codes ("As", "Kh"). Length 0–5</td></tr>
+          <tr><td className="t-mono">street</td><td className="t-mono">"PREFLOP"|"FLOP"|"TURN"|"RIVER"|"SHOWDOWN"</td><td>Drives center tag</td></tr>
+          <tr><td className="t-mono">heroCards</td><td className="t-mono">[string, string]</td><td>Always face-up, large</td></tr>
+          <tr><td className="t-mono">dealerPos</td><td className="t-mono">string</td><td>Where the D button sits. Default "BTN"</td></tr>
+          <tr><td className="t-mono">showOpponentBacks</td><td className="t-mono">boolean</td><td>Face-down cards at active seats. Default true</td></tr>
+          <tr><td className="t-mono">variant</td><td className="t-mono">"stadium"|"hex"|"rect"</td><td>Felt shape</td></tr>
+          <tr><td className="t-mono">bigPot</td><td className="t-mono">boolean</td><td>Use 64px pot (preflop) vs 40px (postflop)</td></tr>
+          <tr><td className="t-mono">grid</td><td className="t-mono">boolean</td><td>Show the 64px bg grid</td></tr>
+        </tbody>
+      </table>
+
+      <h2><span className="num">03</span>SeatState</h2>
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td className="t-mono">stack</td><td className="t-mono">number</td><td>Remaining bb. Always shown.</td></tr>
+          <tr><td className="t-mono">action</td><td className="t-mono">FOLD|CHECK|CALL|OPEN|RAISE|3-BET|4-BET|5-BET|BET|ALL-IN|JAM</td><td>Drives the colored action chip</td></tr>
+          <tr><td className="t-mono">bet</td><td className="t-mono">number</td><td>Chips committed this street; renders the floating chip stack</td></tr>
+          <tr><td className="t-mono">hero / villain</td><td className="t-mono">boolean</td><td>Mutually exclusive. Hero = accent, villain = danger</td></tr>
+          <tr><td className="t-mono">folded</td><td className="t-mono">boolean</td><td>Dims to 0.6 opacity</td></tr>
+          <tr><td className="t-mono">mucked</td><td className="t-mono">boolean</td><td>Plays .anim-muck on villain cards</td></tr>
+          <tr><td className="t-mono">isActing</td><td className="t-mono">boolean</td><td>Adds the accent pulse ring</td></tr>
+          <tr><td className="t-mono">hole</td><td className="t-mono">[string, string]</td><td>Villain showdown cards (face-up)</td></tr>
+          <tr><td className="t-mono">name</td><td className="t-mono">string</td><td>Optional player handle under stack</td></tr>
+          <tr><td className="t-mono">timebank</td><td className="t-mono">0-100</td><td>Optional progress meter</td></tr>
+        </tbody>
+      </table>
+
+      <h2><span className="num">04</span>Visual tokens — read from theme.css, do not duplicate</h2>
+      <div className="sw-row">
+        <div className="sw" style={{background:"var(--bg)"}}>FELT BG<span className="v">--bg</span></div>
+        <div className="sw" style={{background:"var(--bg-2)"}}>SEAT BG<span className="v">--bg-2</span></div>
+        <div className="sw" style={{background:"var(--line-2)"}}>SEAT BORDER<span className="v">--line-2</span></div>
+        <div className="sw" style={{background:"color-mix(in oklch, var(--accent) 14%, transparent)"}}>FELT GLOW<span className="v">accent 14%</span></div>
+      </div>
+      <div className="sw-row">
+        <div className="sw" style={{background:"var(--accent)", color:"var(--accent-ink)"}}>HERO RING<span className="v" style={{color:"var(--accent-ink)"}}>--accent</span></div>
+        <div className="sw" style={{background:"var(--danger)", color:"#fff"}}>VILLAIN RING<span className="v" style={{color:"#fff"}}>--danger</span></div>
+        <div className="sw" style={{background:"var(--info)", color:"#fff"}}>CALL CHIP<span className="v" style={{color:"#fff"}}>--info</span></div>
+        <div className="sw" style={{background:"var(--ink)", color:"var(--bg)"}}>D BUTTON<span className="v" style={{color:"var(--bg)"}}>--ink</span></div>
+      </div>
+
+      <h2><span className="num">05</span>Type · Sizes · Spacing</h2>
+      <table>
+        <thead><tr><th>Element</th><th>Family</th><th>Size</th><th>Letter spacing</th></tr></thead>
+        <tbody>
+          <tr><td>POT (big)</td><td>Space Grotesk 700</td><td className="t-mono">64px</td><td className="t-mono">-0.05em</td></tr>
+          <tr><td>POT (postflop)</td><td>Space Grotesk 700</td><td className="t-mono">40px</td><td className="t-mono">-0.045em</td></tr>
+          <tr><td>Pot unit "bb"</td><td>JetBrains Mono 500</td><td className="t-mono">14–18px</td><td className="t-mono">default</td></tr>
+          <tr><td>Stack value</td><td>JetBrains Mono 500</td><td className="t-mono">14px</td><td className="t-mono">tabular-nums</td></tr>
+          <tr><td>Seat position</td><td>JetBrains Mono 500</td><td className="t-mono">10px UPPER</td><td className="t-mono">0.14em</td></tr>
+          <tr><td>Action chip</td><td>JetBrains Mono 500</td><td className="t-mono">10px UPPER</td><td className="t-mono">0.14em</td></tr>
+          <tr><td>Street tag</td><td>JetBrains Mono 500</td><td className="t-mono">10px UPPER</td><td className="t-mono">0.12em</td></tr>
+        </tbody>
+      </table>
+      <ul>
+        <li>Seat card padding: <code>8px 12px</code> · min-width 116px</li>
+        <li>Felt inset: 12% top/bottom, 8% left/right (stadium) — radius <code>50% / 40%</code></li>
+        <li>Board card row sits 16–24px above the pot · 4px gap between cards</li>
+        <li>Dealer button: 22×22 disk, placed 18% from BTN toward center</li>
+        <li>Bet chips: 48% along the line from seat → center</li>
+        <li>Hero hole cards: 28% along the line from hero seat → center, size <code>pc--lg</code> (64×88)</li>
+      </ul>
+
+      <h2><span className="num">06</span>Animations (reuse theme.css)</h2>
+      <table>
+        <thead><tr><th>Event</th><th>Class</th><th>Duration / easing</th></tr></thead>
+        <tbody>
+          <tr><td>Deal hero cards</td><td className="t-mono">.anim-deal</td><td>480ms · overshoot</td></tr>
+          <tr><td>Acting seat ring</td><td className="t-mono">.anim-pulse</td><td>1500ms loop</td></tr>
+          <tr><td>Pot increments</td><td className="t-mono">.anim-pot-pop</td><td>520ms pop</td></tr>
+          <tr><td>Seat folds out</td><td className="t-mono">.anim-fold</td><td>280ms ease-out</td></tr>
+          <tr><td>Villain mucks</td><td className="t-mono">.anim-muck</td><td>520ms ease-in</td></tr>
+          <tr><td>Bet → pot chip flight</td><td className="t-mono">.bet-blob.is-moving</td><td>700ms snap (left/top transition)</td></tr>
+        </tbody>
+      </table>
+
+      <h2><span className="num">07</span>Layout positions (% inside felt box)</h2>
+      <div className="grid-3">
+        <div>
+          <div className="spec-card-label" style={{marginBottom:6}}>8-MAX (Poke default)</div>
+          <table>
+            <tbody>
+              <tr><td>UTG</td><td className="t-mono">50,6</td></tr>
+              <tr><td>UTG+1</td><td className="t-mono">75,10</td></tr>
+              <tr><td>LJ</td><td className="t-mono">92,30</td></tr>
+              <tr><td>HJ</td><td className="t-mono">92,70</td></tr>
+              <tr><td>CO</td><td className="t-mono">75,90</td></tr>
+              <tr><td>BTN</td><td className="t-mono">50,94</td></tr>
+              <tr><td>SB</td><td className="t-mono">25,90</td></tr>
+              <tr><td>BB</td><td className="t-mono">8,70</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <div className="spec-card-label" style={{marginBottom:6}}>6-MAX</div>
+          <table>
+            <tbody>
+              <tr><td>UTG</td><td className="t-mono">22,10</td></tr>
+              <tr><td>HJ</td><td className="t-mono">78,10</td></tr>
+              <tr><td>CO</td><td className="t-mono">95,52</td></tr>
+              <tr><td>BTN</td><td className="t-mono">75,92</td></tr>
+              <tr><td>SB</td><td className="t-mono">25,92</td></tr>
+              <tr><td>BB</td><td className="t-mono">5,52</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <div className="spec-card-label" style={{marginBottom:6}}>HEADS-UP / 3-HAND</div>
+          <table>
+            <tbody>
+              <tr><td>HU · BTN/SB</td><td className="t-mono">50,92</td></tr>
+              <tr><td>HU · BB</td><td className="t-mono">50,8</td></tr>
+              <tr><td>3H · BTN</td><td className="t-mono">50,92</td></tr>
+              <tr><td>3H · SB</td><td className="t-mono">8,35</td></tr>
+              <tr><td>3H · BB</td><td className="t-mono">92,35</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p style={{color:"var(--muted)", fontSize:11, fontFamily:"'JetBrains Mono', monospace", letterSpacing:"0.06em"}}>
+        Full 9-max layout lives in LAYOUTS.nine inside poker-table.jsx.
+      </p>
+
+      <h2><span className="num">08</span>Usage in each Poke screen</h2>
+      <table>
+        <thead><tr><th>Screen</th><th>Layout</th><th>Container size</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>01 / Live Table</td><td className="t-mono">eight</td><td>fill (Split right pane = coach)</td><td>showOpponentBacks=true</td></tr>
+          <tr><td>02 / Trainer</td><td className="t-mono">eight</td><td>360px tall in scenario card</td><td>bigPot=false, grid=false</td></tr>
+          <tr><td>03 / Tournament</td><td className="t-mono">three or six</td><td>fill</td><td>ICM banner overlays top-right</td></tr>
+          <tr><td>06 / Analyzer</td><td className="t-mono">six or eight</td><td>fill, locked aspect 16:9</td><td>Driven by replay timeline state</td></tr>
+          <tr><td>08 / AI Coach</td><td className="t-mono">six</td><td>240px tall inside chat msg</td><td>grid=false, variant="rect"</td></tr>
+        </tbody>
+      </table>
+
+      <h2><span className="num">09</span>Don't</h2>
+      <ul>
+        <li>Don't introduce new colors — only --accent / --danger / --info / --warn / --ink scale</li>
+        <li>Don't round seat cards. <code>border-radius: 0</code> everywhere except dealer button (50% disk)</li>
+        <li>Don't use drop shadows. Layer with borders + accent glows</li>
+        <li>Don't position seats with absolute px — always % inside a 100×100 felt box</li>
+        <li>Don't animate things that don't carry information</li>
+      </ul>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ROOT
+   ───────────────────────────────────────────────────────────── */
+function App() {
+  return (
+    <DesignCanvas>
+      {/* HEADLINE */}
+      <DCSection id="intro" title="Poker Table" subtitle="Component spec · Poke brutalist editorial">
+        <DCArtboard id="intro" label="00 · INTRO" width={620} height={720}>
+          <IntroPanel/>
+        </DCArtboard>
+        <DCArtboard id="hero" label="01 · 8-MAX MTT · PREFLOP" width={1100} height={720}>
+          <div className="pt-wrapper">
+            <ScnStrip ttl="40bb 8-MAX MTT" sub="HJ vs BTN 3-BET · PREFLOP"/>
+            <PokerTable {...SC_PREFLOP_8MAX}/>
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+      {/* SEAT COUNT VARIATIONS */}
+      <DCSection id="layouts" title="Seat counts" subtitle="HU · 3-hand · 6-max · 8-max · 9-max — same component">
+        <DCArtboard id="hu" label="HU · HEADS-UP" width={620} height={620}>
+          <div className="pt-wrapper">
+            <ScnStrip ttl="HU CASH · 100bb" sub="RIVER · BLUFF CATCH"/>
+            <PokerTable {...SC_RIVER_HU}/>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="three" label="3 · FINAL TABLE" width={620} height={620}>
+          <div className="pt-wrapper">
+            <ScnStrip ttl="WSOP · FINAL 3" sub="ICM · COOLER · ALL-IN"/>
+            <PokerTable {...SC_SHOWDOWN_3}/>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="six" label="6 · CASH 6-MAX" width={620} height={620}>
+          <div className="pt-wrapper">
+            <ScnStrip ttl="100bb · 6-MAX" sub="FLOP · CBET SPOT"/>
+            <PokerTable {...SC_FLOP_6MAX}/>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="eight" label="8 · 8-MAX MTT" width={620} height={620}>
+          <div className="pt-wrapper">
+            <ScnStrip ttl="40bb · 8-MAX MTT" sub="HJ VS BTN · 3-BET"/>
+            <PokerTable {...SC_PREFLOP_8MAX} bigPot={false}/>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="nine" label="9 · LIVE 9-MAX" width={620} height={620}>
+          <div className="pt-wrapper">
+            <ScnStrip ttl="LIVE · 9-MAX" sub="HJ TO ACT · PREFLOP"/>
+            <PokerTable {...SC_PREFLOP_9MAX} bigPot={false}/>
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+      {/* STATES BY STREET */}
+      <DCSection id="streets" title="Streets" subtitle="Preflop → Flop → Turn → River → Showdown · same component, different props">
+        <DCArtboard id="st-pre" label="PREFLOP" width={520} height={520}>
+          <div className="pt-wrapper">
+            <PokerTable {...SC_PREFLOP_8MAX} bigPot={false} grid={false}/>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="st-flop" label="FLOP" width={520} height={520}>
+          <div className="pt-wrapper">
+            <PokerTable {...SC_FLOP_6MAX} grid={false}/>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="st-turn" label="TURN" width={520} height={520}>
+          <div className="pt-wrapper">
+            <PokerTable {...SC_TURN_OVERBET} grid={false}/>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="st-river" label="RIVER" width={520} height={520}>
+          <div className="pt-wrapper">
+            <PokerTable {...SC_RIVER_HU} grid={false}/>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="st-show" label="SHOWDOWN" width={520} height={520}>
+          <div className="pt-wrapper">
+            <PokerTable {...SC_ALLIN_8} grid={false}/>
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+      {/* SEAT ANATOMY */}
+      <DCSection id="anatomy" title="Anatomy" subtitle="The atoms — seat tones, action chips, dealer + chip primitives">
+        <DCArtboard id="seat-tones" label="A · SEAT TONES" width={1100} height={520}>
+          <div className="anatomy-grid">
+            <AnatomyCell label="A1" name="Default seat" desc="Neutral player. Stack + position. 1px line-2 border.">
+              <StandaloneSeat tone="default" pos="CO" stack={87} name="K. Liu"/>
+            </AnatomyCell>
+            <AnatomyCell label="A2" name="Hero" desc="Accent border + label. Always anchored bottom of table.">
+              <StandaloneSeat tone="hero" pos="HJ" stack={37.7} action="RAISE" bet={2.3}/>
+            </AnatomyCell>
+            <AnatomyCell label="A3" name="Villain" desc="Danger border. The active opponent.">
+              <StandaloneSeat tone="villain" pos="BTN" stack={33.1} action="3-BET" bet={6.9}/>
+            </AnatomyCell>
+            <AnatomyCell label="A4" name="Folded" desc=".pt-seat--folded — 0.6 opacity, FOLD chip, fold-out animation.">
+              <StandaloneSeat tone="out" pos="UTG" stack={40} action="FOLD"/>
+            </AnatomyCell>
+            <AnatomyCell label="A5" name="Acting" desc=".anim-pulse — accent ring loop while it's your seat's turn.">
+              <StandaloneSeat tone="hero" pos="HJ" stack={37.7} isActing/>
+            </AnatomyCell>
+            <AnatomyCell label="A6" name="All-in" desc="JAM chip uses 2px danger border for emphasis.">
+              <StandaloneSeat tone="villain" pos="BTN" stack={0} action="ALL-IN"/>
+            </AnatomyCell>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="action-chips" label="B · ACTION CHIPS" width={1100} height={260}>
+          <div style={{display:"flex", gap:14, padding:32, flexWrap:"wrap", background:"var(--bg)", height:"100%", alignItems:"center"}}>
+            <div className="pt-seat__act pt-seat__act--fold">FOLD</div>
+            <div className="pt-seat__act pt-seat__act--check">CHECK</div>
+            <div className="pt-seat__act pt-seat__act--call">CALL · 4.6</div>
+            <div className="pt-seat__act pt-seat__act--call">OPEN · 2.2</div>
+            <div className="pt-seat__act pt-seat__act--raise">RAISE · 16.0</div>
+            <div className="pt-seat__act pt-seat__act--raise">3-BET · 6.9</div>
+            <div className="pt-seat__act pt-seat__act--raise">4-BET · 15.5</div>
+            <div className="pt-seat__act pt-seat__act--raise">BET · 21.0</div>
+            <div className="pt-seat__act pt-seat__act--jam">ALL-IN · 40</div>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="primitives" label="C · PRIMITIVES" width={1100} height={380}>
+          <div className="anatomy-grid" style={{gridTemplateColumns:"1fr 1fr 1fr 1fr"}}>
+            <AnatomyCell label="C1" name="Dealer button" desc="22×22 ink disk, mono D. Placed 18% toward center from BTN.">
+              <div className="pt-button" style={{position:"relative",left:"auto",top:"auto",transform:"none"}}><span className="t-mono">D</span></div>
+            </AnatomyCell>
+            <AnatomyCell label="C2" name="Chip stack" desc="1–5 stacked rectangles, semantic colored top bands.">
+              <Chips size={5}/>
+            </AnatomyCell>
+            <AnatomyCell label="C3" name="Bet chip" desc="Chip stack + mono bb value. Snaps to seat → center transition.">
+              <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:4}}>
+                <Chips size={3}/>
+                <span className="t-mono" style={{fontSize:11,fontWeight:500,color:"var(--danger-2)"}}>6.9 bb</span>
+              </div>
+            </AnatomyCell>
+            <AnatomyCell label="C4" name="Hole cards" desc="Hero pair uses pc--lg (64×88). Offset 28% toward center.">
+              <div style={{display:"flex", gap:6}}>
+                <MiniCard card="As" size="lg"/>
+                <MiniCard card="Ks" size="lg"/>
+              </div>
+            </AnatomyCell>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="center" label="D · CENTER (POT + STREET + BOARD)" width={1100} height={420}>
+          <div className="anatomy-grid">
+            <AnatomyCell label="D1" name="Preflop center" desc="No board · POT 64px hero number.">
+              <div style={{position:"relative",width:"100%",height:"100%"}}>
+                <TableCenterDemo pot={2.5} street="PREFLOP" big/>
+              </div>
+            </AnatomyCell>
+            <AnatomyCell label="D2" name="Flop center" desc="3-card board + 40px pot.">
+              <div style={{position:"relative",width:"100%",height:"100%"}}>
+                <TableCenterDemo pot={7} street="FLOP" board={["Qd","7h","2c"]}/>
+              </div>
+            </AnatomyCell>
+            <AnatomyCell label="D3" name="River center" desc="Full 5-card board + 40px pot.">
+              <div style={{position:"relative",width:"100%",height:"100%"}}>
+                <TableCenterDemo pot={24} street="RIVER" board={["Ks","9d","4h","2c","Jc"]}/>
+              </div>
+            </AnatomyCell>
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+      {/* USAGE CONTEXTS */}
+      <DCSection id="contexts" title="In context" subtitle="How the table sits inside each Poke screen">
+        <DCArtboard id="ctx-trainer" label="02 · TRAINER (scenario card)" width={720} height={440}>
+          <div style={{background:"var(--bg)", padding:24, height:"100%"}}>
+            <div className="t-label" style={{marginBottom:10}}>B1 · SCENARIO TABLE</div>
+            <div style={{border:"1px solid var(--line)", background:"var(--surface)", height: "calc(100% - 24px)", position:"relative", overflow:"hidden"}}>
+              <PokerTable {...SC_PREFLOP_8MAX} bigPot={false} grid={false}/>
+            </div>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="ctx-coach" label="08 · AI COACH (inline replay)" width={520} height={440}>
+          <div style={{background:"var(--bg)", padding:24, height:"100%", display:"flex", flexDirection:"column", gap:10}}>
+            <div className="t-label">CHAT · INLINE TABLE</div>
+            <div style={{padding:"10px 14px", border:"1px solid var(--line)", background:"var(--bg-2)", fontSize:13, color:"var(--ink-2)"}}>
+              "On this turn, why is folding QJ correct?"
+            </div>
+            <div style={{border:"1px solid var(--line)", background:"var(--surface)", height: 240, position:"relative", overflow:"hidden"}}>
+              <PokerTable {...SC_TURN_OVERBET} grid={false} variant="rect"/>
+            </div>
+            <div className="t-label" style={{color:"var(--accent)"}}>SOLVER · MDF 42% — VILLAIN POLAR RANGE</div>
+          </div>
+        </DCArtboard>
+        <DCArtboard id="ctx-empty" label="WAITING · LOBBY" width={720} height={440}>
+          <div className="pt-wrapper">
+            <ScnStrip ttl="STAKES OPEN · 0.5/1" sub="WAITING · 4/8 SEATED"/>
+            <PokerTable {...SC_EMPTY} grid={false}/>
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+      {/* HANDOFF SPEC */}
+      <DCSection id="spec" title="Handoff" subtitle="P-09 · feed this artboard to Claude Code">
+        <DCArtboard id="spec" label="SPEC SHEET" width={1100} height={1700}>
+          <SpecSheet/>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+/* Helper: a free-floating center used in anatomy stages */
+function TableCenterDemo({ pot, board, street, big }) {
+  return (
+    <div className="pt-center" style={{position:"relative", top:"auto", left:"auto", transform:"none"}}>
+      <span className="tag tag--g"><span className="dot"/>{street}</span>
+      {board && (
+        <div className="pt-board">
+          {board.map((c, i) => <MiniCard key={i} card={c}/>)}
+        </div>
+      )}
+      <div className="t-label pt-center__lbl">POT</div>
+      <div className={`pt-pot ${big ? "pt-pot--xl" : ""}`}>{pot.toFixed(2)}<small>bb</small></div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
