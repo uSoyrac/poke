@@ -132,7 +132,7 @@ class SidebarNav(QFrame):
         self.scroll.setWidget(body)
         root.addWidget(self.scroll, 1)
 
-        # Footer / user
+        # Footer / user + shortcut hint
         self._footer = QFrame()
         self._footer.setStyleSheet("border-top: 1px solid #23271f;")
         f_l = QVBoxLayout(self._footer)
@@ -145,6 +145,19 @@ class SidebarNav(QFrame):
         meta.setStyleSheet("color: #5ad17a;")
         f_l.addWidget(user)
         f_l.addWidget(meta)
+
+        # "Shortcuts ?" link — clicking opens the cheat-sheet dialog. The
+        # actual ? keystroke also opens it (wired in MainWindow), this
+        # button is the discoverable entry-point for mouse-driven users.
+        self.shortcuts_btn = QPushButton("Shortcuts  ?")
+        self.shortcuts_btn.setObjectName("NavButton")
+        self.shortcuts_btn.setCursor(Qt.PointingHandCursor)
+        self.shortcuts_btn.setStyleSheet(
+            "QPushButton#NavButton { padding-top: 8px; padding-bottom: 8px; "
+            "color: #898d80; font-size: 12px; }"
+            "QPushButton#NavButton:hover { color: #5ad17a; background: #131613; }"
+        )
+        f_l.addWidget(self.shortcuts_btn)
         root.addWidget(self._footer)
 
         if items:

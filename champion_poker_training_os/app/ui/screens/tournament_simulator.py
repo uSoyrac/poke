@@ -229,6 +229,11 @@ class TournamentSimulatorScreen(QWidget):
         self._build_play()
         # Spacebar = skip waiting period / advance to next hand
         QShortcut(QKeySequence(Qt.Key_Space), self, activated=self._space_pressed)
+        # Style Guide § 8 — F/C/R/A action keys (mirror of play_session)
+        QShortcut(QKeySequence("F"), self, activated=lambda: self._key_action("F"))
+        QShortcut(QKeySequence("C"), self, activated=lambda: self._key_action("C"))
+        QShortcut(QKeySequence("R"), self, activated=lambda: self._key_action("R"))
+        QShortcut(QKeySequence("A"), self, activated=lambda: self._key_action("A"))
         self._deal_next_hand()
         self.coach_message.emit(
             f"Turnuva başladı: {config.name}, {config.field_size} oyuncu, {config.starting_chips} chip start, "
@@ -752,6 +757,23 @@ class TournamentSimulatorScreen(QWidget):
         if self._between_hands:
             self._between_hands = False
             self._deal_next_hand()
+
+    def _key_action(self, key: str) -> None:
+        """F/C/R/A → click the matching action button if visible."""
+        if (not self.tournament or self.tournament.is_complete
+                or not self.tournament.game.is_waiting_for_hero):
+            return
+        if key == "F" and self.fold_btn.isVisible():
+            self.fold_btn.click()
+        elif key == "C":
+            if self.call_btn.isVisible():
+                self.call_btn.click()
+            elif self.check_btn.isVisible():
+                self.check_btn.click()
+        elif key == "R" and self.raise_btn.isVisible():
+            self.raise_btn.click()
+        elif key == "A" and self.allin_btn.isVisible():
+            self.allin_btn.click()
 
     # ── REPORT ────────────────────────────────────────────────────
 

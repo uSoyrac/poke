@@ -158,9 +158,30 @@ class MainWindow(QMainWindow):
         # SidebarNav manages its own fixed width — don't force a value here.
         layout.addLayout(main_col, 1)
 
-        # Keyboard shortcuts: ⌘B toggles sidebar, ⌘J toggles coach panel.
+        # ── KEYBOARD SHORTCUTS ─────────────────────────────────────
+        # Single source of truth lives in app/ui/components/shortcuts.py
+        # (the same file feeds the ? cheat-sheet dialog).
+        from app.ui.components.shortcuts import ShortcutsDialog
         QShortcut(QKeySequence("Ctrl+B"), self, activated=self.sidebar.toggle_collapsed)
         QShortcut(QKeySequence("Ctrl+J"), self, activated=self.coach.toggle_collapsed)
+        # Cheat sheet — ? key (Shift+/) AND the footer button both trigger it
+        QShortcut(QKeySequence("?"), self, activated=self._show_shortcuts)
+        QShortcut(QKeySequence("Shift+?"), self, activated=self._show_shortcuts)
+        self.sidebar.shortcuts_btn.clicked.connect(self._show_shortcuts)
+        # Direct navigation — Ctrl+1..9 jump to the first 9 nav items
+        for idx, name in enumerate(NAV_ITEMS[:9], start=1):
+            QShortcut(
+                QKeySequence(f"Ctrl+{idx}"), self,
+                activated=lambda n=name: (
+                    self.sidebar.set_active(n),
+                    self.navigate(n),
+                ),
+            )
+
+    def _show_shortcuts(self) -> None:
+        from app.ui.components.shortcuts import ShortcutsDialog
+        dlg = ShortcutsDialog(self)
+        dlg.exec()
 
         self.scan_compliance()
         self.navigate("Dashboard")

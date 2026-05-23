@@ -240,6 +240,12 @@ class PlaySessionScreen(QWidget):
         # Space = deal next hand. Only fires when next_btn is visible (i.e.
         # the previous hand is over and we're idle).
         QShortcut(QKeySequence(Qt.Key_Space), self, activated=self._space_pressed)
+        # Poker action shortcuts per Style Guide § 8. Each shortcut only
+        # fires when the corresponding button is actually visible (legal).
+        QShortcut(QKeySequence("F"), self, activated=lambda: self._key_action("F"))
+        QShortcut(QKeySequence("C"), self, activated=lambda: self._key_action("C"))
+        QShortcut(QKeySequence("R"), self, activated=lambda: self._key_action("R"))
+        QShortcut(QKeySequence("A"), self, activated=lambda: self._key_action("A"))
         self.review_btn = QPushButton("REVIEW LAST")
         self.review_btn.setObjectName("GhostButton")
         self.review_btn.clicked.connect(self._review_last)
@@ -388,6 +394,27 @@ class PlaySessionScreen(QWidget):
         """Spacebar — deals the next hand iff we're idle between hands."""
         if hasattr(self, "next_btn") and self.next_btn and self.next_btn.isVisible():
             self._deal_next()
+
+    def _key_action(self, key: str) -> None:
+        """Map F/C/R/A keys to whichever action button is visible.
+
+        Only fires when its mapped button is currently visible — so e.g. C
+        does nothing when there's no bet to call. Visibility = legality.
+        """
+        if not self.game or not self.game.is_waiting_for_hero:
+            return
+        if key == "F" and self.fold_btn.isVisible():
+            self.fold_btn.click()
+        elif key == "C":
+            # C → Call if facing a bet, else Check (whichever is visible)
+            if self.call_btn.isVisible():
+                self.call_btn.click()
+            elif self.check_btn.isVisible():
+                self.check_btn.click()
+        elif key == "R" and self.raise_btn.isVisible():
+            self.raise_btn.click()
+        elif key == "A" and self.allin_btn.isVisible():
+            self.allin_btn.click()
 
     def _size_amount_bb(self) -> float:
         """Translate the sizing slider into a legal raise/bet amount in bb.
