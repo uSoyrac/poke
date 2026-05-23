@@ -630,12 +630,15 @@ class TournamentSimulatorScreen(QWidget):
     # now renders all opponent state directly.)
 
     def _update_action_buttons(self):
+        """Show only legal actions. We HIDE-only (never setEnabled) so Qt's
+        stylesheet engine can't get stuck in the disabled palette — see the
+        matching note in play_session._update_action_buttons.
+        """
         game = self.tournament.game
         hand = game.current_hand
         waiting = game.is_waiting_for_hero
         all_btns = [self.fold_btn, self.check_btn, self.call_btn, self.raise_btn, self.allin_btn]
         for b in all_btns:
-            b.setEnabled(False)
             b.hide()
 
         if not waiting or not hand or hand.is_complete:
@@ -648,26 +651,26 @@ class TournamentSimulatorScreen(QWidget):
 
         hero = hand.hero
         bb = max(hand.big_blind, 1)
+        stack_meaningful = (hero and hero.stack >= bb * 0.05)
         if ActionType.FOLD in valid_types:
-            self.fold_btn.show(); self.fold_btn.setEnabled(True)
+            self.fold_btn.show()
         if ActionType.CHECK in valid_types:
-            self.check_btn.show(); self.check_btn.setEnabled(True)
+            self.check_btn.show()
         if ActionType.CALL in valid_types:
             self.call_btn.setText(f"CALL  {to_call / bb:.1f} bb")
-            self.call_btn.show(); self.call_btn.setEnabled(True)
-        elif to_call > 0 and ActionType.ALL_IN in valid_types and hero and hero.stack > 0:
-            # Calling requires going all-in — still show the green CALL button.
+            self.call_btn.show()
+        elif to_call > 0 and ActionType.ALL_IN in valid_types and stack_meaningful:
             self.call_btn.setText(f"CALL ALL-IN  {hero.stack / bb:.1f} bb")
-            self.call_btn.show(); self.call_btn.setEnabled(True)
+            self.call_btn.show()
         if ActionType.BET in valid_types:
             self.raise_btn.setText("BET")
-            self.raise_btn.show(); self.raise_btn.setEnabled(True)
+            self.raise_btn.show()
         if ActionType.RAISE in valid_types:
             self.raise_btn.setText("RAISE")
-            self.raise_btn.show(); self.raise_btn.setEnabled(True)
-        if hero and hero.stack > 0 and to_call < hero.stack:
+            self.raise_btn.show()
+        if stack_meaningful and to_call < hero.stack:
             self.allin_btn.setText(f"ALL-IN  {hero.stack / bb:.1f} bb")
-            self.allin_btn.show(); self.allin_btn.setEnabled(True)
+            self.allin_btn.show()
 
     def _on_hand_complete(self):
         if not self.tournament:

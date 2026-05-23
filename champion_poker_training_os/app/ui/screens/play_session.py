@@ -506,12 +506,22 @@ class PlaySessionScreen(QWidget):
     def _update_action_buttons(self):
         """Show only the actions that are legal RIGHT NOW.
 
-        Bugfix: when to_call >= hero.stack, the engine offers ALL_IN instead
-        of CALL but the user still wants to 'call all-in'. We surface the
-        green CALL button in that case too, labelled accordingly.
+        Key implementation note: we DO NOT toggle setEnabled on the action
+        buttons — only hide()/show(). Qt's stylesheet engine sometimes
+        fails to re-evaluate ``:enabled`` vs ``:disabled`` after a tight
+        ``setEnabled(False)`` → ``setEnabled(True)`` pair in the same
+        function, which is exactly what was making the CALL button render
+        with its disabled palette (dark fill, dim text) even while
+        functionally enabled. Buttons stay enabled all the time; visibility
+        alone gates user input.
+
+        Edge case: when to_call >= hero.stack the engine offers ALL_IN
+        instead of CALL — we still surface the green CALL button labelled
+        "CALL ALL-IN X.X" so the user can call without hunting for a
+        different button.
         """
         for b in (self.fold_btn, self.check_btn, self.call_btn, self.raise_btn, self.allin_btn):
-            b.hide(); b.setEnabled(False)
+            b.hide()
         if not self.game or not self.game.is_waiting_for_hero:
             return
         hand = self.game.current_hand
@@ -528,26 +538,24 @@ class PlaySessionScreen(QWidget):
         stack_meaningful = (hero and hero.stack >= 0.05)
 
         if ActionType.FOLD in valid_types:
-            self.fold_btn.show(); self.fold_btn.setEnabled(True)
+            self.fold_btn.show()
         if ActionType.CHECK in valid_types:
-            self.check_btn.show(); self.check_btn.setEnabled(True)
+            self.check_btn.show()
         if ActionType.CALL in valid_types:
             self.call_btn.setText(f"CALL  {to_call:.1f} bb")
-            self.call_btn.show(); self.call_btn.setEnabled(True)
+            self.call_btn.show()
         elif (to_call > 0 and ActionType.ALL_IN in valid_types and stack_meaningful):
-            # Calling requires going all-in — surface the green CALL button.
             self.call_btn.setText(f"CALL ALL-IN  {hero.stack:.1f}")
-            self.call_btn.show(); self.call_btn.setEnabled(True)
+            self.call_btn.show()
         if ActionType.BET in valid_types:
             self.raise_btn.setText("BET")
-            self.raise_btn.show(); self.raise_btn.setEnabled(True)
+            self.raise_btn.show()
         if ActionType.RAISE in valid_types:
             self.raise_btn.setText("RAISE")
-            self.raise_btn.show(); self.raise_btn.setEnabled(True)
+            self.raise_btn.show()
         if stack_meaningful and to_call < hero.stack:
-            # Only show explicit ALL-IN when it's distinct from "call all-in"
             self.allin_btn.setText(f"ALL-IN  {hero.stack:.1f}")
-            self.allin_btn.show(); self.allin_btn.setEnabled(True)
+            self.allin_btn.show()
 
     def _on_complete(self):
         if not self.game or not self.game.hand_history:
