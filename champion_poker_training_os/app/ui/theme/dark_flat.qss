@@ -356,16 +356,18 @@ QPushButton#ActionFold:disabled {
   color: #5a5e54;
 }
 
-/* CALL — solid lime, dark ink, white-bold text.
-   Highest-specificity selectors so neither the global QPushButton
-   nor any :disabled cascade can steal the styling on a re-polish. */
+/* CALL — solid lime fill, WHITE text. Both `background` (shorthand)
+   AND `background-color` are set because Qt's QSS engine sometimes
+   fails to override a shorthand background from a parent rule with
+   only a longhand background-color. Setting both wins every cascade. */
 QPushButton#ActionCall,
 QPushButton#ActionCall:enabled,
 QPushButton#ActionCall:focus,
 QPushButton#ActionCall:default {
+  background: #5ad17a;
   background-color: #5ad17a;
   border: 2px solid #5ad17a;
-  color: #0a0c0a;
+  color: #ffffff;
   padding: 12px 22px;
   font-weight: 700;
   font-size: 14px;
@@ -374,14 +376,18 @@ QPushButton#ActionCall:default {
 
 QPushButton#ActionCall:hover,
 QPushButton#ActionCall:enabled:hover {
+  background: #7adc92;
   background-color: #7adc92;
   border-color: #7adc92;
+  color: #ffffff;
 }
 
 QPushButton#ActionCall:pressed,
 QPushButton#ActionCall:enabled:pressed {
+  background: #4ab86a;
   background-color: #4ab86a;
   border-color: #4ab86a;
+  color: #ffffff;
 }
 
 QPushButton#ActionRaise {
@@ -406,25 +412,35 @@ QPushButton#ActionRaise:disabled {
   color: #5a5e54;
 }
 
-QPushButton#ActionAllin {
+/* ALL-IN — solid danger fill. Same shorthand+longhand trick as CALL. */
+QPushButton#ActionAllin,
+QPushButton#ActionAllin:enabled,
+QPushButton#ActionAllin:focus,
+QPushButton#ActionAllin:default {
   background: #e87474;
+  background-color: #e87474;
   border: 2px solid #f29090;
-  color: #f4f5ee;
+  color: #ffffff;
   padding: 12px 22px;
   font-weight: 700;
   font-size: 14px;
   letter-spacing: 0.5px;
 }
 
-QPushButton#ActionAllin:hover {
+QPushButton#ActionAllin:hover,
+QPushButton#ActionAllin:enabled:hover {
   background: #f29090;
+  background-color: #f29090;
   border-color: #f4a4a4;
+  color: #ffffff;
 }
 
-QPushButton#ActionAllin:disabled {
-  background: #3a2226;
-  border-color: #3a2226;
-  color: #5a5e54;
+QPushButton#ActionAllin:pressed,
+QPushButton#ActionAllin:enabled:pressed {
+  background: #c85a5a;
+  background-color: #c85a5a;
+  border-color: #c85a5a;
+  color: #ffffff;
 }
 
 QPushButton#ActionCheck {
