@@ -12,6 +12,25 @@ SUIT_GLYPH = {
     "♠": "♠", "♣": "♣",
 }
 
+# 4-Color Deck (4CD) — online poker convention. Each suit gets its own
+# colour so the user can read holdings at a glance, especially at small
+# card sizes where the glyph alone is hard to distinguish.
+#
+#   ♠ Spades   — orange     (the only one outside the design's 4 semantic
+#                            colours; needed because we have 4 suits and
+#                            only 3 of {accent, danger, info} read as
+#                            distinct hues)
+#   ♥ Hearts   — danger red (classic)
+#   ♦ Diamonds — blue       (distinct from hearts to avoid red/red mixup)
+#   ♣ Clubs    — accent lime (distinct from spades to avoid orange/orange)
+SUIT_COLORS = {
+    "s": "#f0a04b", "♠": "#f0a04b",   # spades  → orange
+    "h": "#e87474", "♥": "#e87474",   # hearts  → red
+    "d": "#5a9eef", "♦": "#5a9eef",   # diamonds → blue
+    "c": "#5ad17a", "♣": "#5ad17a",   # clubs   → green
+}
+
+# Kept for back-compat with any other module that imported RED_SUITS.
 RED_SUITS = {"♥", "h", "♦", "d"}
 
 
@@ -38,6 +57,7 @@ class CardView(QWidget):
         self.suit_char = ""
         self.suit_glyph = ""
         self.is_red = False
+        self.suit_color = "#0a0c0a"   # fallback ink — overridden per suit
         if len(self.card_text) >= 2 and not face_down:
             self.rank = self.card_text[0].upper()
             if self.rank == "1" and self.card_text[1] == "0":
@@ -46,6 +66,8 @@ class CardView(QWidget):
             else:
                 suit_raw = self.card_text[1]
             self.suit_glyph = SUIT_GLYPH.get(suit_raw, suit_raw)
+            self.suit_char = suit_raw
+            self.suit_color = SUIT_COLORS.get(suit_raw, "#0a0c0a")
             self.is_red = suit_raw in RED_SUITS
 
     def paintEvent(self, event) -> None:
@@ -80,7 +102,9 @@ class CardView(QWidget):
         if not self.rank:
             return
 
-        text_color = QColor("#e87474") if self.is_red else QColor("#0a0c0a")
+        # Suit-specific colour (4-Color Deck). The rank + both suit glyphs
+        # share the same colour so the card reads as one chromatic unit.
+        text_color = QColor(self.suit_color)
 
         # Big centered rank
         rank_size = max(14, int(h * 0.42))
