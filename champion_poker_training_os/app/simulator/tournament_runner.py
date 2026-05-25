@@ -85,13 +85,14 @@ def hyper_structure() -> List[BlindLevel]:
 
 
 # Default payout structures (% of prize pool)
+# 9-max → top 3 paid  (realistic MTT payout)
+# 6-max → top 2 paid  (typical SNG / 6-handed)
 PAYOUT_STRUCTURES = {
     "9-max": [
-        (1, 0.35), (2, 0.22), (3, 0.15), (4, 0.10),
-        (5, 0.07), (6, 0.05), (7, 0.03), (8, 0.02), (9, 0.01),
+        (1, 0.50), (2, 0.30), (3, 0.20),
     ],
     "6-max": [
-        (1, 0.40), (2, 0.25), (3, 0.18), (4, 0.10), (5, 0.05), (6, 0.02),
+        (1, 0.65), (2, 0.35),
     ],
     "Heads-Up": [(1, 1.0)],
 }

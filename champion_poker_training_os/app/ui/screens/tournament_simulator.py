@@ -39,6 +39,9 @@ from app.ui.components.poker_table import LivePokerTable, SeatState, seats_from_
 
 class TournamentSimulatorScreen(QWidget):
     coach_message = Signal(str)
+    # Emitted when a hand completes — main.py stores it so the user can
+    # ask the AI coach about it on demand (no auto-Gemini call).
+    hand_completed = Signal(dict)
     # Emitted on tournament start — main.py forwards to Gemini for a
     # tournament-type-specific opening briefing (strategy, ICM landmarks).
     tournament_advice_requested = Signal(str)
@@ -715,7 +718,7 @@ class TournamentSimulatorScreen(QWidget):
         remaining = self.tournament.players_remaining
         total = config.field_size
         paid = config.paid_places
-        bubble_dist = max(0, remaining - paid)
+        bubble_dist = remaining - paid   # negative = already ITM
 
         self.meta_cells["EVENT"]._value_label.setText(config.name)
         self.meta_cells["EVENT"]._sub_label.setText(f"${config.buyin:.0f} buy-in")
@@ -725,13 +728,22 @@ class TournamentSimulatorScreen(QWidget):
         self.meta_cells["BLINDS"]._value_label.setText(f"{level.sb:,} / {level.bb:,}{ante_str}")
         self.meta_cells["BLINDS"]._sub_label.setText(config.structure.upper())
 
-        # PLAYERS: alive count large, total field + bubble info as sub-text
-        self.meta_cells["PLAYERS"]._value_label.setText(f"{remaining}")
-        bubble_txt = ("ON BUBBLE" if bubble_dist == 0
-                      else f"bubble −{bubble_dist}" if bubble_dist <= 3
-                      else f"of {total} total")
+        # PLAYERS: "alive / field" — crystal-clear at a glance
+        # bubble_dist = how many need to bust before everyone is ITM
+        # bubble_dist  > 3  → far from bubble
+        # bubble_dist == 1  → ON THE BUBBLE (next bust = ITM for all)
+        # remaining <= paid → already ITM
+        self.meta_cells["PLAYERS"]._value_label.setText(f"{remaining} / {total}")
+        if remaining <= paid:
+            bubble_tag = "✓ ITM"
+        elif bubble_dist == 1:
+            bubble_tag = "🔴 BUBBLE"
+        elif bubble_dist <= 3:
+            bubble_tag = f"bubble −{bubble_dist}"
+        else:
+            bubble_tag = f"top {paid} paid"
         self.meta_cells["PLAYERS"]._sub_label.setText(
-            f"ITM top {paid}  ·  {bubble_txt}"
+            f"{total - remaining} elendi  ·  {bubble_tag}"
         )
 
         self.meta_cells["NEXT_LVL"]._value_label.setText(f"{self.tournament.state.hands_until_next_level}")
@@ -753,8 +765,8 @@ class TournamentSimulatorScreen(QWidget):
         hero_p = hand.hero
         hero_bb = float(hero_p.stack) / max(level.bb, 1) if hero_p else 0.0
         paid_places = config.paid_places
-        bubble_dist = max(0, self.tournament.players_remaining - paid_places)
-        on_bubble = bubble_dist <= 1
+        # bubble_dist < 0 → already ITM; == 1 → on bubble
+        on_bubble = (0 <= bubble_dist <= 1)
         avg_bb = avg / max(level.bb, 1)
         stack_pressure = ("short" if hero_bb < 15 else
                           "medium" if hero_bb < 30 else
@@ -1022,12 +1034,28 @@ class TournamentSimulatorScreen(QWidget):
             if it.widget():
                 it.widget().deleteLater()
 
-        # Coach feedback
-        self.coach_message.emit(
-            f"El #{result.hand_id} ({result.hero_position}): {result.hero_cards} | Board: {result.community} | "
-            f"{'Kazandın' if result.hero_won else 'Kaybettin'} ({result.hero_profit:+,.0f} chip). "
-            f"Pot: {int(result.pot):,}. Showdown: {result.winner_hand_name}."
-        )
+        # Store hand data for on-demand AI analysis.
+        # The coach panel will analyse it only when the user clicks
+        # "Soru sor..." or "Spot Analizi" — NOT automatically.
+        level = self.tournament.state.current_level
+        bb = max(level.bb, 1)
+        hero_player = (self.tournament.game.players[0]
+                       if self.tournament.game.players else None)
+        self.hand_completed.emit({
+            "hand_id":          result.hand_id,
+            "hero_cards":       result.hero_cards,
+            "community":        result.community or "—",
+            "hero_position":    result.hero_position,
+            "hero_stack_bb":    round(hero_player.stack / bb, 1) if hero_player else 0,
+            "pot":              round(result.pot / bb, 1),
+            "hero_invested":    round(result.hero_invested / bb, 1),
+            "hero_profit":      round(result.hero_profit / bb, 1),
+            "hero_won":         result.hero_won,
+            "winner_hand_name": result.winner_hand_name,
+            "streets_seen":     result.streets_seen,
+            "actions":          "",
+            "source":           "tournament_simulator",
+        })
 
         # Tournament complete?
         if self.tournament.is_complete:
