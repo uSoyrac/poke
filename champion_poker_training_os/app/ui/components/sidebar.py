@@ -132,19 +132,33 @@ class SidebarNav(QFrame):
         self.scroll.setWidget(body)
         root.addWidget(self.scroll, 1)
 
-        # Footer / user + shortcut hint
+        # Footer / user + mini profil
         self._footer = QFrame()
         self._footer.setStyleSheet("border-top: 1px solid #23271f;")
         f_l = QVBoxLayout(self._footer)
-        f_l.setContentsMargins(20, 10, 20, 12)
-        f_l.setSpacing(1)
+        f_l.setContentsMargins(16, 10, 16, 10)
+        f_l.setSpacing(4)
+
+        user_row = QHBoxLayout()
         user = QLabel("UYGAR")
         user.setObjectName("SectionTitle")
-        meta = QLabel("ONLINE · GTO MODE")
+        meta = QLabel("GTO MODE")
         meta.setObjectName("BrandTag")
-        meta.setStyleSheet("color: #5ad17a;")
-        f_l.addWidget(user)
-        f_l.addWidget(meta)
+        meta.setStyleSheet("color: #5ad17a; font-size:10px;")
+        user_row.addWidget(user)
+        user_row.addStretch(1)
+        user_row.addWidget(meta)
+        f_l.addLayout(user_row)
+
+        # Mini profil stats (DB'den — gizlenmiş bileşen, update_profile() ile güncellenir)
+        self._profile_strip = QLabel("—")
+        self._profile_strip.setStyleSheet(
+            "font-family:'JetBrains Mono',monospace; font-size:9px; "
+            "color:#5a5e54; letter-spacing:0.5px; background:transparent;"
+        )
+        self._profile_strip.setWordWrap(True)
+        f_l.addWidget(self._profile_strip)
+        self.refresh_profile()
 
         # "Shortcuts ?" link — clicking opens the cheat-sheet dialog. The
         # actual ? keystroke also opens it (wired in MainWindow), this
@@ -177,6 +191,27 @@ class SidebarNav(QFrame):
         if item in self.buttons:
             self.buttons[item].setChecked(True)
 
+    def refresh_profile(self) -> None:
+        """DB'den kişisel profil istatistiklerini çek ve footer'ı güncelle."""
+        try:
+            from app.db.repository import get_player_stats, get_leak_analysis
+            stats = get_player_stats()
+            leaks = get_leak_analysis()
+            total = stats.get("total_hands", 0)
+            if total < 3:
+                self._profile_strip.setText("Henüz veri yok")
+                return
+            vpip   = stats.get("vpip", 0)
+            pfr    = stats.get("pfr", 0)
+            bb100  = stats.get("bb_per_100", 0)
+            top_leak = leaks[0]["name"] if leaks else "—"
+            self._profile_strip.setText(
+                f"VPIP {vpip:.0f}% · PFR {pfr:.0f}% · {bb100:+.1f}BB/100\n"
+                f"Leak: {top_leak[:22]}"
+            )
+        except Exception:
+            self._profile_strip.setText("Profil yükleniyor...")
+
     def toggle_collapsed(self) -> None:
         """Toggle between full sidebar and a narrow rail with just the toggle.
 
@@ -200,3 +235,4 @@ class SidebarNav(QFrame):
             self._footer.show()
             self.toggle_btn.setText("◀")
             self.toggle_btn.setToolTip("Collapse sidebar (⌘B)")
+            self.refresh_profile()  # sidebar açılınca profili tazele

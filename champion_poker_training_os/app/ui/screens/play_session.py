@@ -22,21 +22,46 @@ def _big_title(text: str) -> QLabel:
 from app.core.app_state import AppState
 from app.ai.coach_engine import analyze_played_hand, session_summary
 from app.db.repository import save_played_hand
+from app.core.live_hud import LiveHUD
 from app.engine.game_loop import PokerGame, HandResult
 from app.engine.hand_state import ActionType, Street
 from app.engine.bot_brain import BOT_ARCHETYPES
 from app.ui.components.card_view import CardView, CardBackView, CardPlaceholder
+from app.ui.components.field_picker import FieldPicker
+from app.ui.components.gto_range_dialog import show_gto_dialog
+from app.ui.components.gto_range_widget import GTORangeWidget
 from app.ui.components.metric_card import MetricCard
 from app.ui.components.poker_table import LivePokerTable, SeatState, seats_from_hand
 
 
+def _format_actions_for_coach(actions: list, hero_idx: int = 0) -> str:
+    """Format hand actions street-by-street for Gemini context."""
+    from app.engine.hand_state import Street
+    street_names = {
+        Street.PREFLOP: "Preflop",
+        Street.FLOP: "Flop",
+        Street.TURN: "Turn",
+        Street.RIVER: "River",
+    }
+    by_street: dict[str, list[str]] = {}
+    for a in actions:
+        s = street_names.get(a.street, str(a.street))
+        actor = "Hero" if a.player_idx == hero_idx else f"Villain{a.player_idx}"
+        if s not in by_street:
+            by_street[s] = []
+        by_street[s].append(f"{actor}: {a}")
+    return "  |  ".join(f"{s}: {', '.join(acts)}" for s, acts in by_street.items()) or "Bilgi yok"
+
+
 class PlaySessionScreen(QWidget):
     coach_message = Signal(str)
+    hand_completed = Signal(dict)  # rich hand data for Gemini
 
     def __init__(self, state: AppState):
         super().__init__()
         self.state = state
         self.game: PokerGame | None = None
+        self.live_hud = LiveHUD()
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -91,34 +116,36 @@ class PlaySessionScreen(QWidget):
 
         grid = QGridLayout()
         grid.setSpacing(14)
-        self.players_combo = QComboBox()
-        self.players_combo.addItems(["2 (Heads-Up)", "6 (6-max)", "9 (Full Ring)"])
-        self.players_combo.setCurrentIndex(1)
-        grid.addWidget(self._label("PLAYERS"), 0, 0); grid.addWidget(self.players_combo, 1, 0)
 
         self.stack_combo = QComboBox()
         self.stack_combo.addItems(["20bb", "50bb", "100bb", "150bb", "200bb"])
         self.stack_combo.setCurrentIndex(2)
-        grid.addWidget(self._label("EFFECTIVE STACK"), 0, 1); grid.addWidget(self.stack_combo, 1, 1)
+        grid.addWidget(self._label("EFFECTIVE STACK"), 0, 0); grid.addWidget(self.stack_combo, 1, 0)
 
-        # Featured bot options first (Karma + GTO Expert), then the rest
-        featured = ["Karma (Mixed)", "GTO Expert", "Balanced Reg"]
-        rest = [k for k in BOT_ARCHETYPES.keys() if k not in featured]
-        bot_options = featured + rest
-        self.bot_combo = QComboBox()
-        for name in bot_options:
-            self.bot_combo.addItem(name)
-            # Tooltip = the archetype's `notes` so the user knows what they pick
-            note = BOT_ARCHETYPES.get(name)
-            if note and getattr(note, "notes", ""):
-                idx = self.bot_combo.count() - 1
-                self.bot_combo.setItemData(idx, f"{name} — {note.notes}", Qt.ToolTipRole)
-        self.bot_combo.setCurrentIndex(bot_options.index("Karma (Mixed)"))
-        self.bot_combo.currentTextChanged.connect(self._sync_bot_tooltip)
-        self._sync_bot_tooltip(self.bot_combo.currentText())
-        grid.addWidget(self._label("BOT ARCHETYPE"), 0, 2); grid.addWidget(self.bot_combo, 1, 2)
+        # Quick presets — populate the FieldPicker with common compositions
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItems([
+            "Karma 5-bot (Random)",
+            "TAG-heavy", "LAG-heavy", "Recreational (Fishy)",
+            "Tough Regs", "Solver Field", "Custom",
+        ])
+        self.preset_combo.setItemData(0, "5 oyuncu, hepsi her elde KARMA havuzundan random tarz", Qt.ToolTipRole)
+        self.preset_combo.setItemData(1, "Tight Aggressive ağırlıklı tablo", Qt.ToolTipRole)
+        self.preset_combo.setItemData(2, "Loose Aggressive ağırlıklı tablo", Qt.ToolTipRole)
+        self.preset_combo.setItemData(3, "Fish + Calling Station + Aggro Fish — softest field", Qt.ToolTipRole)
+        self.preset_combo.setItemData(4, "TAG + Reg + Shark — disiplinli rakipler", Qt.ToolTipRole)
+        self.preset_combo.setItemData(5, "Solver Bot + GTO Expert — en zor field", Qt.ToolTipRole)
+        self.preset_combo.setItemData(6, "Custom — alttaki listede istediğin gibi düzenle", Qt.ToolTipRole)
+        self.preset_combo.currentTextChanged.connect(self._apply_preset)
+        grid.addWidget(self._label("QUICK PRESET"), 0, 1); grid.addWidget(self.preset_combo, 1, 1)
 
         c_l.addLayout(grid)
+
+        # FieldPicker — seat-by-seat configuration
+        c_l.addSpacing(6)
+        self.field_picker = FieldPicker(default_bots=5)
+        c_l.addWidget(self.field_picker)
+
         l.addWidget(card)
 
         btn_row = QHBoxLayout()
@@ -139,36 +166,45 @@ class PlaySessionScreen(QWidget):
         lbl.setObjectName("TLabel")
         return lbl
 
-    def _sync_bot_tooltip(self, name: str) -> None:
-        prof = BOT_ARCHETYPES.get(name)
-        if prof and getattr(prof, "notes", ""):
-            self.bot_combo.setToolTip(prof.notes)
-        else:
-            self.bot_combo.setToolTip("")
+    _PRESETS = {
+        "Karma 5-bot (Random)": ["Random (Karma)"] * 5,
+        "TAG-heavy":            ["TAG", "TAG", "Reg", "TAG", "Tight Passive"],
+        "LAG-heavy":            ["LAG", "Maniac", "LAG", "Aggro Fish", "LAG"],
+        "Recreational (Fishy)": ["Fish", "Calling Station", "Aggro Fish", "Fish", "Tight Passive"],
+        "Tough Regs":           ["TAG", "Reg", "Shark", "TAG", "Reg"],
+        "Solver Field":         ["Solver Bot", "GTO Expert", "Solver Bot", "GTO Expert", "Shark"],
+    }
+
+    def _apply_preset(self, name: str) -> None:
+        comp = self._PRESETS.get(name)
+        if comp:
+            self.field_picker.set_composition(comp)
+        # "Custom" — leave picker as-is
 
     def _start(self):
-        players_map = {0: 2, 1: 6, 2: 9}
         stack_map = {0: 20, 1: 50, 2: 100, 3: 150, 4: 200}
-        num = players_map.get(self.players_combo.currentIndex(), 6)
         stack_bb = stack_map.get(self.stack_combo.currentIndex(), 100)
-        bot = self.bot_combo.currentText()
+        archetypes = self.field_picker.get_archetypes()
+        num = len(archetypes) + 1  # hero + bots
 
         self.game = PokerGame(
             num_players=num,
             starting_stack=float(stack_bb),
             small_blind=0.5, big_blind=1.0,
             hero_seat=0,
-            bot_archetype=bot,
-            paced_bots=True,       # UI drives bot pacing via QTimer
+            bot_archetypes=archetypes,   # explicit per-seat list
+            paced_bots=True,
         )
+        self.live_hud.reset(num)
         self._build_play()
-        # Bot-pacing timer — fires step_action() so the user sees actions
-        # land one at a time (UTG → UTG+1 → … → SB → BB).
         self._bot_timer = QTimer(self)
         self._bot_timer.setInterval(450)
         self._bot_timer.timeout.connect(self._tick_bot)
         self._deal_next()
-        self.coach_message.emit(f"Yeni session: {num}-max, {stack_bb}bb, {bot} bot. İyi eller.")
+        composition = ", ".join(archetypes)
+        self.coach_message.emit(
+            f"Yeni session: {num}-max, {stack_bb}bb · Field: {composition}. İyi eller."
+        )
 
     # ── PLAY UI ───────────────────────────────────────────────────
 
@@ -267,6 +303,26 @@ class PlaySessionScreen(QWidget):
         deck_v = QVBoxLayout(deck)
         deck_v.setContentsMargins(22, 8, 22, 12)
         deck_v.setSpacing(6)
+
+        # GTO buton + mini strip satırı
+        gto_row = QHBoxLayout()
+        gto_row.setSpacing(8)
+        self.gto_btn = QPushButton("⊞ GTO")
+        self.gto_btn.setToolTip("Mevcut pozisyon ve stack'e göre GTO range analizi (G)")
+        self.gto_btn.setStyleSheet(
+            "QPushButton { background:#0f2318; color:#5ad1ce; border:1px solid #5ad1ce; "
+            "font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; "
+            "letter-spacing:1.5px; padding:5px 14px; }"
+            "QPushButton:hover { background:#132a20; }"
+        )
+        self.gto_btn.setMinimumHeight(32)
+        self.gto_btn.clicked.connect(self._show_gto_popup)
+        QShortcut(QKeySequence("G"), self, activated=self._show_gto_popup)
+        self.gto_range = GTORangeWidget()
+        self.gto_range.setMaximumHeight(52)
+        gto_row.addWidget(self.gto_btn)
+        gto_row.addWidget(self.gto_range, 1)
+        deck_v.addLayout(gto_row)
 
         # TO CALL banner — pulled out of the felt center so hero cards
         # can't overlap it. Shows required call in bb + % pot.
@@ -457,10 +513,38 @@ class PlaySessionScreen(QWidget):
 
         # ── Feed the unified poker table ────────────────────────────
         action_top = self.game._action_queue[0] if self.game._action_queue else -1
+        # Live HUD: merge observed stats with bot archetype profile
+        raw_profiles = self.game.get_bot_profiles()
+        merged_profiles = {}
+        for idx, prof in raw_profiles.items():
+            base = {
+                "vpip": getattr(prof, "vpip", 0),
+                "pfr": getattr(prof, "pfr", 0),
+                "three_bet": getattr(prof, "three_bet", 0),
+                "aggression": getattr(prof, "aggression", 0),
+                "af": getattr(prof, "aggression", 0),
+                "fold_to_cbet": getattr(prof, "fold_to_cbet", 0),
+                "river_bluff": getattr(prof, "river_bluff", 0),
+                "call_down": getattr(prof, "call_down", 0),
+                "overbet_freq": getattr(prof, "overbet_freq", 0),
+                "notes": getattr(prof, "notes", ""),
+            }
+            merged = self.live_hud.merge_with_profile(idx, base)
+            obs = self.live_hud.get(idx)
+            if obs:
+                merged["obs_hands"] = obs["obs_hands"]
+            merged_profiles[idx] = type("_P", (), merged)()
         seats, hero_slot, dealer_slot = seats_from_hand(
             hand.players, hand.hero_idx,
             action_queue_top=action_top, unit="bb", hand=hand,
+            bot_profiles=merged_profiles,
         )
+
+        # ── GTO Range widget güncelle ──────────────────────────────
+        if hasattr(self, "gto_range") and hero and not hand.is_complete:
+            pos = getattr(hero, "position", "") or ""
+            stack_bb = float(hero.stack)
+            self.gto_range.update_range(pos, stack_bb, game_type="cash")
         # Tag the most recent aggressor (non-hero with biggest bet) as villain for visual emphasis
         villain_idx = None
         max_bet = 0.0
@@ -587,6 +671,9 @@ class PlaySessionScreen(QWidget):
     def _on_complete(self):
         if not self.game or not self.game.hand_history:
             return
+        # Live HUD güncelle — tamamlanan elden gözlemlenen stats
+        if self.game.current_hand:
+            self.live_hud.update_from_hand(self.game.current_hand)
         r = self.game.hand_history[-1]
         try:
             save_played_hand({
@@ -626,24 +713,79 @@ class PlaySessionScreen(QWidget):
         if hasattr(self, "review_btn"):
             self.review_btn.setEnabled(True)
 
-        self.coach_message.emit(
-            f"El #{r.hand_id} ({r.hero_position}): {r.hero_cards} | Board: {r.community}. "
-            f"{'Kazandın' if r.hero_won else 'Kaybettin'} ({r.hero_profit:+.1f}bb). "
-            f"Pot: {r.pot:.1f}bb. {r.winner_hand_name}."
-        )
+        session_stats = self.game.get_session_stats() if self.game else {}
+        hero_stack = self.game.players[0].stack if self.game and self.game.players else 0.0
+        hand_data = {
+            "hand_id": r.hand_id,
+            "hero_cards": r.hero_cards,
+            "community": r.community or "—",
+            "hero_position": r.hero_position,
+            "hero_stack_bb": round(hero_stack, 1),
+            "pot": round(r.pot, 1),
+            "hero_invested": round(r.hero_invested, 1),
+            "hero_profit": round(r.hero_profit, 1),
+            "hero_won": r.hero_won,
+            "winner_hand_name": r.winner_hand_name,
+            "streets_seen": r.streets_seen,
+            "actions": _format_actions_for_coach(r.actions),
+            "session": session_stats,
+            "source": "play_session",
+        }
+        self.hand_completed.emit(hand_data)
         self.next_btn.show()
 
     def _review_last(self):
         if not self.game or not self.game.hand_history:
             return
         r = self.game.hand_history[-1]
-        review = analyze_played_hand({
-            "hero_cards": r.hero_cards, "community": r.community,
-            "hero_profit": r.hero_profit, "hero_won": r.hero_won,
-            "hero_invested": r.hero_invested, "pot": r.pot,
+        hero_stack = self.game.players[0].stack if self.game.players else 0.0
+        hand_data = {
+            "hand_id": r.hand_id,
+            "hero_cards": r.hero_cards,
+            "community": r.community or "—",
+            "hero_position": r.hero_position,
+            "hero_stack_bb": round(hero_stack, 1),
+            "pot": round(r.pot, 1),
+            "hero_invested": round(r.hero_invested, 1),
+            "hero_profit": round(r.hero_profit, 1),
+            "hero_won": r.hero_won,
             "winner_hand_name": r.winner_hand_name,
-        })
-        self.coach_message.emit(review)
+            "streets_seen": r.streets_seen,
+            "actions": _format_actions_for_coach(r.actions),
+            "session": self.game.get_session_stats(),
+            "source": "review_request",
+        }
+        self.hand_completed.emit(hand_data)
+
+    def _show_gto_popup(self) -> None:
+        """GTO butonu — mevcut game state'i okuyup popup aç."""
+        pos, stack_bb, hero_cards, street, pot, players = "", 100.0, "", "preflop", 0.0, 6
+        if self.game and self.game.current_hand:
+            hand = self.game.current_hand
+            hero = hand.hero
+            if hero:
+                pos = getattr(hero, "position", "") or ""
+                stack_bb = float(hero.stack)
+                if hero.hole_cards:
+                    hero_cards = " ".join(c.display for c in hero.hole_cards[:2])
+            street = getattr(hand, "street_name", "preflop")
+            pot = float(hand.pot)
+            players = sum(1 for p in hand.players
+                          if not getattr(p, "is_eliminated", False)
+                          and not getattr(p, "is_folded", False))
+        elif self.game:
+            players = self.game.active_players_count
+
+        show_gto_dialog(
+            parent=self,
+            position=pos,
+            stack_bb=stack_bb,
+            players_active=players,
+            game_type="cash",
+            hero_cards=hero_cards,
+            street=street,
+            pot_bb=pot,
+        )
 
     def _end_session(self):
         if not self.game:
@@ -654,6 +796,9 @@ class PlaySessionScreen(QWidget):
             for h in self.game.hand_history
         ]
         self.coach_message.emit(session_summary(stats, data))
+        # ── SESSION BİTTİ: setup ekranına geri dön ──────────────────
+        self.game = None
+        self._build_setup()
 
 
 def _clear(layout):

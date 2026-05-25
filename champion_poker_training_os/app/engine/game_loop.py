@@ -42,6 +42,23 @@ class HandResult:
 class PokerGame:
     """Manages a full poker game session (cash or tournament hand-by-hand)."""
 
+    # ── RANGE FILTER PRESETS ──────────────────────────────────────
+    _RANGE_PRESETS: Dict[str, set] = {
+        "Premium":    {"AA", "KK", "QQ", "JJ", "AKs", "AKo"},
+        "TAG Range":  {"AA", "KK", "QQ", "JJ", "TT", "99", "88",
+                       "AKs", "AKo", "AQs", "AQo", "AJs", "ATs",
+                       "KQs", "KJs", "KTs", "QJs", "JTs", "T9s"},
+        "Geniş Range":{"AA", "KK", "QQ", "JJ", "TT", "99", "88", "77", "66", "55", "44", "33", "22",
+                       "AKs", "AKo", "AQs", "AQo", "AJs", "AJo", "ATs", "ATo",
+                       "A9s", "A8s", "A7s", "A6s", "A5s", "A4s", "A3s", "A2s",
+                       "KQs", "KQo", "KJs", "KTs", "QJs", "QTs",
+                       "JTs", "T9s", "98s", "87s", "76s", "65s", "54s"},
+        "Speculative": {"77", "66", "55", "44", "33", "22",
+                        "A5s", "A4s", "A3s", "A2s",
+                        "JTs", "T9s", "98s", "87s", "76s", "65s", "54s",
+                        "QTs", "KTs", "KJs"},
+    }
+
     def __init__(
         self,
         num_players: int = 6,
@@ -54,6 +71,7 @@ class PokerGame:
         bot_archetypes: Optional[List[str]] = None,
         player_names: Optional[List[str]] = None,
         paced_bots: bool = False,
+        hero_range_filter: str = "",   # "" = all hands; preset name = filter
     ):
         self.num_players = max(2, min(num_players, 9))
         self.starting_stack = starting_stack
@@ -64,6 +82,7 @@ class PokerGame:
         self.hand_count = 0
         self.dealer_idx = 0
         self.deck = Deck()
+        self.hero_range_filter = hero_range_filter
         # When True, start_hand() and hero_act() return after posting
         # blinds / applying the hero action without running any bot. The
         # caller (UI) drives bot decisions one at a time via step_action()
@@ -71,13 +90,25 @@ class PokerGame:
         self.paced_bots = paced_bots
 
         # Bot archetypes — either single archetype repeated, or list.
-        # "Karma (Mixed)" is a meta-archetype: spread the KARMA_MIX roster
-        # across opponents so every seat plays a different style.
+        # "Karma (Mixed)" is a meta-archetype: RANDOMLY sample distinct
+        # archetypes from the full pool so every game has a different
+        # field composition (TAG one game, two Maniacs the next, etc.).
+        import random as _random
         if bot_archetypes is None:
+            num_bots = self.num_players - 1
             if bot_archetype == "Karma (Mixed)":
-                bot_archetypes = list(KARMA_MIX)
+                # Sample WITHOUT replacement from the full KARMA_MIX pool —
+                # if num_bots > pool size, fall back to with-replacement.
+                pool = list(KARMA_MIX)
+                if num_bots <= len(pool):
+                    bot_archetypes = _random.sample(pool, num_bots)
+                else:
+                    bot_archetypes = _random.sample(pool, len(pool))
+                    bot_archetypes += [_random.choice(pool)
+                                       for _ in range(num_bots - len(pool))]
+                _random.shuffle(bot_archetypes)
             else:
-                bot_archetypes = [bot_archetype] * (self.num_players - 1)
+                bot_archetypes = [bot_archetype] * num_bots
         bot_archetypes = list(bot_archetypes)
 
         # Build players
@@ -121,6 +152,33 @@ class PokerGame:
     def active_players_count(self) -> int:
         """Players with chips remaining (in the session)."""
         return sum(1 for p in self.players if p.stack > 0 and not p.is_eliminated)
+
+    def get_bot_profiles(self) -> Dict[int, "BotProfile"]:
+        """Return {player_idx: BotProfile} — used by the UI for HUD hover tooltips."""
+        return {idx: brain.profile for idx, brain in self.bots.items()}
+
+    def _hand_in_range(self, cards: list) -> bool:
+        """Return True if hero's hole cards match the active hero_range_filter."""
+        if not self.hero_range_filter or self.hero_range_filter == "Tüm Eller":
+            return True
+        target = self._RANGE_PRESETS.get(self.hero_range_filter)
+        if not target or len(cards) < 2:
+            return True
+
+        RANKS_ORDER = "23456789TJQKA"
+        r1, r2 = cards[0].rank, cards[1].rank
+        suited = cards[0].suit == cards[1].suit
+
+        # Normalize: higher rank first
+        if RANKS_ORDER.index(r1) < RANKS_ORDER.index(r2):
+            r1, r2 = r2, r1
+
+        if r1 == r2:
+            hand_key = f"{r1}{r2}"
+        else:
+            hand_key = f"{r1}{r2}{'s' if suited else 'o'}"
+
+        return hand_key in target
 
     def set_blinds(self, small_blind: float, big_blind: float, ante: float = 0.0) -> None:
         self.small_blind = small_blind
@@ -174,6 +232,20 @@ class PokerGame:
         # Deal hole cards
         for i in in_game:
             self.players[i].hole_cards = self.deck.deal(2)
+
+        # Range filter — if active, re-deal hero until hand matches.
+        # Max 60 attempts to prevent infinite loop on very tight filters.
+        if self.hero_range_filter and self.hero_range_filter != "Tüm Eller":
+            hero_cards = self.players[self.hero_seat].hole_cards
+            attempts = 0
+            while not self._hand_in_range(hero_cards) and attempts < 60:
+                # Return hero cards to deck, reshuffle, re-deal everyone
+                self.deck = Deck()
+                self.deck.shuffle()
+                for i in in_game:
+                    self.players[i].hole_cards = self.deck.deal(2)
+                hero_cards = self.players[self.hero_seat].hole_cards
+                attempts += 1
 
         # Set up action queue for preflop
         self._build_action_queue(preflop=True)

@@ -16,3 +16,6 @@ build/
 *.swp
 *.swo
 *~
+.env
+.claude/
+yedek/

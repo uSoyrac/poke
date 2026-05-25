@@ -19,7 +19,8 @@ from app.core.app_state import AppState
 from app.db.seed_data import combat_packs, generate_spot_drills
 from app.solver.mock_solver import compare_action
 from app.ui.components.drill_card import DrillCard
-from app.ui.components.poker_table import PokerTableView
+from app.ui.components.poker_table import LivePokerTable
+from app.ui.components.spot_table import render_spot_on_table
 from app.ui.components.solver_bar import EVLossBadge, SolverFrequencyBar
 
 
@@ -110,7 +111,7 @@ class CombatTrainerScreen(QWidget):
 
         # Table + spot info
         main = QHBoxLayout()
-        self.table = PokerTableView()
+        self.table = LivePokerTable()
         main.addWidget(self.table, 2)
 
         panel = QFrame()
@@ -224,7 +225,7 @@ class CombatTrainerScreen(QWidget):
         self.progress_label.setText(f"{self.pack_index + 1} / {total}")
         self.progress_bar.setValue(pct)
 
-        self.table.set_hand(spot["hero_cards"], spot["board"], spot["pot_bb"])
+        render_spot_on_table(self.table, spot)
         is_boss = self.pack_index == total - 1
         boss_tag = " 🏆 BOSS HAND" if is_boss else ""
         self.spot_label.setText(f"{spot['id']}{boss_tag} | {spot['title']}")

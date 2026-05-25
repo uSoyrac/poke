@@ -175,6 +175,7 @@ class SeatState:
     is_winner: bool = False                  # crown / WIN badge at showdown
     hole: Optional[Sequence[str]] = None     # showdown reveal
     stack_unit: str = "bb"                   # "bb" or "chips"
+    hud_stats: Optional[dict] = None         # VPIP/PFR/AF/etc. for tooltip
 
 
 class _Seat(QFrame):
@@ -330,6 +331,27 @@ class _Seat(QFrame):
             self.name_label.show()
         else:
             self.name_label.hide()
+
+        # HUD tooltip — opponent stats on hover
+        if state.hud_stats and not state.is_hero:
+            h = state.hud_stats
+            af = h.get("af", h.get("aggression", 0))
+            self.card.setToolTip(
+                f"<b style='color:#5ad17a'>{state.name or state.pos}</b><br>"
+                f"<table cellpadding='2'>"
+                f"<tr><td>VPIP</td><td><b>{h.get('vpip',0):.0f}%</b></td>"
+                f"    <td>&nbsp;PFR</td><td><b>{h.get('pfr',0):.0f}%</b></td>"
+                f"    <td>&nbsp;3bet</td><td><b>{h.get('three_bet',0):.0f}%</b></td></tr>"
+                f"<tr><td>AF</td><td><b>{af:.1f}</b></td>"
+                f"    <td>&nbsp;F-cbet</td><td><b>{h.get('fold_to_cbet',0):.0f}%</b></td>"
+                f"    <td>&nbsp;Call↓</td><td><b>{h.get('call_down',0)*100:.0f}%</b></td></tr>"
+                f"<tr><td>RvBluff</td><td><b>{h.get('river_bluff',0)*100:.0f}%</b></td>"
+                f"    <td>&nbsp;Overbet</td><td><b>{h.get('overbet_freq',0)*100:.0f}%</b></td></tr>"
+                f"</table>"
+                f"<i style='color:#898d80'>{h.get('notes','')}</i>"
+            )
+        else:
+            self.card.setToolTip("")
 
         # Action chip
         action = state.action.upper()
@@ -870,6 +892,7 @@ def seats_from_hand(
     unit: str = "bb",
     hand=None,
     bb_divisor: float = 1.0,
+    bot_profiles: Optional[dict] = None,   # {player_idx: BotProfile} for HUD tooltips
 ) -> Tuple[List[SeatState], int, int]:
     """Map a list of PlayerSeat (game engine) → slot-ordered SeatState list.
 
@@ -927,6 +950,23 @@ def seats_from_hand(
                     and getattr(p, "hole_cards", None)):
                 hole_codes = [c.display for c in p.hole_cards[:2]]
 
+            # HUD stats from bot profile (if provided)
+            hud: Optional[dict] = None
+            if bot_profiles and cur in bot_profiles and not p.is_hero:
+                prof = bot_profiles[cur]
+                hud = {
+                    "vpip":         getattr(prof, "vpip", 0),
+                    "pfr":          getattr(prof, "pfr", 0),
+                    "three_bet":    getattr(prof, "three_bet", 0),
+                    "aggression":   getattr(prof, "aggression", 0),
+                    "af":           getattr(prof, "aggression", 0),
+                    "fold_to_cbet": getattr(prof, "fold_to_cbet", 0),
+                    "river_bluff":  getattr(prof, "river_bluff", 0),
+                    "call_down":    getattr(prof, "call_down", 0),
+                    "overbet_freq": getattr(prof, "overbet_freq", 0),
+                    "notes":        getattr(prof, "notes", ""),
+                }
+
             st = SeatState(
                 pos=getattr(p, "position", "") or "",
                 name=p.name if not p.is_hero else "",
@@ -941,6 +981,7 @@ def seats_from_hand(
                 is_winner=(is_complete and cur in winners_set),
                 hole=hole_codes,
                 stack_unit=unit,
+                hud_stats=hud,
             )
             if villain_seat is not None and cur == villain_seat:
                 st.is_villain = True

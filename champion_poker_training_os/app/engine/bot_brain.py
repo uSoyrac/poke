@@ -105,6 +105,94 @@ def hand_key(c1: Card, c2: Card) -> str:
     return f"{high}{low}{'s' if suited else 'o'}"
 
 
+# ─── HAND STRENGTH RANKING (for archetype-fidelity VPIP/PFR/3-bet control) ─
+# Goal: each profile's realized VPIP matches its declared target. We do this
+# by ranking all 169 hand types by approximate equity and picking the top
+# X% by combo frequency for each archetype's open range. Suited/connector/
+# pair bonuses are empirical, not solver-output, but sequence the hands in
+# a defensibly correct order (AA > AKs > KQs > etc.).
+
+def _hand_strength_score(hk: str) -> float:
+    """0-1 strength score used to rank hands for archetype range building."""
+    r1, r2 = hk[0], hk[1]
+    v1, v2 = RANK_VALUES[r1], RANK_VALUES[r2]
+    is_pair = (r1 == r2)
+    is_suited = len(hk) >= 3 and hk[2] == "s"
+    if is_pair:
+        # Pairs jumped above unpaired hands of similar high-card —
+        # 22 ≈ AJo, AA = top.
+        return 0.55 + (v1 - 2) / 12 * 0.45   # 22 → 0.55, AA → 1.00
+    high, low = max(v1, v2), min(v1, v2)
+    gap = high - low - 1
+    score = (high - 2) * 0.040 + (low - 2) * 0.024   # ~0.0 .. 0.81
+    if is_suited:
+        score += 0.06
+    if gap == 0:
+        score += 0.025
+    elif gap == 1:
+        score += 0.012
+    return min(0.94, score)
+
+
+def _all_hand_keys() -> List[str]:
+    ranks = "23456789TJQKA"
+    keys: List[str] = []
+    for i, r1 in enumerate(ranks):
+        for j, r2 in enumerate(ranks):
+            if i == j:
+                keys.append(f"{r1}{r2}")
+            elif i > j:
+                keys.append(f"{r1}{r2}s")
+                keys.append(f"{r1}{r2}o")
+    return keys
+
+
+def _hand_combo_count(hk: str) -> int:
+    """Combos out of 1326 — pair=6, suited=4, offsuit=12."""
+    if len(hk) == 2:
+        return 6
+    return 4 if hk[2] == "s" else 12
+
+
+_HAND_KEYS: List[str] = _all_hand_keys()
+_HAND_STRENGTH: dict = {hk: _hand_strength_score(hk) for hk in _HAND_KEYS}
+_HAND_FREQ: dict = {hk: _hand_combo_count(hk) for hk in _HAND_KEYS}
+_SORTED_BY_STRENGTH: List[str] = sorted(
+    _HAND_KEYS, key=lambda hk: (-_HAND_STRENGTH[hk], hk)
+)
+_TOTAL_COMBOS = 1326   # 52 choose 2
+
+
+def hands_in_top_pct(pct: float) -> set:
+    """Frequency-aware top-N% range — returns hand keys that fill `pct` of all 1326 combos."""
+    target = max(0.0, pct) / 100.0 * _TOTAL_COMBOS
+    out: set = set()
+    acc = 0
+    for hk in _SORTED_BY_STRENGTH:
+        if acc >= target:
+            break
+        out.add(hk)
+        acc += _HAND_FREQ[hk]
+    return out
+
+
+# Per-position VPIP multiplier — UTG opens tighter than BTN even with the
+# same archetype. Multiplies the profile's target VPIP to get a position-
+# adjusted range size (clamped to [0, 85]).
+_POS_VPIP_MULT = {
+    "UTG":   0.65,
+    "UTG+1": 0.75,
+    "MP":    0.85,
+    "LJ":    0.95,
+    "HJ":    1.05,
+    "CO":    1.20,
+    "BTN":   1.45,
+    "SB":    0.90,
+    "BB":    1.05,        # only acts when checked to or facing limp
+    "SB/BTN": 1.45,
+}
+
+
 # Open ranges by position (simplified GTO baseline %)
 OPEN_RANGES = {
     "UTG":   PREMIUM | STRONG | {"77", "66", "55", "AJo", "ATs", "KQs", "QJs", "JTs"},
@@ -133,6 +221,19 @@ class BotBrain:
 
     def __init__(self, profile: BotProfile):
         self.profile = profile
+        # Precomputed per-position open ranges sized to hit profile.vpip.
+        # Cached at construction so per-hand decisions are O(1) lookups.
+        self._pos_open_ranges: dict = {}
+        for pos, mult in _POS_VPIP_MULT.items():
+            pct = max(0.0, min(85.0, profile.vpip * mult))
+            self._pos_open_ranges[pos] = hands_in_top_pct(pct)
+        # 3-bet pool — top three_bet% of all hands (slightly wider for IP
+        # spots so realized 3-bet% lands close to the declared target after
+        # accounting for opp-position frequency).
+        self._3bet_pool_ip = hands_in_top_pct(min(40.0, profile.three_bet * 1.25))
+        self._3bet_pool_oop = hands_in_top_pct(min(35.0, profile.three_bet * 0.95))
+        # Defensive call pool — what we call (not 3-bet) facing a single open
+        self._call_pool = hands_in_top_pct(min(50.0, profile.vpip * 1.05))
 
     # ── PUBLIC API ─────────────────────────────────────────────────
 
@@ -163,36 +264,52 @@ class BotBrain:
         is_unopened = state.current_bet <= bb + 0.01
         is_facing_raise = state.current_bet > bb + 0.01
 
-        # Archetype tightness scaler
-        loose = (self.profile.vpip - 22) / 22.0  # -1 (nit) to +1.5 (maniac)
+        # Archetype tightness scaler (kept for postflop / aggression hooks)
+        loose = (self.profile.vpip - 22) / 22.0
         loose = max(-1.0, min(1.5, loose))
 
-        # Determine effective open range
-        base = OPEN_RANGES.get(pos, OPEN_RANGES["BTN"])
+        # Per-archetype per-position open range — precomputed in __init__.
+        # Profile.vpip == realized VPIP because the range is sized by combo
+        # frequency, not pool membership.
+        pos_range = self._pos_open_ranges.get(pos, self._pos_open_ranges["BTN"])
 
         if is_unopened:
-            # UNOPENED POT — RFI decision
-            in_range = hk in base
-            # Loosen/tighten by archetype
-            if not in_range and loose > 0.5 and (hk in MEDIUM or hk in SPECULATIVE or hk in TRASH_PLAYABLE_VS_LIMP):
-                in_range = random.random() < (loose - 0.3)
-            if in_range and loose < -0.3 and hk not in PREMIUM | STRONG:
-                in_range = random.random() < (1 + loose * 0.7)
+            in_range = hk in pos_range
+            # Loose archetypes — recreational players LIMP some weak hands
+            # instead of folding. Toggle limp via BET (or CALL when limping
+            # behind) on a small extra slice. Capped so realized VPIP doesn't
+            # overshoot the target.
+            if (not in_range and self.profile.pfr < self.profile.vpip - 8
+                    and hk in TRASH_PLAYABLE_VS_LIMP):
+                limp_chance = (self.profile.vpip - self.profile.pfr) / 80.0
+                if random.random() < limp_chance:
+                    if ActionType.CALL in valid_types:
+                        return ActionType.CALL, to_call
+                    if ActionType.CHECK in valid_types:
+                        return ActionType.CHECK, 0.0
 
-            if in_range and ActionType.RAISE in valid_types:
-                # Open raise sizing: 2.5x preflop standard, 2.2x in CO/BTN, 3x in early
-                if pos in ("UTG", "UTG+1"):
-                    open_to = 3.0 * bb
-                elif pos in ("SB", "SB/BTN"):
-                    open_to = 3.0 * bb
-                else:
-                    open_to = 2.3 * bb
-                amount = max(open_to - player.current_bet, bb)
-                amount = min(amount, player.stack)
-                return ActionType.RAISE, amount
-            if in_range and ActionType.BET in valid_types:
-                # BB option vs limp
-                return ActionType.BET, max(bb * 3, bb)
+            if in_range:
+                # PFR vs limp/call split — passive archetypes call more, raise less
+                pfr_share = (self.profile.pfr / max(self.profile.vpip, 1e-6))
+                pfr_share = max(0.0, min(1.0, pfr_share))
+                if random.random() < pfr_share and ActionType.RAISE in valid_types:
+                    if pos in ("UTG", "UTG+1"):
+                        open_to = 3.0 * bb
+                    elif pos in ("SB", "SB/BTN"):
+                        open_to = 3.0 * bb
+                    else:
+                        open_to = 2.3 * bb
+                    amount = max(open_to - player.current_bet, bb)
+                    amount = min(amount, player.stack)
+                    return ActionType.RAISE, amount
+                if random.random() < pfr_share and ActionType.BET in valid_types:
+                    return ActionType.BET, max(bb * 3, bb)
+                # Else — limp / call
+                if ActionType.CALL in valid_types:
+                    return ActionType.CALL, to_call
+                if ActionType.CHECK in valid_types:
+                    return ActionType.CHECK, 0.0
+
             if ActionType.CHECK in valid_types:
                 return ActionType.CHECK, 0.0
             return ActionType.FOLD, 0.0
@@ -216,35 +333,32 @@ class BotBrain:
             return ActionType.FOLD, 0.0 if ActionType.FOLD in valid_types else (ActionType.CHECK, 0.0)
 
         # Single raise — choose call / 3-bet / fold
-        three_bet_pool = THREE_BET_RANGES["vs_late"] if pos in ("BTN", "CO", "BB", "SB") else THREE_BET_RANGES["vs_early"]
-        call_pool = base  # We can call with what we'd open
+        ip = pos in ("BTN", "CO")
+        three_bet_pool = self._3bet_pool_ip if ip else self._3bet_pool_oop
+        call_pool = self._call_pool
         in_3bet = hk in three_bet_pool
         in_call = hk in call_pool
 
-        # Archetype tweaks
-        if self.profile.aggression > 3.5 and hk in {"76s", "65s", "54s", "A5s", "A4s"}:
-            in_3bet = True
-        if self.profile.aggression < 1.5 and hk not in PREMIUM:
+        # Archetype overlays — passive players never 3-bet light, maniacs
+        # 3-bet with extra suited bluffs.
+        if self.profile.aggression < 1.2 and hk not in PREMIUM:
             in_3bet = False
-        if self.profile.call_down > 0.6:
-            in_call = in_call or hk in MEDIUM
+        if self.profile.aggression > 3.8 and hk in {"76s", "65s", "54s", "A5s", "A4s"}:
+            in_3bet = True
 
-        # 3-bet
-        if in_3bet and ActionType.RAISE in valid_types and random.random() < (0.35 + self.profile.three_bet / 60):
-            # 3-bet sizing: 3x the raise if IP, 4x if OOP
-            ip = pos in ("BTN", "CO")
+        # 3-bet decision — fire if hand is in our 3-bet range
+        if in_3bet and ActionType.RAISE in valid_types:
             three_bet_to = (3.0 if ip else 3.5) * state.current_bet
             amount = three_bet_to - player.current_bet
             amount = max(amount, state.min_raise)
             amount = min(amount, player.stack)
             return ActionType.RAISE, amount
 
-        # Call
+        # Call — Stations / loose-passive call WAY wider, nits tight
         if in_call and ActionType.CALL in valid_types:
-            # Pot odds check
-            pot_odds = to_call / (state.pot + to_call) if (state.pot + to_call) > 0 else 1
-            implied_threshold = 0.30 + (0.05 if hk in PREMIUM | STRONG else 0)
-            if pot_odds < implied_threshold + (self.profile.call_down * 0.15):
+            pot_odds = to_call / (state.pot + to_call) if (state.pot + to_call) > 0 else 1.0
+            implied_threshold = 0.32 + (0.06 if hk in PREMIUM | STRONG else 0)
+            if pot_odds < implied_threshold + (self.profile.call_down * 0.20):
                 return ActionType.CALL, to_call
 
         # Premium pairs always continue
@@ -282,48 +396,66 @@ class BotBrain:
         # ── FACING A BET ──
         if to_call > 0:
             pot_odds = to_call / (pot + to_call)
-            # Required equity vs bet
             need_equity = pot_odds
+            # Profile fold tendency — drives realised fold-to-cbet directly
+            fold_freq = self.profile.fold_to_cbet / 100.0   # 0..1
+            call_down_boost = self.profile.call_down * 0.30  # stations call light
 
-            # Strong made hands → raise or call
-            if adj_strength >= 0.78:  # Two pair or better
-                if ActionType.RAISE in valid_types and random.random() < (agg / 5):
+            # Strong made hands → raise or call (never fold).
+            # Aggression factor (bets+raises)/calls is driven by `agg`:
+            #   - Nit (1.5) raises ~27% of strong hands → mostly calls
+            #   - Maniac (4.6) raises ~83% → almost always raises
+            if adj_strength >= 0.78:
+                raise_freq = max(0.05, min(0.92, agg / 5.5))
+                if ActionType.RAISE in valid_types and random.random() < raise_freq:
                     return self._raise_size(state, valid, polarized=adj_strength > 0.85)
                 if ActionType.CALL in valid_types:
                     return ActionType.CALL, to_call
                 return ActionType.ALL_IN, player.stack
 
-            # Medium hands (top pair, overpairs) → call mostly
+            # Top pair / overpair / second pair top kicker → mostly call
             if adj_strength >= 0.55:
-                # If villain bet is overbet (> pot), need to be more selective
                 bet_size_pot = to_call / pot
                 if bet_size_pot > 1.2 and adj_strength < 0.70:
-                    if random.random() < self.profile.call_down * 0.8 and ActionType.CALL in valid_types:
+                    # Big bet — only stations / call-down profiles continue
+                    if (random.random() < (self.profile.call_down * 0.7 + (1 - fold_freq) * 0.3)
+                            and ActionType.CALL in valid_types):
                         return ActionType.CALL, to_call
                     return ActionType.FOLD, 0.0
                 if ActionType.CALL in valid_types:
                     return ActionType.CALL, to_call
                 return ActionType.FOLD, 0.0
 
-            # Draws — semi-bluff raise or call
-            if draws > 0:
-                draw_equity = draws  # 0-1 estimated
-                if draw_equity > need_equity:
-                    if random.random() < (agg / 8) and ActionType.RAISE in valid_types and state.street != Street.RIVER:
-                        return self._raise_size(state, valid, polarized=False)
-                    if ActionType.CALL in valid_types:
-                        return ActionType.CALL, to_call
+            # Draws — semi-bluff raise (low freq) or call (when getting odds)
+            if draws > 0 and draws > need_equity - 0.05:
+                if (state.street != Street.RIVER
+                        and ActionType.RAISE in valid_types
+                        and random.random() < (agg / 10)):
+                    return self._raise_size(state, valid, polarized=False)
+                if ActionType.CALL in valid_types and random.random() < (1 - fold_freq * 0.5):
+                    return ActionType.CALL, to_call
 
-            # Bluff catchers — use MDF logic
-            mdf = 1 - (to_call / (pot + to_call))
-            should_defend = random.random() < (mdf * 0.85 + self.profile.call_down * 0.15)
-            if adj_strength > 0.30 and should_defend and ActionType.CALL in valid_types:
-                # Don't bluffcatch huge overbets without blockers
-                if to_call / pot > 1.5 and adj_strength < 0.45:
+            # Marginal / weak hands — profile.fold_to_cbet is the primary driver.
+            # We overshoot the per-hand fold rate because strong & medium hands
+            # NEVER fold (handled above), so realised fold_to_cbet ≈ marginal_fold
+            # × (frac of flops where hand is marginal). Empirically that frac
+            # is ~0.55, so multiply fold_freq by ~1.8 to land near the target.
+            marginal_fold = fold_freq * 1.80 - adj_strength * 0.35 \
+                            - self.profile.call_down * 0.15
+            marginal_fold = max(0.04, min(0.97, marginal_fold))
+            if random.random() < marginal_fold:
+                return ActionType.FOLD, 0.0 if ActionType.FOLD in valid_types else (ActionType.CHECK, 0.0)
+            # High-aggression profiles bluff-raise some marginal hands instead
+            # of calling — this is what keeps Maniac/LAG AF up at 3-4.
+            if (agg > 3.2 and ActionType.RAISE in valid_types
+                    and state.street != Street.RIVER
+                    and random.random() < (agg - 3.0) * 0.18):
+                return self._raise_size(state, valid, polarized=False)
+            if ActionType.CALL in valid_types:
+                # Don't call massive overbets without showdown value
+                if to_call / pot > 1.6 and adj_strength < 0.40:
                     return ActionType.FOLD, 0.0
                 return ActionType.CALL, to_call
-
-            # Otherwise fold
             return ActionType.FOLD, 0.0 if ActionType.FOLD in valid_types else (ActionType.CHECK, 0.0)
 
         # ── NO BET — CHECK OR BET ──
@@ -355,9 +487,10 @@ class BotBrain:
 
             return ActionType.CHECK, 0.0
 
-        # Strong made hand — bet for value
+        # Strong made hand — bet for value (frequency scales with aggression)
         if adj_strength >= 0.72:
-            if ActionType.BET in valid_types and random.random() < (0.6 + agg / 10):
+            value_bet_freq = max(0.20, min(0.95, 0.30 + agg / 7.5))
+            if ActionType.BET in valid_types and random.random() < value_bet_freq:
                 size_pct = 0.66 if adj_strength < 0.85 else 0.85
                 if random.random() < self.profile.overbet_freq:
                     size_pct = 1.5
@@ -366,25 +499,32 @@ class BotBrain:
                     return ActionType.BET, amt
             return ActionType.CHECK, 0.0
 
-        # Medium hand — check / thin value
+        # Medium hand — thin value bet on later streets, scales with aggression
         if adj_strength >= 0.50:
-            if state.street == Street.RIVER and random.random() < 0.30:
-                amt = self._bet_amount(pot, 0.40, valid)
+            thin_value_freq = max(0.02, (agg - 1.0) * 0.12)
+            if (ActionType.BET in valid_types
+                    and state.street != Street.FLOP
+                    and random.random() < thin_value_freq):
+                amt = self._bet_amount(pot, 0.45, valid)
                 if amt:
                     return ActionType.BET, amt
             return ActionType.CHECK, 0.0
 
-        # Weak — bluff sometimes
+        # Weak — bluff: river uses profile.bluff_river; flop/turn uses
+        # aggression-scaled freq so Maniacs barrel and Nits give up.
         if state.street == Street.RIVER:
-            if random.random() < self.profile.bluff_river:
+            if ActionType.BET in valid_types and random.random() < self.profile.bluff_river:
                 amt = self._bet_amount(pot, 0.66, valid)
                 if amt:
                     return ActionType.BET, amt
-        elif draws > 0 and random.random() < (agg / 10):
-            # Semi-bluff with draws
-            amt = self._bet_amount(pot, 0.50, valid)
-            if amt:
-                return ActionType.BET, amt
+        else:
+            # Pure-bluff frequency scales steeply with aggression so high-AF
+            # archetypes (Maniac 4.6, Aggro Fish 3.9, LAG 3.6) barrel a lot.
+            bluff_freq = max(0.0, (agg - 1.5) * 0.18) + (draws * 0.30 if draws else 0)
+            if ActionType.BET in valid_types and bluff_freq > 0 and random.random() < bluff_freq:
+                amt = self._bet_amount(pot, 0.55, valid)
+                if amt:
+                    return ActionType.BET, amt
 
         return ActionType.CHECK, 0.0 if ActionType.CHECK in valid_types else (ActionType.FOLD, 0.0)
 

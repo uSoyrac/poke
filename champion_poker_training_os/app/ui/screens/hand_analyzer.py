@@ -22,7 +22,8 @@ from app.db.seed_data import generate_hands
 from app.ui.components.card_view import CardView
 from app.ui.components.hand_timeline import HandTimeline
 from app.ui.components.metric_card import MetricCard
-from app.ui.components.poker_table import PokerTableView
+from app.ui.components.poker_table import LivePokerTable
+from app.ui.components.spot_table import render_hand_on_table, render_spot_on_table
 
 
 class HandAnalyzerScreen(QWidget):
@@ -81,7 +82,7 @@ class HandAnalyzerScreen(QWidget):
 
         # Main area
         top = QHBoxLayout()
-        self.table_view = PokerTableView()
+        self.table_view = LivePokerTable()
         top.addWidget(self.table_view, 2)
 
         panel = QFrame()
@@ -222,7 +223,7 @@ class HandAnalyzerScreen(QWidget):
         profit = hand.get("hero_profit", 0)
         won = hand.get("hero_won", False)
 
-        self.table_view.set_hand(hero_cards, community, hand.get("pot", 0))
+        render_hand_on_table(self.table_view, hero_cards, community, hand.get("pot", 0))
 
         _clear_layout(self.hero_cards_row)
         for part in hero_cards.split():
@@ -243,7 +244,11 @@ class HandAnalyzerScreen(QWidget):
 
     def _show_demo_hand(self, hand: dict) -> None:
         self.state.selected_spot = hand.get("spot")
-        self.table_view.set_hand(hand["hero_cards"], hand.get("board", ""), hand.get("spot", {}).get("pot_bb", 0))
+        spot = hand.get("spot")
+        if spot:
+            render_spot_on_table(self.table_view, spot)
+        else:
+            render_hand_on_table(self.table_view, hand["hero_cards"], hand.get("board", ""), hand.get("spot", {}).get("pot_bb", 0))
         self.timeline.set_events(hand.get("timeline", []))
 
         _clear_layout(self.hero_cards_row)

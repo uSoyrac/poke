@@ -14,12 +14,14 @@ from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QMainWindow, QStackedWidget, QVBoxLayout, QWidget
 
 from app.ai.coach_engine import explain_spot
+from app.ai.gemini_client import GeminiCoach
 from app.core.app_state import AppState
 from app.core.config import APP_NAME
 from app.core.logging import configure_logging
 from app.core.rta_guard import RtaGuard
 from app.db.repository import initialize_database
 from app.ui.components.coach_panel import CoachPanel
+from app.ui.components.multi_session_tabs import MultiSessionTabs
 from app.ui.components.sidebar import SidebarNav
 from app.ui.components.topbar import TopStatusBar
 from app.ui.screens.ai_coach import AiCoachScreen
@@ -107,11 +109,25 @@ RESTRICTED_WHEN_LOCKED = {
 }
 
 
+def _load_dot_env() -> None:
+    env_file = Path(__file__).resolve().parents[1] / ".env"
+    if not env_file.exists():
+        return
+    for raw in env_file.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        os.environ.setdefault(k.strip(), v.strip())
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        _load_dot_env()
         self.state = AppState()
         self.guard = RtaGuard(strict_mode=True)
+        self.gemini = GeminiCoach()
         initialize_database()
 
         self.setWindowTitle(APP_NAME)
@@ -125,6 +141,7 @@ class MainWindow(QMainWindow):
         self.topbar = TopStatusBar(self.state)
         self.coach = CoachPanel()
         self.coach.ask_requested.connect(self.explain_selected_spot)
+        self.coach.chat_requested.connect(self.chat_with_coach)
         self.stack = QStackedWidget()
         self.screens: dict[str, QWidget] = {}
         self._create_screens()
@@ -190,14 +207,25 @@ class MainWindow(QMainWindow):
         self.scan_timer.start(10_000)
 
     def _create_screens(self) -> None:
-        factories = {
+        # Screens wrapped in MultiSessionTabs so the user can keep N parallel
+        # cash sessions / tournaments running at once.
+        state = self.state
+        multi_factories = {
+            "Play Session": lambda: MultiSessionTabs(
+                screen_factory=lambda: PlaySessionScreen(state),
+                title_prefix="Session",
+            ),
+            "Tournament Simulator": lambda: MultiSessionTabs(
+                screen_factory=lambda: TournamentSimulatorScreen(state),
+                title_prefix="Tournament",
+            ),
+        }
+        single_factories = {
             "Dashboard": DashboardScreen,
-            "Play Session": PlaySessionScreen,
             "GTO Study Library": StudyLibraryScreen,
             "Spot Practice Trainer": SpotTrainerScreen,
             "Hand History Analyzer": HandAnalyzerScreen,
             "Fast Play Simulator": FastPlaySimulatorScreen,
-            "Tournament Simulator": TournamentSimulatorScreen,
             "ICM / PKO Trainer": IcmTrainerScreen,
             "Preflop Range Trainer": RangeTrainerScreen,
             "Postflop Trainer": PostflopTrainerScreen,
@@ -212,13 +240,33 @@ class MainWindow(QMainWindow):
             "Settings / Compliance Guard": SettingsScreen,
         }
         for name in NAV_ITEMS:
-            screen = factories[name](self.state)
+            if name in multi_factories:
+                screen = multi_factories[name]()
+            else:
+                screen = single_factories[name](self.state)
             if hasattr(screen, "coach_message"):
                 screen.coach_message.connect(self.coach.set_message)
+            if hasattr(screen, "hand_completed"):
+                screen.hand_completed.connect(self.on_hand_completed)
             if hasattr(screen, "navigate_requested"):
                 screen.navigate_requested.connect(self.navigate)
+            if hasattr(screen, "tournament_advice_requested"):
+                screen.tournament_advice_requested.connect(self.on_tournament_advice)
             self.screens[name] = screen
             self.stack.addWidget(screen)
+
+    def on_tournament_advice(self, briefing_prompt: str) -> None:
+        """Forward tournament briefing prompt to Gemini and pipe response to coach."""
+        if self.state.strategy_locked:
+            return
+        if self.gemini.available:
+            self.coach.set_thinking()
+            self.gemini.ask_async(briefing_prompt, self.coach.set_message)
+        else:
+            self.coach.set_message(
+                "Yeni turnuva başladı. (Gemini API key girilince turnuva-spesifik "
+                "AI tavsiyesi burada görünecek — Settings ekranından gir.)"
+            )
 
     def navigate(self, name: str) -> None:
         if self.state.strategy_locked and name in RESTRICTED_WHEN_LOCKED:
@@ -243,14 +291,116 @@ class MainWindow(QMainWindow):
         if status.locked and self.state.active_mode in RESTRICTED_WHEN_LOCKED:
             self.navigate("Settings / Compliance Guard")
 
+    def _analyse_last_hand(self, data: dict) -> None:
+        s = data.get("session", {})
+        prompt = (
+            f"EL ANALİZİ:\n\n"
+            f"Hero: {data['hero_position']} | El: {data['hero_cards']} | Stack: {data['hero_stack_bb']}bb\n"
+            f"Board: {data['community']}\n"
+            f"Pot: {data['pot']}bb | Yatırıldı: {data['hero_invested']}bb | "
+            f"Sonuç: {'KAZANDI ✓' if data['hero_won'] else 'KAYBETTİ ✗'} ({data['hero_profit']:+.1f}bb)\n"
+            f"Kazanan el: {data['winner_hand_name']} | Sokak: {data['streets_seen']}\n"
+            f"Aksiyonlar: {data['actions']}\n"
+            f"Session: {s.get('hands', 0)} el, {s.get('profit_bb', 0):+.1f}bb, "
+            f"VPIP {s.get('vpip', 0):.0f}%, Win {s.get('win_rate', 0):.0f}%\n\n"
+            "Bu ele özel 3 madde:\n"
+            "1. Preflop/postflop kararları doğru mu?\n"
+            "2. En kritik karar noktası?\n"
+            "3. Bir sonraki benzer elde yapılacak somut değişiklik.\n"
+            "Kısa tut (6-8 satır)."
+        )
+        self.coach.set_thinking()
+        self.gemini.ask_async(prompt, self.coach.set_message)
+
+    def _tournament_context_block(self) -> str:
+        """Format live tournament context as a prompt prefix for Gemini.
+
+        Empty string when no tournament is running — the coach falls back
+        to cash-game advice automatically.
+        """
+        tc = self.state.tournament_context
+        if not tc or not tc.get("active"):
+            return ""
+        bubble_tag = ""
+        if tc.get("on_bubble"):
+            bubble_tag = " · BUBBLE!"
+        elif tc.get("bubble_distance", 99) <= 3:
+            bubble_tag = f" · Bubble'a {tc['bubble_distance']} kişi"
+        return (
+            f"[TURNUVA BAĞLAMI]\n"
+            f"Event: {tc['event']} · Struct: {tc['structure']} · Buy-in: ${tc['buyin']:.0f}\n"
+            f"Level {tc['level']} · Blinds {tc['blinds']} (ante {tc['ante']}) · "
+            f"Sonraki level: {tc['hands_until_next_level']} el\n"
+            f"Field: {tc['players_remaining']}/{tc['field_size']} kaldı · "
+            f"Hero {tc['hero_bb']}bb ({tc['stack_pressure']}) · Avg {tc['avg_bb']}bb · "
+            f"Ödül havuzu: ${tc['prize_pool']:.0f} ({tc['payouts_paid']} ödüllü){bubble_tag}\n"
+            f"TAVSİYE TURNUVA SPESİFİK OLSUN: ICM/stack depth/bubble pressure/blind level ışığında konuş.\n\n"
+        )
+
     def explain_selected_spot(self) -> None:
         if self.state.strategy_locked:
             self.coach.set_message("RTA Guard locked coach strategy output while a poker client is detected.")
             return
-        if self.state.selected_spot:
-            self.coach.set_message(explain_spot(self.state.selected_spot))
+        # Önce oynanan el varsa onu analiz et
+        if self.state.last_hand:
+            self._analyse_last_hand(self.state.last_hand)
+            return
+        # Turnuva çalışıyorsa ve seçili spot yoksa — turnuva durumu üzerinden tavsiye ver
+        if self.state.tournament_context and self.state.tournament_context.get("active"):
+            ctx = self._tournament_context_block()
+            prompt = (
+                ctx +
+                "Hero şu an aksiyon beklemeden masa hakkında genel turnuva tavsiyesi istiyor. "
+                "Konuş: bu spotta nasıl oynamalı (stack derinliği, ICM, blind structure), "
+                "hangi rakipleri targetlemeli, nelerden kaçınmalı? Kısa (6-8 satır), maddeleştir."
+            )
+            if self.gemini.available:
+                self.coach.set_thinking()
+                self.gemini.ask_async(prompt, self.coach.set_message)
+            else:
+                self.coach.set_message(ctx + "(Offline mod — Gemini API key girilince tavsiye gelir)")
+            return
+        if not self.state.selected_spot:
+            self.coach.set_message("Önce bir trainer spot seç veya bir el oyna, sonra buraya gel.")
+            return
+        spot = self.state.selected_spot
+        baseline = explain_spot(spot)
+        if self.gemini.available:
+            prompt = (
+                f"Şu poker spotunu analiz et:\n{baseline}\n\n"
+                "Kısa analiz: range avantajı, matematik, en iyi aksiyon, 1 gelişim önerisi."
+            )
+            self.coach.set_thinking()
+            self.gemini.ask_async(prompt, self.coach.set_message)
         else:
-            self.coach.set_message("Önce bir trainer, analyzer veya study spot seç; sonra nedenini birlikte parçalayalım.")
+            self.coach.set_message(baseline)
+
+    def on_hand_completed(self, data: dict) -> None:
+        """Store hand data — Gemini analizi sadece kullanıcı sorduğunda yapılır."""
+        self.state.last_hand = data
+        # Sidebar mini profili tazele (yeni el DB'ye yazıldı)
+        QTimer.singleShot(300, self.sidebar.refresh_profile)
+        # Review isteği gelirse (Review Last butonu) analiz et
+        if data.get("source") == "review_request" and not self.state.strategy_locked:
+            self._analyse_last_hand(data)
+
+    def chat_with_coach(self, prompt: str) -> None:
+        if self.state.strategy_locked:
+            self.coach.set_message("RTA Guard: canlı oyun sırasında strateji koçu devre dışı.")
+            return
+        # Inject tournament context FIRST (most important for ICM-aware advice)
+        full_prompt = self._tournament_context_block()
+        # Then last-hand context if available
+        if self.state.last_hand:
+            h = self.state.last_hand
+            full_prompt += (
+                f"[Bağlam — son oynanan el: {h['hero_position']} | {h['hero_cards']} | "
+                f"Board: {h['community']} | Pot: {h['pot']}bb | "
+                f"Sonuç: {'Kazandı' if h['hero_won'] else 'Kaybetti'} ({h['hero_profit']:+.1f}bb)]\n\n"
+            )
+        full_prompt += prompt
+        self.coach.set_thinking()
+        self.gemini.ask_async(full_prompt, self.coach.set_message)
 
 
 def main() -> int:

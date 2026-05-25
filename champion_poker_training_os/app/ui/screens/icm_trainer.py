@@ -24,7 +24,8 @@ from app.poker.icm import (
 )
 from app.db.seed_data import generate_spot_drills
 from app.solver.mock_solver import compare_action
-from app.ui.components.poker_table import PokerTableView
+from app.ui.components.poker_table import LivePokerTable
+from app.ui.components.spot_table import render_spot_on_table
 from app.ui.components.metric_card import MetricCard
 
 
@@ -148,7 +149,7 @@ class IcmTrainerScreen(QWidget):
 
         # Main area: table + spot info
         main = QHBoxLayout()
-        self.table = PokerTableView()
+        self.table = LivePokerTable()
         main.addWidget(self.table, 2)
 
         panel = QFrame()
@@ -198,7 +199,7 @@ class IcmTrainerScreen(QWidget):
     def load_spot(self) -> None:
         spot = self.drills[self.index % len(self.drills)]
         self.state.selected_spot = spot
-        self.table.set_hand(spot["hero_cards"], spot["board"], spot["pot_bb"])
+        render_spot_on_table(self.table, spot)
         self.spot_title.setText(f"{spot['id']} | {spot['title']}")
         self.spot_info.setText(
             f"Players left: {spot['players_left']} | Paid: {spot['paid_places']} | "

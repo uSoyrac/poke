@@ -15,8 +15,14 @@ Around them sit ~15 trainer/analysis screens, an AI coach panel, and a
 sidebar nav.
 
 - **Run:** `cd champion_poker_training_os && .venv/bin/python -m app.main`
-- **Test:** `.venv/bin/python -m pytest tests/ -q` (42 tests, all expected
-  to pass)
+- **Test:** `.venv/bin/python -m pytest tests/ -q` (42 unit tests) +
+  `.venv/bin/python tests/test_feature_audit.py` (27 feature checks) +
+  `.venv/bin/python tests/test_bot_archetype_fidelity.py` (bot AI
+  realised-vs-target VPIP/PFR/AF report). All three must pass.
+- **Render-UI test:** `.venv/bin/python tests/render_ui_screens.py` —
+  dumps PNGs to `docs/screens/` so you can eyeball UI changes from the
+  user's POV (mandatory per user memory: "UI değişikliği sonrası PNG
+  render alıp gerçek user gözünden bak").
 - **Repo:** https://github.com/uSoyrac/poke.git (branch `main`)
 - **Design source bundle URLs** (only fetch if you need binary assets;
   the relevant text files are mirrored at `docs/design/`):
@@ -36,10 +42,14 @@ sidebar nav.
 | Shortcut registry | `app/ui/components/shortcuts.py` (`SHORTCUTS` list + `ShortcutsDialog`) |
 | Sidebar nav | `app/ui/components/sidebar.py` (`EXPANDED_WIDTH=232`, `COLLAPSED_WIDTH=52`) |
 | AI coach panel | `app/ui/components/coach_panel.py` (`EXPANDED_WIDTH=360`, `COLLAPSED_WIDTH=40`) |
-| Engine (Hold'em rules) | `app/engine/game_loop.py` — `PokerGame.step_action()` is the per-tick API the UI drives |
-| Bot brains + archetypes | `app/engine/bot_brain.py` — `BOT_ARCHETYPES` dict, includes "Karma (Mixed)" and "GTO Expert" |
-| Tournament wrapper | `app/simulator/tournament_runner.py` — owns blind schedule, owns a `PokerGame` |
-| App shell + shortcuts | `app/main.py` — `MainWindow` wires Ctrl+B / Ctrl+J / Ctrl+1..9 / ? |
+| **Multi-tab host** | `app/ui/components/multi_session_tabs.py` — wraps any screen so the user can keep up to 6 parallel sessions/tournaments; forwards `coach_message`/`hand_completed`/`navigate_requested`/`tournament_advice_requested` signals |
+| **Per-seat archetype picker** | `app/ui/components/field_picker.py` — `FieldPicker` widget; add/remove seats (1-8 bots), every seat picks a specific archetype or "Random (Karma)" which resamples each game |
+| Engine (Hold'em rules) | `app/engine/game_loop.py` — `PokerGame.step_action()` is the per-tick API the UI drives. Accepts `bot_archetypes=List[str]` for explicit per-seat assignment |
+| Bot brains + archetypes | `app/engine/bot_brain.py` — `BOT_ARCHETYPES` dict + `hands_in_top_pct()` frequency-aware hand-strength range builder; per-profile open / 3-bet / call ranges precomputed in `BotBrain.__init__` so realised VPIP/PFR land near declared targets |
+| Tournament wrapper | `app/simulator/tournament_runner.py` — owns blind schedule, owns a `PokerGame`; `TournamentConfig.bot_mix` is the per-seat archetype list, `paid_places` reports payout-table size |
+| Live HUD | `app/core/live_hud.py` — observes bot actions per hand; `merge_with_profile()` blends observed stats with the archetype baseline (weight = min(observed/20, 1)) |
+| Tournament context for coach | `app/core/app_state.py` — `tournament_context` dict populated by `TournamentSimulatorScreen._refresh_table` each refresh, consumed by `MainWindow._tournament_context_block()` to prepend ICM/bubble/stack-depth info to every Gemini prompt |
+| App shell + shortcuts | `app/main.py` — `MainWindow` wires Ctrl+B / Ctrl+J / Ctrl+1..9 / ? and connects `tournament_advice_requested` → Gemini briefing |
 
 ---
 
@@ -99,6 +109,71 @@ Originally lived inside the felt center widget but overlapped hero hole
 cards. Moved out of `_Center` and into each play screen's action deck
 (above the buttons). Centered, lime border, mono text.
 
+### Multi-tab parallel sessions
+Both Play Session and Tournament Simulator are wrapped in
+`MultiSessionTabs` (see `_create_screens` in `app/main.py`). The user
+opens up to 6 parallel sessions/tournaments via "+ NEW". Each tab is an
+independent screen instance with its own `PokerGame` and `LiveHUD`.
+Signals are forwarded transparently — main.py's existing
+`coach_message` / `hand_completed` / `tournament_advice_requested`
+hooks still work without changes.
+
+### Karma (Mixed) — true random
+`PokerGame.__init__` uses `random.sample(KARMA_MIX, num_bots)` when
+`bot_archetype == "Karma (Mixed)"`, so every game has a different
+field composition. The old implementation cycled through KARMA_MIX in
+order — same TAG/LAG/Fish/Station/Reg in seats 1-5 every game. The
+fix lives in `app/engine/game_loop.py` around line 95.
+
+### Per-seat archetype picker
+`FieldPicker` replaces the old "PLAYERS combo + ARCHETYPE combo" pattern.
+The picker is the source of truth for both table size (1-8 bots) and
+per-seat archetype. Resolved archetype list goes to
+`PokerGame(bot_archetypes=...)` directly. Quick presets (Karma 5-bot,
+TAG-heavy, LAG-heavy, Recreational, Tough Regs, Solver Field) populate
+the picker via `set_composition()`; user can still tweak afterwards.
+
+### Bot archetype fidelity
+Each `BOT_ARCHETYPES` profile declares target VPIP / PFR / 3-bet /
+fold-to-cbet / aggression. `BotBrain.__init__` precomputes
+per-position open ranges using `hands_in_top_pct(profile.vpip *
+_POS_VPIP_MULT[pos])`. Preflop in-range decisions split between
+raise/call by `pfr/vpip` ratio (passive profiles limp, aggressive
+profiles raise). 3-bet pool is `hands_in_top_pct(three_bet * 1.25)` IP
+and `* 0.95` OOP. Postflop marginal-fold rate is `fold_to_cbet * 1.80
+- hand_strength*0.35 - call_down*0.15` (the 1.80 multiplier
+compensates for strong/medium hands never folding). Run
+`tests/test_bot_archetype_fidelity.py` to see the realised vs target
+table — 8/15 archetypes hit within ±5pts, the rest are within ±10pts
+or sit on natural selection effects (very-tight profiles run higher
+AF because their continuing range is stronger).
+
+### Mid-tournament restart
+TournamentSimulatorScreen has an "X END & NEW" button in the meta bar
+(also Esc shortcut). `_end_and_restart()` stops the bot timer, drops
+the in-memory Tournament, clears `state.tournament_context`, and
+rebuilds the setup stage so the user can configure a fresh tournament
+without leaving the screen. Hands already played stay in the DB.
+
+### Tournament-aware coach
+Each tournament refresh writes a rich `tournament_context` dict to
+`AppState` (event, structure, level, blinds, hero bb, avg bb, stack
+pressure, bubble distance, on-bubble flag, prize pool). When the user
+asks the coach anything during a tournament, `MainWindow.chat_with_coach`
+and `explain_selected_spot` prepend that context block to the Gemini
+prompt so advice is ICM/bubble/structure-aware. On tournament start, a
+dedicated `tournament_advice_requested` signal fires a 5-point opening
+briefing prompt (early stage strategy, bubble approach, exploits
+against the specific bot mix, spots to avoid, end-goal framing).
+
+### × → "REMOVE" / ASCII X
+The "×" Unicode glyph (U+00D7) renders as a blank square in JetBrains
+Mono on macOS for some weights. We use plain ASCII "X" everywhere the
+glyph appears in a small button (tab close, etc.) and the spelled-out
+"REMOVE" for FieldPicker rows. Also remember Qt treats `&` in button
+text as a mnemonic accelerator — escape with `&&` (see `END && NEW`
+in `tournament_simulator.py`).
+
 ---
 
 ## 4 · Shortcut catalog (verify before adding new ones)
@@ -115,6 +190,8 @@ cards. Moved out of `_Center` and into each play screen's action deck
 | `R` | Raise (or Bet) |
 | `A` | All-in |
 | `Space` | Deal next hand (Play); skip inter-hand wait (Tournament) |
+| `G` | Open GTO range popup (Play / Tournament) |
+| `Esc` | End current tournament and return to setup |
 
 Adding a new shortcut: append one row to `SHORTCUTS` in
 `app/ui/components/shortcuts.py` (cheat sheet picks it up automatically),
@@ -125,6 +202,9 @@ then bind a `QShortcut` in the relevant screen.
 ## 5 · Recent commits (read for context)
 
 ```
+<HEAD>   feat: multi-table + per-seat archetype picker + bot AI overhaul
+         (MultiSessionTabs, FieldPicker, Karma random, mid-tournament end,
+          tournament-aware coach, hand-strength-rank bot fidelity)
 7256d87 feat: shortcut library — central registry + ? cheat sheet
 46a36ca feat: 4-Color Deck — each suit has its own colour
 a2ab383 fix: CALL & ALL-IN buttons — white text + bulletproof solid fill
@@ -184,7 +264,9 @@ substantive change. They follow up with screenshots to verify.
 ## 8 · How to ship work
 
 ```bash
-.venv/bin/python -m pytest tests/ -q    # 42 tests must pass
+.venv/bin/python -m pytest tests/ -q              # 42 unit tests
+.venv/bin/python tests/test_feature_audit.py      # 27 feature checks
+.venv/bin/python tests/render_ui_screens.py       # PNGs to docs/screens
 git add <touched files only>             # never `git add -A`
 git commit -m "$(cat <<'EOF'
 <imperative subject>

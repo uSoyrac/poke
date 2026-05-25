@@ -7,3 +7,4 @@ duckdb>=0.10
 plotly>=5.18
 treys>=0.1.8
 pyinstaller>=6.0
+google-genai>=1.0

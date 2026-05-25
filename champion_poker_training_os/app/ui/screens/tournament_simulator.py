@@ -23,23 +23,31 @@ def _big_title(text: str) -> QLabel:
     return lbl
 
 from app.core.app_state import AppState
+from app.core.live_hud import LiveHUD
 from app.db.repository import save_played_hand
 from app.engine.hand_state import ActionType, Street
 from app.simulator.tournament_runner import (
     Tournament, TournamentConfig, PAYOUT_STRUCTURES,
 )
 from app.ui.components.card_view import CardView, CardBackView, CardPlaceholder
+from app.ui.components.field_picker import FieldPicker
+from app.ui.components.gto_range_dialog import show_gto_dialog
+from app.ui.components.gto_range_widget import GTORangeWidget
 from app.ui.components.metric_card import MetricCard
 from app.ui.components.poker_table import LivePokerTable, SeatState, seats_from_hand
 
 
 class TournamentSimulatorScreen(QWidget):
     coach_message = Signal(str)
+    # Emitted on tournament start — main.py forwards to Gemini for a
+    # tournament-type-specific opening briefing (strategy, ICM landmarks).
+    tournament_advice_requested = Signal(str)
 
     def __init__(self, state: AppState):
         super().__init__()
         self.state = state
         self.tournament: Tournament | None = None
+        self.live_hud = LiveHUD()
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -115,28 +123,24 @@ class TournamentSimulatorScreen(QWidget):
         grid.addWidget(self._label("EVENT NAME"), 0, 0)
         grid.addWidget(self.name_input, 1, 0)
 
-        # Field size
-        self.field_combo = QComboBox()
-        self.field_combo.addItems(["2 (Heads-Up)", "6 (6-max)", "8 (8-max)", "9 (9-max)"])
-        self.field_combo.setCurrentIndex(3)
-        grid.addWidget(self._label("FIELD SIZE"), 0, 1)
-        grid.addWidget(self.field_combo, 1, 1)
+        # NOTE: field size is now driven by the FieldPicker below — adding /
+        # removing seats updates the total automatically.
 
         # Starting chips
         self.chips_input = QSpinBox()
         self.chips_input.setRange(500, 50000)
         self.chips_input.setValue(2000)
         self.chips_input.setSingleStep(500)
-        grid.addWidget(self._label("STARTING CHIPS"), 0, 2)
-        grid.addWidget(self.chips_input, 1, 2)
+        grid.addWidget(self._label("STARTING CHIPS"), 0, 1)
+        grid.addWidget(self.chips_input, 1, 1)
 
         # Buy-in
         self.buyin_input = QSpinBox()
         self.buyin_input.setRange(0, 10000)
         self.buyin_input.setValue(22)
         self.buyin_input.setPrefix("$ ")
-        grid.addWidget(self._label("BUY-IN"), 0, 3)
-        grid.addWidget(self.buyin_input, 1, 3)
+        grid.addWidget(self._label("BUY-IN"), 0, 2)
+        grid.addWidget(self.buyin_input, 1, 2)
 
         # Structure
         self.structure_combo = QComboBox()
@@ -151,26 +155,53 @@ class TournamentSimulatorScreen(QWidget):
         grid.addWidget(self._label("HANDS PER LEVEL"), 2, 1)
         grid.addWidget(self.handspl_input, 3, 1)
 
-        # Bot difficulty
+        # Hero range filter
+        self.range_filter = QComboBox()
+        _range_tooltips = {
+            "Tüm Eller (GTO Default)": "Rastgele tüm olasılıklar — standart GTO dağılımı.",
+            "Premium Only":            "Sadece AA-JJ, AKs/o — çok az el ama hepsi güçlü.",
+            "TAG Range (~14%)":        "UTG açılış range'i — tight-aggressive çalışma.",
+            "Geniş Range (~30%)":      "BTN-CO benzeri geniş range — postflop yeteneği gerekir.",
+            "Speculative Hands":       "Suited connectors, small pairs, suited aces — implied odds drill.",
+        }
+        for label, tip in _range_tooltips.items():
+            self.range_filter.addItem(label)
+            self.range_filter.setItemData(
+                self.range_filter.count() - 1, tip, Qt.ToolTipRole
+            )
+        self.range_filter.currentTextChanged.connect(
+            lambda t: self.range_filter.setToolTip(_range_tooltips.get(t, ""))
+        )
+        self.range_filter.setToolTip(_range_tooltips["Tüm Eller (GTO Default)"])
+        grid.addWidget(self._label("HERO EL ARALIK"), 4, 0)
+        grid.addWidget(self.range_filter, 5, 0, 1, 2)
+
+        # Field-strength preset — auto-populates the FieldPicker below
         self.bot_difficulty = QComboBox()
         diff_tooltips = {
-            "recreational mix": "Fish + Stations + Maniacs — softest field, biggest edge.",
-            "balanced field":   "Mix of regs and a few weak spots — realistic mid-stakes.",
-            "tough field":      "TAGs, Sharks, and Solver Bots — every seat plays back.",
-            "sharks only":      "Solver-grade field. Expect tiny edges; bring your A-game.",
+            "Recreational Mix": "Fish + Stations + Maniacs — softest field, biggest edge.",
+            "Balanced Field":   "Mix of regs and a few weak spots — realistic mid-stakes.",
+            "Tough Field":      "TAGs, Sharks, and Solver Bots — every seat plays back.",
+            "Solver Field":     "Solver-grade field. Expect tiny edges; bring your A-game.",
+            "Karma (Random)":   "Her seat KARMA havuzundan her elde random tarz alır.",
+            "Custom":           "Custom — alttaki listede istediğin gibi düzenle.",
         }
         for label, note in diff_tooltips.items():
             self.bot_difficulty.addItem(label)
             self.bot_difficulty.setItemData(self.bot_difficulty.count() - 1,
                                             note, Qt.ToolTipRole)
-        self.bot_difficulty.currentTextChanged.connect(
-            lambda t: self.bot_difficulty.setToolTip(diff_tooltips.get(t, ""))
-        )
-        self.bot_difficulty.setToolTip(diff_tooltips["recreational mix"])
+        self.bot_difficulty.currentTextChanged.connect(self._apply_field_preset)
+        self.bot_difficulty.setToolTip(diff_tooltips["Recreational Mix"])
         grid.addWidget(self._label("FIELD STRENGTH"), 2, 2)
         grid.addWidget(self.bot_difficulty, 3, 2)
 
         c_l.addLayout(grid)
+
+        # FieldPicker — seat-by-seat custom composition
+        c_l.addSpacing(6)
+        self.field_picker = FieldPicker(default_bots=8)  # 9-max default
+        c_l.addWidget(self.field_picker)
+
         l.addWidget(card)
 
         # Action buttons
@@ -192,21 +223,40 @@ class TournamentSimulatorScreen(QWidget):
         lbl.setObjectName("TLabel")
         return lbl
 
+    # Field-strength preset → archetype composition for the picker.
+    # User can still hand-tweak via the FieldPicker after picking a preset.
+    _FIELD_PRESETS = {
+        "Recreational Mix": ["Fish", "Calling Station", "Aggro Fish", "Tight Passive",
+                             "Fish", "Maniac", "LAG", "Reg"],
+        "Balanced Field":   ["TAG", "Reg", "LAG", "Fish", "Tight Passive",
+                             "Reg", "Aggro Fish", "TAG"],
+        "Tough Field":      ["TAG", "Shark", "LAG", "Reg", "Solver Bot",
+                             "TAG", "Shark", "Reg"],
+        "Solver Field":     ["Shark", "Solver Bot", "TAG", "Shark", "Solver Bot",
+                             "TAG", "Shark", "Solver Bot"],
+        "Karma (Random)":   ["Random (Karma)"] * 8,
+    }
+
+    def _apply_field_preset(self, name: str) -> None:
+        comp = self._FIELD_PRESETS.get(name)
+        if comp:
+            self.field_picker.set_composition(comp)
+        # "Custom" — leave picker untouched
+
     def _start_tournament(self):
-        field_map = {0: 2, 1: 6, 2: 8, 3: 9}
-        size = field_map.get(self.field_combo.currentIndex(), 9)
+        archetypes = self.field_picker.get_archetypes()
+        size = len(archetypes) + 1  # hero + bots
         payout_key = "Heads-Up" if size == 2 else ("6-max" if size <= 6 else "9-max")
 
-        # Build bot mix based on difficulty
-        diff = self.bot_difficulty.currentText()
-        if diff == "recreational mix":
-            mix = ["Fish", "Calling Station", "Aggro Fish", "Tight Passive", "Fish", "Maniac", "LAG", "Reg"]
-        elif diff == "balanced field":
-            mix = ["TAG", "Reg", "LAG", "Fish", "Tight Passive", "Reg", "Aggro Fish", "TAG"]
-        elif diff == "tough field":
-            mix = ["TAG", "Shark", "LAG", "Reg", "Solver Bot", "TAG", "Shark", "Reg"]
-        else:
-            mix = ["Shark", "Solver Bot", "TAG", "Shark", "Solver Bot", "TAG", "Shark", "Solver Bot"]
+        # Map UI range filter label → game engine preset key
+        _range_map = {
+            "Tüm Eller (GTO Default)": "",
+            "Premium Only":            "Premium",
+            "TAG Range (~14%)":        "TAG Range",
+            "Geniş Range (~30%)":      "Geniş Range",
+            "Speculative Hands":       "Speculative",
+        }
+        range_filter = _range_map.get(self.range_filter.currentText(), "")
 
         config = TournamentConfig(
             name=self.name_input.currentText(),
@@ -216,7 +266,8 @@ class TournamentSimulatorScreen(QWidget):
             buyin=float(self.buyin_input.value()),
             payout_key=payout_key,
             hands_per_level=self.handspl_input.value(),
-            bot_mix=mix,
+            bot_mix=archetypes,
+            hero_range_filter=range_filter,
         )
         self.tournament = Tournament(config)
         # Drive bot pacing from the UI (one bot per timer tick) so the
@@ -234,10 +285,47 @@ class TournamentSimulatorScreen(QWidget):
         QShortcut(QKeySequence("C"), self, activated=lambda: self._key_action("C"))
         QShortcut(QKeySequence("R"), self, activated=lambda: self._key_action("R"))
         QShortcut(QKeySequence("A"), self, activated=lambda: self._key_action("A"))
+        QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self._end_and_restart)
         self._deal_next_hand()
+        # Tournament-type-aware briefing — turbo vs deepstack vs hyper
+        # need very different opening strategies. Hand off to Gemini for
+        # a contextual coach message.
+        briefing = (
+            f"YENİ TURNUVA BRIEFING'i hazırla:\n"
+            f"Event: {config.name}\n"
+            f"Field: {config.field_size} oyuncu, ${config.buyin:.0f} buy-in, "
+            f"prize pool ${config.prize_pool:.0f}\n"
+            f"Struct: {config.structure} ({config.hands_per_level} el/level)\n"
+            f"Start: {config.starting_chips:,} chip ({config.starting_chips / max(self.tournament.state.levels[0].bb, 1):.0f}bb)\n"
+            f"Bot mix: {', '.join(archetypes[:8])}\n"
+            f"Hero range filter: {range_filter or 'tüm eller (default GTO)'}\n\n"
+            "Bu turnuva tipi/yapısı için 5-6 satır SOMUT tavsiye ver:\n"
+            "1. Early stage stratejisi (stack depth + structure'a göre)\n"
+            "2. Bubble/ITM yaklaşımı bu field boyutu için\n"
+            "3. Bu bot karışımına karşı en iyi exploit (1 örnek)\n"
+            "4. Hangi spotlardan kaçınmalı\n"
+            "5. Sonuca odaklan: chip lider veya min-cash hedefi mi?\n"
+            "Kısa, maddeleştir, Türkçe."
+        )
+        self.tournament_advice_requested.emit(briefing)
+
+    def _end_and_restart(self) -> None:
+        """Abort the running tournament and return to the setup screen.
+
+        Stops the bot pacing timer, drops the in-memory Tournament, and
+        re-builds the setup stage so the user can configure & launch a
+        new one. Hands already played are preserved in the DB.
+        """
+        # Stop any pending bot ticks
+        timer = getattr(self, "_bot_timer", None)
+        if timer is not None:
+            timer.stop()
+        self.tournament = None
+        self.live_hud = LiveHUD()
+        self.state.tournament_context = None
+        self._build_setup()
         self.coach_message.emit(
-            f"Turnuva başladı: {config.name}, {config.field_size} oyuncu, {config.starting_chips} chip start, "
-            f"{config.structure} struct. Hedef: ödül masasına ulaşmak ve leak'leri minimize etmek."
+            "Turnuva bitirildi. Yeni turnuva için setup'ı düzenle veya 'START TOURNAMENT'a bas."
         )
 
     def _build_play(self):
@@ -268,6 +356,32 @@ class TournamentSimulatorScreen(QWidget):
             cell = self._meta_cell(label, "—")
             self.meta_cells[key] = cell
             meta_l.addWidget(cell, 1)
+
+        # End / Restart strip — abort the running tournament at any moment
+        # and return to setup. The current hand result is preserved in the
+        # DB; only the in-memory tournament is dropped.
+        end_box = QFrame()
+        end_box.setStyleSheet("border: none;")
+        end_l = QVBoxLayout(end_box)
+        end_l.setContentsMargins(8, 6, 14, 6)
+        end_l.setSpacing(4)
+        # Escape the ampersand (&& → &) so Qt doesn't treat it as a mnemonic
+        # accelerator that would underline the next character.
+        self.end_btn = QPushButton("X  END  &&  NEW")
+        self.end_btn.setObjectName("EndTournamentBtn")
+        self.end_btn.setCursor(Qt.PointingHandCursor)
+        self.end_btn.setToolTip("Turnuvayı şimdi bitir ve setup ekranına dön (Esc)")
+        self.end_btn.setStyleSheet(
+            "QPushButton#EndTournamentBtn { background:#1a0e0e; color:#e87474; "
+            "border:1px solid #5a2222; font-family:'JetBrains Mono',monospace; "
+            "font-size:11px; font-weight:700; letter-spacing:1.4px; padding:6px 14px; }"
+            "QPushButton#EndTournamentBtn:hover { background:#2a1414; color:#f29090; "
+            "border-color:#e87474; }"
+        )
+        self.end_btn.clicked.connect(self._end_and_restart)
+        end_l.addWidget(self.end_btn)
+        meta_l.addWidget(end_box)
+
         pl.addWidget(self.meta_bar)
 
         # SCROLL CONTENT
@@ -348,6 +462,25 @@ class TournamentSimulatorScreen(QWidget):
         deck_v = QVBoxLayout(deck)
         deck_v.setContentsMargins(22, 8, 22, 12)
         deck_v.setSpacing(6)
+
+        # GTO buton + mini range strip
+        gto_row = QHBoxLayout()
+        gto_row.setSpacing(8)
+        self.gto_btn = QPushButton("⊞ GTO")
+        self.gto_btn.setToolTip("Mevcut pozisyon ve stack'e göre GTO range analizi (G)")
+        self.gto_btn.setStyleSheet(
+            "QPushButton { background:#0f2318; color:#5ad1ce; border:1px solid #5ad1ce; "
+            "font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; "
+            "letter-spacing:1.5px; padding:5px 14px; }"
+            "QPushButton:hover { background:#132a20; }"
+        )
+        self.gto_btn.setMinimumHeight(32)
+        self.gto_btn.clicked.connect(self._show_gto_popup)
+        self.gto_range = GTORangeWidget()
+        self.gto_range.setMaximumHeight(52)
+        gto_row.addWidget(self.gto_btn)
+        gto_row.addWidget(self.gto_range, 1)
+        deck_v.addLayout(gto_row)
 
         # TO CALL banner above the buttons (kept out of the felt center
         # so hero cards never cover it).
@@ -477,6 +610,7 @@ class TournamentSimulatorScreen(QWidget):
         self._refresh_table()
 
         if hand.is_complete:
+            self.tournament.advance_after_hand_complete()
             self._on_hand_complete()
         else:
             self._bot_timer.start()
@@ -491,6 +625,8 @@ class TournamentSimulatorScreen(QWidget):
         if not keep_going:
             self._bot_timer.stop()
             if self.tournament.game.current_hand.is_complete:
+                # Record hand result + update tournament state BEFORE reading hand_log
+                self.tournament.advance_after_hand_complete()
                 self._on_hand_complete()
 
     def _compute_size_chips(self) -> float:
@@ -558,16 +694,79 @@ class TournamentSimulatorScreen(QWidget):
         self.meta_cells["AVG"]._value_label.setText(f"{avg:,}")
         self.meta_cells["PRIZE"]._value_label.setText(f"${config.prize_pool:.0f}")
 
+        # ── Push live tournament context to AppState so the AI Coach can
+        # tailor advice (ICM, bubble, stack depth, blind pressure). ─────
+        hero_p = hand.hero
+        hero_bb = float(hero_p.stack) / max(level.bb, 1) if hero_p else 0.0
+        paid_places = config.paid_places
+        bubble_dist = max(0, self.tournament.players_remaining - paid_places)
+        on_bubble = bubble_dist <= 1
+        avg_bb = avg / max(level.bb, 1)
+        stack_pressure = ("short" if hero_bb < 15 else
+                          "medium" if hero_bb < 30 else
+                          "deep")
+        self.state.tournament_context = {
+            "active": True,
+            "event": config.name,
+            "structure": config.structure,
+            "buyin": config.buyin,
+            "field_size": config.field_size,
+            "players_remaining": self.tournament.players_remaining,
+            "level": self.tournament.state.level_idx + 1,
+            "blinds": f"{level.sb}/{level.bb}",
+            "ante": level.ante,
+            "hands_until_next_level": self.tournament.state.hands_until_next_level,
+            "hero_chips": int(hero_p.stack) if hero_p else 0,
+            "hero_bb": round(hero_bb, 1),
+            "avg_bb": round(avg_bb, 1),
+            "stack_pressure": stack_pressure,
+            "payouts_paid": paid_places,
+            "bubble_distance": bubble_dist,
+            "on_bubble": on_bubble,
+            "prize_pool": config.prize_pool,
+        }
+
         # ── Feed the unified poker table ────────────────────────────
         # Display everything in BB on the felt — divide chip values by
         # the current big blind. Matches real online poker convention.
         bb = max(hand.big_blind, 1.0)
         action_top = game._action_queue[0] if game._action_queue else -1
+        # Live HUD: merge observed stats with bot archetype profile
+        raw_profiles = game.get_bot_profiles()
+        merged_profiles = {}
+        for idx, prof in raw_profiles.items():
+            base = {
+                "vpip": getattr(prof, "vpip", 0),
+                "pfr": getattr(prof, "pfr", 0),
+                "three_bet": getattr(prof, "three_bet", 0),
+                "aggression": getattr(prof, "aggression", 0),
+                "af": getattr(prof, "aggression", 0),
+                "fold_to_cbet": getattr(prof, "fold_to_cbet", 0),
+                "river_bluff": getattr(prof, "river_bluff", 0),
+                "call_down": getattr(prof, "call_down", 0),
+                "overbet_freq": getattr(prof, "overbet_freq", 0),
+                "notes": getattr(prof, "notes", ""),
+            }
+            merged = self.live_hud.merge_with_profile(idx, base)
+            obs = self.live_hud.get(idx)
+            if obs:
+                merged["obs_hands"] = obs["obs_hands"]
+            merged_profiles[idx] = type("_P", (), merged)()
+
         seats, hero_slot, dealer_slot = seats_from_hand(
             hand.players, hand.hero_idx,
             action_queue_top=action_top, unit="bb", hand=hand,
             bb_divisor=bb,
+            bot_profiles=merged_profiles,
         )
+
+        # ── GTO Range widget güncelle ──────────────────────────────
+        if hasattr(self, "gto_range") and not hand.is_complete:
+            hero_p = hand.hero
+            if hero_p:
+                pos = getattr(hero_p, "position", "") or ""
+                stack_bb = float(hero_p.stack) / bb
+                self.gto_range.update_range(pos, stack_bb, game_type="tournament")
         # Flag the most-aggressive non-hero as villain
         villain_idx = None
         max_bet = 0.0
@@ -677,12 +876,51 @@ class TournamentSimulatorScreen(QWidget):
             self.allin_btn.setText(f"ALL-IN  {hero.stack / bb:.1f} bb")
             self.allin_btn.show()
 
+    def _show_gto_popup(self) -> None:
+        """GTO butonu — mevcut turnuva el state'ini okuyup popup aç."""
+        pos, stack_bb, hero_cards, street, pot, players = "", 100.0, "", "preflop", 0.0, 6
+        level_str = ""
+        if self.tournament and self.tournament.game.current_hand:
+            hand = self.tournament.game.current_hand
+            game = self.tournament.game
+            bb = max(hand.big_blind, 1.0)
+            hero = hand.hero
+            if hero:
+                pos = getattr(hero, "position", "") or ""
+                stack_bb = float(hero.stack) / bb
+                if hero.hole_cards:
+                    hero_cards = " ".join(c.display for c in hero.hole_cards[:2])
+            street = getattr(hand, "street_name", "preflop")
+            pot = float(hand.pot) / bb
+            players = sum(1 for p in hand.players
+                          if not getattr(p, "is_eliminated", False)
+                          and not getattr(p, "is_folded", False))
+            lvl = self.tournament.state.current_level
+            level_str = f"L{self.tournament.state.level_idx + 1} · {int(lvl.sb)}/{int(lvl.bb)}"
+        elif self.tournament:
+            players = self.tournament.players_remaining
+
+        show_gto_dialog(
+            parent=self,
+            position=pos,
+            stack_bb=stack_bb,
+            players_active=players,
+            game_type="tournament",
+            hero_cards=hero_cards,
+            street=street,
+            pot_bb=pot,
+            level=level_str,
+        )
+
     def _on_hand_complete(self):
         if not self.tournament:
             return
         if not self.tournament.hand_log:
             return
         result = self.tournament.hand_log[-1]
+        # Live HUD güncelle
+        if self.tournament.game.current_hand:
+            self.live_hud.update_from_hand(self.tournament.game.current_hand)
 
         # Persist
         try:

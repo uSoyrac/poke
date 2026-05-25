@@ -17,7 +17,8 @@ from app.ai.coach_engine import explain_spot
 from app.core.app_state import AppState
 from app.db.seed_data import generate_spot_drills
 from app.solver.mock_solver import compare_action, solve_spot
-from app.ui.components.poker_table import PokerTableView
+from app.ui.components.poker_table import LivePokerTable
+from app.ui.components.spot_table import render_spot_on_table
 from app.ui.components.solver_bar import EVLossBadge, SolverFrequencyBar
 from app.ui.components.metric_card import MetricCard
 
@@ -88,7 +89,7 @@ class RiverTrainerScreen(QWidget):
 
         # Main: table + info
         main = QHBoxLayout()
-        self.table_view = PokerTableView()
+        self.table_view = LivePokerTable()
         main.addWidget(self.table_view, 2)
 
         panel = QFrame()
@@ -133,7 +134,7 @@ class RiverTrainerScreen(QWidget):
             return
         spot = self.drills[self.index % len(self.drills)]
         self.state.selected_spot = spot
-        self.table_view.set_hand(spot["hero_cards"], spot["board"], spot["pot_bb"])
+        render_spot_on_table(self.table_view, spot)
         self.spot_title.setText(f"{spot['id']} | {spot['title']}")
         self.spot_meta.setText(
             f"{spot['format']} | {spot['table']} | {spot['pot_type']} | "

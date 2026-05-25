@@ -109,6 +109,7 @@ class TournamentConfig:
     bot_mix: List[str] = field(default_factory=lambda: [
         "TAG", "Reg", "Fish", "LAG", "Nit", "Aggro Fish", "Tight Passive", "Calling Station"
     ])
+    hero_range_filter: str = ""   # "" = all hands; "Premium" / "TAG Range" / etc.
 
     @property
     def total_chips(self) -> int:
@@ -179,6 +180,7 @@ class Tournament:
             hero_seat=0,
             bot_archetypes=bot_archs,
             player_names=bot_names,
+            hero_range_filter=config.hero_range_filter,
         )
         self.hand_log: List[HandResult] = []
 
