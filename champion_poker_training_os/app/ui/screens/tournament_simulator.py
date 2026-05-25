@@ -277,6 +277,15 @@ class TournamentSimulatorScreen(QWidget):
         self._bot_timer.setInterval(450)
         self._bot_timer.timeout.connect(self._tick_bot)
         self._between_hands = False
+
+        # Background auto-play timer — fires every 250 ms regardless of
+        # visibility.  When this tab is the active one it's a no-op; when
+        # the user is on another tab it drives the tournament forward
+        # automatically so all parallel tabs advance simultaneously.
+        self._bg_timer = QTimer(self)
+        self._bg_timer.setInterval(250)
+        self._bg_timer.timeout.connect(self._bg_tick)
+        self._bg_timer.start()
         self._build_play()
         # Spacebar = skip waiting period / advance to next hand
         QShortcut(QKeySequence(Qt.Key_Space), self, activated=self._space_pressed)
@@ -320,6 +329,9 @@ class TournamentSimulatorScreen(QWidget):
         timer = getattr(self, "_bot_timer", None)
         if timer is not None:
             timer.stop()
+        bg = getattr(self, "_bg_timer", None)
+        if bg is not None:
+            bg.stop()
         self.tournament = None
         self.live_hud = LiveHUD()
         self.state.tournament_context = None
@@ -438,7 +450,7 @@ class TournamentSimulatorScreen(QWidget):
         f.setStyleSheet("border-right: 1px solid #23271f;")
         v = QVBoxLayout(f)
         v.setContentsMargins(14, 10, 14, 10)
-        v.setSpacing(3)
+        v.setSpacing(2)
         lbl = QLabel(label)
         lbl.setObjectName("TLabel")
         val = QLabel(value)
@@ -446,9 +458,17 @@ class TournamentSimulatorScreen(QWidget):
             "font-family: 'Space Grotesk', Inter, sans-serif; font-size: 16px; "
             "font-weight: 700; color: #f4f5ee;"
         )
+        sub = QLabel("")
+        sub.setStyleSheet(
+            "font-family: 'JetBrains Mono', Menlo, monospace; font-size: 10px; "
+            "color: #5a5e54; letter-spacing: 0.8px;"
+        )
         v.addWidget(lbl)
         v.addWidget(val)
+        v.addWidget(sub)
+        f._label_widget = lbl
         f._value_label = val
+        f._sub_label = sub
         return f
 
     def _section_head(self, text: str) -> QLabel:
@@ -621,13 +641,19 @@ class TournamentSimulatorScreen(QWidget):
             self._bot_timer.stop()
             return
         keep_going = self.tournament.game.step_action()
-        self._refresh_table()
+        # Only update the display when this tab is the active (visible) one —
+        # background tabs skip the expensive UI refresh.
+        if self.isVisible():
+            self._refresh_table()
         if not keep_going:
             self._bot_timer.stop()
-            if self.tournament.game.current_hand.is_complete:
+            hand = self.tournament.game.current_hand
+            if hand and hand.is_complete:
                 # Record hand result + update tournament state BEFORE reading hand_log
                 self.tournament.advance_after_hand_complete()
-                self._on_hand_complete()
+                if self.isVisible():
+                    self._on_hand_complete()
+                # Background: _bg_tick will deal the next hand automatically.
 
     def _compute_size_chips(self) -> float:
         """Slider → legal raise/bet amount in tournament chips.
@@ -685,14 +711,42 @@ class TournamentSimulatorScreen(QWidget):
         # Meta bar
         config = self.tournament.config
         level = self.tournament.state.current_level
+        lvl_idx = self.tournament.state.level_idx + 1
+        remaining = self.tournament.players_remaining
+        total = config.field_size
+        paid = config.paid_places
+        bubble_dist = max(0, remaining - paid)
+
         self.meta_cells["EVENT"]._value_label.setText(config.name)
+        self.meta_cells["EVENT"]._sub_label.setText(f"${config.buyin:.0f} buy-in")
+
         ante_str = f" / {level.ante:,}" if level.ante else ""
+        self.meta_cells["BLINDS"]._label_widget.setText(f"BLINDS · L{lvl_idx}")
         self.meta_cells["BLINDS"]._value_label.setText(f"{level.sb:,} / {level.bb:,}{ante_str}")
-        self.meta_cells["PLAYERS"]._value_label.setText(f"{self.tournament.players_remaining} / {config.field_size}")
-        self.meta_cells["NEXT_LVL"]._value_label.setText(f"{self.tournament.state.hands_until_next_level} hands")
-        avg = int(sum(p.stack for p in game.players if not p.is_eliminated) / max(self.tournament.players_remaining, 1))
+        self.meta_cells["BLINDS"]._sub_label.setText(config.structure.upper())
+
+        # PLAYERS: alive count large, total field + bubble info as sub-text
+        self.meta_cells["PLAYERS"]._value_label.setText(f"{remaining}")
+        bubble_txt = ("ON BUBBLE" if bubble_dist == 0
+                      else f"bubble −{bubble_dist}" if bubble_dist <= 3
+                      else f"of {total} total")
+        self.meta_cells["PLAYERS"]._sub_label.setText(
+            f"ITM top {paid}  ·  {bubble_txt}"
+        )
+
+        self.meta_cells["NEXT_LVL"]._value_label.setText(f"{self.tournament.state.hands_until_next_level}")
+        self.meta_cells["NEXT_LVL"]._sub_label.setText("hands to next level")
+
+        avg = int(sum(p.stack for p in game.players if not p.is_eliminated) / max(remaining, 1))
         self.meta_cells["AVG"]._value_label.setText(f"{avg:,}")
+        hero_p2 = hand.hero
+        if hero_p2:
+            hero_bb_avg = round(hero_p2.stack / max(level.bb, 1), 1)
+            avg_bb_val = round(avg / max(level.bb, 1), 1)
+            self.meta_cells["AVG"]._sub_label.setText(f"hero {hero_bb_avg:.0f}bb · avg {avg_bb_val:.0f}bb")
+
         self.meta_cells["PRIZE"]._value_label.setText(f"${config.prize_pool:.0f}")
+        self.meta_cells["PRIZE"]._sub_label.setText(f"top {paid} paid")
 
         # ── Push live tournament context to AppState so the AI Coach can
         # tailor advice (ICM, bubble, stack depth, blind pressure). ─────
@@ -995,6 +1049,103 @@ class TournamentSimulatorScreen(QWidget):
         if self._between_hands:
             self._between_hands = False
             self._deal_next_hand()
+
+    # ── BACKGROUND AUTO-PLAY ──────────────────────────────────────
+
+    def _bg_tick(self) -> None:
+        """Drive this tournament forward while the tab is in the background.
+
+        Fires every 250 ms.  When the tab is visible the method is a no-op
+        so the normal _bot_timer / hero-action flow remains in control.
+        When the tab is hidden (user is on another tab) it:
+          1. Processes one bot step via step_action() if a hand is running.
+          2. Auto-acts for hero (check > cheap-fold) so no hand gets stuck.
+          3. Deals the next hand automatically between rounds.
+        This gives every parallel tournament tab real-time simultaneous
+        progress — the user can switch tabs at any point and see the live state.
+        """
+        if self.isVisible():
+            return   # Active tab — user controls everything
+        if not self.tournament or self.tournament.is_complete:
+            self._bg_timer.stop()
+            return
+
+        game = self.tournament.game
+
+        # ── Between hands: auto-deal ──────────────────────────────
+        if not game.current_hand or game.current_hand.is_complete:
+            if not self.tournament.is_complete:
+                try:
+                    self.tournament.start_hand()
+                    if (not game.is_waiting_for_hero
+                            and game.current_hand
+                            and not game.current_hand.is_complete):
+                        self._bot_timer.start()
+                except Exception:
+                    pass
+            return
+
+        # ── Hero decision: auto-act ────────────────────────────────
+        if game.is_waiting_for_hero:
+            self._auto_hero_bg()
+            return
+
+        # ── Bot action: process one step ──────────────────────────
+        if not self._bot_timer.isActive():
+            try:
+                keep = game.step_action()
+                if not keep and game.current_hand and game.current_hand.is_complete:
+                    self.tournament.advance_after_hand_complete()
+            except Exception:
+                pass
+
+    def _auto_hero_bg(self) -> None:
+        """Minimal-investment hero action when running in background.
+
+        Priority: CHECK (free) > FOLD (safe) > CALL if cheap (≤ 5bb).
+        Never raises or goes all-in in background — user didn't approve it.
+        """
+        if not self.tournament or not self.tournament.game.is_waiting_for_hero:
+            return
+        game = self.tournament.game
+        hand = game.current_hand
+        if not hand:
+            return
+        valid = hand.get_valid_actions(hand.hero_idx)
+        valid_types = {v[0] for v in valid}
+        level = self.tournament.state.current_level
+        try:
+            if ActionType.CHECK in valid_types:
+                self.tournament.hero_act(ActionType.CHECK, 0.0)
+            elif ActionType.FOLD in valid_types:
+                to_call = hand.to_call(hand.hero_idx)
+                # Call if it's ≤ 3bb (limped / min-raised pot) — fold otherwise
+                if (ActionType.CALL in valid_types
+                        and to_call <= level.bb * 3
+                        and to_call < (hand.hero.stack if hand.hero else 0)):
+                    self.tournament.hero_act(ActionType.CALL, to_call)
+                else:
+                    self.tournament.hero_act(ActionType.FOLD, 0.0)
+            elif ActionType.CALL in valid_types:
+                to_call = hand.to_call(hand.hero_idx)
+                self.tournament.hero_act(ActionType.CALL, to_call)
+        except Exception:
+            pass
+
+        # Post-action: advance tournament if hand is now complete
+        if hand.is_complete:
+            try:
+                self.tournament.advance_after_hand_complete()
+            except Exception:
+                pass
+        elif not game.is_waiting_for_hero and not self._bot_timer.isActive():
+            self._bot_timer.start()
+
+    def showEvent(self, event) -> None:
+        """Refresh the meta bar and table as soon as this tab becomes visible."""
+        super().showEvent(event)
+        if self.tournament and self.tournament.game.current_hand:
+            self._refresh_table()
 
     def _key_action(self, key: str) -> None:
         """F/C/R/A → click the matching action button if visible."""
