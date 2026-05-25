@@ -11,7 +11,9 @@ from PySide6.QtWidgets import (
     QScrollArea, QVBoxLayout, QWidget,
 )
 
-from app.ui.components.gto_range_widget import _range_info, _RANGE_DB
+from app.ui.components.gto_range_widget import (
+    _range_info, _RANGE_DB, _HandMatrixWidget, parse_range_str,
+)
 
 _ACCENT = "#5ad17a"
 _DANGER = "#e87474"
@@ -35,6 +37,35 @@ def _card(parent=None) -> QFrame:
     return f
 
 
+_SUIT_MAP = {"♠": "s", "♥": "h", "♦": "d", "♣": "c"}
+_RANK_NORM = {"T": "T", "J": "J", "Q": "Q", "K": "K", "A": "A",
+              "10": "T", "2": "2", "3": "3", "4": "4", "5": "5",
+              "6": "6", "7": "7", "8": "8", "9": "9"}
+
+def _try_highlight_hero(matrix, hero_cards_str: str) -> None:
+    """Parse hero hole-card string (e.g. '9♣J♥' or '9c Jh') and highlight on matrix."""
+    import re
+    # Match rank + suit pairs (Unicode suits or letter suits)
+    pats = re.findall(r"([AKQJT2-9]{1,2})[♠♥♦♣shdc]", hero_cards_str)
+    if len(pats) < 2:
+        return
+    r1, r2 = pats[0].upper(), pats[1].upper()
+    r1 = "T" if r1 == "10" else r1
+    r2 = "T" if r2 == "10" else r2
+    from app.ui.components.gto_range_widget import _MATRIX_RIDX
+    i1, i2 = _MATRIX_RIDX.get(r1, -1), _MATRIX_RIDX.get(r2, -1)
+    if i1 < 0 or i2 < 0 or i1 == i2:
+        return
+    # Determine suited/offsuit — we don't know from abbreviation alone,
+    # highlight both cells so the user can see either option
+    from app.ui.components.gto_range_widget import _matrix_cell_hand
+    # Higher rank first (lower index = higher rank in our RANKS array)
+    hi, lo = (i1, i2) if i1 < i2 else (i2, i1)
+    suited   = _matrix_cell_hand(hi, lo)   # e.g. "JTs"
+    offsuit  = _matrix_cell_hand(lo, hi)   # e.g. "JTo"
+    matrix.highlight_hero(suited, offsuit)
+
+
 class GTORangeDialog(QDialog):
     """Popup: mevcut el durumuna göre GTO range bilgisi."""
 
@@ -53,8 +84,9 @@ class GTORangeDialog(QDialog):
     ):
         super().__init__(parent)
         self.setWindowTitle("GTO Range Analizi")
-        self.setMinimumWidth(620)
-        self.setMaximumWidth(780)
+        # Wide enough to show the 13×13 matrix (13*44 + 12*2 gap + 40 padding = ~640)
+        self.setMinimumWidth(660)
+        self.setMaximumWidth(920)
         self.setAttribute(Qt.WA_DeleteOnClose)
         self.setStyleSheet(f"""
             QDialog {{ background:{_BG}; color:{_INK}; }}
@@ -199,6 +231,35 @@ class GTORangeDialog(QDialog):
                 r_l.addWidget(sn_lbl)
 
             b_l.addWidget(rcard)
+
+            # ── 13×13 HAND MATRIX ────────────────────────────────────
+            # Section label + colour legend
+            mat_hdr = QHBoxLayout()
+            mat_title = QLabel("RANGE MATRİSİ")
+            mat_title.setStyleSheet(
+                f"font-family:'JetBrains Mono',monospace; font-size:9px; "
+                f"letter-spacing:2px; color:{_MUTED}; font-weight:700; "
+                f"padding-top:4px; border-top:1px solid {_LINE2};"
+            )
+            mat_hdr.addWidget(mat_title)
+            mat_hdr.addStretch(1)
+            # Legend chips
+            for col, label in [(_ACCENT, "Premium"), ("#5ad1ce", "Range içi"), ("#7c3aed", "Küçük pair"), (_BG2, "Dışı")]:
+                chip = QLabel(label)
+                chip.setStyleSheet(
+                    f"font-family:'JetBrains Mono',monospace; font-size:8px; "
+                    f"background:{col}; color:{'#0a0c0a' if col != _BG2 else _MUTED}; "
+                    f"padding:2px 7px; border:1px solid #23271f; margin-left:4px;"
+                )
+                mat_hdr.addWidget(chip)
+            b_l.addLayout(mat_hdr)
+
+            matrix = _HandMatrixWidget()
+            matrix.set_range(hands)
+            # Highlight hero's hand if we can parse it (e.g. "9♣J♥" → "J9o")
+            if hero_cards:
+                _try_highlight_hero(matrix, hero_cards)
+            b_l.addWidget(matrix)
 
             # Turnuva notu
             if game_type == "tournament" and tourney_note:
