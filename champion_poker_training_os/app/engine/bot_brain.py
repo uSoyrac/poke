@@ -243,6 +243,35 @@ class BotBrain:
             return ActionType.CHECK, 0.0
 
         player = state.players[player_idx]
+
+        # ── UNIVERSAL COMMITMENT GUARD ────────────────────────────────
+        # Applied before archetype logic so no bot ever folds when pot-committed.
+        # "Committed" means ≥ 65% of the stack held at the start of this street
+        # has already been wagered — folding for the remaining chips is then
+        # almost never correct (pot odds are overwhelmingly in favour of calling).
+        #
+        # Also guards the forced all-in edge case: if the only non-fold
+        # option is going all-in for < 35% of the pot, the call is mandatory.
+        valid_types = {v[0] for v in valid}
+        to_call = state.to_call(player_idx)
+        if to_call > 0:
+            invested = player.current_bet           # wagered THIS street
+            start_of_street = player.stack + invested
+            commitment = invested / max(start_of_street, 0.01)
+            if commitment >= 0.65:
+                # Already committed ≥ 65% of street starting stack → never fold
+                if ActionType.CALL in valid_types:
+                    return ActionType.CALL, to_call
+                if ActionType.ALL_IN in valid_types:
+                    return ActionType.ALL_IN, player.stack
+            # Forced all-in (CALL not available, only ALL_IN or FOLD):
+            # call if it costs < 35% of the total pot after calling.
+            if (ActionType.ALL_IN in valid_types
+                    and ActionType.CALL not in valid_types):
+                allin_pot_frac = player.stack / max(state.pot + player.stack, 0.01)
+                if allin_pot_frac < 0.35:
+                    return ActionType.ALL_IN, player.stack
+
         if state.street == Street.PREFLOP:
             return self._preflop(state, player_idx, player, valid)
         return self._postflop(state, player_idx, player, valid)

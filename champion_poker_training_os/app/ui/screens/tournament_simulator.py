@@ -1026,6 +1026,86 @@ class TournamentSimulatorScreen(QWidget):
             level=level_str,
         )
 
+    def _maybe_refill_table(self) -> None:
+        """Reseat opponents from the background field when hero's table runs low.
+
+        Mirrors real MTT table consolidation: when a table shrinks to ≤ 4 players
+        and the overall field still has players, the tournament director breaks
+        another table and moves those players here.  We simulate that by:
+          1. Pulling the required count from mtt_field's background pool.
+          2. Reviving eliminated bot seats with the current average stack.
+          3. Resetting the tournament's completion flag if it fired prematurely
+             (i.e., hero is still alive but table ran out of bots).
+        """
+        if not self.mtt_field or not self.tournament:
+            return
+        if self.tournament.hero_busted:
+            return   # Hero is out — tournament legitimately over
+        if self.mtt_field.bg_players_remaining <= 0:
+            return   # No background players left to draw from
+
+        alive_at_table = self.tournament.players_remaining
+        if alive_at_table >= 5:
+            return   # Table still healthy — no action needed
+
+        # How many seats to fill (target 8–9, limited by background pool)
+        n_to_add = min(8 - alive_at_table, self.mtt_field.bg_players_remaining)
+        if n_to_add <= 0:
+            return
+
+        # Average stack of active players at hero's table
+        alive_players = [p for p in self.tournament.game.players if not p.is_eliminated]
+        avg_stack = (sum(p.stack for p in alive_players) / len(alive_players)
+                     if alive_players else float(self.tournament.config.starting_chips))
+        avg_stack = max(avg_stack, float(self.tournament.state.current_level.bb * 8))
+
+        # Pull these players from the background field
+        self.mtt_field._bg_remaining -= n_to_add
+
+        # Revive eliminated bot seats (never revive hero)
+        revived = 0
+        for seat_idx, p in enumerate(self.tournament.game.players):
+            if revived >= n_to_add:
+                break
+            if p.is_eliminated and not p.is_hero:
+                p.is_eliminated = False
+                p.stack = avg_stack
+                p.current_bet = 0.0
+                p.is_folded = False
+                p.hole_cards = []
+                p.is_all_in = False
+                # Remove from the tournament's elimination ledger so these
+                # seats don't get double-counted in the finish-position calc.
+                if seat_idx in self.tournament.state.eliminated_order:
+                    self.tournament.state.eliminated_order.remove(seat_idx)
+                revived += 1
+
+        if revived == 0:
+            return
+
+        # If the tournament engine already set is_complete because
+        # players_left ≤ 1 (but hero is NOT busted), roll it back.
+        new_alive = sum(1 for p in self.tournament.game.players if not p.is_eliminated)
+        if self.tournament.state.is_complete and not self.tournament.hero_busted:
+            self.tournament.state.is_complete = False
+            self.tournament.state.finish_position = None
+            self.tournament.state.prize_won = 0.0
+
+        self.tournament.state.players_left = new_alive
+        self.mtt_field.update_hero_table(new_alive)
+
+        # Announce in the feedback bar
+        field_left = self.mtt_field.players_remaining
+        self.feedback_label.setStyleSheet(
+            "font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; "
+            "font-weight: 600; color: #5ad1ce; padding: 8px 0;"
+        )
+        self.feedback_label.setText(
+            f"🔄  MASA DENGELEME — {revived} yeni oyuncu geldi.  "
+            f"Masada: {new_alive} oyuncu  ·  "
+            f"Sahada kalan: {field_left:,}"
+        )
+
     def _refresh_field_strip(self) -> None:
         """Update the thin MTT field status bar below the meta bar."""
         if not self.mtt_field or not hasattr(self, "_fs_label"):
@@ -1140,6 +1220,11 @@ class TournamentSimulatorScreen(QWidget):
             self.mtt_field.update_hero_table(n_alive)
             self.mtt_field.tick(1)
             self._refresh_field_strip()
+
+        # Table balancing — if hero's table has run low on opponents but the
+        # background field still has players, reseat new opponents so the
+        # experience stays a full ring (mirrors real MTT table consolidation).
+        self._maybe_refill_table()
 
         # Tournament complete?
         if self.tournament.is_complete:
