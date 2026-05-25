@@ -421,11 +421,13 @@ class OpponentProfilesScreen(QWidget):
         self._render_detail(pid)
 
     def _render_detail(self, pid: str) -> None:
-        # Clear current detail layout
+        # Hide immediately + schedule deletion — prevents ghost widgets during re-render
         while self._detail_layout.count():
             item = self._detail_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            w = item.widget()
+            if w is not None:
+                w.hide()
+                w.deleteLater()
 
         profile = _PROFILE_BY_ID.get(pid)
         if not profile:
@@ -578,7 +580,10 @@ class OpponentProfilesScreen(QWidget):
         self._detail_layout.addWidget(desc_frame)
 
         # ── Exploitation strategy ─────────────────────────────────────────────
-        row = QHBoxLayout()
+        # Wrap in a QWidget so deleteLater() cleans up all children when switching profiles
+        row_container = QWidget()
+        row = QHBoxLayout(row_container)
+        row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(16)
 
         exploit_frame = QFrame()
@@ -622,7 +627,7 @@ class OpponentProfilesScreen(QWidget):
         counter_l.addWidget(mistake_text)
 
         row.addWidget(counter_frame, 1)
-        self._detail_layout.addLayout(row)
+        self._detail_layout.addWidget(row_container)  # widget, not layout — clears correctly
 
         self._detail_layout.addStretch(1)
 
