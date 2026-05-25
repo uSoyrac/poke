@@ -473,11 +473,11 @@ class PlaySessionScreen(QWidget):
         pl.setContentsMargins(0, 0, 0, 0)
         pl.setSpacing(0)
 
-        # Stats bar
+        # Stats bar — wrapped in horizontal scroll so it never clips at narrow widths
         stats_bar = QFrame()
-        stats_bar.setStyleSheet("background: #131613; border: 1px solid #23271f; border-left: none; border-right: none;")
+        stats_bar.setStyleSheet("background: #131613;")
         sb_l = QHBoxLayout(stats_bar)
-        sb_l.setContentsMargins(22, 10, 22, 10)
+        sb_l.setContentsMargins(16, 8, 16, 8)
         sb_l.setSpacing(0)
 
         self.stat_hands = MetricCard("HANDS", "0", "played")
@@ -487,7 +487,6 @@ class PlaySessionScreen(QWidget):
         for w in (self.stat_hands, self.stat_profit, self.stat_vpip, self.stat_winrate):
             sb_l.addWidget(w, 1)
         # Blinds / ante meta chip — right side of stats bar
-        sb_l.addStretch(1)
         ante_bb = getattr(self, "_cash_ante_bb", 0.0)
         blind_txt = "SB 0.5 / BB 1"
         if ante_bb > 0:
@@ -498,8 +497,21 @@ class PlaySessionScreen(QWidget):
             "letter-spacing:1.2px; color:#5a5e54; padding:4px 10px; "
             "border:1px solid #23271f; background:#0f1210;"
         )
+        sb_l.addStretch(1)
         sb_l.addWidget(self._blind_meta)
-        pl.addWidget(stats_bar)
+
+        stats_scroll = QScrollArea()
+        stats_scroll.setWidget(stats_bar)
+        stats_scroll.setWidgetResizable(True)
+        stats_scroll.setFrameShape(QFrame.NoFrame)
+        stats_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        stats_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        stats_scroll.setMaximumHeight(82)
+        stats_scroll.setStyleSheet(
+            "QScrollArea { background:#131613; border:1px solid #23271f; "
+            "border-left:none; border-right:none; }"
+        )
+        pl.addWidget(stats_scroll)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -593,12 +605,16 @@ class PlaySessionScreen(QWidget):
         banner_row.addStretch(1); banner_row.addWidget(self.to_call_banner); banner_row.addStretch(1)
         deck_v.addLayout(banner_row)
 
-        dl = QHBoxLayout()
+        # Deck bottom row: sizing controls + action buttons
+        # Wrapped in a horizontal QScrollArea so narrow windows never clip buttons
+        dl_container = QWidget()
+        dl_container.setStyleSheet("background:transparent;")
+        dl = QHBoxLayout(dl_container)
         dl.setSpacing(12)
-        deck_v.addLayout(dl)
+        dl.setContentsMargins(0, 0, 0, 0)
 
         sizing = QVBoxLayout()
-        sizing.setSpacing(4)
+        sizing.setSpacing(3)
         sl = QLabel("BET SIZE (% POT)")
         sl.setObjectName("TLabel")
         sizing.addWidget(sl)
@@ -638,12 +654,21 @@ class PlaySessionScreen(QWidget):
         self.allin_btn.clicked.connect(lambda: self._hero_action(ActionType.ALL_IN))
 
         for b in (self.fold_btn, self.check_btn, self.call_btn, self.raise_btn, self.allin_btn):
-            b.setMinimumWidth(150)
-            b.setMinimumHeight(48)
+            b.setMinimumWidth(68)   # was 150 — shrinks gracefully at narrow widths
+            b.setMinimumHeight(44)  # was 48
             b.setCursor(Qt.PointingHandCursor)
             b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             acts.addWidget(b, 1)
         dl.addLayout(acts, 4)
+
+        dl_scroll = QScrollArea()
+        dl_scroll.setWidget(dl_container)
+        dl_scroll.setWidgetResizable(True)
+        dl_scroll.setFrameShape(QFrame.NoFrame)
+        dl_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        dl_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        dl_scroll.setStyleSheet("QScrollArea { background:transparent; border:none; }")
+        deck_v.addWidget(dl_scroll, 1)
         pl.addWidget(deck)
 
         self.stack_layout.addWidget(page)
@@ -776,12 +801,15 @@ class PlaySessionScreen(QWidget):
         banner_row.addStretch(1); banner_row.addWidget(self.mtt_to_call_banner); banner_row.addStretch(1)
         deck_v.addLayout(banner_row)
 
-        dl = QHBoxLayout()
+        # MTT deck row — same horizontal-scroll pattern as cash game
+        mtt_dl_container = QWidget()
+        mtt_dl_container.setStyleSheet("background:transparent;")
+        dl = QHBoxLayout(mtt_dl_container)
         dl.setSpacing(12)
-        deck_v.addLayout(dl)
+        dl.setContentsMargins(0, 0, 0, 0)
 
         sizing = QVBoxLayout()
-        sizing.setSpacing(4)
+        sizing.setSpacing(3)
         sl = QLabel("RAISE SIZE")
         sl.setObjectName("TLabel")
         sizing.addWidget(sl)
@@ -822,12 +850,21 @@ class PlaySessionScreen(QWidget):
 
         for b in (self.mtt_fold_btn, self.mtt_check_btn, self.mtt_call_btn,
                   self.mtt_raise_btn, self.mtt_allin_btn):
-            b.setMinimumWidth(150)
-            b.setMinimumHeight(48)
+            b.setMinimumWidth(68)   # was 150
+            b.setMinimumHeight(44)  # was 48
             b.setCursor(Qt.PointingHandCursor)
             b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             acts.addWidget(b, 1)
         dl.addLayout(acts, 4)
+
+        mtt_dl_scroll = QScrollArea()
+        mtt_dl_scroll.setWidget(mtt_dl_container)
+        mtt_dl_scroll.setWidgetResizable(True)
+        mtt_dl_scroll.setFrameShape(QFrame.NoFrame)
+        mtt_dl_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        mtt_dl_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        mtt_dl_scroll.setStyleSheet("QScrollArea { background:transparent; border:none; }")
+        deck_v.addWidget(mtt_dl_scroll, 1)
         pl.addWidget(deck)
 
         self.stack_layout.addWidget(page)

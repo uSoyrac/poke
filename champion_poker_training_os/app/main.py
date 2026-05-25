@@ -135,7 +135,8 @@ class MainWindow(QMainWindow):
         initialize_database()
 
         self.setWindowTitle(APP_NAME)
-        self.resize(1500, 920)
+        self.resize(1440, 900)
+        self.setMinimumSize(720, 520)   # allows resizing down to a compact floating layout
         root = QWidget()
         root.setObjectName("RootWindow")
         self.setCentralWidget(root)
