@@ -585,7 +585,16 @@ class _BetChip(QFrame):
 # ───────────────────────── MAIN WIDGET ────────────────────────────────
 
 class LivePokerTable(QWidget):
-    """Full live poker table — stadium felt with absolutely-positioned seats."""
+    """Full live poker table — stadium felt with absolutely-positioned seats.
+
+    All child widgets (seats, bet chips, cards) are positioned absolutely via
+    resizeEvent → _layout_children(). Dimensions scale proportionally with the
+    widget size so the table looks good whether it's embedded in the main window
+    or popped out into a floating resizable window.
+    """
+
+    # Baseline table height the design was originally tuned for
+    _BASELINE_H = 420
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -720,6 +729,19 @@ class LivePokerTable(QWidget):
         QTimer.singleShot(0, self._layout_children)
         self.update()
 
+    # ── SCALE FACTOR ───────────────────────────────────────────────
+
+    def _scale(self) -> float:
+        """Ratio of current table height to the baseline design height.
+
+        Clamped to [0.6, 2.5] so extreme resize doesn't make things unreadable
+        or comically oversized. At the 420 px baseline the factor is 1.0.
+        """
+        h = self.height()
+        if h < 10:
+            return 1.0
+        return max(0.6, min(2.5, h / self._BASELINE_H))
+
     # ── LAYOUT / PAINT ─────────────────────────────────────────────
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
@@ -821,14 +843,16 @@ class LivePokerTable(QWidget):
                 w.setGeometry(int(start_x2), int(ty2 - wh2 / 2), w.width(), w.height())
                 start_x2 += w.width() + gap2
 
-        # Bet chips — fixed-size, positioned 52% from seat toward center.
+        # Bet chips — scaled by table height, positioned 52% from seat toward center.
         # We iterate over ALL chip slots (not just visible ones) so a chip
         # that's about to be shown lands at the right coordinates *before*
         # Qt's first paint, never at the parent's (0, 0) origin.
         # Belt-and-braces: both setGeometry() and move() — the move() call
         # wins against any latent layout pass that might still own the
         # widget. raise_() keeps visible chips on top of the felt paint.
-        cw, ch = _BetChip._CHIP_W, _BetChip._CHIP_H
+        s = self._scale()
+        cw = int(_BetChip._CHIP_W * s)
+        ch = int(_BetChip._CHIP_H * s)
         for slot_idx, (xp, yp) in enumerate(self._slot_positions):
             if slot_idx >= len(self._bet_chips):
                 break
@@ -843,6 +867,25 @@ class LivePokerTable(QWidget):
             chip.move(x, y)
             if chip.isVisible():
                 chip.raise_()
+        # Update pot value font size so it scales with the table too
+        pot_font_px = max(22, int(40 * s))
+        pot_font_px_big = max(28, int(52 * s))
+        current_style = self.center.pot_value.styleSheet()
+        if "font-size:" in current_style:
+            # Determine if the current value is a "big pot" by reading the style
+            is_big = f"font-size:{56}" in current_style or f"font-size:{48}" in current_style or \
+                     (f"font-size:{pot_font_px_big}" not in current_style and
+                      int(current_style.split("font-size:")[1].split("px")[0].strip()) > 42)
+            target_px = pot_font_px_big if is_big else pot_font_px
+            # Only update if meaningfully different to avoid style thrash
+            try:
+                actual_px = int(current_style.split("font-size:")[1].split("px")[0].strip())
+                if abs(actual_px - target_px) > 2:
+                    self.center.pot_value.setStyleSheet(
+                        current_style.replace(f"font-size:{actual_px}px", f"font-size:{target_px}px")
+                    )
+            except Exception:
+                pass
 
         # Dealer button — 22% toward center from dealer's slot
         if self._dealer_slot_idx >= 0 and self._dealer_slot_idx < len(self._slot_positions):

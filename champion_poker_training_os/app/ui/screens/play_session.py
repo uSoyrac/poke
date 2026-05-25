@@ -9,7 +9,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
+    QComboBox, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
     QPushButton, QScrollArea, QSizePolicy, QSlider, QSpinBox,
     QStackedWidget, QVBoxLayout, QWidget,
 )
@@ -190,6 +190,20 @@ class PlaySessionScreen(QWidget):
         self.cash_preset_combo.currentTextChanged.connect(self._apply_preset)
         cash_g.addWidget(self._label("QUICK PRESET"), 0, 1)
         cash_g.addWidget(self.cash_preset_combo, 1, 1)
+
+        # Ante — default 0 (no ante), range 0–10 bb, step 0.25
+        self.cash_ante_spin = QDoubleSpinBox()
+        self.cash_ante_spin.setRange(0.0, 10.0)
+        self.cash_ante_spin.setSingleStep(0.25)
+        self.cash_ante_spin.setValue(0.0)
+        self.cash_ante_spin.setDecimals(2)
+        self.cash_ante_spin.setSuffix(" bb")
+        self.cash_ante_spin.setToolTip(
+            "Per-player ante posted before the blinds each hand (0 = no ante). "
+            "Common live values: 1bb big-blind ante."
+        )
+        cash_g.addWidget(self._label("ANTE (per player)"), 0, 2)
+        cash_g.addWidget(self.cash_ante_spin, 1, 2)
         self._fmt_stack.addWidget(cash_w)   # idx 0
 
         # ── Panel 1: MTT ──────────────────────────────────────────
@@ -386,20 +400,24 @@ class PlaySessionScreen(QWidget):
         stack_bb = stack_map.get(self.stack_combo.currentText(), 100)
         archetypes = self.field_picker.get_archetypes()
         num = len(archetypes) + 1
+        ante_bb = self.cash_ante_spin.value()
 
         self.game = PokerGame(
             num_players=num,
             starting_stack=float(stack_bb),
             small_blind=0.5, big_blind=1.0,
+            ante=ante_bb,
             hero_seat=0,
             bot_archetypes=archetypes,
             paced_bots=True,
         )
+        self._cash_ante_bb = ante_bb
         self.live_hud.reset(num)
         self._build_play()
         composition = ", ".join(archetypes)
+        ante_str = f" · Ante {ante_bb:.2g}bb" if ante_bb > 0 else ""
         self.coach_message.emit(
-            f"Yeni session: {num}-max, {stack_bb}bb · Field: {composition}. İyi eller."
+            f"Yeni session: {num}-max, {stack_bb}bb{ante_str} · Field: {composition}. İyi eller."
         )
 
     def _start_mtt(self):
@@ -468,6 +486,19 @@ class PlaySessionScreen(QWidget):
         self.stat_winrate = MetricCard("WIN RATE", "—", "won", accent="Green")
         for w in (self.stat_hands, self.stat_profit, self.stat_vpip, self.stat_winrate):
             sb_l.addWidget(w, 1)
+        # Blinds / ante meta chip — right side of stats bar
+        sb_l.addStretch(1)
+        ante_bb = getattr(self, "_cash_ante_bb", 0.0)
+        blind_txt = "SB 0.5 / BB 1"
+        if ante_bb > 0:
+            blind_txt += f" / ANTE {ante_bb:.2g}"
+        self._blind_meta = QLabel(blind_txt)
+        self._blind_meta.setStyleSheet(
+            "font-family:'JetBrains Mono',monospace; font-size:10px; "
+            "letter-spacing:1.2px; color:#5a5e54; padding:4px 10px; "
+            "border:1px solid #23271f; background:#0f1210;"
+        )
+        sb_l.addWidget(self._blind_meta)
         pl.addWidget(stats_bar)
 
         scroll = QScrollArea()
