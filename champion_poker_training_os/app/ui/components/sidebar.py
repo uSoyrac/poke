@@ -12,6 +12,7 @@ NAV_GROUPS = [
         "Dashboard",
         "Play Session",
         "Tournament Simulator",
+        "My Profile",
     ]),
     ("TRAINING", [
         "GTO Study Library",
@@ -31,6 +32,7 @@ NAV_GROUPS = [
         "Reports",
     ]),
     ("LIBRARY", [
+        "Opponent Profiles",
         "Knowledge Base",
         "Study Planner",
         "Settings / Compliance Guard",

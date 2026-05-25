@@ -40,6 +40,8 @@ from app.ui.screens.reports import ReportsScreen
 from app.ui.screens.river_trainer import RiverTrainerScreen
 from app.ui.screens.settings import SettingsScreen
 from app.ui.screens.spot_trainer import SpotTrainerScreen
+from app.ui.screens.opponent_profiles import OpponentProfilesScreen
+from app.ui.screens.player_profile import PlayerProfileScreen
 from app.ui.screens.study_library import StudyLibraryScreen
 from app.ui.screens.study_planner import StudyPlannerScreen
 from app.ui.screens.tournament_simulator import TournamentSimulatorScreen
@@ -73,6 +75,7 @@ def prepare_qt_platform_plugins() -> None:
 NAV_ITEMS = [
     "Dashboard",
     "Play Session",
+    "My Profile",
     "GTO Study Library",
     "Spot Practice Trainer",
     "Hand History Analyzer",
@@ -86,6 +89,7 @@ NAV_ITEMS = [
     "Combat Trainer",
     "Leak Finder",
     "AI Poker Coach",
+    "Opponent Profiles",
     "Knowledge Base",
     "Study Planner",
     "Reports",
@@ -222,6 +226,7 @@ class MainWindow(QMainWindow):
         }
         single_factories = {
             "Dashboard": DashboardScreen,
+            "My Profile": PlayerProfileScreen,
             "GTO Study Library": StudyLibraryScreen,
             "Spot Practice Trainer": SpotTrainerScreen,
             "Hand History Analyzer": HandAnalyzerScreen,
@@ -234,6 +239,7 @@ class MainWindow(QMainWindow):
             "Combat Trainer": CombatTrainerScreen,
             "Leak Finder": LeakFinderScreen,
             "AI Poker Coach": AiCoachScreen,
+            "Opponent Profiles": OpponentProfilesScreen,
             "Knowledge Base": KnowledgeBaseScreen,
             "Study Planner": StudyPlannerScreen,
             "Reports": ReportsScreen,
