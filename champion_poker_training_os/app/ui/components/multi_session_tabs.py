@@ -160,6 +160,8 @@ class _TableWindow(QMainWindow):
         # Dark titlebar background to match app theme on platforms that support it
         self.setStyleSheet("QMainWindow { background:#0a0c0a; }")
         self.setCentralWidget(screen)
+        # QStackedWidget.removeWidget() hides the widget — must re-show it
+        screen.show()
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
         self.closed.emit()

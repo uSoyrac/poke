@@ -126,6 +126,8 @@ def _load_dot_env() -> None:
 
 
 class MainWindow(QMainWindow):
+    BASELINE_W: int = 1440   # design-reference width — scale = actual_w / BASELINE_W
+
     def __init__(self):
         super().__init__()
         _load_dot_env()
@@ -199,6 +201,28 @@ class MainWindow(QMainWindow):
                     self.navigate(n),
                 ),
             )
+
+        # ── PROPORTIONAL SCALING ───────────────────────────────────────────
+        # A 120 ms debounce timer avoids flooding setStyleSheet on every pixel
+        # of a live resize drag.
+        self._current_scale: float = 1.0
+        self._scale_timer = QTimer(self)
+        self._scale_timer.setSingleShot(True)
+        self._scale_timer.setInterval(120)
+        self._scale_timer.timeout.connect(self._apply_scale)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        new_scale = max(0.50, min(2.40, self.width() / self.BASELINE_W))
+        if abs(new_scale - self._current_scale) > 0.02:
+            self._current_scale = new_scale
+            self._scale_timer.start()
+
+    def _apply_scale(self) -> None:
+        from app.ui.theme.theme_manager import generate_scaled_theme
+        QApplication.instance().setStyleSheet(
+            generate_scaled_theme(self._current_scale)
+        )
 
     def _show_shortcuts(self) -> None:
         from app.ui.components.shortcuts import ShortcutsDialog
