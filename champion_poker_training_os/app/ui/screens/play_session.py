@@ -1,11 +1,17 @@
-"""Play Session — quick cash table for one-off practice (no tournament structure)."""
+"""Play Session — cash game, MTT ve Sit & Go drill modu.
+
+Format seçici (CASH GAME / MTT / SIT & GO) ile farklı yapılar aynı
+tab sistemi içinde oynanabilir. Her format kendi preset'leri ve ayarları
+ile gelir; FieldPicker tüm formatlarda ortaktır.
+"""
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
-    QPushButton, QScrollArea, QSlider, QVBoxLayout, QWidget,
+    QPushButton, QScrollArea, QSizePolicy, QSlider, QSpinBox,
+    QStackedWidget, QVBoxLayout, QWidget,
 )
 
 
@@ -19,6 +25,7 @@ def _big_title(text: str) -> QLabel:
     lbl.setStyleSheet("color: #f4f5ee; padding: 0; margin: 0;")
     return lbl
 
+
 from app.core.app_state import AppState
 from app.ai.coach_engine import analyze_played_hand, session_summary
 from app.db.repository import save_played_hand
@@ -26,6 +33,7 @@ from app.core.live_hud import LiveHUD
 from app.engine.game_loop import PokerGame, HandResult
 from app.engine.hand_state import ActionType, Street
 from app.engine.bot_brain import BOT_ARCHETYPES
+from app.simulator.tournament_runner import Tournament, TournamentConfig
 from app.ui.components.card_view import CardView, CardBackView, CardPlaceholder
 from app.ui.components.field_picker import FieldPicker
 from app.ui.components.gto_range_dialog import show_gto_dialog
@@ -53,15 +61,33 @@ def _format_actions_for_coach(actions: list, hero_idx: int = 0) -> str:
     return "  |  ".join(f"{s}: {', '.join(acts)}" for s, acts in by_street.items()) or "Bilgi yok"
 
 
+# ── Format toggle styles ───────────────────────────────────────────────
+_FMT_ACTIVE = (
+    "QPushButton { background:#11241a; border:1px solid #5ad17a; color:#5ad17a; "
+    "font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; "
+    "letter-spacing:1.6px; padding:7px 20px; }"
+)
+_FMT_INACTIVE = (
+    "QPushButton { background:#0f1210; border:1px solid #23271f; color:#5a5e54; "
+    "font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; "
+    "letter-spacing:1.6px; padding:7px 20px; }"
+    "QPushButton:hover { color:#c8cabe; border-color:#3a3f30; }"
+)
+
+
 class PlaySessionScreen(QWidget):
     coach_message = Signal(str)
-    hand_completed = Signal(dict)  # rich hand data for Gemini
+    hand_completed = Signal(dict)   # rich hand data for Gemini
 
     def __init__(self, state: AppState):
         super().__init__()
         self.state = state
         self.game: PokerGame | None = None
+        self.tournament: Tournament | None = None
         self.live_hud = LiveHUD()
+        self._format: str = "cash"   # "cash" | "mtt" | "sng"
+        self._in_mtt: bool = False   # True while MTT/SNG hand is running
+        self._shortcuts: list = []
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -79,10 +105,18 @@ class PlaySessionScreen(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
+    def _clear_shortcuts(self):
+        for sc in self._shortcuts:
+            sc.setEnabled(False)
+            sc.deleteLater()
+        self._shortcuts.clear()
+
     # ── SETUP ─────────────────────────────────────────────────────
 
     def _build_setup(self):
         self._clear_stack()
+        self._in_mtt = False
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
@@ -94,12 +128,12 @@ class PlaySessionScreen(QWidget):
 
         num = QLabel("02 / PLAY")
         num.setObjectName("PageNum")
-        title = _big_title("Cash game — drill mode")
-        sub = QLabel("Pick stakes, archetype, table size. Hands are saved to your DB and feed leak analysis.")
+        self._title_label = _big_title("Cash game — drill mode")
+        sub = QLabel("Format seç, alan oluştur, oyna. Her el DB'ye kaydedilir ve sızıntı analizine gider.")
         sub.setObjectName("Muted")
         sub.setWordWrap(True)
         l.addWidget(num)
-        l.addWidget(title)
+        l.addWidget(self._title_label)
         l.addWidget(sub)
 
         sep = QFrame()
@@ -112,36 +146,122 @@ class PlaySessionScreen(QWidget):
         c_l = QVBoxLayout(card)
         c_l.setContentsMargins(22, 20, 22, 22)
         c_l.setSpacing(16)
-        c_l.addWidget(self._label("CASH GAME CONDITIONS"))
 
-        grid = QGridLayout()
-        grid.setSpacing(14)
+        # ── FORMAT TOGGLE ──────────────────────────────────────────
+        fmt_hdr = QHBoxLayout()
+        fmt_hdr.setSpacing(0)
+        self._format_btns: dict[str, QPushButton] = {}
+        for key, label in [("cash", "CASH GAME"), ("mtt", "MTT"), ("sng", "SIT && GO")]:
+            b = QPushButton(label)
+            b.setCursor(Qt.PointingHandCursor)
+            b.setStyleSheet(_FMT_ACTIVE if key == self._format else _FMT_INACTIVE)
+            b.clicked.connect(lambda _, k=key: self._switch_format(k))
+            self._format_btns[key] = b
+            fmt_hdr.addWidget(b)
+        fmt_hdr.addStretch(1)
+        c_l.addLayout(fmt_hdr)
+
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.HLine)
+        sep2.setStyleSheet("background: #1e2420; border: none; max-height: 1px;")
+        c_l.addWidget(sep2)
+
+        # ── FORMAT-SPECIFIC PANELS (stacked) ──────────────────────
+        self._fmt_stack = QStackedWidget()
+
+        # ── Panel 0: CASH ──────────────────────────────────────────
+        cash_w = QWidget()
+        cash_g = QGridLayout(cash_w)
+        cash_g.setContentsMargins(0, 4, 0, 4)
+        cash_g.setSpacing(14)
 
         self.stack_combo = QComboBox()
-        self.stack_combo.addItems(["20bb", "50bb", "100bb", "150bb", "200bb"])
+        self.stack_combo.addItems(["20bb (Short)", "50bb", "100bb", "150bb", "200bb (Deep)"])
         self.stack_combo.setCurrentIndex(2)
-        grid.addWidget(self._label("EFFECTIVE STACK"), 0, 0); grid.addWidget(self.stack_combo, 1, 0)
+        cash_g.addWidget(self._label("EFFECTIVE STACK"), 0, 0)
+        cash_g.addWidget(self.stack_combo, 1, 0)
 
-        # Quick presets — populate the FieldPicker with common compositions
-        self.preset_combo = QComboBox()
-        self.preset_combo.addItems([
-            "Karma 5-bot (Random)",
-            "TAG-heavy", "LAG-heavy", "Recreational (Fishy)",
-            "Tough Regs", "Solver Field", "Custom",
-        ])
-        self.preset_combo.setItemData(0, "5 oyuncu, hepsi her elde KARMA havuzundan random tarz", Qt.ToolTipRole)
-        self.preset_combo.setItemData(1, "Tight Aggressive ağırlıklı tablo", Qt.ToolTipRole)
-        self.preset_combo.setItemData(2, "Loose Aggressive ağırlıklı tablo", Qt.ToolTipRole)
-        self.preset_combo.setItemData(3, "Fish + Calling Station + Aggro Fish — softest field", Qt.ToolTipRole)
-        self.preset_combo.setItemData(4, "TAG + Reg + Shark — disiplinli rakipler", Qt.ToolTipRole)
-        self.preset_combo.setItemData(5, "Solver Bot + GTO Expert — en zor field", Qt.ToolTipRole)
-        self.preset_combo.setItemData(6, "Custom — alttaki listede istediğin gibi düzenle", Qt.ToolTipRole)
-        self.preset_combo.currentTextChanged.connect(self._apply_preset)
-        grid.addWidget(self._label("QUICK PRESET"), 0, 1); grid.addWidget(self.preset_combo, 1, 1)
+        self.cash_preset_combo = QComboBox()
+        self.cash_preset_combo.addItems(list(self._CASH_PRESETS.keys()) + ["Custom"])
+        for key, tip in self._CASH_PRESET_TIPS.items():
+            idx = self.cash_preset_combo.findText(key)
+            if idx >= 0:
+                self.cash_preset_combo.setItemData(idx, tip, Qt.ToolTipRole)
+        self.cash_preset_combo.currentTextChanged.connect(self._apply_preset)
+        cash_g.addWidget(self._label("QUICK PRESET"), 0, 1)
+        cash_g.addWidget(self.cash_preset_combo, 1, 1)
+        self._fmt_stack.addWidget(cash_w)   # idx 0
 
-        c_l.addLayout(grid)
+        # ── Panel 1: MTT ──────────────────────────────────────────
+        mtt_w = QWidget()
+        mtt_g = QGridLayout(mtt_w)
+        mtt_g.setContentsMargins(0, 4, 0, 4)
+        mtt_g.setSpacing(14)
 
-        # FieldPicker — seat-by-seat configuration
+        self.mtt_chips_combo = QComboBox()
+        for label, chips in [("1,500 chips", 1500), ("3,000 chips", 3000),
+                              ("5,000 chips", 5000), ("10,000 chips", 10000),
+                              ("20,000 chips", 20000), ("50,000 chips", 50000)]:
+            self.mtt_chips_combo.addItem(label, chips)
+        self.mtt_chips_combo.setCurrentIndex(2)  # 5,000 default
+        mtt_g.addWidget(self._label("STARTING CHIPS"), 0, 0)
+        mtt_g.addWidget(self.mtt_chips_combo, 1, 0)
+
+        self.mtt_structure_combo = QComboBox()
+        self.mtt_structure_combo.addItems(["regular", "turbo", "hyper"])
+        self.mtt_structure_combo.setItemData(0, "Yavaş yükselen blindler — derin stack oyunu", Qt.ToolTipRole)
+        self.mtt_structure_combo.setItemData(1, "Hızlı yapı — daha az el, daha fazla push/fold", Qt.ToolTipRole)
+        self.mtt_structure_combo.setItemData(2, "Çok hızlı — neredeyse her el push/fold stack", Qt.ToolTipRole)
+        mtt_g.addWidget(self._label("BLIND STRUCTURE"), 0, 1)
+        mtt_g.addWidget(self.mtt_structure_combo, 1, 1)
+
+        self.mtt_type_combo = QComboBox()
+        self.mtt_type_combo.addItems(["Standard MTT", "Bounty / PKO", "Deepstack", "Hyper Turbo"])
+        mtt_g.addWidget(self._label("FORMAT TYPE"), 0, 2)
+        mtt_g.addWidget(self.mtt_type_combo, 1, 2)
+
+        self.mtt_preset_combo = QComboBox()
+        self.mtt_preset_combo.addItems(list(self._MTT_PRESETS.keys()) + ["Custom"])
+        self.mtt_preset_combo.currentTextChanged.connect(self._apply_preset)
+        mtt_g.addWidget(self._label("FIELD PRESET"), 2, 0)
+        mtt_g.addWidget(self.mtt_preset_combo, 3, 0, 1, 2)
+        self._fmt_stack.addWidget(mtt_w)   # idx 1
+
+        # ── Panel 2: SIT & GO ──────────────────────────────────────
+        sng_w = QWidget()
+        sng_g = QGridLayout(sng_w)
+        sng_g.setContentsMargins(0, 4, 0, 4)
+        sng_g.setSpacing(14)
+
+        self.sng_format_combo = QComboBox()
+        self.sng_format_combo.addItems(["9-man", "6-max", "Heads-Up"])
+        self.sng_format_combo.currentTextChanged.connect(self._sng_format_changed)
+        sng_g.addWidget(self._label("FORMAT"), 0, 0)
+        sng_g.addWidget(self.sng_format_combo, 1, 0)
+
+        self.sng_structure_combo = QComboBox()
+        self.sng_structure_combo.addItems(["turbo", "hyper"])
+        sng_g.addWidget(self._label("BLIND STRUCTURE"), 0, 1)
+        sng_g.addWidget(self.sng_structure_combo, 1, 1)
+
+        self.sng_chips_combo = QComboBox()
+        for label, chips in [("1,500 chips", 1500), ("3,000 chips", 3000), ("5,000 chips", 5000)]:
+            self.sng_chips_combo.addItem(label, chips)
+        self.sng_chips_combo.setCurrentIndex(1)  # 3,000 default
+        sng_g.addWidget(self._label("STARTING CHIPS"), 0, 2)
+        sng_g.addWidget(self.sng_chips_combo, 1, 2)
+
+        self.sng_preset_combo = QComboBox()
+        self.sng_preset_combo.addItems(list(self._SNG_PRESETS.keys()) + ["Custom"])
+        self.sng_preset_combo.currentTextChanged.connect(self._apply_preset)
+        sng_g.addWidget(self._label("FIELD PRESET"), 2, 0)
+        sng_g.addWidget(self.sng_preset_combo, 3, 0, 1, 2)
+        self._fmt_stack.addWidget(sng_w)   # idx 2
+
+        self._fmt_stack.setCurrentIndex({"cash": 0, "mtt": 1, "sng": 2}[self._format])
+        c_l.addWidget(self._fmt_stack)
+
+        # ── SHARED: FieldPicker ────────────────────────────────────
         c_l.addSpacing(6)
         self.field_picker = FieldPicker(default_bots=5)
         c_l.addWidget(self.field_picker)
@@ -166,50 +286,170 @@ class PlaySessionScreen(QWidget):
         lbl.setObjectName("TLabel")
         return lbl
 
-    _PRESETS = {
+    # ── PRESETS ───────────────────────────────────────────────────
+
+    _CASH_PRESETS = {
         "Karma 5-bot (Random)": ["Random (Karma)"] * 5,
         "TAG-heavy":            ["TAG", "TAG", "Reg", "TAG", "Tight Passive"],
         "LAG-heavy":            ["LAG", "Maniac", "LAG", "Aggro Fish", "LAG"],
         "Recreational (Fishy)": ["Fish", "Calling Station", "Aggro Fish", "Fish", "Tight Passive"],
         "Tough Regs":           ["TAG", "Reg", "Shark", "TAG", "Reg"],
         "Solver Field":         ["Solver Bot", "GTO Expert", "Solver Bot", "GTO Expert", "Shark"],
+        "HU (1v1)":             ["LAG"],
+        "6-max Balanced":       ["TAG", "Reg", "LAG", "Fish", "Tight Passive"],
+        "9-max Deep":           ["TAG", "Reg", "LAG", "Fish", "Tight Passive", "Reg", "TAG", "Fish"],
+    }
+    _CASH_PRESET_TIPS = {
+        "Karma 5-bot (Random)": "5 oyuncu, hepsi her elde KARMA havuzundan random tarz",
+        "TAG-heavy":            "Tight Aggressive ağırlıklı — disiplinli rakipler",
+        "LAG-heavy":            "Loose Aggressive — çok agresif ve geniş range",
+        "Recreational (Fishy)": "Fish + Stations — softest field, geniş edge",
+        "Tough Regs":           "TAG + Reg + Shark — derin postflop oyun",
+        "Solver Field":         "Solver Bot + GTO Expert — en zor field",
+        "HU (1v1)":             "Heads-up: sadece 1 rakip (LAG)",
+        "6-max Balanced":       "6-max dengeli alan — gerçekçi mid-stakes hissi",
+        "9-max Deep":           "9-max 200bb derin stack — postflop yeteneği şart",
     }
 
+    _MTT_PRESETS = {
+        "Full Ring Random":      ["Random (Karma)"] * 8,
+        "Recreational MTT":      ["Fish", "Calling Station", "Aggro Fish", "Tight Passive",
+                                  "Fish", "Maniac", "LAG", "Reg"],
+        "Reg-heavy MTT":         ["TAG", "Reg", "LAG", "Reg", "Shark", "TAG", "Reg", "Reg"],
+        "Bounty Hunter Field":   ["LAG", "Maniac", "Aggro Fish", "LAG", "Fish",
+                                  "LAG", "Maniac", "LAG"],
+        "Online MTT (Balanced)": ["TAG", "Reg", "LAG", "Fish", "Tight Passive",
+                                  "Reg", "Aggro Fish", "TAG"],
+        "High Roller Field":     ["Shark", "Solver Bot", "GTO Expert", "Shark",
+                                  "TAG", "Solver Bot", "Reg", "Shark"],
+    }
+
+    _SNG_PRESETS = {
+        "9-man Random":       ["Random (Karma)"] * 8,
+        "9-man Tough":        ["TAG", "Reg", "Shark", "TAG", "Reg", "LAG", "Tight Passive", "TAG"],
+        "6-max Hyper Random": ["Random (Karma)"] * 5,
+        "6-max Balanced":     ["TAG", "Reg", "LAG", "Fish", "Tight Passive"],
+        "HU Turbo":           ["LAG"],
+    }
+
+    # Backward-compat alias (used by old test code that checks _PRESETS)
+    _PRESETS = _CASH_PRESETS
+
+    def _switch_format(self, key: str) -> None:
+        self._format = key
+        idx = {"cash": 0, "mtt": 1, "sng": 2}[key]
+        self._fmt_stack.setCurrentIndex(idx)
+        for k, b in self._format_btns.items():
+            b.setStyleSheet(_FMT_ACTIVE if k == key else _FMT_INACTIVE)
+        # Update page title
+        titles = {
+            "cash": "Cash game — drill mode",
+            "mtt":  "MTT — real chips, real blinds",
+            "sng":  "Sit & Go — quick tournament",
+        }
+        if hasattr(self, "_title_label"):
+            self._title_label.setText(titles[key])
+        # SNG: auto-size field to match format selection
+        if key == "sng":
+            self._sng_format_changed(self.sng_format_combo.currentText())
+
+    def _sng_format_changed(self, fmt: str) -> None:
+        """Auto-populate FieldPicker when SNG format changes."""
+        sizes = {"9-man": 8, "6-max": 5, "Heads-Up": 1}
+        n = sizes.get(fmt, 8)
+        if hasattr(self, "field_picker"):
+            self.field_picker.set_composition(["Random (Karma)"] * n)
+
     def _apply_preset(self, name: str) -> None:
-        comp = self._PRESETS.get(name)
-        if comp:
+        if self._format == "cash":
+            comp = self._CASH_PRESETS.get(name)
+        elif self._format == "mtt":
+            comp = self._MTT_PRESETS.get(name)
+        else:
+            comp = self._SNG_PRESETS.get(name)
+        if comp and hasattr(self, "field_picker"):
             self.field_picker.set_composition(comp)
-        # "Custom" — leave picker as-is
+
+    # ── START (routes by format) ──────────────────────────────────
 
     def _start(self):
-        stack_map = {0: 20, 1: 50, 2: 100, 3: 150, 4: 200}
-        stack_bb = stack_map.get(self.stack_combo.currentIndex(), 100)
+        if self._format == "cash":
+            self._start_cash()
+        else:
+            self._start_mtt()
+
+    def _start_cash(self):
+        stack_map = {
+            "20bb (Short)": 20, "50bb": 50, "100bb": 100,
+            "150bb": 150, "200bb (Deep)": 200,
+        }
+        stack_bb = stack_map.get(self.stack_combo.currentText(), 100)
         archetypes = self.field_picker.get_archetypes()
-        num = len(archetypes) + 1  # hero + bots
+        num = len(archetypes) + 1
 
         self.game = PokerGame(
             num_players=num,
             starting_stack=float(stack_bb),
             small_blind=0.5, big_blind=1.0,
             hero_seat=0,
-            bot_archetypes=archetypes,   # explicit per-seat list
+            bot_archetypes=archetypes,
             paced_bots=True,
         )
         self.live_hud.reset(num)
         self._build_play()
-        self._bot_timer = QTimer(self)
-        self._bot_timer.setInterval(450)
-        self._bot_timer.timeout.connect(self._tick_bot)
-        self._deal_next()
         composition = ", ".join(archetypes)
         self.coach_message.emit(
             f"Yeni session: {num}-max, {stack_bb}bb · Field: {composition}. İyi eller."
         )
 
-    # ── PLAY UI ───────────────────────────────────────────────────
+    def _start_mtt(self):
+        archetypes = self.field_picker.get_archetypes()
+        size = len(archetypes) + 1
+
+        if self._format == "mtt":
+            starting_chips = self.mtt_chips_combo.currentData() or 5000
+            structure = self.mtt_structure_combo.currentText()
+            fmt_type = self.mtt_type_combo.currentText()
+            hands_per_level = 5 if structure == "hyper" else 8 if structure == "turbo" else 12
+            name = f"{fmt_type} ({size}-handed, {structure})"
+        else:  # sng
+            starting_chips = self.sng_chips_combo.currentData() or 3000
+            structure = self.sng_structure_combo.currentText()
+            sng_fmt = self.sng_format_combo.currentText()
+            hands_per_level = 4 if structure == "hyper" else 6
+            name = f"SNG {sng_fmt} {structure.title()}"
+
+        payout_key = "Heads-Up" if size == 2 else ("6-max" if size <= 6 else "9-max")
+
+        config = TournamentConfig(
+            name=name,
+            field_size=size,
+            starting_chips=starting_chips,
+            structure=structure,
+            buyin=0.0,
+            payout_key=payout_key,
+            hands_per_level=hands_per_level,
+            bot_mix=archetypes,
+        )
+        self.tournament = Tournament(config)
+        self.tournament.game.paced_bots = True
+        self.live_hud.reset(size)
+        self._build_mtt_play()
+
+        comp_str = ", ".join(archetypes[:5]) + ("…" if len(archetypes) > 5 else "")
+        self.coach_message.emit(
+            f"Yeni {self._format.upper()}: {name} · {size} oyuncu · "
+            f"{starting_chips:,} chips · Field: {comp_str}"
+        )
+        self._deal_next_mtt()
+
+    # ── CASH PLAY UI ──────────────────────────────────────────────
 
     def _build_play(self):
         self._clear_stack()
+        self._clear_shortcuts()
+        self._in_mtt = False
+
         page = QFrame()
         pl = QVBoxLayout(page)
         pl.setContentsMargins(0, 0, 0, 0)
@@ -230,7 +470,6 @@ class PlaySessionScreen(QWidget):
             sb_l.addWidget(w, 1)
         pl.addWidget(stats_bar)
 
-        # Scroll body
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
@@ -240,7 +479,6 @@ class PlaySessionScreen(QWidget):
         cl.setContentsMargins(22, 18, 22, 22)
         cl.setSpacing(16)
 
-        # Unified poker table (design spec — stadium felt, seats around, hero anchored bottom)
         self.table = LivePokerTable()
         self.table.set_unit("bb")
         self.table.setMinimumHeight(440)
@@ -253,7 +491,6 @@ class PlaySessionScreen(QWidget):
         self.feedback.setWordWrap(True)
         cl.addWidget(self.feedback)
 
-        # History
         hist = QFrame()
         hist.setObjectName("Card")
         hist_l = QVBoxLayout(hist)
@@ -265,7 +502,6 @@ class PlaySessionScreen(QWidget):
         hist_l.addLayout(self.history_layout)
         cl.addWidget(hist)
 
-        # Session control row
         ctrl = QHBoxLayout()
         next_btn = QPushButton("DEAL NEXT HAND  ⎵")
         next_btn.setObjectName("PrimaryButton")
@@ -273,19 +509,11 @@ class PlaySessionScreen(QWidget):
         next_btn.clicked.connect(self._deal_next)
         self.next_btn = next_btn
         next_btn.hide()
-        # Space = deal next hand. Only fires when next_btn is visible (i.e.
-        # the previous hand is over and we're idle).
-        QShortcut(QKeySequence(Qt.Key_Space), self, activated=self._space_pressed)
-        # Poker action shortcuts per Style Guide § 8. Each shortcut only
-        # fires when the corresponding button is actually visible (legal).
-        QShortcut(QKeySequence("F"), self, activated=lambda: self._key_action("F"))
-        QShortcut(QKeySequence("C"), self, activated=lambda: self._key_action("C"))
-        QShortcut(QKeySequence("R"), self, activated=lambda: self._key_action("R"))
-        QShortcut(QKeySequence("A"), self, activated=lambda: self._key_action("A"))
+
         self.review_btn = QPushButton("REVIEW LAST")
         self.review_btn.setObjectName("GhostButton")
         self.review_btn.clicked.connect(self._review_last)
-        self.review_btn.setEnabled(False)  # only after a hand completes
+        self.review_btn.setEnabled(False)
         end_btn = QPushButton("END SESSION")
         end_btn.setObjectName("GhostButton")
         end_btn.clicked.connect(self._end_session)
@@ -304,7 +532,6 @@ class PlaySessionScreen(QWidget):
         deck_v.setContentsMargins(22, 8, 22, 12)
         deck_v.setSpacing(6)
 
-        # GTO buton + mini strip satırı
         gto_row = QHBoxLayout()
         gto_row.setSpacing(8)
         self.gto_btn = QPushButton("⊞ GTO")
@@ -317,15 +544,12 @@ class PlaySessionScreen(QWidget):
         )
         self.gto_btn.setMinimumHeight(32)
         self.gto_btn.clicked.connect(self._show_gto_popup)
-        QShortcut(QKeySequence("G"), self, activated=self._show_gto_popup)
         self.gto_range = GTORangeWidget()
         self.gto_range.setMaximumHeight(52)
         gto_row.addWidget(self.gto_btn)
         gto_row.addWidget(self.gto_range, 1)
         deck_v.addLayout(gto_row)
 
-        # TO CALL banner — pulled out of the felt center so hero cards
-        # can't overlap it. Shows required call in bb + % pot.
         self.to_call_banner = QLabel("")
         self.to_call_banner.setAlignment(Qt.AlignCenter)
         self.to_call_banner.setStyleSheet(
@@ -382,10 +606,7 @@ class PlaySessionScreen(QWidget):
         self.raise_btn.clicked.connect(lambda: self._hero_action(ActionType.RAISE))
         self.allin_btn.clicked.connect(lambda: self._hero_action(ActionType.ALL_IN))
 
-        from PySide6.QtWidgets import QSizePolicy
         for b in (self.fold_btn, self.check_btn, self.call_btn, self.raise_btn, self.allin_btn):
-            # Min width fits "CALL ALL-IN 100.0" without truncation; equal
-            # stretch lets the row reflow when sidebar/coach collapse.
             b.setMinimumWidth(150)
             b.setMinimumHeight(48)
             b.setCursor(Qt.PointingHandCursor)
@@ -396,12 +617,206 @@ class PlaySessionScreen(QWidget):
 
         self.stack_layout.addWidget(page)
 
+        # Register shortcuts — stored so we can clear on mode switch
+        self._shortcuts = [
+            QShortcut(QKeySequence(Qt.Key_Space), self, activated=self._space_pressed),
+            QShortcut(QKeySequence("F"), self, activated=lambda: self._key_action("F")),
+            QShortcut(QKeySequence("C"), self, activated=lambda: self._key_action("C")),
+            QShortcut(QKeySequence("R"), self, activated=lambda: self._key_action("R")),
+            QShortcut(QKeySequence("A"), self, activated=lambda: self._key_action("A")),
+            QShortcut(QKeySequence("G"), self, activated=self._show_gto_popup),
+        ]
+
+        # Start game timer (must happen after _build_play so buttons exist)
+        self._bot_timer = QTimer(self)
+        self._bot_timer.setInterval(450)
+        self._bot_timer.timeout.connect(self._tick_bot)
+        self._deal_next()
+
     def _sect(self, text: str) -> QLabel:
         l = QLabel(text)
         l.setObjectName("TLabel")
         return l
 
-    # ── GAME LOOP ─────────────────────────────────────────────────
+    # ── MTT PLAY UI ───────────────────────────────────────────────
+
+    def _build_mtt_play(self):
+        self._clear_stack()
+        self._clear_shortcuts()
+        self._in_mtt = True
+
+        page = QFrame()
+        pl = QVBoxLayout(page)
+        pl.setContentsMargins(0, 0, 0, 0)
+        pl.setSpacing(0)
+
+        # ── META BAR ──────────────────────────────────────────────
+        meta_bar = QFrame()
+        meta_bar.setStyleSheet(
+            "background: #131613; border-bottom: 1px solid #23271f;"
+        )
+        meta_l = QHBoxLayout(meta_bar)
+        meta_l.setContentsMargins(22, 0, 22, 0)
+        meta_l.setSpacing(0)
+
+        self.mtt_meta: dict[str, MetricCard] = {}
+        for key, label, sub in [
+            ("event",   "EVENT",   "name"),
+            ("level",   "LEVEL",   "blinds"),
+            ("players", "PLAYERS", "alive"),
+            ("hero",    "MY CHIPS","stack"),
+            ("avg",     "AVG",     "chips"),
+            ("next",    "NEXT LVL","hands"),
+        ]:
+            mc = MetricCard(label, "—", sub)
+            self.mtt_meta[key] = mc
+            meta_l.addWidget(mc, 1)
+
+        # END MTT button
+        end_mtt_btn = QPushButton("✕  END MTT")
+        end_mtt_btn.setObjectName("GhostButton")
+        end_mtt_btn.setToolTip("Bu turnuvayı bitir ve setup'a dön (Esc)")
+        end_mtt_btn.clicked.connect(self._end_mtt)
+        end_mtt_btn.setMinimumHeight(34)
+        meta_l.addWidget(end_mtt_btn)
+        pl.addWidget(meta_bar)
+
+        # ── SCROLL BODY ───────────────────────────────────────────
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        content = QWidget()
+        scroll.setWidget(content)
+        cl = QVBoxLayout(content)
+        cl.setContentsMargins(22, 18, 22, 22)
+        cl.setSpacing(16)
+
+        self.mtt_table = LivePokerTable()
+        self.mtt_table.set_unit("bb")   # tournament simulator displays in bb too
+        self.mtt_table.setMinimumHeight(440)
+        cl.addWidget(self.mtt_table)
+
+        self.mtt_feedback = QLabel("Dealing first hand...")
+        self.mtt_feedback.setStyleSheet(
+            "font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; color: #898d80; padding: 6px 0;"
+        )
+        self.mtt_feedback.setWordWrap(True)
+        cl.addWidget(self.mtt_feedback)
+
+        hist = QFrame()
+        hist.setObjectName("Card")
+        hist_l = QVBoxLayout(hist)
+        hist_l.setContentsMargins(16, 14, 16, 14)
+        hist_l.setSpacing(6)
+        hist_l.addWidget(self._sect("HAND HISTORY"))
+        self.mtt_history_layout = QVBoxLayout()
+        self.mtt_history_layout.setSpacing(2)
+        hist_l.addLayout(self.mtt_history_layout)
+        cl.addWidget(hist)
+
+        ctrl = QHBoxLayout()
+        self.mtt_next_btn = QPushButton("DEAL NEXT HAND  ⎵")
+        self.mtt_next_btn.setObjectName("PrimaryButton")
+        self.mtt_next_btn.setMinimumHeight(38)
+        self.mtt_next_btn.clicked.connect(self._deal_next_mtt)
+        self.mtt_next_btn.hide()
+        ctrl.addWidget(self.mtt_next_btn)
+        ctrl.addStretch(1)
+        cl.addLayout(ctrl)
+        cl.addStretch(1)
+        pl.addWidget(scroll, 1)
+
+        # ── ACTION DECK (shared style with cash) ──────────────────
+        deck = QFrame()
+        deck.setStyleSheet("background: #0f1210; border-top: 2px solid #23271f;")
+        deck_v = QVBoxLayout(deck)
+        deck_v.setContentsMargins(22, 8, 22, 12)
+        deck_v.setSpacing(6)
+
+        self.mtt_to_call_banner = QLabel("")
+        self.mtt_to_call_banner.setAlignment(Qt.AlignCenter)
+        self.mtt_to_call_banner.setStyleSheet(
+            "font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; "
+            "font-weight: 700; letter-spacing: 1.4px; color: #5ad17a; "
+            "padding: 4px 12px; border: 1px solid #2a4a30; background: #0f1d11;"
+        )
+        self.mtt_to_call_banner.hide()
+        banner_row = QHBoxLayout()
+        banner_row.addStretch(1); banner_row.addWidget(self.mtt_to_call_banner); banner_row.addStretch(1)
+        deck_v.addLayout(banner_row)
+
+        dl = QHBoxLayout()
+        dl.setSpacing(12)
+        deck_v.addLayout(dl)
+
+        sizing = QVBoxLayout()
+        sizing.setSpacing(4)
+        sl = QLabel("RAISE SIZE")
+        sl.setObjectName("TLabel")
+        sizing.addWidget(sl)
+
+        preset_row = QHBoxLayout()
+        preset_row.setSpacing(0)
+        for pct, label in [(33, "33%"), (50, "50%"), (66, "66%"), (75, "75%"), (100, "POT"), (150, "1.5x")]:
+            b = QPushButton(label)
+            b.setObjectName("PresetButton")
+            b.setCursor(Qt.PointingHandCursor)
+            b.clicked.connect(lambda checked=False, p=pct: self.mtt_size_slider.setValue(p))
+            preset_row.addWidget(b)
+        sizing.addLayout(preset_row)
+
+        self.mtt_size_slider = QSlider(Qt.Horizontal)
+        self.mtt_size_slider.setRange(1, 300)
+        self.mtt_size_slider.setValue(66)
+        self.mtt_size_slider.valueChanged.connect(self._refresh_mtt_size)
+        sizing.addWidget(self.mtt_size_slider)
+        self.mtt_size_label = QLabel("—")
+        self.mtt_size_label.setStyleSheet("font-family: 'JetBrains Mono', Menlo, monospace; font-size: 13px;")
+        sizing.addWidget(self.mtt_size_label)
+        dl.addLayout(sizing, 2)
+
+        acts = QHBoxLayout()
+        acts.setSpacing(6)
+        self.mtt_fold_btn  = QPushButton("FOLD");   self.mtt_fold_btn.setObjectName("ActionFold")
+        self.mtt_check_btn = QPushButton("CHECK");  self.mtt_check_btn.setObjectName("ActionCheck")
+        self.mtt_call_btn  = QPushButton("CALL");   self.mtt_call_btn.setObjectName("ActionCall")
+        self.mtt_raise_btn = QPushButton("RAISE");  self.mtt_raise_btn.setObjectName("ActionRaise")
+        self.mtt_allin_btn = QPushButton("ALL-IN"); self.mtt_allin_btn.setObjectName("ActionAllin")
+
+        self.mtt_fold_btn.clicked.connect(lambda: self._hero_action_mtt(ActionType.FOLD))
+        self.mtt_check_btn.clicked.connect(lambda: self._hero_action_mtt(ActionType.CHECK))
+        self.mtt_call_btn.clicked.connect(lambda: self._hero_action_mtt(ActionType.CALL))
+        self.mtt_raise_btn.clicked.connect(lambda: self._hero_action_mtt(ActionType.RAISE))
+        self.mtt_allin_btn.clicked.connect(lambda: self._hero_action_mtt(ActionType.ALL_IN))
+
+        for b in (self.mtt_fold_btn, self.mtt_check_btn, self.mtt_call_btn,
+                  self.mtt_raise_btn, self.mtt_allin_btn):
+            b.setMinimumWidth(150)
+            b.setMinimumHeight(48)
+            b.setCursor(Qt.PointingHandCursor)
+            b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            acts.addWidget(b, 1)
+        dl.addLayout(acts, 4)
+        pl.addWidget(deck)
+
+        self.stack_layout.addWidget(page)
+
+        # MTT shortcuts
+        self._shortcuts = [
+            QShortcut(QKeySequence(Qt.Key_Space), self, activated=self._space_pressed_mtt),
+            QShortcut(QKeySequence("F"), self, activated=lambda: self._key_action_mtt("F")),
+            QShortcut(QKeySequence("C"), self, activated=lambda: self._key_action_mtt("C")),
+            QShortcut(QKeySequence("R"), self, activated=lambda: self._key_action_mtt("R")),
+            QShortcut(QKeySequence("A"), self, activated=lambda: self._key_action_mtt("A")),
+            QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self._end_mtt),
+        ]
+
+        # Bot timer for MTT
+        self._mtt_bot_timer = QTimer(self)
+        self._mtt_bot_timer.setInterval(450)
+        self._mtt_bot_timer.timeout.connect(self._tick_bot_mtt)
+
+    # ── CASH GAME LOOP ────────────────────────────────────────────
 
     def _deal_next(self):
         if not self.game:
@@ -410,7 +825,6 @@ class PlaySessionScreen(QWidget):
             self.next_btn.hide()
         self.game.start_hand()
         self._refresh()
-        # Kick off paced bot processing
         if not self.game.is_waiting_for_hero and not self.game.current_hand.is_complete:
             self._bot_timer.start()
 
@@ -431,11 +845,9 @@ class PlaySessionScreen(QWidget):
         if hand.is_complete:
             self._on_complete()
         else:
-            # Resume paced bot loop after hero acts
             self._bot_timer.start()
 
     def _tick_bot(self):
-        """Process one bot action, refresh, repeat on next tick."""
         if not self.game or not self.game.current_hand:
             self._bot_timer.stop()
             return
@@ -447,22 +859,15 @@ class PlaySessionScreen(QWidget):
                 self._on_complete()
 
     def _space_pressed(self):
-        """Spacebar — deals the next hand iff we're idle between hands."""
         if hasattr(self, "next_btn") and self.next_btn and self.next_btn.isVisible():
             self._deal_next()
 
     def _key_action(self, key: str) -> None:
-        """Map F/C/R/A keys to whichever action button is visible.
-
-        Only fires when its mapped button is currently visible — so e.g. C
-        does nothing when there's no bet to call. Visibility = legality.
-        """
         if not self.game or not self.game.is_waiting_for_hero:
             return
         if key == "F" and self.fold_btn.isVisible():
             self.fold_btn.click()
         elif key == "C":
-            # C → Call if facing a bet, else Check (whichever is visible)
             if self.call_btn.isVisible():
                 self.call_btn.click()
             elif self.check_btn.isVisible():
@@ -473,21 +878,13 @@ class PlaySessionScreen(QWidget):
             self.allin_btn.click()
 
     def _size_amount_bb(self) -> float:
-        """Translate the sizing slider into a legal raise/bet amount in bb.
-
-        Preflop with no pot built we anchor on the big blind (open-raise
-        sizing 2.2x–3x). Post-flop the slider is read as % of current pot,
-        floored at the legal min-raise so the engine never has to coerce.
-        """
         hand = self.game.current_hand
         hero = hand.hero
         pct = self.size_slider.value() / 100.0
         if hand.street == Street.PREFLOP and hand.pot <= hand.big_blind * 3:
-            # Open or 3-bet land — size in BBs (2.2x to 4x)
             target = hand.big_blind * (2.0 + pct * 1.5)
         else:
             target = hand.pot * pct
-        # Floor to legal min-raise / min-bet
         floor = max(hand.last_full_raise_size, hand.big_blind)
         if hand.current_bet > 0:
             min_raise_add = hand.current_bet + floor - hero.current_bet
@@ -502,7 +899,6 @@ class PlaySessionScreen(QWidget):
         chips = self._size_amount_bb()
         pot = max(self.game.current_hand.pot, 0.01)
         pct = int(round(100 * chips / pot)) if pot else 0
-        # Show both: total bb committed AND % of current pot
         self.size_label.setText(f"{chips:.1f} bb  ·  {pct}% pot")
 
     def _refresh(self):
@@ -511,9 +907,7 @@ class PlaySessionScreen(QWidget):
         hand = self.game.current_hand
         hero = hand.hero
 
-        # ── Feed the unified poker table ────────────────────────────
         action_top = self.game._action_queue[0] if self.game._action_queue else -1
-        # Live HUD: merge observed stats with bot archetype profile
         raw_profiles = self.game.get_bot_profiles()
         merged_profiles = {}
         for idx, prof in raw_profiles.items():
@@ -540,12 +934,10 @@ class PlaySessionScreen(QWidget):
             bot_profiles=merged_profiles,
         )
 
-        # ── GTO Range widget güncelle ──────────────────────────────
         if hasattr(self, "gto_range") and hero and not hand.is_complete:
             pos = getattr(hero, "position", "") or ""
-            stack_bb = float(hero.stack)
-            self.gto_range.update_range(pos, stack_bb, game_type="cash")
-        # Tag the most recent aggressor (non-hero with biggest bet) as villain for visual emphasis
+            self.gto_range.update_range(pos, float(hero.stack), game_type="cash")
+
         villain_idx = None
         max_bet = 0.0
         for i, p in enumerate(hand.players):
@@ -555,7 +947,6 @@ class PlaySessionScreen(QWidget):
                 max_bet = p.current_bet
                 villain_idx = i
         if villain_idx is not None:
-            # Find that player in the slot-ordered list and flag villain
             cur = hand.hero_idx
             visited = 0
             slot_pos = 0
@@ -572,7 +963,6 @@ class PlaySessionScreen(QWidget):
 
         hero_cards = [c.display for c in hero.hole_cards] if (hero and hero.hole_cards) else None
         board = [c.display for c in hand.community]
-        big_pot = (hand.street == Street.PREFLOP)
         note = f"BLINDS {hand.small_blind:g} / {hand.big_blind:g}"
         if hand.ante > 0:
             note += f" · ANTE {hand.ante:g}"
@@ -587,13 +977,11 @@ class PlaySessionScreen(QWidget):
             pot=hand.pot,
             hero_cards=hero_cards,
             note=note,
-            big_pot=big_pot,
+            big_pot=(hand.street == Street.PREFLOP),
             show_opponent_backs=not hand.is_complete,
             to_call=hero_to_call,
         )
 
-        # TO CALL banner in the action deck — visible only when it's hero's
-        # turn AND there's something to call. Shows bb + % of current pot.
         if self.game.is_waiting_for_hero and hero_to_call > 0 and hand.pot > 0:
             pct = int(round(100 * hero_to_call / hand.pot))
             self.to_call_banner.setText(f"TO CALL  {hero_to_call:.1f} bb  ·  {pct}% POT")
@@ -601,7 +989,6 @@ class PlaySessionScreen(QWidget):
         else:
             self.to_call_banner.hide()
 
-        # Stats
         stats = self.game.get_session_stats()
         self.stat_hands.set_value(str(stats["hands"]))
         profit_str = f"{stats['profit_bb']:+.1f}bb"
@@ -615,22 +1002,6 @@ class PlaySessionScreen(QWidget):
         self._refresh_size()
 
     def _update_action_buttons(self):
-        """Show only the actions that are legal RIGHT NOW.
-
-        Key implementation note: we DO NOT toggle setEnabled on the action
-        buttons — only hide()/show(). Qt's stylesheet engine sometimes
-        fails to re-evaluate ``:enabled`` vs ``:disabled`` after a tight
-        ``setEnabled(False)`` → ``setEnabled(True)`` pair in the same
-        function, which is exactly what was making the CALL button render
-        with its disabled palette (dark fill, dim text) even while
-        functionally enabled. Buttons stay enabled all the time; visibility
-        alone gates user input.
-
-        Edge case: when to_call >= hero.stack the engine offers ALL_IN
-        instead of CALL — we still surface the green CALL button labelled
-        "CALL ALL-IN X.X" so the user can call without hunting for a
-        different button.
-        """
         for b in (self.fold_btn, self.check_btn, self.call_btn, self.raise_btn, self.allin_btn):
             b.hide()
         if not self.game or not self.game.is_waiting_for_hero:
@@ -643,9 +1014,6 @@ class PlaySessionScreen(QWidget):
         valid = hand.get_valid_actions(hero_idx)
         valid_types = {v[0] for v in valid}
         to_call = hand.to_call(hero_idx)
-
-        # Treat dust stacks (rounding artefact) as zero so we don't render
-        # "CALL ALL-IN  0" garbage for an effectively-busted hero.
         stack_meaningful = (hero and hero.stack >= 0.05)
 
         if ActionType.FOLD in valid_types:
@@ -671,7 +1039,6 @@ class PlaySessionScreen(QWidget):
     def _on_complete(self):
         if not self.game or not self.game.hand_history:
             return
-        # Live HUD güncelle — tamamlanan elden gözlemlenen stats
         if self.game.current_hand:
             self.live_hud.update_from_hand(self.game.current_hand)
         r = self.game.hand_history[-1]
@@ -709,26 +1076,18 @@ class PlaySessionScreen(QWidget):
             if it.widget():
                 it.widget().deleteLater()
 
-        # Now that a hand exists, REVIEW LAST is meaningful
         if hasattr(self, "review_btn"):
             self.review_btn.setEnabled(True)
 
         session_stats = self.game.get_session_stats() if self.game else {}
         hero_stack = self.game.players[0].stack if self.game and self.game.players else 0.0
         hand_data = {
-            "hand_id": r.hand_id,
-            "hero_cards": r.hero_cards,
-            "community": r.community or "—",
-            "hero_position": r.hero_position,
-            "hero_stack_bb": round(hero_stack, 1),
-            "pot": round(r.pot, 1),
-            "hero_invested": round(r.hero_invested, 1),
-            "hero_profit": round(r.hero_profit, 1),
-            "hero_won": r.hero_won,
-            "winner_hand_name": r.winner_hand_name,
-            "streets_seen": r.streets_seen,
-            "actions": _format_actions_for_coach(r.actions),
-            "session": session_stats,
+            "hand_id": r.hand_id, "hero_cards": r.hero_cards, "community": r.community or "—",
+            "hero_position": r.hero_position, "hero_stack_bb": round(hero_stack, 1),
+            "pot": round(r.pot, 1), "hero_invested": round(r.hero_invested, 1),
+            "hero_profit": round(r.hero_profit, 1), "hero_won": r.hero_won,
+            "winner_hand_name": r.winner_hand_name, "streets_seen": r.streets_seen,
+            "actions": _format_actions_for_coach(r.actions), "session": session_stats,
             "source": "play_session",
         }
         self.hand_completed.emit(hand_data)
@@ -740,25 +1099,17 @@ class PlaySessionScreen(QWidget):
         r = self.game.hand_history[-1]
         hero_stack = self.game.players[0].stack if self.game.players else 0.0
         hand_data = {
-            "hand_id": r.hand_id,
-            "hero_cards": r.hero_cards,
-            "community": r.community or "—",
-            "hero_position": r.hero_position,
-            "hero_stack_bb": round(hero_stack, 1),
-            "pot": round(r.pot, 1),
-            "hero_invested": round(r.hero_invested, 1),
-            "hero_profit": round(r.hero_profit, 1),
-            "hero_won": r.hero_won,
-            "winner_hand_name": r.winner_hand_name,
-            "streets_seen": r.streets_seen,
+            "hand_id": r.hand_id, "hero_cards": r.hero_cards, "community": r.community or "—",
+            "hero_position": r.hero_position, "hero_stack_bb": round(hero_stack, 1),
+            "pot": round(r.pot, 1), "hero_invested": round(r.hero_invested, 1),
+            "hero_profit": round(r.hero_profit, 1), "hero_won": r.hero_won,
+            "winner_hand_name": r.winner_hand_name, "streets_seen": r.streets_seen,
             "actions": _format_actions_for_coach(r.actions),
-            "session": self.game.get_session_stats(),
-            "source": "review_request",
+            "session": self.game.get_session_stats(), "source": "review_request",
         }
         self.hand_completed.emit(hand_data)
 
     def _show_gto_popup(self) -> None:
-        """GTO butonu — mevcut game state'i okuyup popup aç."""
         pos, stack_bb, hero_cards, street, pot, players = "", 100.0, "", "preflop", 0.0, 6
         if self.game and self.game.current_hand:
             hand = self.game.current_hand
@@ -777,14 +1128,9 @@ class PlaySessionScreen(QWidget):
             players = self.game.active_players_count
 
         show_gto_dialog(
-            parent=self,
-            position=pos,
-            stack_bb=stack_bb,
-            players_active=players,
-            game_type="cash",
-            hero_cards=hero_cards,
-            street=street,
-            pot_bb=pot,
+            parent=self, position=pos, stack_bb=stack_bb,
+            players_active=players, game_type="cash",
+            hero_cards=hero_cards, street=street, pot_bb=pot,
         )
 
     def _end_session(self):
@@ -796,9 +1142,321 @@ class PlaySessionScreen(QWidget):
             for h in self.game.hand_history
         ]
         self.coach_message.emit(session_summary(stats, data))
-        # ── SESSION BİTTİ: setup ekranına geri dön ──────────────────
         self.game = None
         self._build_setup()
+
+    # ── MTT GAME LOOP ─────────────────────────────────────────────
+
+    def _deal_next_mtt(self):
+        if not self.tournament:
+            return
+        if self.tournament.is_complete:
+            self._mtt_tournament_over()
+            return
+        if hasattr(self, "mtt_next_btn"):
+            self.mtt_next_btn.hide()
+        self.tournament.start_hand()
+        self._refresh_mtt()
+        game = self.tournament.game
+        if (not game.is_waiting_for_hero
+                and game.current_hand
+                and not game.current_hand.is_complete):
+            self._mtt_bot_timer.start()
+
+    def _hero_action_mtt(self, action_type: ActionType):
+        if not self.tournament or self.tournament.is_complete:
+            return
+        if not self.tournament.game.is_waiting_for_hero:
+            return
+
+        hand = self.tournament.game.current_hand
+        hero = hand.hero
+        amount = 0.0
+
+        if action_type in (ActionType.BET, ActionType.RAISE):
+            amount = self._mtt_size_chips()
+        elif action_type == ActionType.CALL:
+            amount = hand.to_call(hand.hero_idx)
+        elif action_type == ActionType.ALL_IN:
+            amount = hero.stack if hero else 0.0
+
+        self.tournament.hero_act(action_type, amount)
+        self._refresh_mtt()
+
+        if hand.is_complete:
+            self.tournament.advance_after_hand_complete()
+            self._on_complete_mtt()
+        else:
+            self._mtt_bot_timer.start()
+
+    def _tick_bot_mtt(self):
+        if not self.tournament or not self.tournament.game.current_hand:
+            self._mtt_bot_timer.stop()
+            return
+        keep_going = self.tournament.game.step_action()
+        self._refresh_mtt()
+        if not keep_going:
+            self._mtt_bot_timer.stop()
+            if self.tournament.game.current_hand.is_complete:
+                self.tournament.advance_after_hand_complete()
+                self._on_complete_mtt()
+
+    def _space_pressed_mtt(self):
+        if hasattr(self, "mtt_next_btn") and self.mtt_next_btn and self.mtt_next_btn.isVisible():
+            self._deal_next_mtt()
+
+    def _key_action_mtt(self, key: str) -> None:
+        if not self.tournament or not self.tournament.game.is_waiting_for_hero:
+            return
+        if key == "F" and self.mtt_fold_btn.isVisible():
+            self.mtt_fold_btn.click()
+        elif key == "C":
+            if self.mtt_call_btn.isVisible():
+                self.mtt_call_btn.click()
+            elif self.mtt_check_btn.isVisible():
+                self.mtt_check_btn.click()
+        elif key == "R" and self.mtt_raise_btn.isVisible():
+            self.mtt_raise_btn.click()
+        elif key == "A" and self.mtt_allin_btn.isVisible():
+            self.mtt_allin_btn.click()
+
+    def _mtt_size_chips(self) -> float:
+        """Slider → legal bet/raise in tournament chips."""
+        hand = self.tournament.game.current_hand
+        hero = hand.hero
+        pct = self.mtt_size_slider.value() / 100.0
+        if hand.street == Street.PREFLOP and hand.pot <= hand.big_blind * 3:
+            target = hand.big_blind * (2.0 + pct * 2.5)
+        else:
+            target = hand.pot * pct
+        floor = max(hand.last_full_raise_size, hand.big_blind)
+        if hand.current_bet > 0 and hero:
+            min_raise_add = hand.current_bet + floor - hero.current_bet
+            target = max(target, min_raise_add)
+        else:
+            target = max(target, hand.big_blind)
+        if hero:
+            target = min(target, hero.stack)
+        return round(target, 2)
+
+    def _refresh_mtt_size(self):
+        if not self.tournament or not self.tournament.game.current_hand:
+            return
+        hand = self.tournament.game.current_hand
+        chips = self._mtt_size_chips()
+        bb = max(hand.big_blind, 1)
+        bb_eq = chips / bb
+        pot = max(hand.pot, 0.01)
+        pct = int(round(100 * chips / pot))
+        self.mtt_size_label.setText(f"{bb_eq:.1f}bb  ·  {pct}% pot  ·  {int(chips):,}")
+
+    def _refresh_mtt(self):
+        if not self.tournament:
+            return
+        t = self.tournament
+        game = t.game
+        hand = game.current_hand
+        if not hand:
+            return
+
+        state = t.state
+        level = state.current_level
+        hero = hand.hero
+
+        remaining = t.players_remaining
+        total = t.config.field_size
+        alive_stacks = [p.stack for p in game.players if not p.is_eliminated]
+        avg_chips = int(sum(alive_stacks) / max(len(alive_stacks), 1))
+        hero_chips = int(hero.stack) if hero else 0
+        hands_left = state.hands_until_next_level
+
+        ante_str = f"/{level.ante:,}" if level.ante else ""
+        self.mtt_meta["event"].set_value(t.config.name[:16])
+        self.mtt_meta["level"].set_value(f"L{state.level_idx + 1}")
+        self.mtt_meta["level"].set_detail(f"{level.sb:,}/{level.bb:,}{ante_str}")
+        self.mtt_meta["players"].set_value(f"{remaining}")
+        self.mtt_meta["players"].set_detail(f"of {total}")
+        self.mtt_meta["hero"].set_value(f"{hero_chips:,}")
+        self.mtt_meta["hero"].set_detail(f"{hero_chips // max(level.bb, 1):.0f}bb" if hero else "—")
+        self.mtt_meta["avg"].set_value(f"{avg_chips:,}")
+        self.mtt_meta["next"].set_value(str(hands_left))
+        self.mtt_meta["next"].set_detail("hands left")
+
+        # Poker table
+        action_top = game._action_queue[0] if game._action_queue else -1
+        seats, hero_slot, dealer_slot = seats_from_hand(
+            hand.players, hand.hero_idx,
+            action_queue_top=action_top, unit="bb", hand=hand,
+        )
+        hero_to_call = hand.to_call(hand.hero_idx) if hero else 0.0
+        board = [c.display for c in hand.community]
+        hero_cards = [c.display for c in hero.hole_cards] if (hero and hero.hole_cards) else None
+        note = f"L{state.level_idx + 1} · {level.sb:,}/{level.bb:,}"
+        if level.ante:
+            note += f"/{level.ante:,}"
+
+        self.mtt_table.render_state(
+            seats=seats,
+            hero_slot_idx=hero_slot,
+            dealer_slot_idx=dealer_slot,
+            street=hand.street_name,
+            board=board,
+            pot=hand.pot,
+            hero_cards=hero_cards,
+            note=note,
+            big_pot=(hand.street == Street.PREFLOP),
+            show_opponent_backs=not hand.is_complete,
+            to_call=hero_to_call,
+        )
+
+        if game.is_waiting_for_hero and hero_to_call > 0 and hand.pot > 0:
+            bb = max(level.bb, 1)
+            self.mtt_to_call_banner.setText(
+                f"TO CALL  {int(hero_to_call):,}  ·  {hero_to_call/bb:.1f}bb"
+            )
+            self.mtt_to_call_banner.show()
+        else:
+            self.mtt_to_call_banner.hide()
+
+        self._update_mtt_action_buttons()
+        self._refresh_mtt_size()
+
+    def _update_mtt_action_buttons(self):
+        for b in (self.mtt_fold_btn, self.mtt_check_btn, self.mtt_call_btn,
+                  self.mtt_raise_btn, self.mtt_allin_btn):
+            b.hide()
+        if not self.tournament or not self.tournament.game.is_waiting_for_hero:
+            return
+        hand = self.tournament.game.current_hand
+        if not hand or hand.is_complete:
+            return
+        hero_idx = hand.hero_idx
+        hero = hand.hero
+        valid = hand.get_valid_actions(hero_idx)
+        valid_types = {v[0] for v in valid}
+        to_call = hand.to_call(hero_idx)
+        stack_meaningful = (hero and hero.stack >= 1)
+        level = self.tournament.state.current_level
+        bb = max(level.bb, 1)
+
+        if ActionType.FOLD in valid_types:
+            self.mtt_fold_btn.show()
+        if ActionType.CHECK in valid_types:
+            self.mtt_check_btn.show()
+        if ActionType.CALL in valid_types:
+            self.mtt_call_btn.setText(f"CALL  {to_call/bb:.1f}bb  ({int(to_call):,})")
+            self.mtt_call_btn.show()
+        elif (to_call > 0 and ActionType.ALL_IN in valid_types and stack_meaningful):
+            self.mtt_call_btn.setText(f"CALL ALL-IN  {hero.stack/bb:.1f}bb")
+            self.mtt_call_btn.show()
+        if ActionType.BET in valid_types:
+            self.mtt_raise_btn.setText("BET")
+            self.mtt_raise_btn.show()
+        if ActionType.RAISE in valid_types:
+            self.mtt_raise_btn.setText("RAISE")
+            self.mtt_raise_btn.show()
+        if stack_meaningful and to_call < hero.stack:
+            self.mtt_allin_btn.setText(f"ALL-IN  {hero.stack/bb:.1f}bb  ({int(hero.stack):,})")
+            self.mtt_allin_btn.show()
+
+    def _on_complete_mtt(self):
+        if not self.tournament:
+            return
+        t = self.tournament
+        game = t.game
+
+        if not game or not game.hand_history:
+            return
+
+        # Update live HUD
+        if game.current_hand:
+            self.live_hud.update_from_hand(game.current_hand)
+
+        r = game.hand_history[-1]
+        color = "#5ad17a" if r.hero_won else "#e87474" if r.hero_invested > 0 else "#898d80"
+        outcome = "✓  WON" if r.hero_won else ("✗  LOST" if r.hero_invested > 0 else "—  FOLDED")
+        level = t.state.current_level
+        bb = max(level.bb, 1)
+
+        self.mtt_feedback.setStyleSheet(
+            f"font-family: 'JetBrains Mono', Menlo, monospace; font-size: 13px; "
+            f"font-weight: 600; color: {color}; padding: 6px 0;"
+        )
+        self.mtt_feedback.setText(
+            f"HAND #{r.hand_id}  ·  {outcome}  ·  Pot {r.pot/bb:.1f}bb ({int(r.pot):,})  ·  "
+            f"Net {r.hero_profit/bb:+.1f}bb  ·  {r.winner_hand_name}"
+        )
+        row = QLabel(
+            f"#{r.hand_id:>3}  {r.hero_cards:<8}  →  {r.community:<20}  "
+            f"{'W' if r.hero_won else 'L'}  {r.hero_profit/bb:+.1f}bb  {r.winner_hand_name}"
+        )
+        row.setStyleSheet(
+            f"font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; "
+            f"color: {'#5ad17a' if r.hero_won else '#898d80'};"
+        )
+        self.mtt_history_layout.addWidget(row)
+        while self.mtt_history_layout.count() > 8:
+            it = self.mtt_history_layout.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+
+        # Hand data for coach
+        hand_data = {
+            "hand_id": r.hand_id, "hero_cards": r.hero_cards, "community": r.community or "—",
+            "hero_position": r.hero_position,
+            "hero_stack_bb": round(game.players[0].stack / bb, 1) if game.players else 0,
+            "pot": round(r.pot / bb, 1), "hero_invested": round(r.hero_invested / bb, 1),
+            "hero_profit": round(r.hero_profit / bb, 1), "hero_won": r.hero_won,
+            "winner_hand_name": r.winner_hand_name, "streets_seen": r.streets_seen,
+            "actions": _format_actions_for_coach(r.actions), "source": "mtt_play_session",
+        }
+        self.hand_completed.emit(hand_data)
+
+        # Check tournament end conditions
+        if t.is_complete:
+            self._mtt_tournament_over()
+            return
+
+        # Check hero elimination
+        hero_player = game.players[0] if game.players else None
+        if hero_player and hero_player.is_eliminated:
+            placement = t.players_remaining + 1
+            self.mtt_feedback.setText(
+                f"Hero elendi! Bitiriş yeri: #{placement}. Esc ile yeni setup."
+            )
+            self.coach_message.emit(
+                f"MTT/SNG bitti — Hero #{placement} bitirdi. Yeni turnuva için Esc'ye bas."
+            )
+            if hasattr(self, "mtt_next_btn"):
+                self.mtt_next_btn.hide()
+            return
+
+        self.mtt_next_btn.show()
+
+    def _mtt_tournament_over(self):
+        if not self.tournament:
+            return
+        remaining = self.tournament.players_remaining
+        self.mtt_feedback.setText(
+            f"Turnuva bitti! Kalan oyuncu: {remaining}. Yeni turnuva için Esc."
+        )
+        self.coach_message.emit(
+            f"Turnuva tamamlandı ({self._format.upper()}). "
+            "Yeni bir turnuva için ESC ile setup'a dön."
+        )
+
+    def _end_mtt(self):
+        if not self.tournament and not self._in_mtt:
+            return
+        timer = getattr(self, "_mtt_bot_timer", None)
+        if timer is not None:
+            timer.stop()
+        self.tournament = None
+        self.live_hud = LiveHUD()
+        self._build_setup()
+        self.coach_message.emit(
+            f"{self._format.upper()} bitirildi. Yeni format veya ayar için setup'ta değişiklik yap."
+        )
 
 
 def _clear(layout):
