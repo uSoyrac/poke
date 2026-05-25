@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from app.core.app_state import AppState
 from app.db.seed_data import leaks
+from app.training.drill_library import DrillLibrary
 from app.ui.components.leak_card import LeakCard
 from app.ui.components.metric_card import MetricCard
 
@@ -145,6 +146,7 @@ class LeakFinderScreen(QWidget):
         super().__init__()
         self.state = state
         self.all_leaks = EXTENDED_LEAKS
+        self._selected_leak: dict | None = None
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -266,6 +268,7 @@ class LeakFinderScreen(QWidget):
         filtered = self.table.property("filtered_leaks") or self.all_leaks
         if row < len(filtered):
             leak = filtered[row]
+            self._selected_leak = leak
             self.detail_title.setText(f"{leak['name']} | {leak['severity']} | {leak['category']}")
             self.detail_why.setText(f"Why: {leak['why']}\n\nSample size: {leak['sample_size']} decisions | EV lost: {leak['ev_lost']:.1f}bb")
             self.detail_fix.setText(f"Fix: {leak['fix']}")
@@ -273,10 +276,20 @@ class LeakFinderScreen(QWidget):
             self.repair_bar.setValue(0)
 
     def _create_drill(self) -> None:
+        leak = self._selected_leak
+        if leak is None:
+            self.coach_message.emit(
+                "Önce tabloda bir leak seç, sonra 'Create Drill Pack' butonuna bas."
+            )
+            return
+        lib = DrillLibrary.instance()
+        new_drills = lib.generate_from_leak(leak)
+        n = len(new_drills)
         self.coach_message.emit(
-            "Leak repair drill pack oluşturuldu. 20 spot seçildi: leak kategorisine uygun "
-            "board texture, pozisyon ve pot type ile filtrelendi. Spot Trainer'da hazır."
+            f"✓  {n} yeni drill oluşturuldu: \"{leak['name']}\" leakine özel. "
+            "Spot Practice Trainer → Drill Library'de seni bekliyor — oynayabilirsin!"
         )
+        self.navigate_requested.emit("Spot Practice Trainer")
 
     def _ask_coach(self) -> None:
         self.coach_message.emit(
