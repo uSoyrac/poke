@@ -26,6 +26,7 @@ from app.core.app_state import AppState
 from app.core.live_hud import LiveHUD
 from app.db.repository import save_played_hand
 from app.engine.hand_state import ActionType, Street
+from app.simulator.mtt_field import MTTField
 from app.simulator.tournament_runner import (
     Tournament, TournamentConfig, PAYOUT_STRUCTURES,
 )
@@ -50,6 +51,7 @@ class TournamentSimulatorScreen(QWidget):
         super().__init__()
         self.state = state
         self.tournament: Tournament | None = None
+        self.mtt_field: MTTField | None = None   # large-field background sim
         self.live_hud = LiveHUD()
 
         root = QVBoxLayout(self)
@@ -144,6 +146,28 @@ class TournamentSimulatorScreen(QWidget):
         self.buyin_input.setPrefix("$ ")
         grid.addWidget(self._label("BUY-IN"), 0, 2)
         grid.addWidget(self.buyin_input, 1, 2)
+
+        # FIELD SIZE — total tournament entrants (hero plays at one 9-max table;
+        # all other players run statistically in the background)
+        self.field_size_combo = QComboBox()
+        for label, n in [
+            ("9 players (single table)", 9),
+            ("27 players (3 tables)", 27),
+            ("50 players (6 tables)", 50),
+            ("100 players (12 tables)", 100),
+            ("200 players (23 tables)", 200),
+            ("500 players (56 tables)", 500),
+            ("1,000 players (112 tables)", 1000),
+        ]:
+            self.field_size_combo.addItem(label, n)
+        self.field_size_combo.setCurrentIndex(4)   # 200 default
+        self.field_size_combo.setToolTip(
+            "Total tournament entrants. Hero plays at one 9-max table; background "
+            "players are eliminated statistically so the overall player count shrinks "
+            "in real-time — just like a real online MTT."
+        )
+        grid.addWidget(self._label("FIELD SIZE"), 0, 3)
+        grid.addWidget(self.field_size_combo, 1, 3)
 
         # Structure
         self.structure_combo = QComboBox()
@@ -288,6 +312,18 @@ class TournamentSimulatorScreen(QWidget):
         self._bg_timer = QTimer(self)
         self._bg_timer.setInterval(250)
         self._bg_timer.timeout.connect(self._bg_tick)
+
+        # Create MTT background field simulator.
+        # field_size_combo = total entrants; hero_table_size = seats at hero's table.
+        mtt_size = self.field_size_combo.currentData()
+        self.mtt_field = MTTField(
+            field_size=mtt_size,
+            buyin=float(self.buyin_input.value()),
+            structure=self.structure_combo.currentText(),
+            hero_table_size=size,
+        )
+        self.mtt_field.update_hero_table(size)  # hero table starts full
+
         self._bg_timer.start()
         self._build_play()
         # Spacebar = skip waiting period / advance to next hand
@@ -299,27 +335,7 @@ class TournamentSimulatorScreen(QWidget):
         QShortcut(QKeySequence("A"), self, activated=lambda: self._key_action("A"))
         QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self._end_and_restart)
         self._deal_next_hand()
-        # Tournament-type-aware briefing — turbo vs deepstack vs hyper
-        # need very different opening strategies. Hand off to Gemini for
-        # a contextual coach message.
-        briefing = (
-            f"YENİ TURNUVA BRIEFING'i hazırla:\n"
-            f"Event: {config.name}\n"
-            f"Field: {config.field_size} oyuncu, ${config.buyin:.0f} buy-in, "
-            f"prize pool ${config.prize_pool:.0f}\n"
-            f"Struct: {config.structure} ({config.hands_per_level} el/level)\n"
-            f"Start: {config.starting_chips:,} chip ({config.starting_chips / max(self.tournament.state.levels[0].bb, 1):.0f}bb)\n"
-            f"Bot mix: {', '.join(archetypes[:8])}\n"
-            f"Hero range filter: {range_filter or 'tüm eller (default GTO)'}\n\n"
-            "Bu turnuva tipi/yapısı için 5-6 satır SOMUT tavsiye ver:\n"
-            "1. Early stage stratejisi (stack depth + structure'a göre)\n"
-            "2. Bubble/ITM yaklaşımı bu field boyutu için\n"
-            "3. Bu bot karışımına karşı en iyi exploit (1 örnek)\n"
-            "4. Hangi spotlardan kaçınmalı\n"
-            "5. Sonuca odaklan: chip lider veya min-cash hedefi mi?\n"
-            "Kısa, maddeleştir, Türkçe."
-        )
-        self.tournament_advice_requested.emit(briefing)
+        # AI coach fires only on user request — no auto briefing on start.
 
     def _end_and_restart(self) -> None:
         """Abort the running tournament and return to the setup screen.
@@ -336,6 +352,7 @@ class TournamentSimulatorScreen(QWidget):
         if bg is not None:
             bg.stop()
         self.tournament = None
+        self.mtt_field = None
         self.live_hud = LiveHUD()
         self.state.tournament_context = None
         self._build_setup()
@@ -398,6 +415,27 @@ class TournamentSimulatorScreen(QWidget):
         meta_l.addWidget(end_box)
 
         pl.addWidget(self.meta_bar)
+
+        # FIELD STRIP — real-time MTT field-wide status bar.
+        # Shown only when total field > single table (field_size > 9).
+        self.field_strip = QFrame()
+        self.field_strip.setStyleSheet(
+            "background: #090e08; border-bottom: 1px solid #1e221d;"
+        )
+        fs_l = QHBoxLayout(self.field_strip)
+        fs_l.setContentsMargins(22, 5, 22, 5)
+        fs_l.setSpacing(0)
+        self._fs_label = QLabel("—")
+        self._fs_label.setStyleSheet(
+            "font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; "
+            "color: #898d80; letter-spacing: 0.3px;"
+        )
+        fs_l.addWidget(self._fs_label)
+        pl.addWidget(self.field_strip)
+        if not self.mtt_field or self.mtt_field.field_size <= 9:
+            self.field_strip.hide()
+        else:
+            self._refresh_field_strip()
 
         # SCROLL CONTENT
         scroll = QScrollArea()
@@ -715,9 +753,16 @@ class TournamentSimulatorScreen(QWidget):
         config = self.tournament.config
         level = self.tournament.state.current_level
         lvl_idx = self.tournament.state.level_idx + 1
-        remaining = self.tournament.players_remaining
-        total = config.field_size
-        paid = config.paid_places
+        # Use full MTT field stats when a large field is active; otherwise
+        # fall back to the hero-table counters tracked by Tournament.
+        if self.mtt_field and self.mtt_field.field_size > 9:
+            total     = self.mtt_field.field_size
+            remaining = self.mtt_field.players_remaining
+            paid      = self.mtt_field.paid_places
+        else:
+            remaining = self.tournament.players_remaining
+            total     = config.field_size
+            paid      = config.paid_places
         bubble_dist = remaining - paid   # negative = already ITM
 
         self.meta_cells["EVENT"]._value_label.setText(config.name)
@@ -757,14 +802,17 @@ class TournamentSimulatorScreen(QWidget):
             avg_bb_val = round(avg / max(level.bb, 1), 1)
             self.meta_cells["AVG"]._sub_label.setText(f"hero {hero_bb_avg:.0f}bb · avg {avg_bb_val:.0f}bb")
 
-        self.meta_cells["PRIZE"]._value_label.setText(f"${config.prize_pool:.0f}")
+        prize_pool = (self.mtt_field.prize_pool
+                      if self.mtt_field and self.mtt_field.field_size > 9
+                      else config.prize_pool)
+        self.meta_cells["PRIZE"]._value_label.setText(f"${prize_pool:.0f}")
         self.meta_cells["PRIZE"]._sub_label.setText(f"top {paid} paid")
 
         # ── Push live tournament context to AppState so the AI Coach can
         # tailor advice (ICM, bubble, stack depth, blind pressure). ─────
         hero_p = hand.hero
         hero_bb = float(hero_p.stack) / max(level.bb, 1) if hero_p else 0.0
-        paid_places = config.paid_places
+        # paid / remaining / total / prize_pool already resolved above (mtt_field or config)
         # bubble_dist < 0 → already ITM; == 1 → on bubble
         on_bubble = (0 <= bubble_dist <= 1)
         avg_bb = avg / max(level.bb, 1)
@@ -776,8 +824,8 @@ class TournamentSimulatorScreen(QWidget):
             "event": config.name,
             "structure": config.structure,
             "buyin": config.buyin,
-            "field_size": config.field_size,
-            "players_remaining": self.tournament.players_remaining,
+            "field_size": total,
+            "players_remaining": remaining,
             "level": self.tournament.state.level_idx + 1,
             "blinds": f"{level.sb}/{level.bb}",
             "ante": level.ante,
@@ -786,10 +834,10 @@ class TournamentSimulatorScreen(QWidget):
             "hero_bb": round(hero_bb, 1),
             "avg_bb": round(avg_bb, 1),
             "stack_pressure": stack_pressure,
-            "payouts_paid": paid_places,
+            "payouts_paid": paid,
             "bubble_distance": bubble_dist,
             "on_bubble": on_bubble,
-            "prize_pool": config.prize_pool,
+            "prize_pool": prize_pool,
         }
 
         # ── Feed the unified poker table ────────────────────────────
@@ -978,6 +1026,33 @@ class TournamentSimulatorScreen(QWidget):
             level=level_str,
         )
 
+    def _refresh_field_strip(self) -> None:
+        """Update the thin MTT field status bar below the meta bar."""
+        if not self.mtt_field or not hasattr(self, "_fs_label"):
+            return
+        f = self.mtt_field
+        total_rem = f.players_remaining
+        total     = f.field_size
+        elim      = total - total_rem
+        bd        = f.bubble_distance   # signed; negative = ITM
+
+        if f.is_itm:
+            bubble_str = "✓  ITM"
+        elif bd == 1:
+            bubble_str = "🔴  BUBBLE"
+        elif bd <= 5:
+            bubble_str = f"bubble  -{bd}"
+        else:
+            bubble_str = f"{bd} to bubble"
+
+        prizes = f.prize_summary(n=3)
+        self._fs_label.setText(
+            f"FIELD:  {total_rem:,} / {total:,} players  ·  "
+            f"{elim:,} eliminated  ·  {bubble_str}  ·  "
+            f"{f.tables_active} tables  ·  {prizes}"
+        )
+        self.field_strip.show()
+
     def _on_hand_complete(self):
         if not self.tournament:
             return
@@ -1056,6 +1131,15 @@ class TournamentSimulatorScreen(QWidget):
             "actions":          "",
             "source":           "tournament_simulator",
         })
+
+        # Tick the background MTT field — simulate eliminations at other tables.
+        if self.mtt_field:
+            n_alive = sum(
+                1 for p in self.tournament.game.players if not p.is_eliminated
+            )
+            self.mtt_field.update_hero_table(n_alive)
+            self.mtt_field.tick(1)
+            self._refresh_field_strip()
 
         # Tournament complete?
         if self.tournament.is_complete:
