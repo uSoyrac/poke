@@ -44,6 +44,7 @@ from app.ui.screens.opponent_profiles import OpponentProfilesScreen
 from app.ui.screens.player_profile import PlayerProfileScreen
 from app.ui.screens.study_library import StudyLibraryScreen
 from app.ui.screens.study_planner import StudyPlannerScreen
+from app.ui.screens.tournament_analysis import TournamentAnalysisScreen
 from app.ui.screens.tournament_simulator import TournamentSimulatorScreen
 from app.ui.theme.theme_manager import apply_dark_theme
 
@@ -81,6 +82,7 @@ NAV_ITEMS = [
     "Hand History Analyzer",
     "Fast Play Simulator",
     "Tournament Simulator",
+    "Tournament Analysis",
     "ICM / PKO Trainer",
     "Preflop Range Trainer",
     "Postflop Trainer",
@@ -256,6 +258,7 @@ class MainWindow(QMainWindow):
             "Spot Practice Trainer": SpotTrainerScreen,
             "Hand History Analyzer": HandAnalyzerScreen,
             "Fast Play Simulator": FastPlaySimulatorScreen,
+            "Tournament Analysis": TournamentAnalysisScreen,
             "ICM / PKO Trainer": IcmTrainerScreen,
             "Preflop Range Trainer": RangeTrainerScreen,
             "Postflop Trainer": PostflopTrainerScreen,
@@ -283,6 +286,10 @@ class MainWindow(QMainWindow):
                 screen.navigate_requested.connect(self.navigate)
             if hasattr(screen, "tournament_advice_requested"):
                 screen.tournament_advice_requested.connect(self.on_tournament_advice)
+            if hasattr(screen, "analysis_requested"):
+                screen.analysis_requested.connect(
+                    lambda prompt, s=screen: self._gemini_for_screen(prompt, s)
+                )
             self.screens[name] = screen
             self.stack.addWidget(screen)
 
@@ -298,6 +305,22 @@ class MainWindow(QMainWindow):
                 "Yeni turnuva başladı. (Gemini API key girilince turnuva-spesifik "
                 "AI tavsiyesi burada görünecek — Settings ekranından gir.)"
             )
+
+    def _gemini_for_screen(self, prompt: str, screen) -> None:
+        """Send a prompt to Gemini and pipe the result back to a specific screen."""
+        if not self.gemini.available:
+            if hasattr(screen, "show_analysis_result"):
+                screen.show_analysis_result(
+                    "Gemini API bağlantısı yok.\n"
+                    "Settings ekranından GEMINI_API_KEY gir, ardından tekrar dene."
+                )
+            return
+        self.coach.set_thinking()
+        def _on_result(txt: str) -> None:
+            if hasattr(screen, "show_analysis_result"):
+                screen.show_analysis_result(txt)
+            self.coach.set_message(txt)
+        self.gemini.ask_async(prompt, _on_result)
 
     def navigate(self, name: str) -> None:
         if self.state.strategy_locked and name in RESTRICTED_WHEN_LOCKED:
