@@ -258,6 +258,22 @@ CREATE TABLE IF NOT EXISTS app_settings (
   value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS tournament_results (
+  id INTEGER PRIMARY KEY,
+  played_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  name TEXT NOT NULL,
+  field_size INTEGER NOT NULL DEFAULT 9,
+  buyin REAL NOT NULL DEFAULT 0,
+  structure TEXT NOT NULL DEFAULT 'regular',
+  finish_position INTEGER,
+  prize_won REAL NOT NULL DEFAULT 0,
+  hands_played INTEGER NOT NULL DEFAULT 0,
+  vpip REAL DEFAULT 0,
+  pfr REAL DEFAULT 0,
+  bb_per_100 REAL DEFAULT 0,
+  profit REAL NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS played_hands (
   id INTEGER PRIMARY KEY,
   hand_id INTEGER NOT NULL,

@@ -345,7 +345,7 @@ class Tournament:
             leaks.append({
                 "name": "Passive preflop (calling station)",
                 "severity": "HIGH",
-                "detail": f"VPIP-PFR gap = {gap}% — too many limps/calls, too few raises.",
+                "detail": f"VPIP-PFR gap = {gap:.1f}% — too many limps/calls, too few raises.",
                 "fix": "Open-raise (don't limp) when first in. 3-bet polarized vs late-position opens.",
                 "ev_loss": round(gap * 0.12, 2),
             })

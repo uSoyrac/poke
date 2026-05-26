@@ -234,6 +234,64 @@ def get_leak_analysis() -> list:
     return leaks_found
 
 
+def save_tournament_result(data: dict) -> None:
+    """Persist a completed tournament to the history table."""
+    with get_connection() as conn:
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS tournament_results (
+                id INTEGER PRIMARY KEY,
+                played_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                name TEXT NOT NULL,
+                field_size INTEGER NOT NULL DEFAULT 9,
+                buyin REAL NOT NULL DEFAULT 0,
+                structure TEXT NOT NULL DEFAULT 'regular',
+                finish_position INTEGER,
+                prize_won REAL NOT NULL DEFAULT 0,
+                hands_played INTEGER NOT NULL DEFAULT 0,
+                vpip REAL DEFAULT 0,
+                pfr REAL DEFAULT 0,
+                bb_per_100 REAL DEFAULT 0,
+                profit REAL NOT NULL DEFAULT 0
+            )"""
+        )
+        conn.execute(
+            """INSERT INTO tournament_results
+               (played_at, name, field_size, buyin, structure,
+                finish_position, prize_won, hands_played,
+                vpip, pfr, bb_per_100, profit)
+               VALUES (datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                data.get("name", "—"),
+                data.get("field_size", 9),
+                data.get("buyin", 0.0),
+                data.get("structure", "regular"),
+                data.get("finish_position"),
+                data.get("prize_won", 0.0),
+                data.get("hands_played", 0),
+                data.get("vpip", 0.0),
+                data.get("pfr", 0.0),
+                data.get("bb_per_100", 0.0),
+                data.get("profit", 0.0),
+            ),
+        )
+        conn.commit()
+
+
+def get_tournament_history(limit: int = 20) -> list:
+    """Return last N tournament results, newest first."""
+    with get_connection() as conn:
+        # Guard: table may not exist on old DBs (schema migrates on next launch)
+        try:
+            rows = conn.execute(
+                """SELECT * FROM tournament_results
+                   ORDER BY played_at DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+        except Exception:
+            return []
+
+
 def update_skill_xp(category: str, xp_amount: int) -> None:
     """Update skill tree XP in the database."""
     with get_connection() as conn:

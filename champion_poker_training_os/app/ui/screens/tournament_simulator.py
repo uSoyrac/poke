@@ -1364,6 +1364,8 @@ class TournamentSimulatorScreen(QWidget):
     # ── REPORT ────────────────────────────────────────────────────
 
     def _build_report(self):
+        from app.db.repository import save_tournament_result, get_tournament_history
+
         self._clear_stack()
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -1372,90 +1374,407 @@ class TournamentSimulatorScreen(QWidget):
         scroll.setWidget(body)
         l = QVBoxLayout(body)
         l.setContentsMargins(28, 24, 28, 60)
-        l.setSpacing(18)
+        l.setSpacing(20)
 
-        report = self.tournament.leak_report() if self.tournament else {"leaks": [], "stats": {}}
+        if not self.tournament:
+            l.addWidget(QLabel("No tournament data."))
+            self.stack_layout.addWidget(scroll)
+            return
 
-        # Header
-        num = QLabel("03 / TOURNAMENT  →  POST-SESSION REPORT")
+        report  = self.tournament.leak_report()
+        stats   = report.get("stats", {})
+        config  = self.tournament.config
+        state   = self.tournament.state
+
+        # Real field/prize from MTTField when active
+        field_size = self.mtt_field.field_size  if self.mtt_field else config.field_size
+        prize_pool = self.mtt_field.prize_pool  if self.mtt_field else config.prize_pool
+
+        finish   = state.finish_position or field_size
+        prize    = state.prize_won
+        buyin    = config.buyin
+        profit   = prize - buyin
+        roi      = (profit / buyin * 100) if buyin > 0 else 0.0
+        won      = (finish == 1)
+        itm      = prize > 0
+        pct_rank = round((1 - finish / max(field_size, 1)) * 100, 1)  # top-X%
+
+        # ── Persist to history ─────────────────────────────────────────
+        try:
+            save_tournament_result({
+                "name":            config.name,
+                "field_size":      field_size,
+                "buyin":           buyin,
+                "structure":       config.structure,
+                "finish_position": finish,
+                "prize_won":       prize,
+                "hands_played":    state.hands_total,
+                "vpip":            stats.get("vpip", 0),
+                "pfr":             stats.get("pfr", 0),
+                "bb_per_100":      stats.get("bb_per_100", 0),
+                "profit":          profit,
+            })
+        except Exception:
+            pass
+
+        # ── Page header ────────────────────────────────────────────────
+        num = QLabel("03 / TOURNAMENT  →  SONUÇ RAPORU")
         num.setObjectName("PageNum")
         l.addWidget(num)
 
-        finish = self.tournament.state.finish_position or "—"
-        prize = self.tournament.state.prize_won
-        won = (finish == 1)
-        title = _big_title(f"{'CHAMPION' if won else 'Finished'} · {finish}/{self.tournament.config.field_size}")
-        l.addWidget(title)
+        # ── HERO CARD — finish + prize (BIG) ──────────────────────────
+        hero_card = QFrame()
+        hero_card.setObjectName("Card")
+        if won:
+            hero_card.setStyleSheet(
+                "background: linear-gradient(135deg, #0d2b14, #132e1a); "
+                "border: 2px solid #5ad17a;"
+            )
+        elif itm:
+            hero_card.setStyleSheet(
+                "background: #131613; border: 2px solid #5ad1ce;"
+            )
+        else:
+            hero_card.setStyleSheet(
+                "background: #131613; border: 1px solid #2a2e26;"
+            )
 
-        sub = QLabel(f"Prize: ${prize:.2f} of ${self.tournament.config.prize_pool:.0f}  ·  Hands played: {self.tournament.state.hands_total}")
-        sub.setObjectName("Muted")
-        l.addWidget(sub)
+        hc_outer = QHBoxLayout(hero_card)
+        hc_outer.setContentsMargins(28, 22, 28, 22)
+        hc_outer.setSpacing(32)
 
-        sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("background: #23271f; border: none; max-height: 1px;")
-        l.addWidget(sep)
+        # LEFT: finish position
+        finish_col = QVBoxLayout()
+        finish_col.setSpacing(4)
+        ordinals = {1: "1st", 2: "2nd", 3: "3rd"}
+        finish_ordinal = ordinals.get(finish, f"{finish}th")
+        finish_lbl = QLabel("FİNİŞ POZİSYONU")
+        finish_lbl.setObjectName("TLabel")
+        finish_num = QLabel(f"{finish_ordinal} / {field_size:,}")
+        finish_num.setStyleSheet(
+            "font-family: 'Space Grotesk', Inter, sans-serif; "
+            "font-size: 42px; font-weight: 800; "
+            f"color: {'#5ad17a' if won else ('#5ad1ce' if itm else '#f4f5ee')};"
+        )
+        rank_lbl = QLabel(
+            f"{'🏆 ŞAMPİYON' if won else ('✓ ITM' if itm else f'top {100 - pct_rank:.0f}%  bitişte elendi')}"
+        )
+        rank_lbl.setStyleSheet(
+            f"font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; "
+            f"font-weight: 700; letter-spacing: 1.4px; "
+            f"color: {'#5ad17a' if (won or itm) else '#898d80'};"
+        )
+        finish_col.addWidget(finish_lbl)
+        finish_col.addWidget(finish_num)
+        finish_col.addWidget(rank_lbl)
+        hc_outer.addLayout(finish_col, 2)
 
-        # KPI row
-        stats = report.get("stats", {})
+        # DIVIDER
+        div = QFrame()
+        div.setFrameShape(QFrame.VLine)
+        div.setStyleSheet("color: #2a2e26; background: #2a2e26; max-width: 1px;")
+        hc_outer.addWidget(div)
+
+        # CENTER: prize + ROI
+        prize_col = QVBoxLayout()
+        prize_col.setSpacing(4)
+        prize_head = QLabel("ÖDÜL")
+        prize_head.setObjectName("TLabel")
+        prize_val = QLabel(f"${prize:,.2f}")
+        prize_val.setStyleSheet(
+            "font-family: 'Space Grotesk', Inter, sans-serif; "
+            "font-size: 38px; font-weight: 800; "
+            f"color: {'#5ad17a' if prize > 0 else '#f4f5ee'};"
+        )
+        roi_color = "#5ad17a" if roi >= 0 else "#e87474"
+        roi_lbl = QLabel(
+            f"ROI {roi:+.1f}%  ·  net {profit:+.2f}$  ·  pool ${prize_pool:,.0f}"
+        )
+        roi_lbl.setStyleSheet(
+            f"font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; "
+            f"font-weight: 600; letter-spacing: 0.8px; color: {roi_color};"
+        )
+        prize_col.addWidget(prize_head)
+        prize_col.addWidget(prize_val)
+        prize_col.addWidget(roi_lbl)
+        hc_outer.addLayout(prize_col, 2)
+
+        div2 = QFrame()
+        div2.setFrameShape(QFrame.VLine)
+        div2.setStyleSheet("color: #2a2e26; background: #2a2e26; max-width: 1px;")
+        hc_outer.addWidget(div2)
+
+        # RIGHT: event meta
+        meta_col = QVBoxLayout()
+        meta_col.setSpacing(6)
+        meta_items = [
+            ("EVENT",     config.name),
+            ("FIELD",     f"{field_size:,} oyuncu  ·  ${buyin:.0f} buy-in"),
+            ("YAPI",      f"{config.structure.upper()}  ·  {state.hands_total} el oynandı"),
+            ("ÖDENEN",    f"top {self.mtt_field.paid_places if self.mtt_field else config.paid_places} yer"),
+        ]
+        for key, val in meta_items:
+            kl = QLabel(key)
+            kl.setObjectName("TLabel")
+            vl = QLabel(val)
+            vl.setStyleSheet("font-size: 13px; color: #d6d8cf; font-weight: 600;")
+            meta_col.addWidget(kl)
+            meta_col.addWidget(vl)
+        hc_outer.addLayout(meta_col, 3)
+
+        l.addWidget(hero_card)
+
+        # ── COMPREHENSIVE EVALUATION ───────────────────────────────────
+        eval_card = QFrame()
+        eval_card.setObjectName("Card")
+        ev_l = QVBoxLayout(eval_card)
+        ev_l.setContentsMargins(22, 18, 22, 18)
+        ev_l.setSpacing(10)
+        ev_l.addWidget(self._section_head("KAPSAMLI DEĞERLENDİRME"))
+
+        vpip    = stats.get("vpip", 0)
+        pfr     = stats.get("pfr", 0)
+        bb100   = stats.get("bb_per_100", 0)
+        wtsd    = stats.get("wtsd", 0)
+        win_r   = stats.get("win_rate", 0)
+
+        # Grade: based on finish percentile + key stats
+        if won:
+            grade, grade_color, grade_note = "S", "#5ad17a", "Olağanüstü — turnuva galibiyeti"
+        elif pct_rank >= 85:
+            grade, grade_color, grade_note = "A+", "#5ad17a", f"Elit finish — top {100-pct_rank:.0f}% içinde"
+        elif pct_rank >= 70:
+            grade, grade_color, grade_note = "A", "#5ad17a", f"Çok güçlü — top {100-pct_rank:.0f}% içinde"
+        elif pct_rank >= 55:
+            grade, grade_color, grade_note = "B+", "#a8d17a", f"Ortanın üstü — top {100-pct_rank:.0f}% içinde"
+        elif pct_rank >= 40:
+            grade, grade_color, grade_note = "B", "#d6c668", f"Ortalama finish — top {100-pct_rank:.0f}% içinde"
+        elif pct_rank >= 20:
+            grade, grade_color, grade_note = "C", "#d6a668", f"Erken eliş — top {100-pct_rank:.0f}% içinde"
+        else:
+            grade, grade_color, grade_note = "D", "#e87474", f"Çok erken eliş — ilk %{100-pct_rank:.0f}"
+
+        grade_row = QHBoxLayout()
+        grade_box = QLabel(grade)
+        grade_box.setAlignment(Qt.AlignCenter)
+        grade_box.setFixedSize(64, 64)
+        grade_box.setStyleSheet(
+            f"font-family: 'Space Grotesk', Inter, sans-serif; font-size: 32px; "
+            f"font-weight: 900; color: {grade_color}; "
+            f"border: 2px solid {grade_color}; background: transparent;"
+        )
+        grade_note_lbl = QLabel(grade_note)
+        grade_note_lbl.setStyleSheet(
+            f"font-size: 16px; font-weight: 700; color: {grade_color};"
+        )
+        grade_row.addWidget(grade_box)
+        grade_row.addSpacing(16)
+        grade_row.addWidget(grade_note_lbl)
+        grade_row.addStretch(1)
+        ev_l.addLayout(grade_row)
+
+        # Narrative bullets
+        bullets = []
+        # Finish narrative
+        if won:
+            bullets.append(("✓", "#5ad17a", "Turnuvayı kazandın — mükemmel performans."))
+        elif itm:
+            bullets.append(("✓", "#5ad17a", f"Para ödülüne girdin ({finish_ordinal}) — pozitif sonuç."))
+        else:
+            bullets.append(("✗", "#e87474",
+                f"{finish_ordinal} sırada elendi — para ödülüne {finish - (self.mtt_field.paid_places if self.mtt_field else config.paid_places)} yer kaldı."))
+
+        # VPIP
+        if 20 <= vpip <= 30:
+            bullets.append(("✓", "#5ad17a", f"VPIP {vpip:.1f}% — sağlıklı aralıkta (hedef: 20–30%)."))
+        elif vpip > 30:
+            bullets.append(("⚠", "#d6c668", f"VPIP {vpip:.1f}% — biraz geniş, özellikle early position'da sıkıştır."))
+        else:
+            bullets.append(("⚠", "#d6c668", f"VPIP {vpip:.1f}% — sıkı oynuyor, steal ve defend spotları kaçıyor."))
+
+        # PFR
+        if pfr > 0:
+            gap = vpip - pfr
+            if gap <= 8:
+                bullets.append(("✓", "#5ad17a", f"PFR {pfr:.1f}% — agresif ve sağlıklı (VPIP-PFR gap: {gap:.1f}%)."))
+            else:
+                bullets.append(("✗", "#e87474", f"PFR {pfr:.1f}% — çok pasif (gap {gap:.1f}%). Limp yerine raise et."))
+
+        # BB/100
+        if bb100 > 5:
+            bullets.append(("✓", "#5ad17a", f"Chip EV: {bb100:+.1f} bb/100 — kazançlı oyun ritmi."))
+        elif bb100 > -10:
+            bullets.append(("→", "#898d80", f"Chip EV: {bb100:+.1f} bb/100 — breakeven yakını."))
+        else:
+            bullets.append(("✗", "#e87474", f"Chip EV: {bb100:+.1f} bb/100 — önemli chip kayıpları var."))
+
+        # WTSD
+        if wtsd <= 28:
+            bullets.append(("✓", "#5ad17a", f"WTSD {wtsd:.1f}% — showdown disiplini iyi."))
+        elif wtsd <= 36:
+            bullets.append(("→", "#898d80", f"WTSD {wtsd:.1f}% — biraz fazla showdown'a gidiliyor."))
+        else:
+            bullets.append(("✗", "#e87474", f"WTSD {wtsd:.1f}% — showdown'a çok gidiyor, bluff-catch overload."))
+
+        for icon, color, text in bullets:
+            row = QHBoxLayout()
+            icon_lbl = QLabel(icon)
+            icon_lbl.setFixedWidth(18)
+            icon_lbl.setStyleSheet(
+                f"font-family: 'JetBrains Mono', monospace; font-size: 12px; "
+                f"font-weight: 700; color: {color};"
+            )
+            txt_lbl = QLabel(text)
+            txt_lbl.setWordWrap(True)
+            txt_lbl.setStyleSheet(f"font-size: 12px; color: #d6d8cf;")
+            row.addWidget(icon_lbl)
+            row.addWidget(txt_lbl, 1)
+            ev_l.addLayout(row)
+
+        l.addWidget(eval_card)
+
+        # ── KPI STRIP ─────────────────────────────────────────────────
         kpi_row = QGridLayout()
         kpi_row.setSpacing(8)
         kpis = [
-            ("VPIP", f"{stats.get('vpip', 0)}%", "voluntary in pot"),
-            ("PFR", f"{stats.get('pfr', 0)}%", "preflop raise"),
-            ("WTSD", f"{stats.get('wtsd', 0)}%", "went to showdown"),
-            ("WIN RATE", f"{stats.get('win_rate', 0)}%", "hands won"),
-            ("PROFIT", f"{stats.get('profit_bb', 0):+}bb", "vs blind level"),
-            ("BB/100", f"{stats.get('bb_per_100', 0):+}bb", "expectation"),
+            ("VPIP",     f"{vpip:.1f}%",              "voluntary in pot",    20 <= vpip <= 30),
+            ("PFR",      f"{pfr:.1f}%",               "preflop raise",       pfr >= 15),
+            ("WTSD",     f"{wtsd:.1f}%",              "went to showdown",    wtsd <= 30),
+            ("WIN RATE", f"{win_r:.1f}%",             "hands won",           win_r >= 25),
+            ("BB/100",   f"{bb100:+.1f}bb",           "chip EV/100 hands",   bb100 > 0),
+            ("ELLER",    str(state.hands_total),      "toplam oynanan el",   True),
         ]
-        for i, (lbl, val, sub_lbl) in enumerate(kpis):
-            mc = MetricCard(lbl, val, sub_lbl, accent="Green" if "+" in val else "Mono")
+        for i, (lbl, val, sub_lbl, good) in enumerate(kpis):
+            mc = MetricCard(lbl, val, sub_lbl, accent="Green" if good else "Red")
             kpi_row.addWidget(mc, 0, i)
         l.addLayout(kpi_row)
 
-        # LEAKS card
+        # ── LEAK ANALYSIS ─────────────────────────────────────────────
         leak_card = QFrame()
         leak_card.setObjectName("Card")
         lc_l = QVBoxLayout(leak_card)
         lc_l.setContentsMargins(20, 18, 20, 20)
-        lc_l.setSpacing(12)
-        lc_l.addWidget(self._section_head("LEAK ANALYSIS  ·  EV LOSS RANKED"))
-
+        lc_l.setSpacing(10)
+        lc_l.addWidget(self._section_head("LEAK ANALİZİ  ·  EV KAYBI SIRALI"))
         for leak in report.get("leaks", []):
             lc_l.addWidget(self._leak_row(leak))
         l.addWidget(leak_card)
 
-        # POSITION breakdown
+        # ── POSITION BREAKDOWN ────────────────────────────────────────
         pos_card = QFrame()
         pos_card.setObjectName("Card")
         pc_l = QVBoxLayout(pos_card)
-        pc_l.setContentsMargins(20, 18, 20, 20)
-        pc_l.setSpacing(8)
-        pc_l.addWidget(self._section_head("POSITION BREAKDOWN"))
-        header = QLabel(f"{'POS':<10}{'HANDS':<10}{'VPIP%':<10}{'PFR%':<10}{'BB/100':<10}")
-        header.setStyleSheet(
-            "font-family: 'JetBrains Mono', Menlo, monospace; font-size: 10px; "
-            "color: #898d80;"
+        pc_l.setContentsMargins(20, 18, 20, 18)
+        pc_l.setSpacing(6)
+        pc_l.addWidget(self._section_head("POZİSYON DETAYI"))
+        hdr = QLabel(f"{'POZ':<8}{'EL':<7}{'VPIP%':<9}{'PFR%':<9}{'BB/100'}")
+        hdr.setStyleSheet(
+            "font-family:'JetBrains Mono',Menlo,monospace; font-size:10px; color:#5a5e54;"
         )
-        pc_l.addWidget(header)
+        pc_l.addWidget(hdr)
         for pos, ps in sorted(report.get("position_stats", {}).items()):
-            row = QLabel(
-                f"{pos:<10}{ps['hands']:<10}{ps['vpip_pct']:<10}{ps['pfr_pct']:<10}{ps['bb_per_100']:<10}"
+            bb100_pos = ps.get("bb_per_100", 0)
+            c = "#5ad17a" if bb100_pos > 0 else "#e87474"
+            row_lbl = QLabel(
+                f"{pos:<8}{ps['hands']:<7}{ps['vpip_pct']:<9.1f}"
+                f"{ps['pfr_pct']:<9.1f}{bb100_pos:+.1f}"
             )
-            color = "#5ad17a" if ps.get("bb_per_100", 0) > 0 else "#e87474"
-            row.setStyleSheet(
-                f"font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px; color: {color};"
+            row_lbl.setStyleSheet(
+                f"font-family:'JetBrains Mono',Menlo,monospace; font-size:12px; color:{c};"
             )
-            pc_l.addWidget(row)
+            pc_l.addWidget(row_lbl)
         l.addWidget(pos_card)
 
-        # Buttons
+        # ── TURNUVA GEÇMİŞİ ──────────────────────────────────────────
+        try:
+            history = get_tournament_history(limit=15)
+        except Exception:
+            history = []
+
+        if history:
+            hist_card = QFrame()
+            hist_card.setObjectName("Card")
+            hi_l = QVBoxLayout(hist_card)
+            hi_l.setContentsMargins(20, 18, 20, 18)
+            hi_l.setSpacing(6)
+            hi_l.addWidget(self._section_head(f"TURNUVA GEÇMİŞİ  ·  son {len(history)} turnuva"))
+
+            # Summary bar above table
+            total_played  = len(history)
+            total_itm     = sum(1 for h in history if h.get("prize_won", 0) > 0)
+            total_profit  = sum(h.get("profit", 0) for h in history)
+            total_invested = sum(h.get("buyin", 0) for h in history)
+            overall_roi   = (total_profit / total_invested * 100) if total_invested > 0 else 0.0
+            itm_pct       = round(100 * total_itm / max(total_played, 1), 1)
+            roi_c = "#5ad17a" if overall_roi >= 0 else "#e87474"
+
+            summary = QLabel(
+                f"Toplam: {total_played} turnuva  ·  "
+                f"ITM: {total_itm} ({itm_pct}%)  ·  "
+                f"Net P&L: {total_profit:+.2f}$  ·  "
+                f"Genel ROI: {overall_roi:+.1f}%"
+            )
+            summary.setStyleSheet(
+                f"font-family:'JetBrains Mono',Menlo,monospace; font-size:11px; "
+                f"font-weight:700; color:{roi_c}; padding: 6px 0 10px 0;"
+            )
+            hi_l.addWidget(summary)
+
+            # Column header
+            hdr2 = QLabel(
+                f"{'#':<4}{'EVENT':<22}{'FIELD':<8}{'FİNİŞ':<10}"
+                f"{'ÖDÜL':>8}{'ROI':>8}{'EL':>6}"
+            )
+            hdr2.setStyleSheet(
+                "font-family:'JetBrains Mono',Menlo,monospace; "
+                "font-size:10px; color:#5a5e54;"
+            )
+            hi_l.addWidget(hdr2)
+
+            sep2 = QFrame(); sep2.setFrameShape(QFrame.HLine)
+            sep2.setStyleSheet("background:#23271f; border:none; max-height:1px;")
+            hi_l.addWidget(sep2)
+
+            for idx, h in enumerate(history, 1):
+                h_finish  = h.get("finish_position") or h.get("field_size", 0)
+                h_field   = h.get("field_size", 0)
+                h_prize   = h.get("prize_won", 0)
+                h_profit  = h.get("profit", 0)
+                h_buyin   = h.get("buyin", 0)
+                h_roi     = (h_profit / h_buyin * 100) if h_buyin > 0 else 0.0
+                h_hands   = h.get("hands_played", 0)
+                h_name    = (h.get("name") or "—")[:20]
+                h_ordinals = {1: "1st", 2: "2nd", 3: "3rd"}
+                h_fin_str = h_ordinals.get(h_finish, f"{h_finish}th")
+                row_color = "#5ad17a" if h_prize > 0 else "#898d80"
+                if h_finish == 1:
+                    row_color = "#f5d76e"
+
+                row_lbl = QLabel(
+                    f"{idx:<4}{h_name:<22}{h_field:<8}{h_fin_str+'/' + str(h_field):<10}"
+                    f"${h_prize:>6,.0f}{h_roi:>+7.0f}%{h_hands:>6}"
+                )
+                row_lbl.setStyleSheet(
+                    f"font-family:'JetBrains Mono',Menlo,monospace; "
+                    f"font-size:11px; color:{row_color}; padding: 2px 0;"
+                )
+                hi_l.addWidget(row_lbl)
+
+            l.addWidget(hist_card)
+
+        # ── BUTTONS ───────────────────────────────────────────────────
+        sep3 = QFrame()
+        sep3.setFrameShape(QFrame.HLine)
+        sep3.setStyleSheet("background: #23271f; border: none; max-height: 1px;")
+        l.addWidget(sep3)
+
         btn_row = QHBoxLayout()
-        again_btn = QPushButton("▶  PLAY AGAIN")
+        btn_row.setSpacing(10)
+        again_btn = QPushButton("▶  YENİ TURNUVA")
         again_btn.setObjectName("PrimaryButton")
         again_btn.setMinimumHeight(44)
         again_btn.clicked.connect(self._build_setup)
-        ask_coach_btn = QPushButton("ASK COACH ABOUT LEAKS")
+        ask_coach_btn = QPushButton("AI COACH'A SOR")
         ask_coach_btn.setObjectName("GhostButton")
         ask_coach_btn.setMinimumHeight(44)
         ask_coach_btn.clicked.connect(self._send_leaks_to_coach)
@@ -1521,10 +1840,15 @@ class TournamentSimulatorScreen(QWidget):
         if not self.tournament:
             return
         report = self.tournament.leak_report()
+        field_size = self.mtt_field.field_size if self.mtt_field else self.tournament.config.field_size
+        prize_pool = self.mtt_field.prize_pool  if self.mtt_field else self.tournament.config.prize_pool
+        finish     = self.tournament.state.finish_position
+        prize      = self.tournament.state.prize_won
+        profit     = prize - self.tournament.config.buyin
+        roi        = (profit / max(self.tournament.config.buyin, 1)) * 100
         lines = [
             f"Turnuva bitti: {self.tournament.config.name}",
-            f"Sonuç: {self.tournament.state.finish_position}/{self.tournament.config.field_size} · "
-            f"Ödül ${self.tournament.state.prize_won:.0f}",
+            f"Sonuç: {finish}/{field_size} · Ödül ${prize:.2f} · ROI {roi:+.1f}% · Net {profit:+.2f}$",
             f"Toplam el: {self.tournament.state.hands_total}",
             "",
             "🔍 LEAK ANALİZİ:",
