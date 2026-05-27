@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from typing import Callable
 
 from PySide6.QtCore import QThread, Signal
@@ -13,6 +14,20 @@ try:
     _HAS_GEMINI = True
 except ImportError:
     _HAS_GEMINI = False
+
+
+def _friendly_error(exc: Exception) -> str:
+    """Convert a raw Gemini exception into a short Turkish-friendly message."""
+    s = str(exc)
+    if "503" in s or "UNAVAILABLE" in s:
+        return "⚠️ Gemini şu an yoğun — birkaç saniye sonra tekrar dene."
+    if "429" in s or "quota" in s.lower() or "RATE" in s:
+        return "⚠️ Gemini istek limiti doldu — 1 dakika bekleyip tekrar dene."
+    if "401" in s or "API_KEY" in s or "invalid" in s.lower():
+        return "⚠️ Gemini API key hatalı. Settings ekranından kontrol et."
+    if "400" in s:
+        return "⚠️ Gemini isteği reddetti (prompt çok uzun veya içerik filtresi)."
+    return f"⚠️ Gemini bağlanamadı: {s[:120]}"
 
 
 def _get_profile() -> str:
@@ -35,21 +50,38 @@ class _GeminiThread(QThread):
         self._system = system
 
     def run(self) -> None:
-        try:
-            contents = list(self._history) + [
-                genai_types.Content(role="user", parts=[genai_types.Part(text=self._prompt)])
-            ]
-            resp = self._client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=contents,
-                config=genai_types.GenerateContentConfig(
-                    system_instruction=self._system,
-                    temperature=0.7,
-                ),
-            )
-            self.response_ready.emit(resp.text)
-        except Exception as exc:
-            self.response_ready.emit(f"⚠️ Gemini hatası: {exc}")
+        contents = list(self._history) + [
+            genai_types.Content(role="user", parts=[genai_types.Part(text=self._prompt)])
+        ]
+        last_exc: Exception | None = None
+        for attempt in range(3):  # max 3 tries: 0s, 4s, 8s backoff
+            if attempt > 0:
+                time.sleep(4 * attempt)
+            try:
+                resp = self._client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=contents,
+                    config=genai_types.GenerateContentConfig(
+                        system_instruction=self._system,
+                        temperature=0.7,
+                    ),
+                )
+                self.response_ready.emit(resp.text)
+                return
+            except Exception as exc:
+                last_exc = exc
+                err_str = str(exc)
+                # 503 / overload → retry silently
+                if "503" in err_str or "UNAVAILABLE" in err_str or "overload" in err_str.lower():
+                    continue
+                # Any other error → fail fast with a clean message
+                self.response_ready.emit(_friendly_error(exc))
+                return
+        # All retries exhausted
+        self.response_ready.emit(
+            "⚠️ Gemini şu an yoğun — birkaç saniye sonra tekrar dene.\n"
+            "(Sunucu geçici olarak yanıt veremiyor, key hatalı değil.)"
+        )
 
 
 class GeminiCoach:
