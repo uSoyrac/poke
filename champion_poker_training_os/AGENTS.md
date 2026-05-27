@@ -49,7 +49,10 @@ sidebar nav.
 | Tournament wrapper | `app/simulator/tournament_runner.py` — owns blind schedule, owns a `PokerGame`; `TournamentConfig.bot_mix` is the per-seat archetype list, `paid_places` reports payout-table size |
 | Live HUD | `app/core/live_hud.py` — observes bot actions per hand; `merge_with_profile()` blends observed stats with the archetype baseline (weight = min(observed/20, 1)) |
 | Tournament context for coach | `app/core/app_state.py` — `tournament_context` dict populated by `TournamentSimulatorScreen._refresh_table` each refresh, consumed by `MainWindow._tournament_context_block()` to prepend ICM/bubble/stack-depth info to every Gemini prompt |
-| App shell + shortcuts | `app/main.py` — `MainWindow` wires Ctrl+B / Ctrl+J / Ctrl+1..9 / ? and connects `tournament_advice_requested` → Gemini briefing |
+| App shell + shortcuts | `app/main.py` — `MainWindow` wires Ctrl+B / Ctrl+J / Ctrl+1..9 / ? and connects `tournament_advice_requested` → Gemini briefing; `_gemini_for_screen(prompt, screen)` routes Gemini results to any screen's `show_analysis_result()` |
+| **MTT Field simulation** | `app/simulator/mtt_field.py` — `MTTField` tracks background field eliminations via phase-adjusted Poisson; `tick(hands)` called each hand; properties: `players_remaining`, `bubble_distance`, `is_itm`, `tables_active`, `prize_summary(n)` |
+| **Tournament Analysis screen** | `app/ui/screens/tournament_analysis.py` — two-panel layout; left: scrollable `_TournCard` list from `tournament_results` DB; right: per-tournament hero card + KPI + AI coach QTextEdit OR general aggregate stats view; `analysis_requested` Signal → main.py → Gemini |
+| **Tournament history DB** | `app/db/repository.py` — `save_tournament_result(data)` + `get_tournament_history(limit)` read/write `tournament_results` table; schema in `app/db/schema.sql` |
 
 ---
 
@@ -166,6 +169,47 @@ dedicated `tournament_advice_requested` signal fires a 5-point opening
 briefing prompt (early stage strategy, bubble approach, exploits
 against the specific bot mix, spots to avoid, end-goal framing).
 
+### Bot pot-commitment guard
+Universal guard in `BotBrain.decide()` fires BEFORE preflop/postflop
+dispatch. If `invested / (invested + remaining) >= 0.65`, the bot is
+forced to CALL or ALL-IN — it never folds when pot-committed. An
+additional all-in guard fires when `player.stack / (pot + stack) < 0.35`
+and ALL-IN is the only valid action. This prevents the classic "bet 18bb
+with 19.5bb, then fold to a raise" bug.
+
+### MTT field simulation + table balancing
+`MTTField` runs a background Poisson elimination model:
+- Phase rates: early 0.55x, mid 1.0x, bubble 1.45x
+- `tick(hands)` called each hand from `_on_hand_complete()`
+- Hero table meta bar shows full field PLAYERS count, not just the 9-seat
+  table count (when `field_size > 9`)
+- `_maybe_refill_table()` in TournamentSimulatorScreen: when hero's table
+  drops below 5 players AND the background field still has players, it
+  revives bot seats with the average background stack and rolls back
+  `is_complete = False` so the tournament continues (table balancing)
+
+### Tournament result report + history
+`_build_report()` in TournamentSimulatorScreen generates a full report at
+the end of each tournament:
+- Hero card: big finish position + prize + grade (S/A+/A/B+/B/C/D based
+  on finish percentile)
+- KPI strip: VPIP / PFR / BB/100 / Eller (color-coded good/bad)
+- Bullet evaluation (auto-generated from stats)
+- Past tournament history table (last 10)
+- Saves to `tournament_results` DB table on completion
+
+### Tournament Analysis screen
+Dedicated "Tournament Analysis" nav item (after Tournament Simulator):
+- Left panel: chronological list of `_TournCard` widgets; clicking any
+  shows detail on the right; reloads on every `showEvent`
+- Right panel — per-tournament: hero card, KPI strip, auto-eval bullets,
+  inline AI coach with "ANALİZ AL" button (5-section Turkish prompt)
+- Right panel — general: 9-cell stats grid, trend card (last-5 vs earlier),
+  "KAPSAMLI ANALİZ AL" button (aggregated prompt)
+- `analysis_requested` Signal → `MainWindow._gemini_for_screen()` →
+  Gemini async → `show_analysis_result(text)` fills inline QTextEdit AND
+  forwards to sidebar coach panel
+
 ### × → "REMOVE" / ASCII X
 The "×" Unicode glyph (U+00D7) renders as a blank square in JetBrains
 Mono on macOS for some weights. We use plain ASCII "X" everywhere the
@@ -202,20 +246,17 @@ then bind a `QShortcut` in the relevant screen.
 ## 5 · Recent commits (read for context)
 
 ```
-<HEAD>   feat: multi-table + per-seat archetype picker + bot AI overhaul
-         (MultiSessionTabs, FieldPicker, Karma random, mid-tournament end,
-          tournament-aware coach, hand-strength-rank bot fidelity)
-7256d87 feat: shortcut library — central registry + ? cheat sheet
-46a36ca feat: 4-Color Deck — each suit has its own colour
-a2ab383 fix: CALL & ALL-IN buttons — white text + bulletproof solid fill
-55526bf fix: CALL button no longer paints with disabled palette while enabled
-649ddbe fix: end-to-end UX review — 9 issues from latest screenshot
-287556d feat: showdown reveal + collapsible sidebar/coach (Style Guide pass)
-e2c84be feat: paced bot actions — see UTG act first, then UTG+1, then SB, then BB
-1f6a70a fix: bug-bash sweep — chip positioning, button truncation, collapsible panels
-d082f88 feat: tournament felt now displays in BB, like real online poker
-edccb2f fix: bet chip positioning + hero card / TO CALL overlap
-f2e4373 feat: Unified LivePokerTable + bot/UX overhaul
+fef7755 feat: add Tournament Analysis screen + wire into main.py
+c998140 feat(report): comprehensive tournament result screen + history tracking
+e43c544 fix(tournament): table balancing + bot pot-commitment
+243eae4 feat(tournament): integrate MTTField — real-time large-field simulation
+d6c9ffd fix: tournament player count display + remove auto AI coach per hand
+db2dbaa feat: real poker game in Spot Trainer + Drill Library with leak integration
+e405099 feat: proportional UI scaling on window resize
+de48bc4 fix: responsive layout — scroll wrappers, reduced button minimums, compact cards
+<older> feat: multi-table + per-seat archetype picker + bot AI overhaul
+        (MultiSessionTabs, FieldPicker, Karma random, mid-tournament end,
+         tournament-aware coach, hand-strength-rank bot fidelity)
 ```
 
 ---
