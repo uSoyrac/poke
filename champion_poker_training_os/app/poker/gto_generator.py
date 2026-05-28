@@ -217,6 +217,7 @@ def build_vs_rfi_range(
     defender_position: str,
     opener_position: str,
     stack_bb: int = 100,
+    mode: str = "cash",
 ) -> Dict[str, ActionFreq]:
     """Defender'ın (e.g. BB) opener'a (e.g. UTG) karşı call+3-bet range'i."""
     # Toplam defend range
@@ -227,8 +228,18 @@ def build_vs_rfi_range(
         defender_position, 9
     )
     mult = stack_depth_multiplier(stack_bb)
-    defend_pct *= mult["range"]
     threebet_pct *= mult["range"]
+    # ── ANTE-AWARE BB/SB DEFENSE (MTT) ─────────────────────────────────
+    # Ante varken kapatan oyuncu (BB/SB) muazzam pot-odds + ölü ante parası
+    # alır → ÇOK geniş defend eder; bu fiyat-temelli defans short stack'te bile
+    # geniş kalır (stack tightening'i ante telafi eder). Cash'te değişmez.
+    if mode == "MTT" and defender_position in ("BB", "SB"):
+        ante_w = 1.24 if defender_position == "BB" else 1.10
+        stack_soft = max(mult["range"], 0.90)   # short'ta aşırı sıkma
+        cap = 64.0 if defender_position == "BB" else 52.0
+        defend_pct = min(defend_pct * ante_w * stack_soft, cap)
+    else:
+        defend_pct *= mult["range"]
 
     ranked = get_ranked_hands()
     result: Dict[str, ActionFreq] = {}
@@ -363,7 +374,7 @@ def heuristic_get_action(
         return table.get(hand_key, pure_fold())
     if scenario == "vs RFI":
         opener = vs_position or "BTN"
-        table = build_vs_rfi_range(position, opener, stack_depth)
+        table = build_vs_rfi_range(position, opener, stack_depth, mode)
         return table.get(hand_key, pure_fold())
     if scenario == "vs 3-bet":
         threebettor = vs_position or "BB"

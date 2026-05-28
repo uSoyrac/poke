@@ -415,5 +415,56 @@ def test_sizing_advice_preflop_open_sane():
         assert adv.label
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Preflop range leak fix + trainer metrics
+# ─────────────────────────────────────────────────────────────────────
+
+def test_mtt_bb_defense_wider_than_cash():
+    """ANTE leak fix: MTT'de BB defansı cash'ten belirgin geniş olmalı."""
+    from app.poker.gto_ranges import get_action
+
+    def defend_pct(mode):
+        ranks = "AKQJT98765432"
+        keys = []
+        for i, hi in enumerate(ranks):
+            for j, lo in enumerate(ranks):
+                if i == j:
+                    keys.append(hi + lo)
+                elif i < j:
+                    keys.append(hi + lo + "s")
+                else:
+                    keys.append(lo + hi + "o")
+        dc = tot = 0
+        for hk in keys:
+            c = 6 if len(hk) == 2 else (4 if hk.endswith("s") else 12)
+            tot += c
+            a = get_action("BB", hk, "vs RFI", 25, mode, vs_position="CO")
+            if a.get("call", 0) + a.get("raise", 0) >= 20:
+                dc += c
+        return 100 * dc / tot
+
+    cash = defend_pct("cash")
+    mtt = defend_pct("MTT")
+    assert mtt > cash + 10, f"MTT defansı yeterince geniş değil: cash {cash:.0f}, mtt {mtt:.0f}"
+    assert 55 <= mtt <= 70, f"MTT BB defansı hedef dışı: {mtt:.0f}% (60-66 beklenir)"
+
+
+def test_quiz_ev_loss_and_difficulty():
+    """EV-loss heuristiği + ELO zorluk derecesi mantıklı."""
+    from app.ui.screens.quiz_trainer import QuizSpot
+    # Dominant aksiyonu seçmek → 0 kayıp
+    sp = QuizSpot("CO", 100, "RFI", "72o", {"raise": 0, "call": 0, "fold": 100})
+    assert sp.ev_loss_bb("fold") == 0.0
+    # Trash'i RFI'da açmak → küçük (≤ açış boyutu mertebesi)
+    assert 0 < sp.ev_loss_bb("raise") <= 3.0
+    # Trash'i 15bb jam etmek → büyük (stack riski)
+    jam = QuizSpot("UTG", 15, "Push/Fold", "72o", {"raise": 0, "call": 0, "fold": 100})
+    assert jam.ev_loss_bb("raise") >= 10.0
+    # Mixed / kısa-stack spot daha zor (yüksek ELO rating)
+    easy = QuizSpot("UTG", 100, "RFI", "AA", {"raise": 100, "call": 0, "fold": 0})
+    hard = QuizSpot("BTN", 18, "vs 3-bet", "A5s", {"raise": 40, "call": 30, "fold": 30})
+    assert hard.difficulty_rating() > easy.difficulty_rating()
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))

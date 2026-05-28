@@ -72,6 +72,46 @@ class QuizSpot:
         non_zero = sum(1 for v in vals if 0 < v < 100)
         return non_zero >= 2
 
+    def ev_loss_bb(self, user_action: str) -> float:
+        """Seçilen aksiyonun tahmini EV kaybı (bb).  🟠 APPROX.
+
+        Solver-exact EV yok → GTO frekans boşluğundan heuristik. Dominant
+        aksiyonu seçersen 0; sıfır-frekanslı aksiyon seçersen aksiyon-tipine
+        göre (chip-commit eden raise en pahalı) ölçeklenir.
+        """
+        a = self.action
+        best = max(a.get("raise", 0), a.get("call", 0), a.get("fold", 0))
+        chosen = a.get(user_action, 0)
+        gap = max(0.0, best - chosen) / 100.0
+        if gap <= 0:
+            return 0.0
+        # Riske atılan çip aksiyon-tipine + senaryoya bağlı.
+        if user_action == "raise":
+            if self.scenario in ("Push/Fold", "Jam"):
+                base = min(self.stack_depth, 15.0)   # jam = stack riski
+            elif self.scenario == "vs 3-bet":
+                base = 4.0                            # 4-bet/jam — orta
+            else:   # RFI / vs RFI — sadece açış boyutu riski
+                base = 2.0
+        elif user_action == "call":
+            base = 2.5
+        else:   # fold — +EV spot'u pas geçmek
+            base = 1.5
+        return round(gap * base, 2)
+
+    def difficulty_rating(self) -> float:
+        """Spot zorluğu (ELO opponent rating)."""
+        d = 1450.0
+        if self.is_mixed:
+            d += 180
+        if self.scenario == "vs 3-bet":
+            d += 120
+        elif self.scenario == "vs RFI":
+            d += 60
+        if self.stack_depth <= 20:
+            d += 60
+        return d
+
 
 @dataclass
 class QuizStats:
@@ -82,15 +122,29 @@ class QuizStats:
     best_streak: int = 0
     by_position: dict = field(default_factory=dict)  # pos → (total, correct)
     wrong_queue: List[QuizSpot] = field(default_factory=list)
+    # PeakGTO-tarzı metrikler
+    errors: int = 0
+    ev_loss_total: float = 0.0       # seans toplam EV kaybı (bb)
+    elo: float = 1500.0
+    history: list = field(default_factory=list)  # son spotlar: dict chip'ler
 
-    def record(self, spot: QuizSpot, is_correct: bool) -> None:
+    def record(self, spot: QuizSpot, is_correct: bool,
+               user_action: str = "", ev_loss: float = 0.0) -> None:
         self.total += 1
+        # ELO güncelle (spot zorluğuna karşı)
+        D = spot.difficulty_rating()
+        E = 1.0 / (1.0 + 10 ** ((D - self.elo) / 400.0))
+        S = 1.0 if is_correct else 0.0
+        self.elo += 24.0 * (S - E)
+
         if is_correct:
             self.correct += 1
             self.streak += 1
             self.best_streak = max(self.best_streak, self.streak)
         else:
+            self.errors += 1
             self.streak = 0
+            self.ev_loss_total += ev_loss
             # Yanlış answer queue'ya ekle (spaced repetition için)
             self.wrong_queue.append(spot)
             if len(self.wrong_queue) > 25:
@@ -98,6 +152,14 @@ class QuizStats:
 
         pt, pc = self.by_position.get(spot.position, (0, 0))
         self.by_position[spot.position] = (pt + 1, pc + (1 if is_correct else 0))
+
+        # Action-history şeridi (son 16)
+        self.history.append({
+            "hand": spot.hand, "action": user_action,
+            "correct": is_correct, "gto": spot.correct_action,
+        })
+        if len(self.history) > 16:
+            self.history = self.history[-16:]
 
     @property
     def accuracy_pct(self) -> float:
@@ -210,6 +272,11 @@ class QuizTrainerScreen(QWidget):
         # Üst kontrol bar
         root.addLayout(self._build_controls())
 
+        # PeakGTO-tarzı seans bar'ı (Hands · Correct · Errors · EV Loss · ELO)
+        root.addWidget(self._build_session_bar())
+        # Action-history şeridi (son spotlar, renkli chip)
+        root.addWidget(self._build_history_strip())
+
         # Ana içerik: sol (spot card) + sağ (stats)
         splitter = QSplitter(Qt.Horizontal)
         splitter.setHandleWidth(2)
@@ -284,6 +351,108 @@ class QuizTrainerScreen(QWidget):
         self._countdown_total = self.DIFFICULTY.get(level, 5)
         if not self._answered:
             self._countdown_remaining = self._countdown_total
+
+    # ── SESSION BAR (PeakGTO-tarzı) ───────────────────────────────────
+    def _build_session_bar(self) -> QWidget:
+        bar = QFrame()
+        bar.setStyleSheet(
+            f"QFrame {{ background: {COLOR_CARD}; border: 1px solid {COLOR_LINE}; "
+            f"border-radius: 10px; }}"
+        )
+        h = QHBoxLayout(bar)
+        h.setContentsMargins(18, 10, 18, 10)
+        h.setSpacing(8)
+
+        def metric(label):
+            box = QVBoxLayout()
+            box.setSpacing(1)
+            cap = QLabel(label)
+            cap.setStyleSheet(f"color: {COLOR_MUTED}; font-size: 9px; "
+                              f"font-weight: 700; letter-spacing: 1.2px;")
+            val = QLabel("—")
+            val.setStyleSheet(f"color: {COLOR_INK}; font-size: 17px; "
+                              f"font-weight: 800; font-family: 'JetBrains Mono', monospace;")
+            box.addWidget(cap)
+            box.addWidget(val)
+            wrap = QWidget()
+            wrap.setLayout(box)
+            return wrap, val
+
+        w1, self.sb_hands = metric("HANDS")
+        w2, self.sb_correct = metric("CORRECT")
+        w3, self.sb_errors = metric("ERRORS")
+        w4, self.sb_evloss = metric("EV LOSS")
+        w5, self.sb_elo = metric("ELO")
+        h.addWidget(w1)
+        h.addStretch(1)
+        h.addWidget(w2)
+        h.addStretch(1)
+        h.addWidget(w3)
+        h.addStretch(1)
+        h.addWidget(w4)
+        h.addStretch(1)
+        h.addWidget(w5)
+        self._refresh_session_bar()
+        return bar
+
+    def _refresh_session_bar(self) -> None:
+        s = self.stats
+        self.sb_hands.setText(str(s.total))
+        self.sb_correct.setText(str(s.correct))
+        self.sb_correct.setStyleSheet(f"color: {COLOR_GOOD}; font-size: 17px; "
+                                      f"font-weight: 800; font-family: monospace;")
+        self.sb_errors.setText(str(s.errors))
+        self.sb_errors.setStyleSheet(
+            f"color: {COLOR_BAD if s.errors else COLOR_INK}; font-size: 17px; "
+            f"font-weight: 800; font-family: monospace;")
+        self.sb_evloss.setText(f"-{s.ev_loss_total:.2f}bb" if s.ev_loss_total else "0.00bb")
+        self.sb_evloss.setStyleSheet(
+            f"color: {COLOR_BAD if s.ev_loss_total > 0.5 else '#F59E0B' if s.ev_loss_total else COLOR_GOOD}; "
+            f"font-size: 17px; font-weight: 800; font-family: monospace;")
+        elo_int = int(round(s.elo))
+        self.sb_elo.setText(str(elo_int))
+        self.sb_elo.setStyleSheet(
+            f"color: {COLOR_GOOD if elo_int >= 1500 else '#F59E0B'}; font-size: 17px; "
+            f"font-weight: 800; font-family: monospace;")
+
+    # ── ACTION HISTORY STRIP ──────────────────────────────────────────
+    def _build_history_strip(self) -> QWidget:
+        self._history_bar = QFrame()
+        self._history_bar.setStyleSheet("QFrame { background: transparent; }")
+        h = QHBoxLayout(self._history_bar)
+        h.setContentsMargins(2, 0, 2, 0)
+        h.setSpacing(5)
+        self._history_layout = h
+        h.addStretch(1)
+        self._refresh_history_strip()
+        return self._history_bar
+
+    def _refresh_history_strip(self) -> None:
+        lay = self._history_layout
+        # eski chip'leri temizle (son stretch hariç)
+        while lay.count() > 0:
+            item = lay.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        if not self.stats.history:
+            ph = QLabel("Henüz el yok — ilk spotu oyna.")
+            ph.setStyleSheet(f"color: {COLOR_MUTED}; font-size: 11px;")
+            lay.addWidget(ph)
+            lay.addStretch(1)
+            return
+        for h in self.stats.history:
+            color = COLOR_GOOD if h["correct"] else COLOR_BAD
+            chip = QLabel(f"{h['hand']}")
+            chip.setAlignment(Qt.AlignCenter)
+            chip.setFixedHeight(26)
+            chip.setStyleSheet(
+                f"QLabel {{ background: {COLOR_CARD}; color: {color}; "
+                f"border: 1px solid {color}; border-radius: 6px; padding: 2px 8px; "
+                f"font-size: 11px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }}")
+            chip.setToolTip(f"Senin: {h['action'].upper()} · GTO: {h['gto'].upper()} · "
+                            + ("✓ doğru" if h["correct"] else "✗ yanlış"))
+            lay.addWidget(chip)
+        lay.addStretch(1)
 
     # ── SPOT CARD ─────────────────────────────────────────────────────
     def _build_spot_card(self) -> QWidget:
@@ -520,9 +689,13 @@ class QuizTrainerScreen(QWidget):
         self.hand_display.set_hand(spot.hand)
         self.hand_key_label.setText(spot.hand)
 
-        # Aksiyon butonlarını etkinleştir
-        for btn in (self.btn_fold, self.btn_call, self.btn_raise):
+        # Aksiyon butonlarını sıfırla (text + renk) ve etkinleştir
+        for btn, color, base_txt in [(self.btn_fold, COLOR_FOLD, "FOLD"),
+                                      (self.btn_call, COLOR_CALL, "CALL"),
+                                      (self.btn_raise, COLOR_RAISE, "RAISE")]:
             btn.setEnabled(True)
+            btn.setText(base_txt)
+            btn.setStyleSheet(self._btn_style(color))
 
         # Feedback gizle, timer başlat
         self.feedback_panel.hide()
@@ -640,13 +813,18 @@ class QuizTrainerScreen(QWidget):
         # Eğer sadece dominant aksiyonu istiyorsak strict:
         is_strict_correct = (user_action == correct)
 
-        self.stats.record(spot, is_correct)
+        # EV kaybı (🟠 approx) — yanlışta hesapla
+        ev_loss = 0.0 if is_correct else spot.ev_loss_bb(user_action)
+        self.stats.record(spot, is_correct, user_action=user_action,
+                          ev_loss=ev_loss)
 
-        # Aksiyon butonlarını disable et + doğru olanı yeşil yap
-        for btn, key in [(self.btn_fold, "fold"),
-                          (self.btn_call, "call"),
-                          (self.btn_raise, "raise")]:
+        # Aksiyon butonlarını disable et + GTO% göster (cevap sonrası — test bütünlüğü)
+        for btn, key, base_txt in [(self.btn_fold, "fold", "FOLD"),
+                                    (self.btn_call, "call", "CALL"),
+                                    (self.btn_raise, "raise", "RAISE")]:
             btn.setEnabled(False)
+            pct = action.get(key, 0)
+            btn.setText(f"{base_txt}   {pct:.0f}%")
             if key == correct:
                 btn.setStyleSheet(self._btn_style(COLOR_GOOD))
             elif key == user_action and not is_correct:
@@ -658,8 +836,10 @@ class QuizTrainerScreen(QWidget):
         ))
         self.feedback_panel.show()
 
-        # Stats panelini güncelle
+        # Panelleri güncelle
         self._refresh_stats_panel()
+        self._refresh_session_bar()
+        self._refresh_history_strip()
 
     def _build_feedback(
         self,
