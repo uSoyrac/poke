@@ -83,6 +83,22 @@ BOT_ARCHETYPES = {
                                          "rarely exploitable. Tougher than Solver Bot."),
     "Karma (Mixed)":   BotProfile("Karma (Mixed)", 28, 22, 10, 48, 2.8, 0.32, 0.40, 0.07, 0.34, 0.38,
                                    notes="Randomised — switches mood every hand, hard to read."),
+    # ── GTOWizard-style exploit profilleri ──
+    # AF target'ları observed-ceiling'e kalibre (FCB-AF strüktürel gerginliği:
+    # yüksek FCB→az call→yüksek AF; düşük FCB→çok call→düşük AF). Karakter
+    # river_bluff/VPIP/call_down'dan gelir, AF metriğinden değil.
+    "Overfolder":      BotProfile("Overfolder", 22, 17, 6, 78, 3.4, 0.10, 0.18, 0.03, 0.10, 0.18,
+                                   notes="Makul açar ama agresyona ÇOK katlar (FCB 78). "
+                                         "Exploit: bol bol c-bet/barrel, bluff'ları çalışır."),
+    "Overbluffer":     BotProfile("Overbluffer", 30, 23, 14, 44, 2.0, 0.65, 0.30, 0.14, 0.62, 0.40,
+                                   notes="Çok blöf yapar (river_bluff 0.62). Düşük FCB→çok "
+                                         "call→AF~2. Exploit: bluff-catch et, value'yla bekle."),
+    "Big Stack Bully": BotProfile("Big Stack Bully", 36, 27, 16, 40, 2.0, 0.45, 0.34, 0.12, 0.42, 0.46,
+                                   notes="Büyük stack baskısı — geniş steal/3-bet, sürekli "
+                                         "pressure. Exploit: light 4-bet/jam ile geri bas."),
+    "Short Stack Jam": BotProfile("Short Stack Jam", 16, 15, 9, 38, 3.8, 0.10, 0.20, 0.02, 0.10, 0.22,
+                                   notes="<20bb jam/fold tarzı (100bb fidelity testinde AF "
+                                         "şişer). Exploit: jam'lerine sıkı call."),
 }
 
 
