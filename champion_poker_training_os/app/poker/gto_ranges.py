@@ -204,17 +204,211 @@ RFI_100BB_6MAX: Dict[str, Dict[str, ActionFreq]] = {
 }
 
 
+# ── vs RFI — BB DEFEND (BTN açışına karşı, 100bb) ─────────────────────
+# BB her zaman zaten BB ödediği için MDF ile çok geniş defend eder.
+# %52 toplam range (call ağırlıklı + biraz 3-bet).
+# Bu tablo "key = defend eden pozisyon", içinde her el için
+# {raise=3-bet, call=defend, fold} action.
+
+def mixed_call(call_pct: int, raise_pct: int = 0) -> ActionFreq:
+    """Call ağırlıklı mixed strategy helper."""
+    fold = max(0, 100 - call_pct - raise_pct)
+    return {"raise": raise_pct, "call": call_pct, "fold": fold}
+
+
+VS_RFI_BB_DEFEND_100BB: dict[str, dict[str, ActionFreq]] = {
+    # BB vs BTN open ~2.5x — MDF yaklaşık %52
+    "vs_BTN": {
+        # Pure 3-bet (linear value)
+        "AA": pure_raise(), "KK": pure_raise(), "QQ": pure_raise(),
+        "JJ": pure_raise(), "AKs": pure_raise(), "AKo": pure_raise(),
+        # Mixed 3-bet (TT+AQ+ biraz, ayrıca polarized bluff 3-bet'ler A5s, K5s vb.)
+        "TT": mixed(60, 30),                 # 60% 3-bet, 30% call
+        "99": mixed(35, 50),                 # 35% 3-bet, 50% call
+        "AQs": mixed(80, 15),
+        "AQo": mixed(70, 20),
+        "AJs": mixed(50, 45),
+        "ATs": mixed(40, 55),
+        "A5s": mixed(60, 30),                # polarized bluff/value
+        "A4s": mixed(45, 40),
+        "KQs": mixed(40, 55),
+        "KJs": mixed(35, 55),
+        "76s": mixed(25, 60),                # SC bluff 3-bet
+        # Pure call (flat defend wide)
+        "88": mixed_call(85), "77": mixed_call(85), "66": mixed_call(85),
+        "55": mixed_call(85), "44": mixed_call(80), "33": mixed_call(75), "22": mixed_call(70),
+        "A9s": mixed_call(90), "A8s": mixed_call(90), "A7s": mixed_call(85),
+        "A6s": mixed_call(85), "A3s": mixed_call(75), "A2s": mixed_call(70),
+        "KTs": mixed_call(90), "K9s": mixed_call(85), "K8s": mixed_call(75),
+        "K7s": mixed_call(70), "K6s": mixed_call(60), "K5s": mixed(20, 50),  # part bluff
+        "K4s": mixed_call(55), "K3s": mixed_call(45),
+        "QJs": mixed_call(90), "QTs": mixed_call(85), "Q9s": mixed_call(80),
+        "Q8s": mixed_call(70), "Q7s": mixed_call(55), "Q6s": mixed_call(45),
+        "JTs": mixed_call(90), "J9s": mixed_call(80), "J8s": mixed_call(65), "J7s": mixed_call(50),
+        "T9s": mixed_call(85), "T8s": mixed_call(75), "T7s": mixed_call(55),
+        "98s": mixed_call(80), "97s": mixed_call(65), "87s": mixed_call(70),
+        "86s": mixed_call(55), "65s": mixed_call(70), "75s": mixed_call(60),
+        "54s": mixed_call(65), "64s": mixed_call(45), "53s": mixed_call(45), "43s": mixed_call(35),
+        # Offsuit defends (daha sıkı)
+        "AJo": mixed(40, 50), "ATo": mixed_call(80),
+        "A9o": mixed_call(70), "A8o": mixed_call(60),
+        "KQo": mixed(30, 55), "KJo": mixed_call(70),
+        "KTo": mixed_call(60), "K9o": mixed_call(45),
+        "QJo": mixed_call(65), "QTo": mixed_call(55), "Q9o": mixed_call(35),
+        "JTo": mixed_call(60), "J9o": mixed_call(40),
+        "T9o": mixed_call(45), "98o": mixed_call(35), "87o": mixed_call(25),
+    },
+    # BB vs CO open ~2.5x — biraz daha sıkı defend
+    "vs_CO": {
+        "AA": pure_raise(), "KK": pure_raise(), "QQ": pure_raise(),
+        "JJ": pure_raise(), "AKs": pure_raise(), "AKo": pure_raise(),
+        "TT": mixed(70, 25), "99": mixed(45, 45),
+        "AQs": mixed(85, 12), "AQo": mixed(75, 18),
+        "AJs": mixed(55, 40), "ATs": mixed(35, 55),
+        "A5s": mixed(65, 25), "A4s": mixed(40, 40),
+        "KQs": mixed(40, 55), "KJs": mixed(30, 60),
+        "88": mixed_call(85), "77": mixed_call(85), "66": mixed_call(80),
+        "55": mixed_call(75), "44": mixed_call(65), "33": mixed_call(55), "22": mixed_call(45),
+        "A9s": mixed_call(85), "A8s": mixed_call(80), "A7s": mixed_call(75),
+        "A6s": mixed_call(70), "A3s": mixed_call(60), "A2s": mixed_call(50),
+        "KTs": mixed_call(85), "K9s": mixed_call(70),
+        "K8s": mixed_call(55), "K7s": mixed_call(40), "K6s": mixed_call(30),
+        "QJs": mixed_call(85), "QTs": mixed_call(75), "Q9s": mixed_call(60),
+        "JTs": mixed_call(85), "J9s": mixed_call(70), "T9s": mixed_call(75),
+        "T8s": mixed_call(55), "98s": mixed_call(65), "87s": mixed_call(55),
+        "76s": mixed(20, 55), "65s": mixed_call(55), "54s": mixed_call(50),
+        "AJo": mixed(35, 50), "ATo": mixed_call(70),
+        "KQo": mixed(25, 60), "KJo": mixed_call(60),
+        "KTo": mixed_call(45), "QJo": mixed_call(50), "JTo": mixed_call(40),
+    },
+}
+
+
+# ── vs RFI — IP COLD CALL (BTN vs CO açış, 100bb) ─────────────────────
+# Late-position cold call range — squeeze ekonomisi ile sıkı.
+VS_RFI_BTN_VS_CO_100BB: dict[str, ActionFreq] = {
+    "AA": pure_raise(), "KK": pure_raise(), "QQ": pure_raise(),
+    "JJ": pure_raise(), "AKs": pure_raise(), "AKo": pure_raise(),
+    "TT": mixed(85, 10),
+    "99": mixed(45, 45), "88": mixed(25, 60),
+    "AQs": mixed(80, 18), "AQo": mixed(55, 35),
+    "AJs": mixed(30, 60), "ATs": mixed(15, 70),
+    "A5s": mixed(60, 30), "A4s": mixed(50, 30),
+    "KQs": mixed(25, 65), "KJs": mixed_call(75),
+    "QJs": mixed_call(75), "JTs": mixed_call(75),
+    "77": mixed_call(80), "66": mixed_call(70), "55": mixed_call(60), "44": mixed_call(45),
+    "33": mixed_call(35), "22": mixed_call(25),
+    "A9s": mixed_call(70), "A8s": mixed_call(60), "A7s": mixed_call(55),
+    "KTs": mixed_call(75), "K9s": mixed_call(55),
+    "QTs": mixed_call(70), "Q9s": mixed_call(45),
+    "T9s": mixed_call(70), "98s": mixed_call(55), "87s": mixed_call(50), "76s": mixed(20, 45),
+}
+
+
+# ── vs 3-BET (BTN open → BB 3-bets → BTN 4-bet/call/fold decision) ────
+# 100bb, BTN opens 2.5x, BB 3-bets to 11bb, BTN faces decision
+VS_3BET_BTN_VS_BB_100BB: dict[str, ActionFreq] = {
+    # Pure 4-bet value
+    "AA": pure_raise(), "KK": pure_raise(),
+    # Mixed value + bluff
+    "QQ": mixed(75, 25),                       # 75% 4-bet, 25% call
+    "JJ": mixed(20, 65),                       # mostly call
+    "AKs": mixed(70, 25),
+    "AKo": mixed(60, 30),
+    # Pure call
+    "TT": mixed_call(95), "99": mixed_call(70), "88": mixed_call(50),
+    "AQs": mixed_call(85), "AQo": mixed_call(55), "AJs": mixed_call(75),
+    "ATs": mixed_call(60), "KQs": mixed_call(75), "KJs": mixed_call(50),
+    "QJs": mixed_call(40), "JTs": mixed_call(30),
+    # Pure / mixed bluff 4-bet (polarized)
+    "A5s": mixed(60, 20),                      # bluff 4bet candidate
+    "A4s": mixed(45, 15),
+    "A3s": mixed(30, 10),
+    "K5s": mixed(20, 0),                       # rare bluff
+    # Everything else: fold
+}
+
+
+# ── PUSH/FOLD 15bb MTT ─────────────────────────────────────────────────
+# Nash chart yaklaşımı — sadece all-in veya fold.
+# Pozisyon × hand → all-in (raise) vs fold.
+PUSH_FOLD_15BB_BTN: dict[str, ActionFreq] = {
+    "AA": pure_raise(), "KK": pure_raise(), "QQ": pure_raise(), "JJ": pure_raise(),
+    "TT": pure_raise(), "99": pure_raise(), "88": pure_raise(), "77": pure_raise(),
+    "66": pure_raise(), "55": pure_raise(), "44": pure_raise(), "33": pure_raise(),
+    "22": mixed(85, 0),
+    "AKs": pure_raise(), "AQs": pure_raise(), "AJs": pure_raise(), "ATs": pure_raise(),
+    "A9s": pure_raise(), "A8s": pure_raise(), "A7s": pure_raise(),
+    "A6s": pure_raise(), "A5s": pure_raise(), "A4s": pure_raise(),
+    "A3s": pure_raise(), "A2s": pure_raise(),
+    "AKo": pure_raise(), "AQo": pure_raise(), "AJo": pure_raise(), "ATo": pure_raise(),
+    "A9o": pure_raise(), "A8o": pure_raise(), "A7o": mixed(80, 0), "A6o": mixed(70, 0),
+    "A5o": pure_raise(), "A4o": mixed(70, 0), "A3o": mixed(60, 0), "A2o": mixed(50, 0),
+    "KQs": pure_raise(), "KJs": pure_raise(), "KTs": pure_raise(),
+    "K9s": pure_raise(), "K8s": pure_raise(), "K7s": pure_raise(),
+    "K6s": pure_raise(), "K5s": mixed(80, 0), "K4s": mixed(60, 0),
+    "KQo": pure_raise(), "KJo": pure_raise(), "KTo": pure_raise(),
+    "K9o": pure_raise(), "K8o": mixed(70, 0),
+    "QJs": pure_raise(), "QTs": pure_raise(), "Q9s": pure_raise(), "Q8s": pure_raise(),
+    "QJo": pure_raise(), "QTo": pure_raise(), "Q9o": mixed(70, 0),
+    "JTs": pure_raise(), "J9s": pure_raise(), "J8s": pure_raise(),
+    "JTo": pure_raise(), "J9o": mixed(60, 0),
+    "T9s": pure_raise(), "T8s": pure_raise(),
+    "T9o": mixed(70, 0),
+    "98s": pure_raise(), "97s": mixed(75, 0),
+    "87s": pure_raise(), "76s": pure_raise(), "65s": mixed(85, 0), "54s": mixed(75, 0),
+}
+
+
 # ── DEFAULT FALLBACK (catch-all) ───────────────────────────────────────
 # Tabloda eksik olan eller pure_fold() varsayar.
 
 def get_action(position: str, hand_key: str, scenario: str = "RFI",
-               stack_depth: int = 100, mode: str = "cash") -> ActionFreq:
-    """Ana lookup API. Tabloda yoksa pure_fold döner."""
+               stack_depth: int = 100, mode: str = "cash",
+               vs_position: str | None = None) -> ActionFreq:
+    """Ana lookup API. Tabloda yoksa pure_fold döner.
+
+    scenario:
+      "RFI"        — açış (opener)
+      "vs RFI"     — açışa karşı (defender; BB için + BTN cold-call)
+      "vs 3-bet"   — 3-bet'e karşı 4-bet defense
+      "Push/Fold"  — kısa stack jam/fold (15bb)
+    """
+    # RFI 100bb cash
     if scenario == "RFI":
-        if stack_depth == 100 and mode == "cash":
+        if stack_depth >= 60 and mode in ("cash", "MTT"):
             table = RFI_100BB_6MAX.get(position, {})
             return table.get(hand_key, pure_fold())
-    # TODO: vs_RFI, vs_3bet, push/fold, MTT 40bb, 20bb senaryoları
+
+    # vs RFI — BB defends, or BTN cold-calls CO
+    if scenario == "vs RFI":
+        if position == "BB":
+            # Default: vs BTN opener
+            opener = vs_position or "BTN"
+            sub = VS_RFI_BB_DEFEND_100BB.get(f"vs_{opener}", {})
+            return sub.get(hand_key, pure_fold())
+        if position == "BTN" and vs_position == "CO":
+            return VS_RFI_BTN_VS_CO_100BB.get(hand_key, pure_fold())
+        return pure_fold()
+
+    # vs 3-bet — opener now faces a 3-bet
+    if scenario == "vs 3-bet":
+        if position == "BTN":
+            return VS_3BET_BTN_VS_BB_100BB.get(hand_key, pure_fold())
+        return pure_fold()
+
+    # Push/Fold 15bb
+    if scenario == "Push/Fold":
+        if position == "BTN":
+            return PUSH_FOLD_15BB_BTN.get(hand_key, pure_fold())
+        # SB/CO için (BTN datasını yaklaşık olarak kullan, sıkılaştır)
+        if position == "SB":
+            base = PUSH_FOLD_15BB_BTN.get(hand_key, pure_fold())
+            # SB push range BTN'den daha sıkı — raise freq'i %15 azalt
+            r = max(0, base["raise"] - 15)
+            return {"raise": r, "call": 0, "fold": 100 - r}
+        return pure_fold()
+
     return pure_fold()
 
 
