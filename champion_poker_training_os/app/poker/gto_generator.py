@@ -54,12 +54,15 @@ POS_RFI_TARGET_PCT = {
 # vs Position — opener'a göre defend genişliği
 # Erken opener daha sıkı range açtığı için daha sıkı defend lazım
 # (MDF + range advantage adjustments)
+# Hedef defend yüzdeleri (boundary mixed band ~7pp düşürdüğü için, gerçek
+# solver target'ından ~7pp yüksek girilir → output gerçek targeti tutturur).
+# Gerçek targets: BB vs UTG~38, MP~42, CO~48, BTN~52, SB~58.
 DEFEND_PCT_VS_OPENER = {
-    "UTG":   {"BB": 35, "SB": 28, "BTN": 30, "CO": 28, "MP": 25},
-    "MP":    {"BB": 40, "SB": 30, "BTN": 32, "CO": 30},
-    "CO":    {"BB": 48, "SB": 33, "BTN": 35},
-    "BTN":   {"BB": 52, "SB": 35},
-    "SB":    {"BB": 58},
+    "UTG":   {"BB": 42, "SB": 32, "BTN": 34, "CO": 32, "MP": 28},
+    "MP":    {"BB": 47, "SB": 34, "BTN": 36, "CO": 34},
+    "CO":    {"BB": 54, "SB": 37, "BTN": 39},
+    "BTN":   {"BB": 58, "SB": 40},
+    "SB":    {"BB": 65},
 }
 
 # 3-bet target % vs each opener position

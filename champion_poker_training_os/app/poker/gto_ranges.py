@@ -302,6 +302,93 @@ VS_RFI_BB_DEFEND_100BB: dict[str, dict[str, ActionFreq]] = {
         "KQo": mixed(25, 60), "KJo": mixed_call(60),
         "KTo": mixed_call(45), "QJo": mixed_call(50), "JTo": mixed_call(40),
     },
+    # ── BB vs UTG open (~18% RFI) — en sıkı opener → en sıkı defend (~38%) ─
+    # UTG range güçlü olduğu için BB linear 3-bet (value) + az polarized bluff.
+    # Çoğu el flat call (pot odds + position next street).
+    "vs_UTG": {
+        # 3-bet value (UTG'nin güçlü range'ine karşı sıkı value)
+        "AA": pure_raise(), "KK": pure_raise(), "QQ": pure_raise(),
+        "AKs": pure_raise(), "AKo": pure_raise(),
+        "JJ": mixed(70, 25), "TT": mixed(45, 45),
+        "AQs": mixed(55, 40), "AJs": mixed(30, 55),
+        # 3-bet bluff (ace-blocker polarized)
+        "A5s": mixed(45, 30), "A4s": mixed(35, 30),
+        # Pure call — pairs + suited broadways + suited connectors
+        "99": mixed_call(85), "88": mixed_call(85), "77": mixed_call(85),
+        "66": mixed_call(80), "55": mixed_call(75), "44": mixed_call(60),
+        "33": mixed_call(45), "22": mixed_call(40),
+        "AQo": mixed_call(70), "AJo": mixed_call(45), "ATo": mixed_call(30),
+        "ATs": mixed_call(80), "A9s": mixed_call(70), "A8s": mixed_call(55),
+        "A7s": mixed_call(45), "A6s": mixed_call(40),
+        "A3s": mixed_call(45), "A2s": mixed_call(40),
+        "KQs": mixed_call(85), "KJs": mixed_call(80), "KTs": mixed_call(70),
+        "K9s": mixed_call(45), "KQo": mixed_call(55), "KJo": mixed_call(30),
+        "QJs": mixed_call(85), "QTs": mixed_call(75), "Q9s": mixed_call(50),
+        "JTs": mixed_call(85), "J9s": mixed_call(55), "J8s": mixed_call(35),
+        "T9s": mixed_call(80), "T8s": mixed_call(50),
+        "98s": mixed_call(70), "97s": mixed_call(40),
+        "87s": mixed_call(65), "86s": mixed_call(35),
+        "76s": mixed_call(60), "65s": mixed_call(55), "54s": mixed_call(45),
+    },
+    # ── BB vs MP open (~22%) — biraz daha geniş defend (~42%) ─────────────
+    "vs_MP": {
+        "AA": pure_raise(), "KK": pure_raise(), "QQ": pure_raise(),
+        "AKs": pure_raise(), "AKo": pure_raise(), "JJ": pure_raise(),
+        "TT": mixed(60, 35), "99": mixed(35, 50),
+        "AQs": mixed(65, 30), "AQo": mixed(45, 40),
+        "AJs": mixed(40, 50), "ATs": mixed(20, 65),
+        "KQs": mixed(30, 60), "KJs": mixed(20, 65),
+        # bluff 3-bet
+        "A5s": mixed(55, 25), "A4s": mixed(45, 25), "A3s": mixed(30, 30),
+        # flat
+        "88": mixed_call(85), "77": mixed_call(85), "66": mixed_call(80),
+        "55": mixed_call(75), "44": mixed_call(65), "33": mixed_call(50), "22": mixed_call(45),
+        "AJo": mixed_call(55), "ATo": mixed_call(40), "A9o": mixed_call(20),
+        "A9s": mixed_call(80), "A8s": mixed_call(70), "A7s": mixed_call(60),
+        "A6s": mixed_call(50), "A2s": mixed_call(45),
+        "KTs": mixed_call(80), "K9s": mixed_call(60), "K8s": mixed_call(35),
+        "KQo": mixed_call(60), "KJo": mixed_call(40), "KTo": mixed_call(25),
+        "QJs": mixed_call(85), "QTs": mixed_call(80), "Q9s": mixed_call(60), "Q8s": mixed_call(35),
+        "QJo": mixed_call(40),
+        "JTs": mixed_call(85), "J9s": mixed_call(65), "J8s": mixed_call(45),
+        "T9s": mixed_call(85), "T8s": mixed_call(60), "T7s": mixed_call(35),
+        "98s": mixed_call(75), "97s": mixed_call(50),
+        "87s": mixed_call(70), "86s": mixed_call(45),
+        "76s": mixed_call(65), "75s": mixed_call(40), "65s": mixed_call(60), "54s": mixed_call(50),
+    },
+    # ── BB vs SB open (~40%, heads-up) — çok geniş defend (~58%) ──────────
+    # SB range zayıf/geniş + BB postflop pozisyonda (SB önce konuşur) →
+    # BB hem geniş 3-bet hem çok geniş flat. En geniş defend spotu.
+    "vs_SB": {
+        "AA": pure_raise(), "KK": pure_raise(), "QQ": pure_raise(), "JJ": pure_raise(),
+        "AKs": pure_raise(), "AKo": pure_raise(), "AQs": pure_raise(),
+        "TT": mixed(75, 22), "99": mixed(55, 38),
+        "AQo": mixed(60, 32), "AJs": mixed(55, 40), "ATs": mixed(40, 52),
+        "KQs": mixed(45, 50), "KJs": mixed(35, 55),
+        # bluff 3-bet (geniş — SB range zayıf)
+        "A5s": mixed(60, 30), "A4s": mixed(55, 30), "A3s": mixed(45, 35), "A2s": mixed(35, 40),
+        "K5s": mixed(30, 40), "76s": mixed(30, 55), "65s": mixed(25, 55),
+        # flat — çok geniş
+        "88": mixed_call(88), "77": mixed_call(88), "66": mixed_call(85),
+        "55": mixed_call(82), "44": mixed_call(75), "33": mixed_call(70), "22": mixed_call(65),
+        "AJo": mixed_call(75), "ATo": mixed_call(65), "A9o": mixed_call(50), "A8o": mixed_call(40),
+        "A9s": mixed_call(85), "A8s": mixed_call(80), "A7s": mixed_call(75),
+        "A6s": mixed_call(70),
+        "KTs": mixed_call(85), "K9s": mixed_call(75), "K8s": mixed_call(60), "K7s": mixed_call(50),
+        "K6s": mixed_call(45), "K4s": mixed_call(40),
+        "KQo": mixed_call(70), "KJo": mixed_call(60), "KTo": mixed_call(50), "K9o": mixed_call(35),
+        "QJs": mixed_call(85), "QTs": mixed_call(82), "Q9s": mixed_call(70), "Q8s": mixed_call(55),
+        "Q7s": mixed_call(40),
+        "QJo": mixed_call(60), "QTo": mixed_call(45), "Q9o": mixed_call(30),
+        "JTs": mixed_call(85), "J9s": mixed_call(75), "J8s": mixed_call(55), "J7s": mixed_call(35),
+        "JTo": mixed_call(55), "J9o": mixed_call(35),
+        "T9s": mixed_call(82), "T8s": mixed_call(65), "T7s": mixed_call(45),
+        "T9o": mixed_call(45),
+        "98s": mixed_call(78), "97s": mixed_call(55), "96s": mixed_call(35),
+        "98o": mixed_call(30),
+        "87s": mixed_call(72), "86s": mixed_call(50), "75s": mixed_call(45),
+        "54s": mixed_call(60), "64s": mixed_call(40), "53s": mixed_call(40), "43s": mixed_call(35),
+    },
 }
 
 
@@ -350,6 +437,67 @@ VS_3BET_BTN_VS_BB_100BB: dict[str, ActionFreq] = {
 }
 
 
+# vs 3-bet — UTG opened (tightest opener) then faces a 3-bet.
+# UTG range is already strong → continues a lot, folds bottom.
+VS_3BET_UTG_100BB: dict[str, ActionFreq] = {
+    "AA": pure_raise(), "KK": pure_raise(),
+    "QQ": mixed(60, 38), "AKs": mixed(45, 50), "AKo": mixed(35, 50),
+    # call-heavy continues
+    "JJ": mixed_call(92), "TT": mixed_call(85), "99": mixed_call(55),
+    "AQs": mixed_call(80), "AQo": mixed_call(45), "AJs": mixed_call(65),
+    "ATs": mixed_call(45), "KQs": mixed_call(65), "KJs": mixed_call(40),
+    "QJs": mixed_call(35), "JTs": mixed_call(30), "88": mixed_call(35),
+    # bluff 4-bet
+    "A5s": mixed(35, 10), "A4s": mixed(25, 5),
+}
+
+# vs 3-bet — MP opened then faces a 3-bet (slightly wider than UTG).
+VS_3BET_MP_100BB: dict[str, ActionFreq] = {
+    "AA": pure_raise(), "KK": pure_raise(),
+    "QQ": mixed(65, 32), "AKs": mixed(55, 42), "AKo": mixed(45, 45),
+    "JJ": mixed(20, 70), "TT": mixed_call(88), "99": mixed_call(70),
+    "88": mixed_call(45),
+    "AQs": mixed_call(82), "AQo": mixed_call(50), "AJs": mixed_call(70),
+    "ATs": mixed_call(50), "KQs": mixed_call(70), "KJs": mixed_call(48),
+    "KTs": mixed_call(30), "QJs": mixed_call(45), "QTs": mixed_call(30),
+    "JTs": mixed_call(38), "T9s": mixed_call(25),
+    "A5s": mixed(40, 12), "A4s": mixed(30, 8), "A3s": mixed(20, 5),
+}
+
+# vs 3-bet — CO opened then faces a 3-bet (wider — CO range looser).
+VS_3BET_CO_100BB: dict[str, ActionFreq] = {
+    "AA": pure_raise(), "KK": pure_raise(),
+    "QQ": mixed(70, 28), "AKs": mixed(62, 35), "AKo": mixed(52, 40),
+    "JJ": mixed(25, 68), "TT": mixed(15, 75), "99": mixed_call(78),
+    "88": mixed_call(60), "77": mixed_call(40),
+    "AQs": mixed_call(85), "AQo": mixed_call(55), "AJs": mixed_call(75),
+    "ATs": mixed_call(58), "A9s": mixed_call(35),
+    "KQs": mixed_call(78), "KJs": mixed_call(55), "KTs": mixed_call(38),
+    "QJs": mixed_call(55), "QTs": mixed_call(40), "JTs": mixed_call(48),
+    "T9s": mixed_call(38), "98s": mixed_call(28),
+    "A5s": mixed(45, 15), "A4s": mixed(38, 12), "A3s": mixed(28, 8),
+}
+
+# SB vs BTN open — SB is OOP, so 3-bet-or-fold (almost no flatting).
+# SB 3-bets a polarized range (value + blockers); folds the rest.
+VS_RFI_SB_VS_BTN_100BB: dict[str, ActionFreq] = {
+    # 3-bet value (pure)
+    "AA": pure_raise(), "KK": pure_raise(), "QQ": pure_raise(),
+    "JJ": pure_raise(), "AKs": pure_raise(), "AKo": pure_raise(),
+    "TT": mixed(80, 0), "AQs": mixed(85, 0), "AQo": mixed(65, 0),
+    "AJs": mixed(60, 0), "KQs": mixed(55, 0),
+    # 3-bet bluff (blockers + suited playables)
+    "A5s": mixed(70, 0), "A4s": mixed(60, 0), "A3s": mixed(45, 0), "A2s": mixed(35, 0),
+    "K5s": mixed(30, 0), "K4s": mixed(25, 0),
+    "76s": mixed(35, 0), "65s": mixed(35, 0), "54s": mixed(30, 0),
+    "ATs": mixed(40, 0), "KJs": mixed(40, 0), "QJs": mixed(35, 0), "JTs": mixed(30, 0),
+    "99": mixed(50, 0), "88": mixed(35, 0),
+    # A few flats (deep, can call IP-ish vs BTN since only BB behind)
+    "AJo": mixed(30, 0), "KQo": mixed(35, 0),
+    # everything else fold
+}
+
+
 # ── PUSH/FOLD 15bb MTT ─────────────────────────────────────────────────
 # Nash chart yaklaşımı — sadece all-in veya fold.
 # Pozisyon × hand → all-in (raise) vs fold.
@@ -391,17 +539,19 @@ PUSH_FOLD_15BB_BTN: dict[str, ActionFreq] = {
 
 def _is_curated(scenario: str, position: str, stack_depth: int,
                 vs_position: str | None) -> bool:
+    """Hangi spotlar için curated chart kullanılır?
+
+    NOT: vs-RFI (BB defend) ve vs-3bet için curated chart'lar elle yazıldığında
+    sistematik olarak ÇOK SIKI çıktı (BB vs UTG %14 vs gerçek ~%38). Bu yüzden
+    bu geniş range'ler için curated DEVRE DIŞI — heuristic generator daha doğru
+    aggregate yüzdeler üretiyor (BB vs UTG %31, vs SB %51). Curated sadece
+    RFI ve Push/Fold için aktif (orada doğrulandı, doğru).
+    """
     if scenario == "RFI" and stack_depth >= 60:
         return position in RFI_100BB_6MAX
-    if scenario == "vs RFI":
-        if position == "BB":
-            return f"vs_{vs_position or 'BTN'}" in VS_RFI_BB_DEFEND_100BB
-        if position == "BTN" and vs_position == "CO":
-            return True
-    if scenario == "vs 3-bet":
-        return position == "BTN" and (vs_position in (None, "BB"))
     if scenario == "Push/Fold":
         return position in ("BTN", "SB") and 12 <= stack_depth <= 18
+    # vs RFI / vs 3-bet → heuristic (daha doğru, aşağıda fallback eder)
     return False
 
 
@@ -432,8 +582,16 @@ def get_action(position: str, hand_key: str, scenario: str = "RFI",
                 return sub.get(hand_key, pure_fold())
             if position == "BTN" and vs_position == "CO":
                 return VS_RFI_BTN_VS_CO_100BB.get(hand_key, pure_fold())
+            if position == "SB" and vs_position == "BTN":
+                return VS_RFI_SB_VS_BTN_100BB.get(hand_key, pure_fold())
         if scenario == "vs 3-bet":
-            return VS_3BET_BTN_VS_BB_100BB.get(hand_key, pure_fold())
+            _vs3 = {
+                "BTN": VS_3BET_BTN_VS_BB_100BB,
+                "UTG": VS_3BET_UTG_100BB,
+                "MP": VS_3BET_MP_100BB,
+                "CO": VS_3BET_CO_100BB,
+            }
+            return _vs3.get(position, {}).get(hand_key, pure_fold())
         if scenario == "Push/Fold":
             if position == "BTN":
                 return PUSH_FOLD_15BB_BTN.get(hand_key, pure_fold())
