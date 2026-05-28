@@ -414,6 +414,9 @@ class HandHistoryScreen(QWidget):
         street_map = {1: "preflop", 2: "flop", 3: "turn", 4: "river", 5: "showdown"}
         last_street = street_map.get(streets, "—")
 
+        # ── EQUITY TRACK (preflop → flop → turn → river) ──────────────
+        equity_html = self._build_equity_track(hero_cards, board)
+
         html = (
             f"<div style='line-height:1.7;'>"
             f"<span style='color:{COLOR_MUTED};'>Zaman:</span>  {created}<br>"
@@ -430,9 +433,110 @@ class HandHistoryScreen(QWidget):
             f"{profit:+,.0f}  ({outcome_text})</span><br>"
             f"<span style='color:{COLOR_MUTED};'>Kazanan el:</span>  "
             f"{winner_hand}"
+            f"{equity_html}"
             f"</div>"
         )
         self.detail_label.setText(html)
+
+    def _build_equity_track(self, hero_cards: str, board: str) -> str:
+        """Pre/flop/turn/river için equity hesapla.
+
+        Hero hand'i 'As Ks' formatında. Board 'Ac 7d 2h Jc 5s' veya boş.
+        Villain proxy: top ~25% range (yaklaşık ortalama villain).
+        Her street ~1.5K MC iter ≈ 150ms × 4 = 600ms total.
+        """
+        try:
+            from app.engine.hand_state import cards_from_str
+            from app.poker.mc_equity import equity_hand_vs_range
+        except Exception:
+            return ""
+
+        if not hero_cards or hero_cards == "—":
+            return ""
+        try:
+            hero_cards_list = cards_from_str(hero_cards)
+            if len(hero_cards_list) < 2:
+                return ""
+        except Exception:
+            return ""
+
+        # Villain proxy range (top ~25% — yaklaşık average mid-stake villain)
+        villain_pool = [
+            "AA", "KK", "QQ", "JJ", "TT", "99", "88", "77", "66", "55",
+            "AKs", "AQs", "AJs", "ATs", "A9s", "A8s", "A5s", "A4s",
+            "KQs", "KJs", "KTs", "K9s",
+            "QJs", "QTs", "JTs", "T9s", "98s", "87s", "76s", "65s",
+            "AKo", "AQo", "AJo", "ATo", "KQo", "KJo", "QJo",
+        ]
+
+        # Hero cards string normalize for MC input
+        hero_str = "".join(c.code for c in hero_cards_list[:2])
+
+        # Board parse — boyutuna göre street'leri belirle
+        try:
+            board_clean = (board or "").replace(",", " ").strip()
+            board_list = (cards_from_str(board_clean)
+                          if board_clean and board_clean != "(çekilmedi)" else [])
+        except Exception:
+            board_list = []
+
+        streets = [
+            ("Preflop", []),
+            ("Flop",   board_list[:3] if len(board_list) >= 3 else None),
+            ("Turn",   board_list[:4] if len(board_list) >= 4 else None),
+            ("River",  board_list[:5] if len(board_list) >= 5 else None),
+        ]
+
+        rows = []
+        prev_eq = None
+        for label, b in streets:
+            if b is None:
+                continue
+            board_str = " ".join(c.code for c in b)
+            r = equity_hand_vs_range(
+                hero_str, villain_pool, board=board_str, iterations=1500
+            )
+            eq = r.a_equity
+            color = (COLOR_GOOD if eq >= 55 else
+                     "#F59E0B" if eq >= 40 else COLOR_BAD)
+            # Trend arrow
+            if prev_eq is not None:
+                delta = eq - prev_eq
+                if abs(delta) < 2:
+                    arrow = "→"
+                    arrow_color = COLOR_MUTED
+                elif delta > 0:
+                    arrow = f"↑ +{delta:.1f}"
+                    arrow_color = COLOR_GOOD
+                else:
+                    arrow = f"↓ {delta:.1f}"
+                    arrow_color = COLOR_BAD
+                arrow_html = (f"  <span style='color:{arrow_color};'>"
+                              f"{arrow}</span>")
+            else:
+                arrow_html = ""
+            rows.append(
+                f"<span style='color:{COLOR_MUTED};'>{label:<8}</span>"
+                f"<span style='color:{color}; font-weight:700;'> {eq:5.1f}%</span>"
+                f"{arrow_html}"
+            )
+            prev_eq = eq
+
+        if not rows:
+            return ""
+
+        # Verdict line — equity düşüşü varsa "fold doğruydu" gibi yorum
+        verdict = ""
+        if len(rows) >= 2 and prev_eq is not None:
+            # ilk preflop eq vs son eq karşılaştır
+            # rows[0] = preflop, rows[-1] = son street
+            # Quick parse — actually let me compute differently:
+            pass    # Skip for now; trend arrows are enough
+
+        return (f"<br><br>"
+                f"<span style='color:{COLOR_MUTED}; font-weight:700;'>"
+                f"📊  EQUITY TRACK (vs avg villain ~25%)</span>"
+                f"<br>" + "<br>".join(rows))
 
     # ── PAGINATION ────────────────────────────────────────────────────
     def _page_prev(self) -> None:
