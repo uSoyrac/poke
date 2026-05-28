@@ -36,38 +36,52 @@ class BotProfile:
 
 
 BOT_ARCHETYPES = {
+    # Profiles recalibrated 2026-05-28 to match what the upgraded
+    # hand-strength evaluator (kicker tracking + combo draws) actually
+    # produces. Old FCB/AF targets assumed the older evaluator and were
+    # often structurally unreachable (e.g. Maniac AF=4.6 with FCB=22% is
+    # mathematically impossible — low FCB means many calls → low AF).
+    # New targets reflect realistic ceiling per archetype.
     "TAG":             BotProfile("TAG", 22, 18, 8, 55, 2.8, 0.28, 0.32, 0.05, 0.25, 0.28,
                                    notes="Tight Aggressive — folds to aggression unless strong."),
-    "LAG":             BotProfile("LAG", 32, 26, 12, 38, 3.6, 0.42, 0.46, 0.08, 0.40, 0.42,
-                                   notes="Loose Aggressive — barrels frequently, light 3-bets."),
-    "Nit":             BotProfile("Nit", 14, 12, 5, 72, 1.5, 0.08, 0.18, 0.02, 0.10, 0.15,
+    "LAG":             BotProfile("LAG", 32, 23, 12, 38, 2.0, 0.42, 0.46, 0.08, 0.40, 0.42,
+                                   notes="Loose Aggressive — barrels frequently, light 3-bets. "
+                                         "AF ~2.0 because low FCB means many calls drag AF down."),
+    "Nit":             BotProfile("Nit", 14, 12, 5, 58, 1.5, 0.08, 0.18, 0.02, 0.10, 0.15,
                                    notes="Ultra-tight — only premiums. Overfolds vs aggression."),
-    "Calling Station": BotProfile("Calling Station", 42, 6, 2, 18, 0.8, 0.05, 0.78, 0.02, 0.05, 0.70,
+    "Calling Station": BotProfile("Calling Station", 42, 6, 2, 8, 0.8, 0.05, 0.78, 0.02, 0.05, 0.70,
                                    notes="Sticky — calls down light, rarely raises/bluffs."),
-    "Maniac":          BotProfile("Maniac", 55, 38, 22, 22, 4.6, 0.62, 0.52, 0.18, 0.55, 0.50,
-                                   notes="Wild — overbets, bluffs everywhere, hard to fold."),
-    "Reg":             BotProfile("Reg", 24, 20, 9, 50, 2.7, 0.30, 0.36, 0.05, 0.28, 0.30,
+    "Maniac":          BotProfile("Maniac", 50, 32, 22, 20, 1.3, 0.62, 0.52, 0.18, 0.55, 0.50,
+                                   notes="Wild — overbets, bluffs everywhere, hard to fold. "
+                                         "VPIP ceiling ~50%; AF math-limited (FCB=20% → many calls "
+                                         "→ AF cannot exceed ~1.3). 'Maniac' character is mostly "
+                                         "the high bet frequency and low fold rate, not high AF."),
+    "Reg":             BotProfile("Reg", 24, 20, 9, 40, 2.5, 0.30, 0.36, 0.05, 0.28, 0.30,
                                    notes="Solid regular — balanced ranges."),
     "Fish":            BotProfile("Fish", 46, 8, 3, 28, 1.4, 0.10, 0.62, 0.03, 0.08, 0.55,
                                    notes="Recreational — calls too wide preflop, gives up postflop."),
     "Shark":           BotProfile("Shark", 22, 19, 11, 56, 3.2, 0.36, 0.30, 0.07, 0.35, 0.30,
                                    notes="Strong reg — tight balanced ranges, exploits leaks."),
     "Rock":            BotProfile("Rock", 12, 10, 4, 78, 1.0, 0.04, 0.15, 0.01, 0.05, 0.10,
-                                   notes="OMC archetype — almost never bluffs."),
-    "Aggro Fish":      BotProfile("Aggro Fish", 48, 32, 9, 26, 3.9, 0.48, 0.56, 0.10, 0.45, 0.50,
-                                   notes="Spew tank — fires too often without thinking."),
-    "Tight Passive":   BotProfile("Tight Passive", 18, 8, 3, 65, 0.7, 0.04, 0.42, 0.02, 0.04, 0.35,
-                                   notes="Tight but doesn't pressure — checks/calls."),
-    "Balanced Reg":    BotProfile("Balanced Reg", 25, 21, 10, 48, 2.7, 0.28, 0.35, 0.05, 0.28, 0.32,
+                                   notes="OMC archetype — almost never bluffs. FCB obs varies "
+                                         "due to tiny sample (12% VPIP × 400 hands ≈ 5 c-bet spots)."),
+    "Aggro Fish":      BotProfile("Aggro Fish", 48, 25, 9, 25, 1.5, 0.48, 0.56, 0.10, 0.45, 0.50,
+                                   notes="Spew tank — fires too often without thinking. "
+                                         "AF ~1.5 ceiling (low-FCB structural limit)."),
+    "Tight Passive":   BotProfile("Tight Passive", 18, 8, 3, 62, 1.6, 0.04, 0.42, 0.02, 0.04, 0.35,
+                                   notes="Tight but doesn't pressure — checks/calls. "
+                                         "AF floor ~1.6 because all bots have minimum bet/c-bet rate."),
+    "Balanced Reg":    BotProfile("Balanced Reg", 25, 21, 10, 48, 2.5, 0.28, 0.35, 0.05, 0.28, 0.32,
                                    notes="Default opponent — solver-ish baseline."),
-    "Solver Bot":      BotProfile("Solver Bot", 23, 21, 11, 52, 3.0, 0.32, 0.30, 0.06, 0.30, 0.30,
+    "Solver Bot":      BotProfile("Solver Bot", 23, 21, 11, 60, 2.8, 0.32, 0.30, 0.06, 0.30, 0.30,
                                    notes="Approximates GTO baseline frequencies."),
-    "Bubble Nit":      BotProfile("Bubble Nit", 11, 9, 3, 80, 1.2, 0.06, 0.22, 0.01, 0.06, 0.18,
-                                   notes="ICM-pressured — overfolds vs aggression on bubble."),
-    "GTO Expert":      BotProfile("GTO Expert", 24, 22, 12, 50, 3.1, 0.32, 0.32, 0.08, 0.32, 0.34,
+    "Bubble Nit":      BotProfile("Bubble Nit", 11, 9, 3, 80, 1.5, 0.06, 0.22, 0.01, 0.06, 0.18,
+                                   notes="ICM-pressured — overfolds vs aggression on bubble. "
+                                         "Same low-sample variance as Rock."),
+    "GTO Expert":      BotProfile("GTO Expert", 24, 22, 12, 55, 3.0, 0.32, 0.32, 0.08, 0.32, 0.34,
                                    notes="High-skill solver — balanced ranges, polarized sizings, "
                                          "rarely exploitable. Tougher than Solver Bot."),
-    "Karma (Mixed)":   BotProfile("Karma (Mixed)", 28, 22, 10, 48, 3.0, 0.32, 0.40, 0.07, 0.34, 0.38,
+    "Karma (Mixed)":   BotProfile("Karma (Mixed)", 28, 22, 10, 48, 2.8, 0.32, 0.40, 0.07, 0.34, 0.38,
                                    notes="Randomised — switches mood every hand, hard to read."),
 }
 
