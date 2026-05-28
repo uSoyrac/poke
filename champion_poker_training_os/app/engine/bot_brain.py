@@ -469,7 +469,7 @@ class BotBrain:
                 raise_freq = max(0.05, min(0.92, agg / 5.5))
                 if ActionType.RAISE in valid_types and random.random() < raise_freq:
                     return self._raise_size(state, valid, polarized=adj_strength > 0.85,
-                                            strength=adj_strength)
+                                            strength=adj_strength, draws=draws, player=player)
                 if ActionType.CALL in valid_types:
                     return ActionType.CALL, to_call
                 return ActionType.ALL_IN, player.stack
@@ -511,7 +511,7 @@ class BotBrain:
                         and state.street != Street.RIVER
                         and random.random() < medium_raise_chance):
                     return self._raise_size(state, valid, polarized=False,
-                                            strength=adj_strength)
+                                            strength=adj_strength, draws=draws, player=player)
                 if ActionType.CALL in valid_types:
                     return ActionType.CALL, to_call
                 return ActionType.FOLD, 0.0
@@ -522,7 +522,7 @@ class BotBrain:
                         and ActionType.RAISE in valid_types
                         and random.random() < (agg / 10)):
                     return self._raise_size(state, valid, polarized=False,
-                                            strength=adj_strength)
+                                            strength=adj_strength, draws=draws, player=player)
                 if ActionType.CALL in valid_types and random.random() < (1 - fold_freq * 0.5):
                     return ActionType.CALL, to_call
 
@@ -547,7 +547,7 @@ class BotBrain:
                     and state.street != Street.RIVER
                     and random.random() < (agg - 2.8) * 0.28):
                 return self._raise_size(state, valid, polarized=False,
-                                        strength=adj_strength)
+                                        strength=adj_strength, draws=draws, player=player)
             if ActionType.CALL in valid_types:
                 # Don't call massive overbets without showdown value
                 if to_call / pot > 1.6 and adj_strength < 0.40:
@@ -582,12 +582,12 @@ class BotBrain:
             if random.random() < cbet_freq:
                 # Sizing: small on dry boards, big on wet/polarized
                 if board_features["paired"] or board_features["dry"]:
-                    size = self._bet_amount(pot, 0.33, valid)
+                    size = self._bet_amount(pot, 0.33, valid, player, adj_strength, draws)
                 elif adj_strength > 0.75 or adj_strength < 0.30:
                     # Polarized big bet
-                    size = self._bet_amount(pot, 0.75, valid)
+                    size = self._bet_amount(pot, 0.75, valid, player, adj_strength, draws)
                 else:
-                    size = self._bet_amount(pot, 0.50, valid)
+                    size = self._bet_amount(pot, 0.50, valid, player, adj_strength, draws)
                 if size:
                     return ActionType.BET, size
 
@@ -602,7 +602,7 @@ class BotBrain:
                 size_pct = 0.66 if adj_strength < 0.85 else 0.85
                 if random.random() < self.profile.overbet_freq:
                     size_pct = 1.5
-                amt = self._bet_amount(pot, size_pct, valid)
+                amt = self._bet_amount(pot, size_pct, valid, player, adj_strength, draws)
                 if amt:
                     return ActionType.BET, amt
             return ActionType.CHECK, 0.0
@@ -613,7 +613,7 @@ class BotBrain:
             if (ActionType.BET in valid_types
                     and state.street != Street.FLOP
                     and random.random() < thin_value_freq):
-                amt = self._bet_amount(pot, 0.45, valid)
+                amt = self._bet_amount(pot, 0.45, valid, player, adj_strength, draws)
                 if amt:
                     return ActionType.BET, amt
             return ActionType.CHECK, 0.0
@@ -622,7 +622,7 @@ class BotBrain:
         # aggression-scaled freq so Maniacs barrel and Nits give up.
         if state.street == Street.RIVER:
             if ActionType.BET in valid_types and random.random() < self.profile.bluff_river:
-                amt = self._bet_amount(pot, 0.66, valid)
+                amt = self._bet_amount(pot, 0.66, valid, player, adj_strength, draws)
                 if amt:
                     return ActionType.BET, amt
         else:
@@ -630,7 +630,7 @@ class BotBrain:
             # archetypes (Maniac 4.6, Aggro Fish 3.9, LAG 3.6) barrel a lot.
             bluff_freq = max(0.0, (agg - 1.5) * 0.18) + (draws * 0.30 if draws else 0)
             if ActionType.BET in valid_types and bluff_freq > 0 and random.random() < bluff_freq:
-                amt = self._bet_amount(pot, 0.55, valid)
+                amt = self._bet_amount(pot, 0.55, valid, player, adj_strength, draws)
                 if amt:
                     return ActionType.BET, amt
 
@@ -638,15 +638,41 @@ class BotBrain:
 
     # ── HELPERS ────────────────────────────────────────────────────
 
-    def _bet_amount(self, pot: float, pct: float, valid: List[Tuple[ActionType, float, float]]) -> float:
+    # Betting/raising a size ≥ this fraction of the remaining stack is, in
+    # practice, a full stack commitment (the rest goes in next street). We
+    # refuse to make that commitment as a bluff or thin value bet.
+    _COMMIT_FRAC = 0.70
+
+    def _commit_ok(self, strength: float, draws: float) -> bool:
+        """May we put our whole stack in with this hand?
+
+        Only genuine value (strength ≥ 0.60: overpair/top-pair-good/2-pair+)
+        or a real semi-bluff draw (≥ 0.30 equity: flush draw / OESD) justifies
+        committing. This prevents "shove 76-high / underpair as a bluff" — the
+        core of the unrealistic all-in problem.
+        """
+        return strength >= 0.60 or draws >= 0.30
+
+    def _bet_amount(self, pot: float, pct: float, valid: List[Tuple[ActionType, float, float]],
+                    player: Optional[PlayerSeat] = None,
+                    strength: float = 1.0, draws: float = 0.0) -> float:
         bet_info = next((v for v in valid if v[0] == ActionType.BET), None)
         if not bet_info:
             return 0.0
         target = pot * pct
-        return round(max(bet_info[1], min(bet_info[2], target)), 2)
+        amt = round(max(bet_info[1], min(bet_info[2], target)), 2)
+        # ── SPR-AWARE COMMITMENT GATE ──
+        # At low SPR a "normal" pot-fraction bet equals our whole stack, so the
+        # engine coerces it to all-in. Don't shove as a bluff/thin value bet —
+        # decline (return 0.0 → caller checks) unless value/draw justifies it.
+        if (player is not None and amt >= player.stack * self._COMMIT_FRAC
+                and not self._commit_ok(strength, draws)):
+            return 0.0
+        return amt
 
     def _raise_size(self, state: HandState, valid: List[Tuple[ActionType, float, float]],
-                    polarized: bool, strength: float = 0.5) -> Tuple[ActionType, float]:
+                    polarized: bool, strength: float = 0.5, draws: float = 0.0,
+                    player: Optional[PlayerSeat] = None) -> Tuple[ActionType, float]:
         """Return the best raise/bet action.
 
         If RAISE is not in the valid set (e.g. we already face a re-raise and
@@ -655,6 +681,10 @@ class BotBrain:
           - stack-to-pot is tiny (< 1.0) so calling is nearly the same as jamming.
         Otherwise we prefer CALL — the bot must never go all-in with 76s just
         because the raise button is unavailable.
+
+        Even when RAISE IS legal, an SPR-aware commitment gate prevents the
+        raise size from committing the whole stack on a bluff / thin value
+        hand: we downgrade to CALL (or CHECK) instead of jamming trash.
         """
         raise_info = next((v for v in valid if v[0] == ActionType.RAISE), None)
         if not raise_info:
@@ -671,6 +701,17 @@ class BotBrain:
         # Raise amount = min_raise * factor (polarized = bigger)
         factor = 1.6 if polarized else 1.25
         amount = max(raise_info[1], min(raise_info[2], round(raise_info[1] * factor, 2)))
+        # ── SPR-AWARE COMMITMENT GATE ──
+        # A raise that commits the stack is a stack-off. Don't do it on a
+        # bluff / thin value hand — prefer CALL (continue) or CHECK.
+        if (player is not None and amount >= player.stack * self._COMMIT_FRAC
+                and not self._commit_ok(strength, draws)):
+            call_info = next((v for v in valid if v[0] == ActionType.CALL), None)
+            if call_info:
+                return ActionType.CALL, call_info[1]
+            check_info = next((v for v in valid if v[0] == ActionType.CHECK), None)
+            if check_info is not None:
+                return ActionType.CHECK, 0.0
         return ActionType.RAISE, amount
 
     def _hand_strength(self, hole: List[Card], board: List[Card]) -> Tuple[float, float, str]:
