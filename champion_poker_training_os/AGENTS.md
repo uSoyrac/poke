@@ -36,7 +36,8 @@ sidebar nav.
 | Concern | File |
 |---|---|
 | Design tokens, type, animations | `app/ui/theme/dark_flat.qss` (Qt port of `theme.css` from the design bundle) |
-| **Design source — read FIRST** | `docs/design/` — mirrored copies of `UI_GUIDE.md`, `theme.css`, `poker-table.css`, `poker-table.jsx`, `Poker-Table.html`, `Style-Guide.html`. See `docs/design/README.md` for what each file is for. |
+| **Design source — read FIRST** | `docs/design/` — mirrored copies of `UI_GUIDE.md`, `theme.css`, `poker-table.css`, `poker-table.jsx`, `Poker-Table.html`, `Style-Guide.html`. See `docs/design/README.md` for what each file is for. **Before inventing any new UI, read these — do NOT design a different look.** |
+| **Two canonical palettes (don't mix)** | (1) **Poker-table / live play** — felt theme from `dark_flat.qss`: FOLD muted grey (`#898d80`), CALL lime (`#5ad17a`), RAISE/ALL-IN danger red (`#e87474`). Used by `poker_table.py` + play/tournament action buttons. (2) **Study / trainer screens** — bright flat "flashcard" convention defined in `quiz_trainer.py`: `COLOR_RAISE #DC2626` / `COLOR_CALL #10B981` / `COLOR_FOLD #2563EB`, bg `#0F1419`, card `#111827`, line `#1F2937`, ink `#FAFAFA`, good `#10B981`, bad `#DC2626`, muted `#94A3B8`. Used by Range Quiz / MTT Trainer / GTO Chart-style learning screens. **New trainer screens reuse palette (2); new live-table work reuses palette (1).** |
 | Poker felt / seats / chips | `app/ui/components/poker_table.py` (`LivePokerTable`, `SeatState`, `seats_from_hand`) — **legacy** `PokerTableView` kept here too because trainer screens still import it |
 | Card rendering (4-Color Deck) | `app/ui/components/card_view.py` — `SUIT_COLORS` maps each suit to its hex |
 | Shortcut registry | `app/ui/components/shortcuts.py` (`SHORTCUTS` list + `ShortcutsDialog`) |
@@ -54,11 +55,11 @@ sidebar nav.
 | **Tournament Analysis screen** | `app/ui/screens/tournament_analysis.py` — two-panel layout; left: scrollable `_TournCard` list from `tournament_results` DB; right: per-tournament hero card + KPI + AI coach QTextEdit OR general aggregate stats view; `analysis_requested` Signal → main.py → Gemini |
 | **Tournament history DB** | `app/db/repository.py` — `save_tournament_result(data)` + `get_tournament_history(limit)` read/write `tournament_results` table; schema in `app/db/schema.sql` |
 | **GTO range data (curated)** | `app/poker/gto_ranges.py` — `get_action(pos, hand, scenario, stack, mode, vs_position)` is the single lookup API. Curated charts (`RFI_100BB_6MAX`, `PUSH_FOLD_15BB_BTN`) cover RFI + push/fold. `_is_curated()` decides curated-vs-heuristic. **Lesson learned**: hand-curated WIDE ranges (BB defend, vs-3bet) came out systematically too tight (BB vs UTG 14% vs ~38% target) → those defer to the heuristic generator instead |
-| **GTO heuristic generator** | `app/poker/gto_generator.py` — `heuristic_get_action()` fallback for ANY (pos × scenario × stack × vs_pos) not curated. Principle-based: position tightness, stack-depth scaling, vs-opener tightness curve, 3-bet pyramid. Produces accurate aggregate % (BB defend 37/41/48/51/57 vs targets 38/42/48/52/58). 100% spot coverage, no empty result |
+| **GTO heuristic generator** | `app/poker/gto_generator.py` — `heuristic_get_action()` fallback for ANY (pos × scenario × stack × vs_pos) not curated. Principle-based: position tightness, stack-depth scaling, vs-opener tightness curve, 3-bet pyramid. Produces accurate aggregate % (BB defend 37/41/48/51/57 vs targets 38/42/48/52/58). 100% spot coverage, no empty result. **MTT ante widening (2026-05)**: `build_vs_rfi_range(.., mode)` — in MTT, BB/SB defend with an ante multiplier (BB ×1.24 cap 64%, SB ×1.10 cap 52%) + soft stack floor, so 25bb BB-vs-HJ defends ~61% (was 40%, matching PeakGTO ante spots) |
 | **Monte Carlo equity** | `app/poker/mc_equity.py` — `calculate_equity()` + `equity_hand_vs_hand/range`, `equity_range_vs_range`. Pure-Python MC, ~500ms/5K iter. `expand_hand_key("AKs")` → concrete combos. Used by Quiz feedback + Hand History equity track. (Old static lookup `app/poker/equity.py` untouched) |
 | **River CFR solver** | `app/poker/river_solver.py` — `RiverSolver(hero_range, villain_range, board, pot, bet_size_frac).solve(iters)` → per-hand BET/CHECK/CALL/FOLD via vanilla CFR + regret-matching. 4 info sets (HERO_FIRST, VILL_VS_BET, VILL_AFTER_CHK, HERO_VS_BET). ~430ms/20×28 combos×300 iter |
 | **GTO Chart screen** | `app/ui/screens/range_trainer.py` — `GTORangeChartScreen` (alias `RangeTrainerScreen`). 13×13 grid via `RangeGrid`/`HandCell` (QPainter action splits), position/stack/scenario/mode pickers, right detail panel with `FrequencyBar` |
-| **Range Quiz screen** | `app/ui/screens/quiz_trainer.py` — `QuizTrainerScreen`. Random spot generator (4 scenarios, vs_position-aware) + countdown + GTO compare + equity feedback (MC) + per-position stats + spaced-repetition wrong-queue |
+| **Range Quiz screen (PeakGTO-style)** | `app/ui/screens/quiz_trainer.py` — `QuizTrainerScreen` (`RangeQuizScreen` alias). Random spot generator (4 scenarios, vs_position-aware) + countdown + GTO compare + equity feedback (MC) + per-position stats + spaced-repetition wrong-queue. **Learning loop (2026-05)**: top session bar (HANDS/CORRECT/ERRORS/EV-LOSS/ELO), `QuizStats.record` updates ELO (K=24) + ev_loss_total, `QuizSpot.ev_loss_bb` (🟠 scenario-aware: RFI raise base 2.0, push/fold jam min(stack,15), vs-3bet 4.0), `difficulty_rating()` (1450 base + mixed/vs3bet/short adjustments), colored action-history strip, GTO% revealed on buttons after answer |
 | **Solver Sandbox screen** | `app/ui/screens/solver_sandbox.py` — `SolverSandboxScreen`. 13×13 range pickers (hero/villain tabs) + presets + board/pot/bet/iter controls + SOLVE (runs `RiverSolver` in a QThread) → strategy tables |
 | **Hand History Archive screen** | `app/ui/screens/hand_history.py` — `HandHistoryScreen`. Date list + paginated hands table + detail panel with per-street equity track + Gemini "analyze this hand" (`analysis_requested` Signal). DB helpers in repository.py: `get_dates_with_hands`, `get_hands_for_date`, `get_overall_archive_stats`, `_ensure_history_index` |
 | **In-game GTO assist** | `app/ui/components/gto_range_widget.py` — `GTORangeWidget.update_range(pos, stack, game_type, hero_hand)` shows a colored RAISE/CALL/FOLD badge for hero's exact hand via `gto_ranges.get_action`. Wired in tournament_simulator + play_session |
@@ -72,6 +73,8 @@ sidebar nav.
 | **Multi-street solver** | `app/poker/multistreet_solver.py` — `MultiBetRiverSolver` (EXACT: CHECK/BET_SMALL 33%/BET_BIG 75%, river is single node so multi-size is exactly solvable; big=polarized, small=thin-value verified). `solve_turn` (CONCEPT: turn bet/check with river-equity rollout) |
 | **Nested turn+river CFR** | `app/poker/nested_solver.py` — `NestedTurnRiverSolver`: turn bet/check → villain → river DEALT (real chance node, full enumeration + card removal) → river subtree fully solved. EXACT heads-up. Polarized structure verified (KK bet, QQ check, air bluff). Slow (~29s per-combo). Critical bugs fixed: zero-sum payoff (each invests P/2) + vanilla CFR updates BOTH players each iter |
 | **Vectorized solver (numpy)** | `app/poker/vector_solver.py` — `VectorRiverSolver`: showdown = matrix product `W @ reach` (W = signed showdown matrix, collision-masked). ~27x faster than per-combo (3000 iter / 140ms). Solver Sandbox's built-in engine uses this (×10 iters, RiverSolver fallback if numpy missing). numpy>=1.24 dep. Same vectorization extends to turn/flop chance nodes |
+| **Vectorized turn+river solver (⚠️ experimental)** | `app/poker/vector_turn_solver.py` — `VectorTurnRiverSolver`: turn bet/check → 3 river contexts (A=xx, B=xbc, C=bc) vectorized; ~28x faster. Filters board-colliding combos in `__init__` (phantom-combo bug fixed). **KNOWN BUG (unshipped)**: multi-hand hero range mis-distributes value (KK trips 0% bet vs nested 34%) — could not root-cause. **NOT UI-wired**; `nested_solver` / TexasSolver remain the correct turn engines. Documented via xfail test `test_vector_turn_KNOWN_BUG_multihand_value_distribution` |
+| **Bet-sizing analysis (🟠 concept)** | `app/poker/sizing_advice.py` — `SizingAdvice.score(chosen_bb, pot_bb)` → {quality_pct, ev_loss_bb, verdict}; `sizing_advice(hand, hero_idx, mode)` recommends a GTO-standard size (preflop open/3-bet/jam, postflop board-texture fraction). Attached to `AppState.live_gto["sizing"]` in play_session/tournament; `main._gto_context_block()` feeds it to the coach so it can give concrete sizing leaks ("5bb yerine 12bb daha iyi olurdu çünkü…"). Verified: 5bb→quality 54, 12bb→quality 92 |
 | **TexasSolver adapter** | `app/poker/texassolver_adapter.py` — arms-length subprocess to the external open-source TexasSolver (AGPL, beats PioSolver). `find_texassolver_binary()` (TEXASSOLVER_PATH env / common paths / PATH). `TexasSolverEngine.solve()` writes console command file → subprocess → parse JSON. **NOT bundled** (AGPL viral → user installs binary themselves; we only invoke = mere aggregation). Solver Sandbox engine toggle: "Built-in CFR 🟠" / "TexasSolver ✅" (when installed). Console command/JSON format may need version-specific tweaks in `_build_input_commands`/`_parse_strategy` |
 
 ---
@@ -197,6 +200,28 @@ additional all-in guard fires when `player.stack / (pot + stack) < 0.35`
 and ALL-IN is the only valid action. This prevents the classic "bet 18bb
 with 19.5bb, then fold to a raise" bug.
 
+### Bot SPR-aware commitment gate (anti-spew)  — fix 2026-05-29
+Postflop bet/raise sizes are chosen as a *pot fraction*. At low SPR a
+"normal" half-pot c-bet or river bluff equals the whole stack, so the
+engine (`PokerGame._coerce_action`, `amount >= stack → ALL_IN`) turned it
+into a full-stack shove — i.e. the bot shoved 7-high / a small underpair
+as a "bluff" or "thin value bet" (the reported "76 ile all-in" symptom).
+Fix lives in `BotBrain._bet_amount` / `_raise_size` + helper `_commit_ok`:
+- `_COMMIT_FRAC = 0.70` — a bet/raise ≥ 70% of remaining stack is treated
+  as a stack commitment.
+- A committing size is only allowed with genuine value (`strength >= 0.60`
+  = overpair / top-pair-good / two-pair+) **or** a real semi-bluff draw
+  (`draws >= 0.30` = flush draw / OESD). Otherwise the bet is declined
+  (`_bet_amount` returns 0.0 → caller CHECKs) or the raise is downgraded to
+  CALL/CHECK. Pot-committed CALLS are unaffected (separate guard above).
+- All postflop `_bet_amount` / `_raise_size` call sites pass
+  `(player, strength, draws)` so the gate sees the real hand.
+- Verified over 4000 hands (8-max, 25bb, Karma Mixed): voluntary trash
+  jams 62 → 0; legit value/draw all-ins + pot-odds calls preserved; VPIP
+  fidelity unchanged. Regression guard: `tests/test_bot_realism.py`.
+- NB: this is decision-quality, NOT a stat target — it shrinks the spewy
+  tail without touching archetype VPIP/PFR/AF.
+
 ### MTT field simulation + table balancing
 `MTTField` runs a background Poisson elimination model:
 - Phase rates: early 0.55x, mid 1.0x, bubble 1.45x
@@ -266,6 +291,11 @@ then bind a `QShortcut` in the relevant screen.
 ## 5 · Recent commits (read for context)
 
 ```
+# Bot realism + PeakGTO trainer + sizing (2026-05-29) — newest first
+253db58 fix(bot): SPR-aware commitment gate — botlar trash ile all-in atmıyor
+b9b7abf feat(trainer): preflop Range Quiz'i PeakGTO seviyesine çıkar + BB-defans leak fix
+ba45ef5 feat(solver): vectorized turn+river CFR (deneysel) + phantom-combo bug fix
+70001b7 feat(sizing): bet-sizing leak analizi — GTO-standart boyut + quality/EV scoring
 # Live GTO + coach + UX (2026-05-28) — newest first
 763ff13 feat(coach): AI Coach'a canlı GTO context — "kararım doğru mu?"
 9afb930 feat(play): fold sonrası space → anında sonraki el
