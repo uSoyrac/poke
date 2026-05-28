@@ -45,6 +45,10 @@ def expand_hand_key(hand_key: str) -> List[Tuple[Card, Card]]:
 
     combos: List[Tuple[Card, Card]] = []
     if len(hand_key) == 2:
+        # Pair (e.g. "AA") — only if both ranks are the same
+        if r1 != r2:
+            # "AK" is ambiguous (suited or offsuit?). Require explicit s/o suffix.
+            return []
         # Pair: 4C2 = 6 combos
         for i, s1 in enumerate(SUITS):
             for s2 in SUITS[i + 1:]:
