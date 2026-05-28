@@ -1024,6 +1024,16 @@ class TournamentSimulatorScreen(QWidget):
                         "fold": gto.fold, "call": gto.call,
                         "raise": gto.raise_, "allin": gto.allin,
                     }
+                    try:
+                        from app.poker.sizing_advice import sizing_advice
+                        sz = sizing_advice(hand, hero_idx, mode="MTT")
+                        if sz and sz.available:
+                            st.live_gto["sizing"] = {
+                                "label": sz.label, "rec_bb": sz.recommended_bb,
+                                "frac": sz.recommended_frac, "note": sz.note,
+                            }
+                    except Exception:
+                        pass
                 else:
                     st.live_gto = None
         except Exception:

@@ -1166,11 +1166,25 @@ class PlaySessionScreen(QWidget):
                     "fold": adv.fold, "call": adv.call,
                     "raise": adv.raise_, "allin": adv.allin,
                 }
+                self._attach_sizing(hand, hero_idx, mode)
             elif self.state is not None:
                 self.state.live_gto = None
             return adv
         except Exception:
             return None
+
+    def _attach_sizing(self, hand, hero_idx, mode="cash"):
+        """Bet-sizing önerisini state.live_gto'ya ekle (AI koç leak analizi için)."""
+        try:
+            from app.poker.sizing_advice import sizing_advice
+            sz = sizing_advice(hand, hero_idx, mode=mode)
+            if sz and sz.available and self.state and self.state.live_gto:
+                self.state.live_gto["sizing"] = {
+                    "label": sz.label, "rec_bb": sz.recommended_bb,
+                    "frac": sz.recommended_frac, "note": sz.note,
+                }
+        except Exception:
+            pass
 
     def _on_complete(self):
         if not self.game or not self.game.hand_history:

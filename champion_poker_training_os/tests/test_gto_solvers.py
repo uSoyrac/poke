@@ -286,5 +286,44 @@ def test_live_advice_preflop_available_postflop_not():
             assert adv.scenario   # scenario etiketi var
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Bet-sizing analysis — recommendation + quality scoring
+# ─────────────────────────────────────────────────────────────────────
+
+def test_sizing_score_monotonic_and_example():
+    """Kullanıcı örneği: 5bb suboptimal, 12bb (rec~11) mükemmel olmalı."""
+    from app.poker.sizing_advice import SizingAdvice
+    adv = SizingAdvice(available=True, recommended_bb=11.0)
+    s5 = adv.score(5.0, pot_bb=15)
+    s12 = adv.score(12.0, pot_bb=15)
+    # GTO-standarda yakın olan daha yüksek quality + daha az EV kaybı
+    assert s12["quality_pct"] > s5["quality_pct"]
+    assert s12["ev_loss_bb"] <= s5["ev_loss_bb"]
+    assert 0 <= s5["quality_pct"] <= 100
+    # Tam optimumda quality ~100, EV kaybı 0
+    opt = adv.score(11.0, pot_bb=15)
+    assert opt["quality_pct"] >= 99
+    assert opt["ev_loss_bb"] == 0.0
+
+
+def test_sizing_advice_preflop_open_sane():
+    """RFI açış önerisi makul aralıkta (2.0–3.0bb) olmalı."""
+    from app.engine.game_loop import PokerGame
+    from app.poker.sizing_advice import sizing_advice
+    g = PokerGame(num_players=6, starting_stack=100.0, small_blind=0.5,
+                  big_blind=1.0, hero_seat=0, bot_archetypes=["Reg"]*5,
+                  paced_bots=False)
+    g.start_hand()
+    guard = 0
+    while g.current_hand and not g.is_waiting_for_hero \
+            and not g.current_hand.is_complete and guard < 30:
+        g.step_action(); guard += 1
+    if g.is_waiting_for_hero:
+        adv = sizing_advice(g.current_hand, g.current_hand.hero_idx, mode="cash")
+        assert adv.available
+        assert adv.recommended_bb > 0
+        assert adv.label
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))

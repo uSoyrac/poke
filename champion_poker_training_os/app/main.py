@@ -416,16 +416,28 @@ class MainWindow(QMainWindow):
         g = getattr(self.state, "live_gto", None)
         if not g:
             return ""
-        return (
+        block = (
             f"[GTO CANLI ANALİZ — {g.get('tier','')}]\n"
             f"Spot: {g.get('scenario','')} · El: {g.get('hand','')} · "
             f"Stack: {g.get('stack_bb',0):.0f}bb\n"
             f"GTO frekansları → FOLD %{g.get('fold',0):.0f} · "
             f"CALL %{g.get('call',0):.0f} · RAISE %{g.get('raise',0):.0f} · "
             f"ALLIN %{g.get('allin',0):.0f}\n"
+        )
+        sz = g.get("sizing")
+        if sz:
+            block += (
+                f"BET-SIZING (GTO-standart): {sz.get('label','')} "
+                f"(~{sz.get('rec_bb',0):.1f}bb). {sz.get('note','')}\n"
+                f"Eğer hero raise/bet yapıyorsa boyutunu da değerlendir: "
+                f"seçtiği size GTO-standarda ne kadar yakın, kaç bb EV bırakıyor? "
+                f"Örn '5bb yerine 12bb daha iyi olurdu çünkü...' tarzı somut sizing leak ver.\n"
+            )
+        block += (
             f"Hero'nun kararını bu GTO frekanslarına göre değerlendir: "
             f"doğru mu, ne kadar sapma var, neden? Kısa ve net.\n\n"
         )
+        return block
 
     def explain_selected_spot(self) -> None:
         if self.state.strategy_locked:
