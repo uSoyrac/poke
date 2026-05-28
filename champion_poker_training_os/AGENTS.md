@@ -62,6 +62,8 @@ sidebar nav.
 | **Solver Sandbox screen** | `app/ui/screens/solver_sandbox.py` — `SolverSandboxScreen`. 13×13 range pickers (hero/villain tabs) + presets + board/pot/bet/iter controls + SOLVE (runs `RiverSolver` in a QThread) → strategy tables |
 | **Hand History Archive screen** | `app/ui/screens/hand_history.py` — `HandHistoryScreen`. Date list + paginated hands table + detail panel with per-street equity track + Gemini "analyze this hand" (`analysis_requested` Signal). DB helpers in repository.py: `get_dates_with_hands`, `get_hands_for_date`, `get_overall_archive_stats`, `_ensure_history_index` |
 | **In-game GTO assist** | `app/ui/components/gto_range_widget.py` — `GTORangeWidget.update_range(pos, stack, game_type, hero_hand)` shows a colored RAISE/CALL/FOLD badge for hero's exact hand via `gto_ranges.get_action`. Wired in tournament_simulator + play_session |
+| **MTT range engine** | `app/poker/mtt_ranges.py` — `get_action(mode="MTT")` routes here. `JAM_PCT` table (Nash push/fold, 8-25bb × position, interpolated), `call_vs_jam_pct`, ante-aware depth-shaped `build_mtt_rfi` (20-200bb: deep adds suited connectors, shallow tightens). `mtt_jam_pct(pos, stack)` is the public jam% lookup |
+| **MTT Trainer screen** | `app/ui/screens/mtt_trainer.py` — `MTTTrainerScreen`. Mode 1: Push/Fold Drill (random spot + Nash compare + countdown + per-stack stats). Mode 2: Stack Explorer (13×13 range grid for any position × 20-200bb). NAV "MTT Trainer". ICM (icm.py Malmuth-Harville) available for future bubble/FT scenarios |
 
 ---
 
@@ -255,7 +257,13 @@ then bind a `QShortcut` in the relevant screen.
 ## 5 · Recent commits (read for context)
 
 ```
-# GTO + equity + solver session (2026-05-28) — newest first
+# MTT system (2026-05-28) — newest first
+<this>   feat(mtt): MTT Trainer screen — push/fold drill + stack explorer
+1d872f1 feat(mtt): stack-depth-aware MTT range engine (Nash + ante)
+# GTO + equity + solver session (2026-05-28)
+40e9a42 docs: AGENTS.md — GTO/equity/solver session
+501f5aa fix(gto): honest curation — defer wide ranges to heuristic
+501bce6 feat(gto): heuristic generator → %100 spot coverage
 097123d feat(quiz): multi-scenario drills — vs RFI / vs 3-bet / Push-Fold
 501f5aa fix(gto): honest curation — defer wide ranges to heuristic, tune targets
 501bce6 feat(gto): heuristic generator → %100 spot coverage (gto_generator.py)
