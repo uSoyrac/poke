@@ -929,6 +929,33 @@ class PlaySessionScreen(QWidget):
     def _space_pressed(self):
         if hasattr(self, "next_btn") and self.next_btn and self.next_btn.isVisible():
             self._deal_next()
+            return
+        # Fold ettiysen el bitmeyi bekleme — botları anında ileri sar + sonraki el
+        if self._hero_folded_midhand():
+            self._fast_forward_then_next(self._deal_next)
+
+    def _hero_folded_midhand(self) -> bool:
+        if not self.game or not self.game.current_hand:
+            return False
+        h = self.game.current_hand
+        if h.is_complete or self.game.is_waiting_for_hero:
+            return False
+        hero = h.hero
+        return bool(hero and hero.is_folded)
+
+    def _fast_forward_then_next(self, deal_fn) -> None:
+        """Kalan bot aksiyonlarını anında oyna, eli tamamla, sonraki ele geç."""
+        if hasattr(self, "_bot_timer"):
+            self._bot_timer.stop()
+        guard = 0
+        while (self.game.current_hand and not self.game.current_hand.is_complete
+               and not self.game.is_waiting_for_hero and guard < 400):
+            self.game.step_action()
+            guard += 1
+        if self.game.current_hand and self.game.current_hand.is_complete:
+            self._refresh()
+            self._on_complete()
+        deal_fn()
 
     def _key_action(self, key: str) -> None:
         if not self.game or not self.game.is_waiting_for_hero:
@@ -1302,6 +1329,25 @@ class PlaySessionScreen(QWidget):
     def _space_pressed_mtt(self):
         if hasattr(self, "mtt_next_btn") and self.mtt_next_btn and self.mtt_next_btn.isVisible():
             self._deal_next_mtt()
+            return
+        # Fold sonrası anında ileri sar + sonraki el (turnuva)
+        g = self.tournament.game if self.tournament else None
+        if (g and g.current_hand and not g.current_hand.is_complete
+                and not g.is_waiting_for_hero):
+            hero = g.current_hand.hero
+            if hero and hero.is_folded:
+                if hasattr(self, "_mtt_bot_timer"):
+                    self._mtt_bot_timer.stop()
+                guard = 0
+                while (g.current_hand and not g.current_hand.is_complete
+                       and not g.is_waiting_for_hero and guard < 400):
+                    g.step_action()
+                    guard += 1
+                if g.current_hand and g.current_hand.is_complete:
+                    self.tournament.advance_after_hand_complete()
+                    self._refresh_mtt()
+                    self._on_complete_mtt()
+                self._deal_next_mtt()
 
     def _key_action_mtt(self, key: str) -> None:
         if not self.tournament or not self.tournament.game.is_waiting_for_hero:
