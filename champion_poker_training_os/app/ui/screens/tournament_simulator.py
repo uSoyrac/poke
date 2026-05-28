@@ -988,6 +988,18 @@ class TournamentSimulatorScreen(QWidget):
         try:
             from app.poker.gto_live_advice import live_gto_advice
             gto = live_gto_advice(hand, hero_idx, mode="MTT")
+            # AI koç için state'e yaz
+            st = getattr(self, "state", None)
+            if st is not None:
+                if gto and gto.available:
+                    st.live_gto = {
+                        "scenario": gto.scenario, "hand": gto.hand_key,
+                        "stack_bb": gto.stack_bb, "tier": gto.tier_label,
+                        "fold": gto.fold, "call": gto.call,
+                        "raise": gto.raise_, "allin": gto.allin,
+                    }
+                else:
+                    st.live_gto = None
         except Exception:
             gto = None
 

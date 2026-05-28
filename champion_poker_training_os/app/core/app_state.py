@@ -21,6 +21,11 @@ class AppState:
     # refresh, consumed by the AI coach to give tournament-aware advice
     # (ICM, bubble, blind level, etc.). None when no tournament is active.
     tournament_context: dict[str, Any] | None = None
+    # Live GTO advice for the CURRENT hero decision — populated by play/
+    # tournament screens via gto_live_advice. Lets the AI coach answer
+    # "is my decision GTO-correct?" with real frequency data. None when not
+    # in a live preflop decision.
+    live_gto: dict[str, Any] | None = None
 
     @property
     def accuracy(self) -> float:

@@ -1154,10 +1154,21 @@ class PlaySessionScreen(QWidget):
             self.allin_btn.show()
 
     def _gto_pct(self, hand, hero_idx, mode="cash"):
-        """Canlı GTO advice (hata güvenli)."""
+        """Canlı GTO advice (hata güvenli) + AI koç için state'e yaz."""
         try:
             from app.poker.gto_live_advice import live_gto_advice
-            return live_gto_advice(hand, hero_idx, mode=mode)
+            adv = live_gto_advice(hand, hero_idx, mode=mode)
+            # AI koçun 'kararım doğru mu' sorusuna cevap verebilmesi için state'e koy
+            if adv and adv.available and self.state is not None:
+                self.state.live_gto = {
+                    "scenario": adv.scenario, "hand": adv.hand_key,
+                    "stack_bb": adv.stack_bb, "tier": adv.tier_label,
+                    "fold": adv.fold, "call": adv.call,
+                    "raise": adv.raise_, "allin": adv.allin,
+                }
+            elif self.state is not None:
+                self.state.live_gto = None
+            return adv
         except Exception:
             return None
 

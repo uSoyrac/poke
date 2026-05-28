@@ -407,6 +407,26 @@ class MainWindow(QMainWindow):
             f"TAVSİYE TURNUVA SPESİFİK OLSUN: ICM/stack depth/bubble pressure/blind level ışığında konuş.\n\n"
         )
 
+    def _gto_context_block(self) -> str:
+        """O anki canlı GTO advice'ı prompt prefix'i olarak biçimlendir.
+
+        live_gto play/tournament ekranlarınca her hero kararında doldurulur.
+        Boşsa "" döner.
+        """
+        g = getattr(self.state, "live_gto", None)
+        if not g:
+            return ""
+        return (
+            f"[GTO CANLI ANALİZ — {g.get('tier','')}]\n"
+            f"Spot: {g.get('scenario','')} · El: {g.get('hand','')} · "
+            f"Stack: {g.get('stack_bb',0):.0f}bb\n"
+            f"GTO frekansları → FOLD %{g.get('fold',0):.0f} · "
+            f"CALL %{g.get('call',0):.0f} · RAISE %{g.get('raise',0):.0f} · "
+            f"ALLIN %{g.get('allin',0):.0f}\n"
+            f"Hero'nun kararını bu GTO frekanslarına göre değerlendir: "
+            f"doğru mu, ne kadar sapma var, neden? Kısa ve net.\n\n"
+        )
+
     def explain_selected_spot(self) -> None:
         if self.state.strategy_locked:
             self.coach.set_message("RTA Guard locked coach strategy output while a poker client is detected.")
@@ -460,6 +480,8 @@ class MainWindow(QMainWindow):
             return
         # Inject tournament context FIRST (most important for ICM-aware advice)
         full_prompt = self._tournament_context_block()
+        # Then live GTO advice for the current decision (if any)
+        full_prompt += self._gto_context_block()
         # Then last-hand context if available
         if self.state.last_hand:
             h = self.state.last_hand
