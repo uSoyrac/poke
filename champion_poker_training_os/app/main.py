@@ -36,6 +36,7 @@ from app.ui.screens.math_lab import MathLabScreen
 from app.ui.screens.play_session import PlaySessionScreen
 from app.ui.screens.postflop_trainer import PostflopTrainerScreen
 from app.ui.screens.range_trainer import RangeTrainerScreen
+from app.ui.screens.quiz_trainer import QuizTrainerScreen
 from app.ui.screens.reports import ReportsScreen
 from app.ui.screens.river_trainer import RiverTrainerScreen
 from app.ui.screens.settings import SettingsScreen
@@ -85,6 +86,7 @@ NAV_ITEMS = [
     "Tournament Analysis",
     "ICM / PKO Trainer",
     "Preflop Range Trainer",
+    "Range Quiz",
     "Postflop Trainer",
     "River Decision Trainer",
     "Math Lab",
@@ -107,6 +109,7 @@ RESTRICTED_WHEN_LOCKED = {
     "Tournament Simulator",
     "ICM / PKO Trainer",
     "Preflop Range Trainer",
+    "Range Quiz",
     "Postflop Trainer",
     "River Decision Trainer",
     "Math Lab",
@@ -261,6 +264,7 @@ class MainWindow(QMainWindow):
             "Tournament Analysis": TournamentAnalysisScreen,
             "ICM / PKO Trainer": IcmTrainerScreen,
             "Preflop Range Trainer": RangeTrainerScreen,
+            "Range Quiz": QuizTrainerScreen,
             "Postflop Trainer": PostflopTrainerScreen,
             "River Decision Trainer": RiverTrainerScreen,
             "Math Lab": MathLabScreen,
