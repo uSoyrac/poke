@@ -693,12 +693,24 @@ class BotBrain:
             if unique_ranks[i + 4] - unique_ranks[i] == 4:
                 has_straight = True
                 break
-        # Open-ended draw
+        # Open-ended draw (8 outs) + Gutshot (4 outs)
         if not has_straight:
+            # OESD: 4 consecutive in unique_ranks (range diff == 3)
             for i in range(len(unique_ranks) - 3):
-                if unique_ranks[i + 3] - unique_ranks[i] == 3 and (high in unique_ranks[i:i + 4] or low in unique_ranks[i:i + 4]):
+                if (unique_ranks[i + 3] - unique_ranks[i] == 3
+                        and (high in unique_ranks[i:i + 4]
+                             or low in unique_ranks[i:i + 4])):
                     straight_outs = 8
                     break
+            # Gutshot: 4 consecutive with 1 gap (5 cards spanning 4 unique values,
+            # one value missing inside the span). 4 outs.
+            if straight_outs == 0:
+                for i in range(len(unique_ranks) - 3):
+                    span = unique_ranks[i + 3] - unique_ranks[i]
+                    if span == 4 and (high in unique_ranks[i:i + 4]
+                                       or low in unique_ranks[i:i + 4]):
+                        straight_outs = 4
+                        break
 
         # Score
         label = "high card"
@@ -717,19 +729,43 @@ class BotBrain:
             else:
                 strength = 0.74; label = "trips"
         elif sum(1 for c in rank_counts.values() if c == 2) >= 2:
-            strength = 0.68; label = "two pair"
+            # Two pair — distinguish "top two" (both hole cards paired top/2nd)
+            # from "weaker two pair" (e.g. bottom pair + middle).
+            sorted_board = sorted(board_ranks, reverse=True)
+            top_board = sorted_board[0] if sorted_board else 0
+            second_board = sorted_board[1] if len(sorted_board) > 1 else 0
+            hole_vals = {c1.value, c2.value}
+            # Top two: both hole cards match top + second board
+            if top_board in hole_vals and second_board in hole_vals and v1 != v2:
+                strength = 0.78; label = "top two pair"
+            else:
+                strength = 0.66; label = "two pair"
         elif is_overpair:
             strength = 0.62; label = "overpair"
         elif pair_with_board_high:
-            # Top pair / mid pair
+            # Top pair / mid pair — use matching hole card + kicker for accurate strength.
+            # Old code only used max(hole), which gave AK and A2 the same value
+            # on A-high boards. Now AK = 0.69, A2 = 0.55 (kicker matters).
+            matching = [v for v in (c1.value, c2.value) if v in board_ranks]
+            paired_rank = max(matching) if matching else 0
+            kicker_vals = [v for v in (c1.value, c2.value) if v not in board_ranks]
+            kicker = max(kicker_vals) if kicker_vals else 0
             top_board = max(board_ranks)
-            paired_rank = max(c1.value, c2.value) if (c1.value in board_ranks or c2.value in board_ranks) else 0
             if paired_rank == top_board:
-                kicker = min(c1.value, c2.value) if c1.value == top_board or c2.value == top_board else 0
-                strength = 0.50 + (high / 13) * 0.10
+                # Top pair: base 0.50 + 0.10 for top board + 0.08 for kicker
+                # AK on K72: 0.50 + 1.0*0.10 + 14/13*0.08 = 0.686
+                # A2 on A72: 0.50 + 1.0*0.10 + 2/13*0.08 = 0.612
+                strength = (0.50
+                            + (paired_rank / 13) * 0.10
+                            + (kicker / 13) * 0.08)
                 label = "top pair"
             else:
-                strength = 0.35
+                # Middle/bottom pair — scales with paired rank + kicker
+                # K9 on Q93: 0.35 + 9/13*0.10 + 13/13*0.06 = 0.479
+                # 22 on 962: 0.35 + 2/13*0.10 + 9/13*0.06 = 0.407
+                strength = (0.35
+                            + (paired_rank / 13) * 0.10
+                            + (kicker / 13) * 0.06)
                 label = "middle pair"
         elif is_pair:
             # Scale underpair strength by pair rank so KK on A-high doesn't fold like 22.
@@ -741,10 +777,20 @@ class BotBrain:
         # Draw equity (rough outs / runners)
         draws = 0.0
         if max_suit_count == 4 and hero_suits_in_max:
-            # Flush draw: ~9 outs ~ 36% turn+river, ~18% one-card
+            # Flush draw: ~9 outs ~ 36% turn+river, ~18% one-card to come
             draws = 0.35 if len(board) <= 3 else 0.18
-        if straight_outs == 8:
+        if straight_outs == 8:           # OESD ~32% / 18%
             draws = max(draws, 0.32 if len(board) <= 3 else 0.18)
+        elif straight_outs == 4:         # Gutshot ~16% / 9%
+            draws = max(draws, 0.16 if len(board) <= 3 else 0.09)
+        # Backdoor flush (3 of one suit on flop, need 2 more) — small bump
+        if len(board) == 3 and max_suit_count == 3 and hero_suits_in_max:
+            draws = max(draws, 0.04)
+        # Combo draw bonus: pair + draw → significantly stronger semi-bluff
+        # (e.g. middle pair + flush draw on turn ≈ 50% equity vs random)
+        if draws > 0.20 and strength >= 0.35:
+            # Boost strength slightly to reflect the made-hand+draw combo
+            strength = min(0.78, strength + 0.05)
 
         return strength, draws, label
 
