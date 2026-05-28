@@ -66,6 +66,9 @@ sidebar nav.
 | **MTT Trainer screen** | `app/ui/screens/mtt_trainer.py` — `MTTTrainerScreen`. Mode 1: Push/Fold Drill (random spot + Nash compare + countdown + per-stack stats). Mode 2: Stack Explorer (13×13 range grid; position × 10-200bb × Scenario: Auto/ICM Bubble/ICM FT/Satellite/PKO/Squeeze) |
 | **ICM/PKO/Squeeze ranges** | `app/poker/mtt_ranges.py` — `build_icm_push_fold(pos, stack, stage)` (jam tightens under ICM), `build_icm_call_vs_jam(stack, stage, bubble_factor)`, `build_pko_jam/call_vs_jam(.., bounty_ratio)` (widens), `build_squeeze(pos, stack, num_callers)` (polarized). Uses `app/poker/icm.py` (Malmuth-Harville, risk_premium, bubble_factor, bounty_ev). mtt_get_action scenarios: "ICM Push/Fold", "PKO Jam", "Squeeze" |
 | **Accuracy provenance** | `app/poker/gto_provenance.py` — `range_provenance(scenario, pos, stack, mode)` → tier (EXACT ✅ / APPROX 🟡 / CONCEPT 🟠 / GAP ❌). GTO Chart shows a badge so the user ALWAYS knows what they're learning. **Honest map**: curated RFI + push/fold Nash + equity + ICM = EXACT; heuristic vs-RFI/vs-3bet/MTT-depth = APPROX; river solver = CONCEPT; full postflop multiway = GAP |
+| **Live GTO on buttons** | `app/poker/gto_live_advice.py` — `live_gto_advice(hand, hero_idx, mode)` maps live state → GTO scenario (RFI/vs-RFI/vs-3bet/push-fold via position + betting history + stack) → action frequencies. play_session + tournament `_update_action_buttons` append `42%` to each button. Preflop only (postflop returns available=False — honest). Also writes `AppState.live_gto` for the coach |
+| **AI Coach GTO context** | `main._gto_context_block()` formats `AppState.live_gto` into the Gemini prompt prefix (scenario, hand, freqs, tier). Injected in `chat_with_coach` so the coach evaluates "is my decision GTO-correct?" with real frequencies. `_tournament_context_block()` (ICM) + GTO block + last-hand block stack in order |
+| **Fold → space → next hand** | play_session `_space_pressed`/`_space_pressed_mtt`: if hero folded mid-hand, space fast-forwards remaining bot actions (step_action loop) + completes + deals next — no waiting for the bots |
 | **Multi-street solver** | `app/poker/multistreet_solver.py` — `MultiBetRiverSolver` (EXACT: CHECK/BET_SMALL 33%/BET_BIG 75%, river is single node so multi-size is exactly solvable; big=polarized, small=thin-value verified). `solve_turn` (CONCEPT: turn bet/check with river-equity rollout) |
 | **Nested turn+river CFR** | `app/poker/nested_solver.py` — `NestedTurnRiverSolver`: turn bet/check → villain → river DEALT (real chance node, full enumeration + card removal) → river subtree fully solved. EXACT heads-up. Polarized structure verified (KK bet, QQ check, air bluff). Slow (~29s per-combo). Critical bugs fixed: zero-sum payoff (each invests P/2) + vanilla CFR updates BOTH players each iter |
 | **Vectorized solver (numpy)** | `app/poker/vector_solver.py` — `VectorRiverSolver`: showdown = matrix product `W @ reach` (W = signed showdown matrix, collision-masked). ~27x faster than per-combo (3000 iter / 140ms). Solver Sandbox's built-in engine uses this (×10 iters, RiverSolver fallback if numpy missing). numpy>=1.24 dep. Same vectorization extends to turn/flop chance nodes |
@@ -263,7 +266,12 @@ then bind a `QShortcut` in the relevant screen.
 ## 5 · Recent commits (read for context)
 
 ```
-# Solver speed + external engine (2026-05-28) — newest first
+# Live GTO + coach + UX (2026-05-28) — newest first
+763ff13 feat(coach): AI Coach'a canlı GTO context — "kararım doğru mu?"
+9afb930 feat(play): fold sonrası space → anında sonraki el
+fbff768 feat(live): GTO % on action buttons (play + tournament)
+2f8cbe2 fix(solver): TexasSolver adapter — gerçek v0.2.0 formatına kalibre
+# Solver speed + external engine (2026-05-28)
 7c31298 perf(solver): Solver Sandbox built-in engine → vectorized (numpy)
 7c5d841 feat(solver): vectorized river CFR (numpy) — ~27x hız
 a87b0fb feat(solver): TexasSolver integration — arms-length subprocess (EXACT)
