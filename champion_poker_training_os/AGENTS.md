@@ -53,6 +53,15 @@ sidebar nav.
 | **MTT Field simulation** | `app/simulator/mtt_field.py` — `MTTField` tracks background field eliminations via phase-adjusted Poisson; `tick(hands)` called each hand; properties: `players_remaining`, `bubble_distance`, `is_itm`, `tables_active`, `prize_summary(n)` |
 | **Tournament Analysis screen** | `app/ui/screens/tournament_analysis.py` — two-panel layout; left: scrollable `_TournCard` list from `tournament_results` DB; right: per-tournament hero card + KPI + AI coach QTextEdit OR general aggregate stats view; `analysis_requested` Signal → main.py → Gemini |
 | **Tournament history DB** | `app/db/repository.py` — `save_tournament_result(data)` + `get_tournament_history(limit)` read/write `tournament_results` table; schema in `app/db/schema.sql` |
+| **GTO range data (curated)** | `app/poker/gto_ranges.py` — `get_action(pos, hand, scenario, stack, mode, vs_position)` is the single lookup API. Curated charts (`RFI_100BB_6MAX`, `PUSH_FOLD_15BB_BTN`) cover RFI + push/fold. `_is_curated()` decides curated-vs-heuristic. **Lesson learned**: hand-curated WIDE ranges (BB defend, vs-3bet) came out systematically too tight (BB vs UTG 14% vs ~38% target) → those defer to the heuristic generator instead |
+| **GTO heuristic generator** | `app/poker/gto_generator.py` — `heuristic_get_action()` fallback for ANY (pos × scenario × stack × vs_pos) not curated. Principle-based: position tightness, stack-depth scaling, vs-opener tightness curve, 3-bet pyramid. Produces accurate aggregate % (BB defend 37/41/48/51/57 vs targets 38/42/48/52/58). 100% spot coverage, no empty result |
+| **Monte Carlo equity** | `app/poker/mc_equity.py` — `calculate_equity()` + `equity_hand_vs_hand/range`, `equity_range_vs_range`. Pure-Python MC, ~500ms/5K iter. `expand_hand_key("AKs")` → concrete combos. Used by Quiz feedback + Hand History equity track. (Old static lookup `app/poker/equity.py` untouched) |
+| **River CFR solver** | `app/poker/river_solver.py` — `RiverSolver(hero_range, villain_range, board, pot, bet_size_frac).solve(iters)` → per-hand BET/CHECK/CALL/FOLD via vanilla CFR + regret-matching. 4 info sets (HERO_FIRST, VILL_VS_BET, VILL_AFTER_CHK, HERO_VS_BET). ~430ms/20×28 combos×300 iter |
+| **GTO Chart screen** | `app/ui/screens/range_trainer.py` — `GTORangeChartScreen` (alias `RangeTrainerScreen`). 13×13 grid via `RangeGrid`/`HandCell` (QPainter action splits), position/stack/scenario/mode pickers, right detail panel with `FrequencyBar` |
+| **Range Quiz screen** | `app/ui/screens/quiz_trainer.py` — `QuizTrainerScreen`. Random spot generator (4 scenarios, vs_position-aware) + countdown + GTO compare + equity feedback (MC) + per-position stats + spaced-repetition wrong-queue |
+| **Solver Sandbox screen** | `app/ui/screens/solver_sandbox.py` — `SolverSandboxScreen`. 13×13 range pickers (hero/villain tabs) + presets + board/pot/bet/iter controls + SOLVE (runs `RiverSolver` in a QThread) → strategy tables |
+| **Hand History Archive screen** | `app/ui/screens/hand_history.py` — `HandHistoryScreen`. Date list + paginated hands table + detail panel with per-street equity track + Gemini "analyze this hand" (`analysis_requested` Signal). DB helpers in repository.py: `get_dates_with_hands`, `get_hands_for_date`, `get_overall_archive_stats`, `_ensure_history_index` |
+| **In-game GTO assist** | `app/ui/components/gto_range_widget.py` — `GTORangeWidget.update_range(pos, stack, game_type, hero_hand)` shows a colored RAISE/CALL/FOLD badge for hero's exact hand via `gto_ranges.get_action`. Wired in tournament_simulator + play_session |
 
 ---
 
@@ -246,18 +255,41 @@ then bind a `QShortcut` in the relevant screen.
 ## 5 · Recent commits (read for context)
 
 ```
+# GTO + equity + solver session (2026-05-28) — newest first
+097123d feat(quiz): multi-scenario drills — vs RFI / vs 3-bet / Push-Fold
+501f5aa fix(gto): honest curation — defer wide ranges to heuristic, tune targets
+501bce6 feat(gto): heuristic generator → %100 spot coverage (gto_generator.py)
+06c25c3 feat: Solver Sandbox — PioSolver-style river CFR UI
+baa3e2f feat(history): equity track per street in hand detail
+a430e66 feat(quiz): equity feedback after each answer
+4c037ea feat(solver): minimal river CFR solver (river_solver.py)
+dfe921d feat(bot): hand-strength evaluator — kicker tracking + combo draws + gutshots
+5c90fb0 feat(equity): Monte Carlo equity calculator (mc_equity.py)
+e5b29dc fix(bot): recalibrate archetype profiles to new evaluator's reality
+6b0e090 fix(gto): RFI range %'leri target'a kalibre et
+dc4da01 feat: Hand History Archive — day-by-day, 200M-hand scale
+bb115f1 feat: Range Quiz trainer — preflop drill mode
+31c7d91 feat(gto): in-game hero hand → recommended action badge
+2a6ae20 feat: GTO chart system + MTT finish bug fix + bot AI realism
+# earlier
 fef7755 feat: add Tournament Analysis screen + wire into main.py
 c998140 feat(report): comprehensive tournament result screen + history tracking
 e43c544 fix(tournament): table balancing + bot pot-commitment
 243eae4 feat(tournament): integrate MTTField — real-time large-field simulation
-d6c9ffd fix: tournament player count display + remove auto AI coach per hand
 db2dbaa feat: real poker game in Spot Trainer + Drill Library with leak integration
-e405099 feat: proportional UI scaling on window resize
-de48bc4 fix: responsive layout — scroll wrappers, reduced button minimums, compact cards
 <older> feat: multi-table + per-seat archetype picker + bot AI overhaul
-        (MultiSessionTabs, FieldPicker, Karma random, mid-tournament end,
-         tournament-aware coach, hand-strength-rank bot fidelity)
 ```
+
+### GTO/equity/solver architecture (this session)
+- **Coverage strategy**: curated charts (RFI, push/fold — verified accurate)
+  + heuristic generator (everything else — principle-based, accurate aggregate %).
+  `get_action()` is the single entry point; `_is_curated()` routes.
+- **Honest lesson**: hand-curating WIDE ranges from memory produces too-tight
+  results. Trust the principled heuristic for BB-defend / vs-3bet; only
+  hand-curate tight/polarized spots (RFI, push/fold).
+- **Equity (mc_equity) + CFR (river_solver)** are pure-Python, no deps, written
+  from public-algorithm knowledge (no AGPL/GPL code reuse — only ideas).
+- **New NAV screens**: "Range Quiz", "Solver Sandbox", "Hand History Archive".
 
 ---
 
