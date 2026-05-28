@@ -1095,25 +1095,44 @@ class PlaySessionScreen(QWidget):
         to_call = hand.to_call(hero_idx)
         stack_meaningful = (hero and hero.stack >= 0.05)
 
+        # ── Canlı GTO advice (preflop EXACT/APPROX, postflop yok) ──
+        gto = self._gto_pct(hand, hero_idx, mode="cash")
+
+        def lbl(base: str, atype) -> str:
+            if gto and gto.available:
+                pct = gto.per_action().get(atype, 0.0)
+                return f"{base}   {pct:.0f}%"
+            return base
+
         if ActionType.FOLD in valid_types:
+            self.fold_btn.setText(lbl("FOLD", ActionType.FOLD))
             self.fold_btn.show()
         if ActionType.CHECK in valid_types:
+            self.check_btn.setText(lbl("CHECK", ActionType.CHECK))
             self.check_btn.show()
         if ActionType.CALL in valid_types:
-            self.call_btn.setText(f"CALL  {to_call:.1f} bb")
+            self.call_btn.setText(lbl(f"CALL  {to_call:.1f} bb", ActionType.CALL))
             self.call_btn.show()
         elif (to_call > 0 and ActionType.ALL_IN in valid_types and stack_meaningful):
             self.call_btn.setText(f"CALL ALL-IN  {hero.stack:.1f}")
             self.call_btn.show()
         if ActionType.BET in valid_types:
-            self.raise_btn.setText("BET")
+            self.raise_btn.setText(lbl("BET", ActionType.BET))
             self.raise_btn.show()
         if ActionType.RAISE in valid_types:
-            self.raise_btn.setText("RAISE")
+            self.raise_btn.setText(lbl("RAISE", ActionType.RAISE))
             self.raise_btn.show()
         if stack_meaningful and to_call < hero.stack:
-            self.allin_btn.setText(f"ALL-IN  {hero.stack:.1f}")
+            self.allin_btn.setText(lbl(f"ALL-IN  {hero.stack:.1f}", ActionType.ALL_IN))
             self.allin_btn.show()
+
+    def _gto_pct(self, hand, hero_idx, mode="cash"):
+        """Canlı GTO advice (hata güvenli)."""
+        try:
+            from app.poker.gto_live_advice import live_gto_advice
+            return live_gto_advice(hand, hero_idx, mode=mode)
+        except Exception:
+            return None
 
     def _on_complete(self):
         if not self.game or not self.game.hand_history:

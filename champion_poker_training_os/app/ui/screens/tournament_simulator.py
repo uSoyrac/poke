@@ -982,24 +982,40 @@ class TournamentSimulatorScreen(QWidget):
         hero = hand.hero
         bb = max(hand.big_blind, 1)
         stack_meaningful = (hero and hero.stack >= bb * 0.05)
+
+        # ── Canlı GTO advice (turnuva → MTT mode) ──
+        gto = None
+        try:
+            from app.poker.gto_live_advice import live_gto_advice
+            gto = live_gto_advice(hand, hero_idx, mode="MTT")
+        except Exception:
+            gto = None
+
+        def lbl(base: str, atype) -> str:
+            if gto and gto.available:
+                return f"{base}   {gto.per_action().get(atype, 0.0):.0f}%"
+            return base
+
         if ActionType.FOLD in valid_types:
+            self.fold_btn.setText(lbl("FOLD", ActionType.FOLD))
             self.fold_btn.show()
         if ActionType.CHECK in valid_types:
+            self.check_btn.setText(lbl("CHECK", ActionType.CHECK))
             self.check_btn.show()
         if ActionType.CALL in valid_types:
-            self.call_btn.setText(f"CALL  {to_call / bb:.1f} bb")
+            self.call_btn.setText(lbl(f"CALL  {to_call / bb:.1f} bb", ActionType.CALL))
             self.call_btn.show()
         elif to_call > 0 and ActionType.ALL_IN in valid_types and stack_meaningful:
             self.call_btn.setText(f"CALL ALL-IN  {hero.stack / bb:.1f} bb")
             self.call_btn.show()
         if ActionType.BET in valid_types:
-            self.raise_btn.setText("BET")
+            self.raise_btn.setText(lbl("BET", ActionType.BET))
             self.raise_btn.show()
         if ActionType.RAISE in valid_types:
-            self.raise_btn.setText("RAISE")
+            self.raise_btn.setText(lbl("RAISE", ActionType.RAISE))
             self.raise_btn.show()
         if stack_meaningful and to_call < hero.stack:
-            self.allin_btn.setText(f"ALL-IN  {hero.stack / bb:.1f} bb")
+            self.allin_btn.setText(lbl(f"ALL-IN  {hero.stack / bb:.1f} bb", ActionType.ALL_IN))
             self.allin_btn.show()
 
     def _show_gto_popup(self) -> None:
