@@ -156,11 +156,17 @@ class TexasSolverEngine:
         )
         input_file.write_text(cmds, encoding="utf-8")
 
+        # console_solver --input_file <f> --resource_dir <resources>
+        # resource_dir kritik: kart lookup tabloları orada (resources/compairer).
+        bin_dir = Path(self.binary).parent
+        resource_dir = bin_dir / "resources"
+        cmd = [self.binary, "--input_file", str(input_file)]
+        if resource_dir.exists():
+            cmd += ["--resource_dir", str(resource_dir)]
         try:
             proc = subprocess.run(
-                [self.binary, "-i", str(input_file)],
-                capture_output=True, text=True, timeout=timeout_sec,
-                cwd=str(Path(self.binary).parent),
+                cmd, capture_output=True, text=True, timeout=timeout_sec,
+                cwd=str(bin_dir),
             )
         except subprocess.TimeoutExpired:
             return TexasSolverResult(ok=False,
@@ -190,47 +196,63 @@ class TexasSolverEngine:
         )
 
     # ── OUTPUT PARSE ──────────────────────────────────────────────────
-    def _parse_strategy(self, raw: dict):
-        """TexasSolver JSON çıktısından root node stratejilerini çıkar.
+    @staticmethod
+    def _clean_action(a: str) -> str:
+        """"BET 5.000000" → "BET 5", "RAISE 17.000000" → "RAISE 17",
+        "CHECK"/"CALL"/"FOLD" → aynı."""
+        parts = a.split()
+        if len(parts) == 2:
+            try:
+                amt = float(parts[1])
+                amt_s = str(int(amt)) if amt == int(amt) else f"{amt:.1f}"
+                return f"{parts[0]} {amt_s}"
+            except ValueError:
+                return a
+        return a
 
-        TexasSolver output ağaç yapısında: her node 'strategy' içerir
-        ({actions: [...], strategy: {hand: [freq_per_action]}}).
-        Root node'un (ilk decision) stratejisini OOP olarak alırız.
-        Format sürüme göre değişebilir → esnek parse.
+    def _parse_strategy(self, raw: dict):
+        """TexasSolver JSON ağacından kök (OOP, ilk decision) stratejisini çıkar.
+
+        Gerçek format (v0.2.0):
+          node = {actions:[...], childrens:{...}, node_type:"action_node",
+                  player:0/1, strategy:{actions:[...], strategy:{hand:[freqs]}}}
+        Kök node OOP'nin ilk kararıdır. strategy.strategy[hand] = aksiyon
+        frekansları listesi.
         """
         oop: Dict[str, Dict[str, float]] = {}
         ip: Dict[str, Dict[str, float]] = {}
 
-        # Root strategy bul — yaygın anahtarlar
-        node = raw
-        # Bazı sürümler {"strategy": {...}, "childrens": {...}} kullanır
-        strat_node = self._find_first_strategy(node)
-        if strat_node:
-            actions = strat_node.get("actions", [])
-            hand_strats = strat_node.get("strategy", {})
+        root = self._find_action_node(raw)
+        if root:
+            strat = root.get("strategy", {})
+            actions = [self._clean_action(a) for a in strat.get("actions", [])]
+            hand_strats = strat.get("strategy", {})
             for hand, freqs in hand_strats.items():
                 if isinstance(freqs, list) and len(freqs) == len(actions):
                     oop[hand] = {actions[i]: round(100 * freqs[i], 1)
                                  for i in range(len(actions))}
         return oop, ip
 
-    def _find_first_strategy(self, node, depth=0):
-        """Ağaçta ilk 'strategy' + 'actions' içeren node'u bul (DFS)."""
+    def _find_action_node(self, node, depth=0):
+        """İlk action_node'u (strategy içeren) bul. Kök genelde zaten budur."""
         if depth > 6 or not isinstance(node, dict):
             return None
-        if "strategy" in node and "actions" in node:
+        if node.get("node_type") == "action_node" and "strategy" in node:
             return node
-        # childrens / children içinde ara
+        # Bazı sürümlerde kök doğrudan strategy taşır
+        if "strategy" in node and isinstance(node.get("strategy"), dict) \
+                and "strategy" in node["strategy"]:
+            return node
         for key in ("childrens", "children", "dealcards"):
             child = node.get(key)
             if isinstance(child, dict):
                 for v in child.values():
-                    found = self._find_first_strategy(v, depth + 1)
+                    found = self._find_action_node(v, depth + 1)
                     if found:
                         return found
             elif isinstance(child, list):
                 for v in child:
-                    found = self._find_first_strategy(v, depth + 1)
+                    found = self._find_action_node(v, depth + 1)
                     if found:
                         return found
         return None
