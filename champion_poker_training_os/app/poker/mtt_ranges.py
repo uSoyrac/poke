@@ -217,6 +217,133 @@ def _normalize_pos_rfi(position: str) -> str:
     return pos
 
 
+# ── ICM-ADJUSTED PUSH/FOLD ────────────────────────────────────────────
+# Bubble / final-table'da her chip kaybı her chip kazancından pahalı
+# (bubble factor > 1). Bu yüzden jam ve özellikle CALL range'leri daralır.
+# icm.py risk_premium + push_fold_range_width ICM multiplier'ı kullanır.
+
+def build_icm_push_fold(position: str, stack_bb: float,
+                        stage: str = "bubble") -> Dict[str, ActionFreq]:
+    """ICM-adjusted jam range. stage: chipEV / bubble / final table / satellite."""
+    from app.poker.icm import push_fold_range_width
+    # chipEV jam %'sini al, ICM multiplier uygula
+    chip_pct = mtt_jam_pct(position, stack_bb)
+    # push_fold_range_width ICM multiplier'ını oran olarak çıkar
+    chipev_w = push_fold_range_width(stack_bb, "chipEV")
+    icm_w = push_fold_range_width(stack_bb, stage)
+    mult = (icm_w / chipev_w) if chipev_w > 0 else 1.0
+    adj_pct = chip_pct * mult
+    return _fill_top_pct(adj_pct)
+
+
+def build_icm_call_vs_jam(stack_bb: float, stage: str = "bubble",
+                          bubble_factor_val: float = 1.5) -> Dict[str, ActionFreq]:
+    """ICM-adjusted call-vs-jam. Bubble factor yüksekse call çok daralır.
+
+    bubble_factor_val: icm.bubble_factor() çıktısı (1.0 = chipEV, 2.0 = ağır ICM).
+    Call eşiği bubble factor ile orantılı daralır.
+    """
+    chip_pct = call_vs_jam_pct(stack_bb)
+    # Bubble factor 1.0 → tam, 2.0 → ~yarı
+    bf_mult = 1.0 / max(1.0, bubble_factor_val)
+    stage_mult = {
+        "chipEV": 1.0, "bubble": 0.60, "final table": 0.70,
+        "satellite": 0.45, "PKO": 1.0,
+    }.get(stage, 0.75)
+    adj_pct = chip_pct * bf_mult * (stage_mult / 0.6 if stage != "chipEV" else 1.0)
+    adj_pct = max(2.0, min(chip_pct, adj_pct))
+    ranked = get_ranked_hands()
+    result: Dict[str, ActionFreq] = {}
+    total = 1326
+    target = total * adj_pct / 100
+    acc = 0
+    for hk in ranked:
+        c = _combo_count(hk)
+        if acc < target * 0.88:
+            result[hk] = {"raise": 0, "call": 100, "fold": 0}
+        elif acc < target:
+            result[hk] = {"raise": 0, "call": 55, "fold": 45}
+        else:
+            break
+        acc += c
+    return result
+
+
+# ── BOUNTY / PKO PUSH-FOLD & CALL ─────────────────────────────────────
+# Bounty (rakibi elersen ödül) call/jam range'i GENİŞLETİR — extra EV.
+# bounty_pct: rakibin bounty'sinin pot/stack'e oranı (0.0-1.0+).
+# Tipik PKO: bounty ≈ buyin'in yarısı → effective call threshold ~%15-25 düşer.
+
+def build_pko_call_vs_jam(stack_bb: float,
+                          bounty_ratio: float = 0.5) -> Dict[str, ActionFreq]:
+    """Bounty-aware call range. bounty_ratio = bounty_value / effective_stack.
+
+    Bounty ne kadar büyükse call o kadar genişler (rakibi elersen bounty alırsın).
+    """
+    base_pct = call_vs_jam_pct(stack_bb)
+    # Bounty her %50 oranında call range'i ~%30 genişletir
+    widen = 1.0 + bounty_ratio * 0.6
+    adj_pct = min(base_pct * widen, 60)   # cap %60
+    ranked = get_ranked_hands()
+    result: Dict[str, ActionFreq] = {}
+    total = 1326
+    target = total * adj_pct / 100
+    acc = 0
+    for hk in ranked:
+        c = _combo_count(hk)
+        if acc < target * 0.88:
+            result[hk] = {"raise": 0, "call": 100, "fold": 0}
+        elif acc < target:
+            result[hk] = {"raise": 0, "call": 55, "fold": 45}
+        else:
+            break
+        acc += c
+    return result
+
+
+def build_pko_jam(position: str, stack_bb: float,
+                  bounty_ratio: float = 0.5) -> Dict[str, ActionFreq]:
+    """Bounty-aware jam range — biraz daha geniş (bounty ele geçirme şansı)."""
+    base_pct = mtt_jam_pct(position, stack_bb)
+    widen = 1.0 + bounty_ratio * 0.25   # jam daha az genişler (zaten geniş)
+    return _fill_top_pct(min(base_pct * widen, 85))
+
+
+# ── SQUEEZE (open + caller'a karşı 3-bet) ─────────────────────────────
+# Squeeze: birisi açtı, birisi call etti, sen 3-bet ediyorsun.
+# Dead money var (caller'ın parası) ama multiway risk → daha SIKI + value-weighted.
+# Caller sayısı arttıkça squeeze daralır.
+
+def build_squeeze(position: str, stack_bb: float = 100,
+                  num_callers: int = 1) -> Dict[str, ActionFreq]:
+    """Squeeze 3-bet range. num_callers arttıkça daralır + value-weighted."""
+    # Base squeeze % — tek caller'a karşı ~%6-8, position'a göre
+    base = {"UTG": 4, "MP": 5, "CO": 6, "BTN": 8, "SB": 7, "BB": 9}.get(
+        _normalize_pos_rfi(position), 6)
+    # Her ekstra caller squeeze'i %30 daraltır
+    base *= (0.70 ** (num_callers - 1))
+    ranked = get_ranked_hands()
+    result: Dict[str, ActionFreq] = {}
+    total = 1326
+    target = total * base / 100
+    # Squeeze polarize: value (üst) pure raise + bazı bluff (A5s-A3s, suited)
+    acc = 0
+    for hk in ranked:
+        c = _combo_count(hk)
+        if acc < target * 0.80:
+            result[hk] = pure_raise()
+        elif acc < target:
+            result[hk] = mixed(70)
+        else:
+            break
+        acc += c
+    # Polarized bluffs (blocker + playability)
+    for bluff in ("A5s", "A4s", "A3s", "KQs", "76s"):
+        if bluff not in result:
+            result[bluff] = mixed(35)
+    return result
+
+
 # ── UNIFIED MTT GET_ACTION ────────────────────────────────────────────
 
 def mtt_get_action(
@@ -231,6 +358,12 @@ def mtt_get_action(
         return build_mtt_push_fold(position, stack_depth).get(hand_key, pure_fold())
     if scenario == "Call vs Jam":
         return build_call_vs_jam(stack_depth).get(hand_key, pure_fold())
+    if scenario == "ICM Push/Fold":
+        return build_icm_push_fold(position, stack_depth, "bubble").get(hand_key, pure_fold())
+    if scenario == "PKO Jam":
+        return build_pko_jam(position, stack_depth, 0.5).get(hand_key, pure_fold())
+    if scenario == "Squeeze":
+        return build_squeeze(position, stack_depth, 1).get(hand_key, pure_fold())
     if scenario == "RFI":
         return build_mtt_rfi(position, stack_depth).get(hand_key, pure_fold())
     # vs RFI / vs 3-bet → cash heuristic'e düş (MTT ayarı stack mult ile zaten)
