@@ -51,6 +51,7 @@ class QuizSpot:
     scenario: str
     hand: str
     action: dict   # {"raise": pct, "call": pct, "fold": pct}
+    vs_position: str | None = None   # vs-RFI / vs-3bet için opener pozisyonu
 
     @property
     def correct_action(self) -> str:
@@ -248,6 +249,15 @@ class QuizTrainerScreen(QWidget):
             lambda t: self._set_filter("stack_depth", t)
         )
         h.addWidget(self.stack_filter)
+
+        h.addWidget(self._chip_label("Scenario"))
+        self.scen_filter = QComboBox()
+        self.scen_filter.addItems(["All", "RFI", "vs RFI", "vs 3-bet", "Push/Fold"])
+        self.scen_filter.setCurrentText("RFI")   # _mode_filter default ile senkron
+        self.scen_filter.currentTextChanged.connect(
+            lambda t: self._set_filter("scenario", t)
+        )
+        h.addWidget(self.scen_filter)
 
         h.addStretch(1)
 
@@ -502,7 +512,11 @@ class QuizTrainerScreen(QWidget):
         # UI güncelle
         self.ctx_pos._value_label.setText(spot.position)
         self.ctx_stack._value_label.setText(f"{spot.stack_depth}bb")
-        self.ctx_scenario._value_label.setText(spot.scenario)
+        # Scenario chip — vs_position varsa göster (örn "vs RFI (UTG)")
+        scen_text = spot.scenario
+        if spot.vs_position:
+            scen_text = f"{spot.scenario} ({spot.vs_position})"
+        self.ctx_scenario._value_label.setText(scen_text)
         self.hand_display.set_hand(spot.hand)
         self.hand_key_label.setText(spot.hand)
 
@@ -515,26 +529,56 @@ class QuizTrainerScreen(QWidget):
         self._update_timer_ui()
         self._timer.start()
 
+    # Pozisyon sıralaması (vs_position seçimi için — opener defender'dan önce)
+    _POS_ORDER = ["UTG", "MP", "CO", "BTN", "SB", "BB"]
+
     def _random_spot(self) -> QuizSpot:
-        """Filtre'lere göre random spot oluştur."""
-        # Position seç
-        if self._mode_filter["position"] == "All":
-            pos = random.choice(["UTG", "MP", "CO", "BTN", "SB"])
+        """Filtre'lere göre random spot oluştur (senaryo-farkında)."""
+        # Scenario seç (All ise ağırlıklı random)
+        scen_filter = self._mode_filter["scenario"]
+        if scen_filter == "All":
+            scen = random.choices(
+                ["RFI", "vs RFI", "vs 3-bet", "Push/Fold"],
+                weights=[45, 30, 15, 10],
+            )[0]
         else:
-            pos = self._mode_filter["position"]
-        # Stack
-        if self._mode_filter["stack_depth"] == "All":
-            depth = random.choice([100, 100, 100, 60, 40])  # 100bb ağırlıklı
+            scen = scen_filter
+
+        # Stack — Push/Fold otomatik kısa stack
+        if scen == "Push/Fold":
+            depth = random.choice([10, 12, 15, 20])
+        elif self._mode_filter["stack_depth"] == "All":
+            depth = random.choice([100, 100, 100, 60, 40])
         else:
             depth = int(self._mode_filter["stack_depth"].replace("bb", ""))
-        # Scenario
-        scen = self._mode_filter["scenario"]
-        # Hand — 169 elden weighted random:
-        # Premium ve mixed'i daha sık göster (eğitim değeri yüksek)
-        all_hands = self._all_hand_keys()
-        hand = random.choice(all_hands)
-        action = get_action(pos, hand, scen, depth, "cash")
-        return QuizSpot(pos, depth, scen, hand, action)
+
+        # Position + vs_position senaryoya göre
+        pos_filter = self._mode_filter["position"]
+        vs_pos = None
+        if scen == "RFI":
+            pos = (pos_filter if pos_filter != "All"
+                   else random.choice(["UTG", "MP", "CO", "BTN", "SB"]))
+        elif scen == "vs RFI":
+            # Defender pozisyonu + ondan önceki bir opener
+            pos = (pos_filter if pos_filter != "All"
+                   else random.choice(["BB", "SB", "BTN", "CO"]))
+            pos_idx = self._POS_ORDER.index(pos) if pos in self._POS_ORDER else 5
+            openers = self._POS_ORDER[:pos_idx] or ["BTN"]
+            vs_pos = random.choice(openers)
+        elif scen == "vs 3-bet":
+            # Opener (erken-orta) + 3-bettor (sonraki pozisyon)
+            pos = (pos_filter if pos_filter != "All"
+                   else random.choice(["UTG", "MP", "CO", "BTN"]))
+            pos_idx = self._POS_ORDER.index(pos) if pos in self._POS_ORDER else 0
+            threebettors = self._POS_ORDER[pos_idx + 1:] or ["BB"]
+            vs_pos = random.choice(threebettors)
+        else:  # Push/Fold
+            pos = (pos_filter if pos_filter != "All"
+                   else random.choice(["UTG", "MP", "CO", "BTN", "SB"]))
+
+        hand = random.choice(self._all_hand_keys())
+        action = get_action(pos, hand, scen, depth, "cash", vs_position=vs_pos)
+        return QuizSpot(pos, depth, scen, hand, action, vs_position=vs_pos)
 
     @staticmethod
     def _all_hand_keys() -> list:
