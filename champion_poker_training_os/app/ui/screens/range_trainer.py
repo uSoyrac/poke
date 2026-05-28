@@ -72,12 +72,18 @@ class GTORangeChartScreen(QWidget):
         root.setContentsMargins(18, 18, 18, 18)
         root.setSpacing(12)
 
-        # Başlık
+        # Başlık + accuracy rozeti
+        title_row = QHBoxLayout()
         title = QLabel("GTO Preflop Range Chart")
         title.setObjectName("Title")
+        title_row.addWidget(title)
+        title_row.addStretch(1)
+        self.acc_badge = QLabel("")
+        self.acc_badge.setToolTip("")
+        title_row.addWidget(self.acc_badge)
+        root.addLayout(title_row)
         subtitle = QLabel("Solver-derived ranges  ·  Upswing / GTOWizard public konsensus")
         subtitle.setObjectName("Muted")
-        root.addWidget(title)
         root.addWidget(subtitle)
 
         # Üst kontrol bar
@@ -107,7 +113,8 @@ class GTORangeChartScreen(QWidget):
 
         root.addWidget(splitter, 1)
 
-        # İlk hand seçimi
+        # İlk badge + hand seçimi
+        self._update_accuracy_badge()
         self._on_hand_clicked("AA")
 
     # ── KONTROLLER ────────────────────────────────────────────────────
@@ -205,9 +212,28 @@ class GTORangeChartScreen(QWidget):
         self.range_grid.set_config(
             self._position, self._scenario, self._stack_depth, self._mode
         )
+        self._update_accuracy_badge()
         # Detay panelini de güncelle
         if hasattr(self, "_selected_hand"):
             self._on_hand_clicked(self._selected_hand)
+
+    def _update_accuracy_badge(self) -> None:
+        """Mevcut spot'un accuracy tier'ına göre rozeti güncelle."""
+        try:
+            from app.poker.gto_provenance import range_provenance
+            tier = range_provenance(
+                self._scenario, self._position, self._stack_depth, self._mode
+            )
+        except Exception:
+            self.acc_badge.setText("")
+            return
+        self.acc_badge.setText(f"{tier.icon}  {tier.label}")
+        self.acc_badge.setStyleSheet(
+            f"color: {tier.color}; font-size: 12px; font-weight: 700; "
+            f"padding: 4px 12px; border: 1px solid {tier.color}; "
+            f"border-radius: 6px;"
+        )
+        self.acc_badge.setToolTip(tier.explanation)
 
     # ── DETAIL PANEL ──────────────────────────────────────────────────
 
