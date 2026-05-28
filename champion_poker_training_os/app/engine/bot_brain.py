@@ -430,77 +430,124 @@ class BotBrain:
             fold_freq = self.profile.fold_to_cbet / 100.0   # 0..1
             call_down_boost = self.profile.call_down * 0.30  # stations call light
 
-            # Strong made hands → raise or call (never fold).
+            # ── STRONG MADE HANDS (≥ 0.78) ─────────────────────────────────────
+            # Raise frequently (scale with aggression). Never fold.
             # Aggression factor (bets+raises)/calls is driven by `agg`:
             #   - Nit (1.5) raises ~27% of strong hands → mostly calls
-            #   - Maniac (4.6) raises ~83% → almost always raises
+            #   - Maniac (4.6) raises ~84% → almost always raises
             if adj_strength >= 0.78:
                 raise_freq = max(0.05, min(0.92, agg / 5.5))
                 if ActionType.RAISE in valid_types and random.random() < raise_freq:
-                    return self._raise_size(state, valid, polarized=adj_strength > 0.85)
+                    return self._raise_size(state, valid, polarized=adj_strength > 0.85,
+                                            strength=adj_strength)
                 if ActionType.CALL in valid_types:
                     return ActionType.CALL, to_call
                 return ActionType.ALL_IN, player.stack
 
-            # Top pair / overpair / second pair top kicker → mostly call
-            if adj_strength >= 0.55:
+            # ── MEDIUM MADE HANDS (0.48–0.78): top pair / overpair / high underpair ──
+            # Threshold lowered to 0.48 so high underpairs (KK/QQ/JJ, now ~0.50-0.58)
+            # reach this path rather than folding at the full marginal-fold rate.
+            # Tight archetypes fold some medium hands; aggressive archetypes raise thin value.
+            if adj_strength >= 0.48:
                 bet_size_pot = to_call / pot
-                if bet_size_pot > 1.2 and adj_strength < 0.70:
-                    # Big bet — only stations / call-down profiles continue
-                    if (random.random() < (self.profile.call_down * 0.7 + (1 - fold_freq) * 0.3)
-                            and ActionType.CALL in valid_types):
-                        return ActionType.CALL, to_call
-                    return ActionType.FOLD, 0.0
+                # strength_norm: 0 at the bottom of medium band (0.48), 1 at 0.78
+                strength_norm = min(1.0, (adj_strength - 0.48) / 0.30)
+
+                if bet_size_pot > 1.0 and adj_strength < 0.72:
+                    # Big overbet (>1x pot) — blend call_down willingness with fold_freq.
+                    # Fish (call_down=0.62): call_prob=0.649 → ~35% fold ✓
+                    # Reg  (call_down=0.36): call_prob=0.432 → ~57% fold ✓
+                    # Rock (call_down=0.15): call_prob=0.321 → ~68% fold ✓
+                    call_prob = (self.profile.call_down * 0.70
+                                 + (1.0 - fold_freq) * 0.30)
+                    call_prob = max(0.05, min(0.92, call_prob))
+                    if random.random() > call_prob and ActionType.FOLD in valid_types:
+                        return ActionType.FOLD, 0.0
+                else:
+                    # Normal-sized bet — fold scales with archetype tightness and
+                    # inversely with strength inside the medium band.
+                    # Coefficient 1.20 (reduced from 1.50) keeps FCB in range
+                    # for mid-tight archetypes (TAG fold_freq=0.55, Solver 0.52).
+                    medium_fold = fold_freq * 1.20 * (1.0 - strength_norm)
+                    medium_fold = max(0.0, min(0.88, medium_fold))
+                    if random.random() < medium_fold and ActionType.FOLD in valid_types:
+                        return ActionType.FOLD, 0.0
+
+                # All archetypes raise some medium hands (thin value / float raise).
+                # Rate scales with aggression: Rock (1.0) → 0%, Reg (2.7) → 15%,
+                # LAG (3.6) → 36%, Maniac (4.6) → 58%.
+                medium_raise_chance = max(0.0, (agg - 2.0) * 0.22)
+                if (ActionType.RAISE in valid_types
+                        and state.street != Street.RIVER
+                        and random.random() < medium_raise_chance):
+                    return self._raise_size(state, valid, polarized=False,
+                                            strength=adj_strength)
                 if ActionType.CALL in valid_types:
                     return ActionType.CALL, to_call
                 return ActionType.FOLD, 0.0
 
-            # Draws — semi-bluff raise (low freq) or call (when getting odds)
+            # ── DRAWS — semi-bluff raise (low freq) or call (getting odds) ─────
             if draws > 0 and draws > need_equity - 0.05:
                 if (state.street != Street.RIVER
                         and ActionType.RAISE in valid_types
                         and random.random() < (agg / 10)):
-                    return self._raise_size(state, valid, polarized=False)
+                    return self._raise_size(state, valid, polarized=False,
+                                            strength=adj_strength)
                 if ActionType.CALL in valid_types and random.random() < (1 - fold_freq * 0.5):
                     return ActionType.CALL, to_call
 
-            # Marginal / weak hands — profile.fold_to_cbet is the primary driver.
-            # We overshoot the per-hand fold rate because strong & medium hands
-            # NEVER fold (handled above), so realised fold_to_cbet ≈ marginal_fold
-            # × (frac of flops where hand is marginal). Empirically that frac
-            # is ~0.55, so multiply fold_freq by ~1.8 to land near the target.
-            marginal_fold = fold_freq * 1.80 - adj_strength * 0.35 \
-                            - self.profile.call_down * 0.15
+            # ── MARGINAL / WEAK HANDS ────────────────────────────────────────────
+            # fold_to_cbet is the primary driver.
+            # Multiplier 1.50 gives tight bots (Rock/Nit/Bubble Nit) a high
+            # marginal-fold rate that, combined with medium-hand folds, produces
+            # an overall FCB close to their declared target.
+            # Cap at 0.97 (not 1.0) so there's always a tiny call/raise chance.
+            marginal_fold = (fold_freq * 1.50
+                             - adj_strength * 0.20
+                             - self.profile.call_down * 0.12)
             marginal_fold = max(0.04, min(0.97, marginal_fold))
             if random.random() < marginal_fold:
-                return ActionType.FOLD, 0.0 if ActionType.FOLD in valid_types else (ActionType.CHECK, 0.0)
-            # High-aggression profiles bluff-raise some marginal hands instead
-            # of calling — this is what keeps Maniac/LAG AF up at 3-4.
-            if (agg > 3.2 and ActionType.RAISE in valid_types
+                if ActionType.FOLD in valid_types:
+                    return ActionType.FOLD, 0.0
+                return ActionType.CHECK, 0.0
+            # High-aggression bots bluff-raise some marginal hands (Maniac / LAG AF).
+            # Increased multiplier (0.28 vs old 0.18) and lowered threshold (2.8 vs 3.2)
+            # so the raise rate is: LAG(3.6)→22%, AggFish(3.9)→30%, Maniac(4.6)→50%.
+            if (agg > 2.8 and ActionType.RAISE in valid_types
                     and state.street != Street.RIVER
-                    and random.random() < (agg - 3.0) * 0.18):
-                return self._raise_size(state, valid, polarized=False)
+                    and random.random() < (agg - 2.8) * 0.28):
+                return self._raise_size(state, valid, polarized=False,
+                                        strength=adj_strength)
             if ActionType.CALL in valid_types:
                 # Don't call massive overbets without showdown value
                 if to_call / pot > 1.6 and adj_strength < 0.40:
                     return ActionType.FOLD, 0.0
                 return ActionType.CALL, to_call
-            return ActionType.FOLD, 0.0 if ActionType.FOLD in valid_types else (ActionType.CHECK, 0.0)
+            if ActionType.FOLD in valid_types:
+                return ActionType.FOLD, 0.0
+            return ActionType.CHECK, 0.0
 
         # ── NO BET — CHECK OR BET ──
         # C-bet decision (aggressor on flop)
         if state.street == Street.FLOP and is_aggressor:
-            # C-bet frequency: depends on board texture, range advantage, archetype
-            cbet_freq = 0.55  # baseline
-            if board_features["high_card"] >= 12:  # A or K high
-                cbet_freq += 0.15
-            if board_features["paired"]:
-                cbet_freq += 0.20  # Range advantage on paired boards
+            # C-bet frequency scales with archetype aggression as the primary driver.
+            # Passive bots (Rock agg=1.0) c-bet ~25% so they protect their
+            # checking range; Maniac (agg=4.6) fires ~80%+ on most boards.
+            agg_scale = max(0.20, min(1.20, agg / 2.5))
+            cbet_freq = 0.50 * agg_scale
+            if board_features["high_card"] >= 12:  # A or K high → PF-raiser range advantage
+                cbet_freq += 0.13
+            if board_features["paired"]:            # Paired board → raise range advantage
+                cbet_freq += 0.18
             if board_features["monotone"]:
-                cbet_freq -= 0.20
+                cbet_freq -= 0.18
             if board_features["wet"] and adj_strength < 0.5:
                 cbet_freq -= 0.10
-            cbet_freq = max(0.15, min(0.95, cbet_freq + (agg - 2.5) * 0.08))
+            # Passive archetypes (agg ≤ 1.5): almost never c-bet bluff —
+            # they need a real hand to fire, protecting their checking range.
+            if agg <= 1.5 and adj_strength < 0.55:
+                cbet_freq *= 0.28
+            cbet_freq = max(0.08, min(0.95, cbet_freq))
 
             if random.random() < cbet_freq:
                 # Sizing: small on dry boards, big on wet/polarized
@@ -516,9 +563,11 @@ class BotBrain:
 
             return ActionType.CHECK, 0.0
 
-        # Strong made hand — bet for value (frequency scales with aggression)
+        # Strong made hand — bet for value (frequency scales with aggression).
+        # Removed the 0.20 floor: Rock (agg=1.0) → 15%, Maniac (4.6) → 70%.
+        # Previously the floor caused Rock/Nit to bet 43%+ even as passive bots.
         if adj_strength >= 0.72:
-            value_bet_freq = max(0.20, min(0.95, 0.30 + agg / 7.5))
+            value_bet_freq = min(0.95, max(0.05, agg / 5.0 * 0.76))
             if ActionType.BET in valid_types and random.random() < value_bet_freq:
                 size_pct = 0.66 if adj_strength < 0.85 else 0.85
                 if random.random() < self.profile.overbet_freq:
@@ -567,13 +616,28 @@ class BotBrain:
         return round(max(bet_info[1], min(bet_info[2], target)), 2)
 
     def _raise_size(self, state: HandState, valid: List[Tuple[ActionType, float, float]],
-                    polarized: bool) -> Tuple[ActionType, float]:
+                    polarized: bool, strength: float = 0.5) -> Tuple[ActionType, float]:
+        """Return the best raise/bet action.
+
+        If RAISE is not in the valid set (e.g. we already face a re-raise and
+        only CALL / ALL_IN / FOLD remain), we shove ONLY when:
+          - hand is strong (strength ≥ 0.72), OR
+          - stack-to-pot is tiny (< 1.0) so calling is nearly the same as jamming.
+        Otherwise we prefer CALL — the bot must never go all-in with 76s just
+        because the raise button is unavailable.
+        """
         raise_info = next((v for v in valid if v[0] == ActionType.RAISE), None)
         if not raise_info:
             allin = next((v for v in valid if v[0] == ActionType.ALL_IN), None)
             if allin:
-                return ActionType.ALL_IN, allin[1]
-            return ActionType.CALL, state.current_bet
+                spr = allin[1] / max(state.pot, 0.01)
+                if strength >= 0.72 or spr < 1.0:
+                    return ActionType.ALL_IN, allin[1]
+            # Prefer call over a reckless all-in
+            call_info = next((v for v in valid if v[0] == ActionType.CALL), None)
+            if call_info:
+                return ActionType.CALL, call_info[1]
+            return ActionType.CHECK, 0.0
         # Raise amount = min_raise * factor (polarized = bigger)
         factor = 1.6 if polarized else 1.25
         amount = max(raise_info[1], min(raise_info[2], round(raise_info[1] * factor, 2)))
@@ -668,7 +732,10 @@ class BotBrain:
                 strength = 0.35
                 label = "middle pair"
         elif is_pair:
-            strength = 0.30
+            # Scale underpair strength by pair rank so KK on A-high doesn't fold like 22.
+            # 22 → 0.30, TT → 0.50, KK → 0.58 (approaches medium-hand zone)
+            pair_val = v1  # v1 == v2 for a pair
+            strength = 0.30 + (pair_val - 2) / 11 * 0.28
             label = "underpair"
 
         # Draw equity (rough outs / runners)

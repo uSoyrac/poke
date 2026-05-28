@@ -1218,7 +1218,24 @@ class TournamentSimulatorScreen(QWidget):
                 1 for p in self.tournament.game.players if not p.is_eliminated
             )
             self.mtt_field.update_hero_table(n_alive)
-            self.mtt_field.tick(1)
+            # Capture hero's MTT finish position the moment they bust —
+            # before tick() runs (which would shrink the field artificially).
+            if (self.tournament.hero_busted
+                    and self.mtt_field.field_size > 9
+                    and not getattr(self.tournament.state, "_mtt_finish_locked", False)):
+                hero_alive_count = self.mtt_field.players_remaining
+                # +1 because players_remaining excludes hero (just busted)
+                self.tournament.state.finish_position = hero_alive_count + 1
+                self.tournament.state.prize_won = (
+                    self.mtt_field.prize_for_place(hero_alive_count + 1)
+                )
+                # Lock so we don't keep recomputing on subsequent hand_completes
+                self.tournament.state._mtt_finish_locked = True
+            else:
+                # Only tick the bg field when hero is still alive (eliminations
+                # after hero busts shouldn't compress hero's recorded finish).
+                if not self.tournament.hero_busted:
+                    self.mtt_field.tick(1)
             self._refresh_field_strip()
 
         # Table balancing — if hero's table has run low on opponents but the
@@ -1389,6 +1406,26 @@ class TournamentSimulatorScreen(QWidget):
         # Real field/prize from MTTField when active
         field_size = self.mtt_field.field_size  if self.mtt_field else config.field_size
         prize_pool = self.mtt_field.prize_pool  if self.mtt_field else config.prize_pool
+
+        # ── MTT FIELD CORRECTION ──────────────────────────────────────────
+        # tournament_runner sets finish_position using TABLE players_left + 1
+        # (correct for single-table). For multi-table tournaments this is
+        # wrong: e.g. busting with 5 left at your table while 168 are still
+        # alive in the field → real finish is 169th, not 6th.
+        # Override with field-level position + prize when MTTField is active.
+        if self.mtt_field and self.mtt_field.field_size > 9 and self.tournament.hero_busted:
+            field_finish, field_prize = self.mtt_field.hero_finish()
+            # hero_finish() returns alive count (excluding hero) → add 1 for
+            # hero's actual finishing place
+            field_finish = max(1, field_finish + 1)
+            state.finish_position = field_finish
+            state.prize_won = field_prize
+
+        # Winners (hero is last one standing) — also recompute prize from
+        # the MTT field's payout table so 1st place actually pays out
+        if self.mtt_field and self.mtt_field.field_size > 9 and not self.tournament.hero_busted \
+                and state.finish_position == 1:
+            state.prize_won = self.mtt_field.prize_for_place(1)
 
         finish   = state.finish_position or field_size
         prize    = state.prize_won
