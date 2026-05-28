@@ -335,7 +335,33 @@ class TournamentSimulatorScreen(QWidget):
         QShortcut(QKeySequence("A"), self, activated=lambda: self._key_action("A"))
         QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self._end_and_restart)
         self._deal_next_hand()
-        # AI coach fires only on user request — no auto briefing on start.
+        # Turnuva başında bir kerelik açılış briefing'i (strateji + ICM landmark).
+        self._emit_opening_briefing(config)
+
+    def _emit_opening_briefing(self, config) -> None:
+        """Turnuva başlarken bir kerelik açılış briefing prompt'u yayınla.
+
+        tournament_advice_requested sinyali main.py'de Gemini'ye yönlenir.
+        Prompt buy-in + structure + Hero range + ICM landmark içerir.
+        """
+        rng = config.hero_range_filter or "Tüm Eller (GTO Default)"
+        mtt_n = (self.field_size_combo.currentData()
+                 if hasattr(self, "field_size_combo") else config.field_size)
+        prompt = (
+            f"[TURNUVA AÇILIŞ BRIEFING]\n"
+            f"Event: {config.name} · Structure: {config.structure} · "
+            f"Buy-in: ${config.buyin:.0f} · Field: {mtt_n} oyuncu · "
+            f"Başlangıç: {config.starting_chips} chip\n"
+            f"Hero range filtresi: {rng}\n\n"
+            f"Bu turnuvaya başlarken kısa bir strateji brifingi ver (6-8 madde): "
+            f"erken/orta/geç aşama planı, stack derinliğine göre yaklaşım, "
+            f"ICM landmark'ları (bubble, pay jump, final table), hangi rakip "
+            f"tiplerini hedeflemeli, nelerden kaçınmalı. Türkçe, net, maddeli."
+        )
+        try:
+            self.tournament_advice_requested.emit(prompt)
+        except Exception:
+            pass
 
     def _end_and_restart(self) -> None:
         """Abort the running tournament and return to the setup screen.
