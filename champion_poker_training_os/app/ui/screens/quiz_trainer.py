@@ -635,6 +635,14 @@ class QuizTrainerScreen(QWidget):
                 freq_str.append(f"<b>{label} %{pct}</b>")
         freq_html = "  ·  ".join(freq_str)
 
+        # ── EQUITY FEEDBACK (Monte Carlo, ~200ms) ──────────────────────
+        # Hero hand'in villain'in defend range'ine karşı preflop equity'sini hesapla
+        equity_html = ""
+        try:
+            equity_html = self._compute_equity_html(spot)
+        except Exception:
+            equity_html = ""
+
         if timed_out:
             head = f"<span style='color:{COLOR_BAD}; font-size:18px;'>⏱  SÜRE DOLDU</span>"
             note = (
@@ -663,7 +671,64 @@ class QuizTrainerScreen(QWidget):
                 f"Senin seçtiğin: <b>{user_action.upper()}</b>"
             )
 
-        return f"{head}<br><br>{freq_html}<br><br><span style='color:{COLOR_MUTED};'>{note}</span>"
+        return (f"{head}<br><br>{freq_html}<br><br>"
+                f"<span style='color:{COLOR_MUTED};'>{note}</span>"
+                f"{equity_html}")
+
+    def _compute_equity_html(self, spot: QuizSpot) -> str:
+        """Hero hand'in defending opponent'a karşı equity'sini hesapla.
+
+        Heuristic opponent range (preflop, RFI scenario):
+          - Hero BTN open ediyor → varsayılan villain = BB defend range
+          - Hero UTG/MP/CO RFI → villain = "average call+3-bet" range
+            (top 20% pool — yaklaşık)
+          - Hero SB RFI → villain = BB defend range
+
+        2000 iter ≈ 200ms. Bloklayıcı ama küçük.
+        """
+        from app.poker.mc_equity import (
+            equity_hand_vs_range, expand_hand_key, gto_range_for,
+        )
+
+        if spot.scenario != "RFI":
+            return ""   # TODO: vs RFI / vs 3-bet için ayrı analiz
+
+        # Hero combo seç (her hand key 4-12 combo; randevu için ilki yeterli)
+        combos = expand_hand_key(spot.hand)
+        if not combos:
+            return ""
+        hero_combo = combos[0]
+        hero_str = f"{hero_combo[0].rank}{hero_combo[0].suit}{hero_combo[1].rank}{hero_combo[1].suit}"
+
+        # Villain defending range belirle
+        if spot.position == "BTN":
+            villain_range = gto_range_for("BB", "vs RFI", threshold_pct=10)
+            villain_label = "BB defend range"
+        elif spot.position == "SB":
+            villain_range = gto_range_for("BB", "vs RFI", threshold_pct=10)
+            villain_label = "BB defend range"
+        else:
+            # UTG/MP/CO → mixed villain (use BB defend as proxy for "called")
+            villain_range = gto_range_for("BB", "vs RFI", threshold_pct=10)
+            villain_label = "average defend range"
+
+        if not villain_range:
+            # Fallback: top ~30% of hands
+            villain_range = ["AA", "KK", "QQ", "JJ", "TT", "99", "88",
+                             "AKs", "AQs", "AJs", "ATs", "KQs", "KJs",
+                             "AKo", "AQo", "AJo", "KQo"]
+            villain_label = "premium defending range"
+
+        # Monte Carlo — 2K iter ≈ 200ms (UI'ye block etse de tolerable)
+        result = equity_hand_vs_range(hero_str, villain_range, iterations=2000)
+        eq = result.a_equity
+        color = (COLOR_GOOD if eq >= 50 else
+                 "#F59E0B" if eq >= 40 else COLOR_BAD)
+        return (f"<br><br>"
+                f"<span style='color:{COLOR_MUTED};'>📊  Equity:</span>  "
+                f"<span style='color:{color}; font-weight:700;'>"
+                f"{eq:.1f}%</span>  "
+                f"<span style='color:{COLOR_MUTED};'>vs {villain_label}</span>")
 
     def _refresh_stats_panel(self) -> None:
         # Accuracy
