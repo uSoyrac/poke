@@ -66,7 +66,10 @@ sidebar nav.
 | **MTT Trainer screen** | `app/ui/screens/mtt_trainer.py` — `MTTTrainerScreen`. Mode 1: Push/Fold Drill (random spot + Nash compare + countdown + per-stack stats). Mode 2: Stack Explorer (13×13 range grid; position × 10-200bb × Scenario: Auto/ICM Bubble/ICM FT/Satellite/PKO/Squeeze) |
 | **ICM/PKO/Squeeze ranges** | `app/poker/mtt_ranges.py` — `build_icm_push_fold(pos, stack, stage)` (jam tightens under ICM), `build_icm_call_vs_jam(stack, stage, bubble_factor)`, `build_pko_jam/call_vs_jam(.., bounty_ratio)` (widens), `build_squeeze(pos, stack, num_callers)` (polarized). Uses `app/poker/icm.py` (Malmuth-Harville, risk_premium, bubble_factor, bounty_ev). mtt_get_action scenarios: "ICM Push/Fold", "PKO Jam", "Squeeze" |
 | **Accuracy provenance** | `app/poker/gto_provenance.py` — `range_provenance(scenario, pos, stack, mode)` → tier (EXACT ✅ / APPROX 🟡 / CONCEPT 🟠 / GAP ❌). GTO Chart shows a badge so the user ALWAYS knows what they're learning. **Honest map**: curated RFI + push/fold Nash + equity + ICM = EXACT; heuristic vs-RFI/vs-3bet/MTT-depth = APPROX; river solver = CONCEPT; full postflop multiway = GAP |
-| **Multi-street solver** | `app/poker/multistreet_solver.py` — `MultiBetRiverSolver` (EXACT: CHECK/BET_SMALL 33%/BET_BIG 75%, river is single node so multi-size is exactly solvable; big=polarized, small=thin-value verified). `solve_turn` (CONCEPT: turn bet/check with river-equity rollout, ~14s, experimental). Full nested multi-street CFR (PioSolver-grade) remains the frontier |
+| **Multi-street solver** | `app/poker/multistreet_solver.py` — `MultiBetRiverSolver` (EXACT: CHECK/BET_SMALL 33%/BET_BIG 75%, river is single node so multi-size is exactly solvable; big=polarized, small=thin-value verified). `solve_turn` (CONCEPT: turn bet/check with river-equity rollout) |
+| **Nested turn+river CFR** | `app/poker/nested_solver.py` — `NestedTurnRiverSolver`: turn bet/check → villain → river DEALT (real chance node, full enumeration + card removal) → river subtree fully solved. EXACT heads-up. Polarized structure verified (KK bet, QQ check, air bluff). Slow (~29s per-combo). Critical bugs fixed: zero-sum payoff (each invests P/2) + vanilla CFR updates BOTH players each iter |
+| **Vectorized solver (numpy)** | `app/poker/vector_solver.py` — `VectorRiverSolver`: showdown = matrix product `W @ reach` (W = signed showdown matrix, collision-masked). ~27x faster than per-combo (3000 iter / 140ms). Solver Sandbox's built-in engine uses this (×10 iters, RiverSolver fallback if numpy missing). numpy>=1.24 dep. Same vectorization extends to turn/flop chance nodes |
+| **TexasSolver adapter** | `app/poker/texassolver_adapter.py` — arms-length subprocess to the external open-source TexasSolver (AGPL, beats PioSolver). `find_texassolver_binary()` (TEXASSOLVER_PATH env / common paths / PATH). `TexasSolverEngine.solve()` writes console command file → subprocess → parse JSON. **NOT bundled** (AGPL viral → user installs binary themselves; we only invoke = mere aggregation). Solver Sandbox engine toggle: "Built-in CFR 🟠" / "TexasSolver ✅" (when installed). Console command/JSON format may need version-specific tweaks in `_build_input_commands`/`_parse_strategy` |
 
 ---
 
@@ -260,7 +263,12 @@ then bind a `QShortcut` in the relevant screen.
 ## 5 · Recent commits (read for context)
 
 ```
-# Full GTO completeness (2026-05-28) — newest first
+# Solver speed + external engine (2026-05-28) — newest first
+7c31298 perf(solver): Solver Sandbox built-in engine → vectorized (numpy)
+7c5d841 feat(solver): vectorized river CFR (numpy) — ~27x hız
+a87b0fb feat(solver): TexasSolver integration — arms-length subprocess (EXACT)
+dabd388 feat(solver): nested turn+river CFR — chance nodes, EXACT heads-up
+# Full GTO completeness (2026-05-28)
 4ccc45b feat(solver): multi-bet-size river (EXACT) + turn rollout (CONCEPT)
 b0a1052 feat(mtt): ICM/PKO/Squeeze scenarios wired into Stack Explorer
 56bddd7 feat(mtt): ICM + squeeze + bounty range engines
