@@ -39,6 +39,7 @@ from app.ui.screens.postflop_trainer import PostflopTrainerScreen
 from app.ui.screens.range_trainer import RangeTrainerScreen
 from app.ui.screens.quiz_trainer import QuizTrainerScreen
 from app.ui.screens.solver_sandbox import SolverSandboxScreen
+from app.ui.screens.mtt_trainer import MTTTrainerScreen
 from app.ui.screens.reports import ReportsScreen
 from app.ui.screens.river_trainer import RiverTrainerScreen
 from app.ui.screens.settings import SettingsScreen
@@ -91,6 +92,7 @@ NAV_ITEMS = [
     "Preflop Range Trainer",
     "Range Quiz",
     "Solver Sandbox",
+    "MTT Trainer",
     "Postflop Trainer",
     "River Decision Trainer",
     "Math Lab",
@@ -116,6 +118,7 @@ RESTRICTED_WHEN_LOCKED = {
     "Preflop Range Trainer",
     "Range Quiz",
     "Solver Sandbox",
+    "MTT Trainer",
     "Postflop Trainer",
     "River Decision Trainer",
     "Math Lab",
@@ -273,6 +276,7 @@ class MainWindow(QMainWindow):
             "Preflop Range Trainer": RangeTrainerScreen,
             "Range Quiz": QuizTrainerScreen,
             "Solver Sandbox": SolverSandboxScreen,
+            "MTT Trainer": MTTTrainerScreen,
             "Postflop Trainer": PostflopTrainerScreen,
             "River Decision Trainer": RiverTrainerScreen,
             "Math Lab": MathLabScreen,
