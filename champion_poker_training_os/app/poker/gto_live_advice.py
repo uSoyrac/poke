@@ -68,6 +68,105 @@ def _norm_pos(pos: str) -> str:
     return _POS_MAP.get((pos or "").upper(), "CO")
 
 
+# Postflop equity cache — (hand_key, board_code, to_call_bucket) → advice
+_PF_CACHE: Dict[tuple, "LiveAdvice"] = {}
+
+
+def _villain_continuing_range(n_active: int) -> list:
+    """Postflop villain'in devam ettiği makul range (top-X% playability)."""
+    from app.poker.gto_generator import get_ranked_hands
+    ranked = get_ranked_hands()
+    # Heads-up postflop'ta villain ~top %55, multiway daha sıkı
+    pct = 55 if n_active <= 2 else (42 if n_active == 3 else 32)
+    target = 1326 * pct / 100
+    out, acc = [], 0
+    for hk in ranked:
+        c = 6 if len(hk) == 2 else (4 if hk.endswith("s") else 12)
+        out.append(hk)
+        acc += c
+        if acc >= target:
+            break
+    return out
+
+
+def _postflop_advice(hand: HandState, hero_idx: int, adv: LiveAdvice) -> LiveAdvice:
+    """Equity-temelli postflop frekans modeli (🟠 CONCEPT).
+
+    1) Hero equity'sini modellenmiş villain devam-range'ine karşı hesapla (MC).
+    2) pot odds + equity → action frekansları (GTO-flavored model).
+    Solver-exact DEĞİL — yön doğru, dürüstçe CONCEPT etiketli.
+    """
+    hero = hand.players[hero_idx]
+    from app.engine.bot_brain import hand_key
+    hk = hand_key(hero.hole_cards[0], hero.hole_cards[1])
+    adv.hand_key = hk
+    bb = max(hand.big_blind, 0.01)
+    pot = hand.pot
+    to_call = hand.to_call(hero_idx)
+
+    board_code = "".join(c.code for c in hand.community)
+    hero_code = hero.hole_cards[0].code + hero.hole_cards[1].code
+    tc_bucket = round(to_call / max(pot, 0.01), 1)   # pot-oranı bucket'ı
+    cache_key = (hero_code, board_code, tc_bucket)
+    cached = _PF_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    # ── Equity (MC, hız için sınırlı iter) ──
+    try:
+        from app.poker.mc_equity import equity_hand_vs_range
+        vr = _villain_continuing_range(hand.active_count)
+        r = equity_hand_vs_range(hero_code, vr, board=" ".join(
+            c.code for c in hand.community), iterations=1200)
+        eq = r.a_equity / 100.0
+    except Exception:
+        return adv   # available=False kalır
+
+    # ── Equity → frekans modeli ──
+    if to_call > 0.01:
+        # Facing a bet: pot odds = call için gereken equity
+        pot_odds = to_call / (pot + to_call)
+        # Value raise: yüksek equity
+        raise_freq = max(0.0, min(0.55, (eq - 0.68) * 1.8))
+        # Bluff raise: çok düşük equity + küçük bet (blocker/leverage)
+        if eq < 0.30 and to_call / max(pot, 0.01) < 0.6:
+            raise_freq = max(raise_freq, 0.10)
+        # Fold: equity pot odds'un altındaysa
+        if eq < pot_odds:
+            fold_freq = min(0.92, (pot_odds - eq) / max(pot_odds, 0.01) * 1.3)
+        else:
+            fold_freq = max(0.0, (pot_odds - eq + 0.10) * 0.5)
+        fold_freq = max(0.0, min(0.92, fold_freq))
+        call_freq = max(0.0, 1.0 - raise_freq - fold_freq)
+        adv.raise_ = round(100 * raise_freq, 0)
+        adv.call = round(100 * call_freq, 0)
+        adv.fold = round(100 * fold_freq, 0)
+        adv.allin = 0.0
+    else:
+        # No bet: bet (value/bluff) or check
+        # Value bet: yüksek equity
+        bet_value = max(0.0, min(0.85, (eq - 0.55) * 2.2))
+        # Bluff bet: düşük equity (showdown value yok)
+        bet_bluff = max(0.0, (0.30 - eq) * 0.9) if eq < 0.30 else 0.0
+        bet_freq = min(0.90, bet_value + bet_bluff)
+        adv.raise_ = round(100 * bet_freq, 0)   # BET butonu
+        adv.call = round(100 * (1.0 - bet_freq), 0)  # CHECK slotu
+        adv.fold = 0.0
+        adv.allin = 0.0
+
+    adv.available = True
+    adv.scenario = f"Postflop ({hand.street_name}, eq %{eq*100:.0f})"
+    adv.tier_icon = "🟠"
+    adv.tier_label = "Equity-temelli (CONCEPT)"
+    adv.note = ("Equity-temelli model — solver-exact değil. Tam GTO için "
+                "Solver Sandbox kullan. Yön doğru, kesin frekans yaklaşık.")
+    adv.stack_bb = round((hero.stack + hero.current_bet) / bb, 1)
+    _PF_CACHE[cache_key] = adv
+    if len(_PF_CACHE) > 500:
+        _PF_CACHE.clear()
+    return adv
+
+
 def _count_preflop_raises_before_hero(hand: HandState, hero_idx: int):
     """(raise sayısı, son raiser'ın pozisyonu) — hero konuşmadan önce."""
     raises = 0
@@ -99,15 +198,9 @@ def live_gto_advice(hand: HandState, hero_idx: int,
     eff_stack = (hero.stack + hero.current_bet) / bb
     adv.stack_bb = round(eff_stack, 1)
 
-    # ── POSTFLOP: dürüst — preflop chart'lar postflop bilmez ──
+    # ── POSTFLOP: kendi equity-temelli motorumuz (🟠 CONCEPT) ──
     if hand.street != Street.PREFLOP:
-        adv.available = False
-        adv.tier_icon = "❌"
-        adv.tier_label = "Postflop"
-        adv.note = ("Postflop GTO için Solver Sandbox / TexasSolver kullan. "
-                    "Canlı buton %'si sadece preflop'ta gösterilir (yanlış "
-                    "öğretmemek için).")
-        return adv
+        return _postflop_advice(hand, hero_idx, adv)
 
     hk = hand_key(hero.hole_cards[0], hero.hole_cards[1])
     adv.hand_key = hk
