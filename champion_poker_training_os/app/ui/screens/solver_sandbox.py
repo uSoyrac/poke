@@ -203,6 +203,41 @@ class SolverThread(QThread):
             self.error.emit(str(e))
 
 
+class TexasSolverThread(QThread):
+    """TexasSolver console binary'sini arka planda süren thread."""
+    finished_with_result = Signal(object)
+    error = Signal(str)
+
+    def __init__(self, hero_range, villain_range, board, pot, bet_pct, iters):
+        super().__init__()
+        self.hero_range = hero_range
+        self.villain_range = villain_range
+        self.board = board
+        self.pot = pot
+        self.bet_pct = bet_pct
+        self.iters = iters
+
+    def run(self) -> None:
+        try:
+            from app.poker.texassolver_adapter import TexasSolverEngine
+            eng = TexasSolverEngine()
+            # Board: "7s 4d 2c Kh 9s" → "7s,4d,2c,Kh,9s"
+            board_ts = ",".join(self.board.replace(",", " ").split())
+            r = eng.solve(
+                board=board_ts,
+                pot=self.pot,
+                effective_stack=self.pot * 3,   # makul varsayım
+                range_oop=",".join(self.hero_range),
+                range_ip=",".join(self.villain_range),
+                bet_sizes=[int(self.bet_pct)],
+                iterations=max(50, self.iters),
+                threads=4,
+            )
+            self.finished_with_result.emit(r)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
 # ── MAIN SCREEN ───────────────────────────────────────────────────────
 
 class SolverSandboxScreen(QWidget):
@@ -305,6 +340,28 @@ class SolverSandboxScreen(QWidget):
         self.iter_box.addItems(["100 (quick)", "300 (default)", "1000 (precise)"])
         self.iter_box.setCurrentIndex(1)
         h.addWidget(self.iter_box)
+
+        # Engine seçici — built-in vs TexasSolver (kuruluysa)
+        h.addWidget(self._chip_label("Engine"))
+        self.engine_box = QComboBox()
+        try:
+            from app.poker.texassolver_adapter import texassolver_status
+            ts = texassolver_status()
+        except Exception:
+            ts = {"available": False, "binary": ""}
+        self._ts_available = ts.get("available", False)
+        if self._ts_available:
+            self.engine_box.addItems(["Built-in CFR 🟠", "TexasSolver ✅"])
+            self.engine_box.setCurrentText("TexasSolver ✅")
+            self.engine_box.setToolTip(f"TexasSolver bulundu: {ts.get('binary')}")
+        else:
+            self.engine_box.addItems(["Built-in CFR 🟠"])
+            self.engine_box.setToolTip(
+                "TexasSolver bulunamadı (built-in CFR kullanılıyor). "
+                "EXACT solver için: github.com/bupticybee/TexasSolver indir, "
+                "console_solver binary'sini TEXASSOLVER_PATH ile tanıt."
+            )
+        h.addWidget(self.engine_box)
 
         h.addStretch(1)
 
@@ -433,22 +490,67 @@ class SolverSandboxScreen(QWidget):
         iters_str = self.iter_box.currentText().split()[0]
         iters = int(iters_str)
 
-        self.solve_btn.setEnabled(False)
-        self.status_label.setText(
-            f"⏳  CFR çalışıyor... ({len(hero_range)} hero × "
-            f"{len(vill_range)} villain × {iters} iter)"
-        )
-        self.status_label.setStyleSheet(
-            f"color: #F59E0B; font-size: 12px;"
-        )
+        use_ts = (self.engine_box.currentText().startswith("TexasSolver")
+                  and getattr(self, "_ts_available", False))
 
-        # Background thread (UI blocklamaz)
+        self.solve_btn.setEnabled(False)
+
+        if use_ts:
+            self.status_label.setText(
+                "⏳  TexasSolver (EXACT) çalışıyor... full postflop çözüm, "
+                "biraz sürebilir."
+            )
+            self.status_label.setStyleSheet("color: #F59E0B; font-size: 12px;")
+            self._worker = TexasSolverThread(
+                hero_range, vill_range, board, pot,
+                int(self.bet_pct.currentText()), iters,
+            )
+            self._worker.finished_with_result.connect(self._on_ts_solved)
+            self._worker.error.connect(self._on_error)
+            self._worker.start()
+            return
+
+        self.status_label.setText(
+            f"⏳  Built-in CFR (🟠 study-grade) çalışıyor... ({len(hero_range)} "
+            f"hero × {len(vill_range)} villain × {iters} iter)"
+        )
+        self.status_label.setStyleSheet(f"color: #F59E0B; font-size: 12px;")
         self._worker = SolverThread(
             hero_range, vill_range, board, pot, bet_frac, iters
         )
         self._worker.finished_with_result.connect(self._on_solved)
         self._worker.error.connect(self._on_error)
         self._worker.start()
+
+    def _on_ts_solved(self, result) -> None:
+        """TexasSolver sonucu — OOP strategy tablosu (RAISE/CALL/CHECK/FOLD)."""
+        self.solve_btn.setEnabled(True)
+        if not getattr(result, "ok", False):
+            self._on_error(getattr(result, "error", "TexasSolver hatası"))
+            return
+        self.status_label.setText(
+            f"✅  TexasSolver EXACT  ·  {result.elapsed_ms}ms  ·  "
+            f"{len(result.oop_strategy)} hand (OOP). Solver-grade GTO."
+        )
+        self.status_label.setStyleSheet(
+            f"color: {COLOR_CALL}; font-size: 12px; font-weight: 600;"
+        )
+        # OOP stratejiyi hero tablosuna doldur (action'lar dinamik)
+        strats = result.oop_strategy
+        self.hero_table.setRowCount(len(strats))
+        # actions birleşik küme
+        all_actions = []
+        for hand, acts in strats.items():
+            for a in acts:
+                if a not in all_actions:
+                    all_actions.append(a)
+        self.hero_table.setColumnCount(1 + len(all_actions))
+        self.hero_table.setHorizontalHeaderLabels(["Hand"] + all_actions)
+        for row, (hand, acts) in enumerate(strats.items()):
+            self.hero_table.setItem(row, 0, QTableWidgetItem(hand))
+            for ci, a in enumerate(all_actions):
+                self.hero_table.setItem(row, ci + 1,
+                                        QTableWidgetItem(f"{acts.get(a, 0):.0f}%"))
 
     def _on_solved(self, result) -> None:
         self.solve_btn.setEnabled(True)
