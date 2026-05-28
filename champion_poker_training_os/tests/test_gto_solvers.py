@@ -261,6 +261,96 @@ def test_vector_solver_fast():
 
 
 # ─────────────────────────────────────────────────────────────────────
+# Vectorized turn+river solver — nested ground-truth ile doğrulama
+# ─────────────────────────────────────────────────────────────────────
+
+def test_vector_turn_filters_board_combos():
+    """Board kartıyla çakışan combo'lar elenmeli (phantom-combo bug regresyonu)."""
+    from app.poker.vector_turn_solver import VectorTurnRiverSolver
+    # Board'da Kc ve Ah var → KK'nın Kc'li, AA'nın Ah'lı combo'ları imkansız
+    s = VectorTurnRiverSolver(["AA"], ["KK"], board_turn="Ah Kc 8d 3s",
+                              pot=100, bet_frac=0.66)
+    labels = {h.hand_label for h in s.solve(iterations=50).hero}
+    assert not any("Ah" in l for l in labels), f"board combo elenmedi: {labels}"
+    # AA'nın geçerli combo'ları: AcAd, AcAs, AdAs (Ah hariç)
+    assert len(labels) == 3, f"beklenen 3 AA combo, gelen {labels}"
+
+
+def test_vector_turn_value_bet_polarization():
+    """Set/trips değer eli yüksek bet, air düşük (yön doğru)."""
+    from app.poker.vector_turn_solver import VectorTurnRiverSolver
+    r = VectorTurnRiverSolver(["AA", "72o"], ["KK"], board_turn="Ah Kc 8d 3s",
+                              pot=100, bet_frac=0.66).solve(iterations=1500)
+    bet = {("AA" if h.hand_label[0] == h.hand_label[2] else "72o"): []
+           for h in r.hero}
+    for h in r.hero:
+        k = "AA" if h.hand_label[0] == h.hand_label[2] else "72o"
+        bet[k].append(h.turn_bet)
+    aa = sum(bet["AA"]) / len(bet["AA"])
+    air = sum(bet["72o"]) / len(bet["72o"])
+    assert aa > 80, f"AA (trips) değer eli bet {aa}"
+    assert air < aa, f"air {air} >= value {aa} — polarizasyon yok"
+
+
+def test_vector_turn_matches_nested_single_villain():
+    """DOĞRULANAN ALT-KÜME: tek-villain spotta oyun-değeri nested ile tutarlı.
+
+    CFR equilibrium stratejisi tek değil ama OYUN-DEĞERİ tektir. Tek-villain
+    küçük spotta iki solver da aynı per-pair EV'ye yakınsar. (NOT: çok-el hero
+    range'inde bilinen value-dağılım hatası var — bkz test_vector_turn_KNOWN_BUG.)
+    """
+    import numpy as np
+    from app.poker.nested_solver import NestedTurnRiverSolver
+    from app.poker.vector_turn_solver import VectorTurnRiverSolver
+    H, V, board = ["AA", "72o"], ["KK"], "Ah Kc 8d 3s"
+    ns = NestedTurnRiverSolver(H, V, board_turn=board, pot=100, bet_frac=0.66)
+    # nested self-play oyun değeri (pair başına)
+    pairs = []
+    bset = ns._board_set
+    for hi in range(len(ns.hero)):
+        hc = {(ns.hero[hi][0].rank, ns.hero[hi][0].suit),
+              (ns.hero[hi][1].rank, ns.hero[hi][1].suit)}
+        if hc & bset:
+            continue
+        for vi in range(len(ns.vill)):
+            vc = {(ns.vill[vi][0].rank, ns.vill[vi][0].suit),
+                  (ns.vill[vi][1].rank, ns.vill[vi][1].suit)}
+            if vc & bset or vc & hc:
+                continue
+            pairs.append((hi, vi))
+    ev = [sum(ns._turn_cfr(hi, vi, 1.0, 1.0, None) for hi, vi in pairs)
+          for _ in range(400)]
+    nested_gv = np.mean(ev[200:]) / len(pairs)
+    vs = VectorTurnRiverSolver(H, V, board_turn=board, pot=100, bet_frac=0.66)
+    vs.solve(iterations=3000)
+    vec_gv = np.mean(vs.ev_trace[1500:]) / len(pairs)
+    # İkisi de hero-kaybı (negatif) ve birbirine yakın (≤4bb, convergence payı)
+    assert nested_gv < 0 and vec_gv < 0, f"nested {nested_gv} vec {vec_gv}"
+    assert abs(nested_gv - vec_gv) < 4.0, \
+        f"oyun-değeri sapması: nested {nested_gv:.2f} vs vector {vec_gv:.2f}"
+
+
+@pytest.mark.xfail(reason="BİLİNEN HATA: çok-el hero range'inde value-dağılımı "
+                          "yanlış (KK trips bet etmiyor). Düzelene kadar UI'a "
+                          "bağlanmadı; turn için nested_solver/TexasSolver kullan.",
+                   strict=False)
+def test_vector_turn_KNOWN_BUG_multihand_value_distribution():
+    """Çok-el hero range'inde trip-el (KK) yeterince value-bet etmeli.
+
+    nested: KK ~%34 bet. vector (hatalı): KK ~%0. Bu test kök-neden bulunup
+    düzeltilince yeşile dönmeli — gelecekteki düzeltmenin hedefi.
+    """
+    from app.poker.vector_turn_solver import VectorTurnRiverSolver
+    r = VectorTurnRiverSolver(["AA", "KK", "QQ"], ["JJ", "AK"],
+                              board_turn="Ah Kc 8d 3s", pot=100,
+                              bet_frac=0.66).solve(iterations=4000)
+    kk = [h.turn_bet for h in r.hero if h.hand_label[0] == "K" == h.hand_label[2]]
+    avg_kk = sum(kk) / len(kk)
+    # KK (trip kings) güçlü value eli — anlamlı bir frekansla bet etmeli
+    assert avg_kk > 15, f"KK trips bet sadece {avg_kk}% (value el bet etmeli)"
+
+
+# ─────────────────────────────────────────────────────────────────────
 # Live GTO advice — scenario mapping
 # ─────────────────────────────────────────────────────────────────────
 
