@@ -29,6 +29,7 @@ from app.ui.screens.combat_trainer import CombatTrainerScreen
 from app.ui.screens.dashboard import DashboardScreen
 from app.ui.screens.fast_play_simulator import FastPlaySimulatorScreen
 from app.ui.screens.hand_analyzer import HandAnalyzerScreen
+from app.ui.screens.hand_history import HandHistoryScreen
 from app.ui.screens.icm_trainer import IcmTrainerScreen
 from app.ui.screens.knowledge_base import KnowledgeBaseScreen
 from app.ui.screens.leak_finder import LeakFinderScreen
@@ -81,6 +82,7 @@ NAV_ITEMS = [
     "GTO Study Library",
     "Spot Practice Trainer",
     "Hand History Analyzer",
+    "Hand History Archive",
     "Fast Play Simulator",
     "Tournament Simulator",
     "Tournament Analysis",
@@ -105,6 +107,7 @@ RESTRICTED_WHEN_LOCKED = {
     "GTO Study Library",
     "Spot Practice Trainer",
     "Hand History Analyzer",
+    "Hand History Archive",
     "Fast Play Simulator",
     "Tournament Simulator",
     "ICM / PKO Trainer",
@@ -260,6 +263,7 @@ class MainWindow(QMainWindow):
             "GTO Study Library": StudyLibraryScreen,
             "Spot Practice Trainer": SpotTrainerScreen,
             "Hand History Analyzer": HandAnalyzerScreen,
+            "Hand History Archive": HandHistoryScreen,
             "Fast Play Simulator": FastPlaySimulatorScreen,
             "Tournament Analysis": TournamentAnalysisScreen,
             "ICM / PKO Trainer": IcmTrainerScreen,

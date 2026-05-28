@@ -175,6 +175,110 @@ def get_session_history(limit: int = 50) -> list:
         return [dict(row) for row in rows]
 
 
+# ─── Hand History Archive (date-indexed) ──────────────────────────────
+
+
+def _ensure_history_index() -> None:
+    """Add an index on played_hands.created_at for fast date-range queries.
+
+    Cheap to call (CREATE INDEX IF NOT EXISTS). Idempotent.
+    """
+    with get_connection() as conn:
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_played_hands_created_at "
+            "ON played_hands(created_at DESC)"
+        )
+        conn.commit()
+
+
+def get_dates_with_hands(limit_days: int = 90) -> list[dict]:
+    """Return [{'date': 'YYYY-MM-DD', 'hands': N, 'net_bb': X, 'wins': W}, ...]
+    sorted newest first. Used for the calendar / date-picker view.
+    """
+    _ensure_history_index()
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT date(created_at) AS d,
+                      COUNT(*) AS n,
+                      COALESCE(SUM(hero_profit), 0) AS net_bb,
+                      COALESCE(SUM(hero_won), 0) AS wins,
+                      COALESCE(SUM(CASE WHEN streets_seen >= 4 THEN 1 ELSE 0 END), 0) AS sd
+               FROM played_hands
+               GROUP BY date(created_at)
+               ORDER BY d DESC
+               LIMIT ?""",
+            (limit_days,),
+        ).fetchall()
+        return [
+            {
+                "date": r["d"],
+                "hands": int(r["n"]),
+                "net_bb": float(r["net_bb"]),
+                "wins": int(r["wins"]),
+                "showdowns": int(r["sd"]),
+            }
+            for r in rows
+        ]
+
+
+def get_hands_for_date(date_str: str, limit: int = 500,
+                         offset: int = 0) -> list[dict]:
+    """Return hands played on a specific date (YYYY-MM-DD), newest first.
+
+    Paginated for scalability — 200M-hand archive only loads `limit`
+    rows at a time.
+    """
+    _ensure_history_index()
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT * FROM played_hands
+               WHERE date(created_at) = ?
+               ORDER BY created_at DESC, id DESC
+               LIMIT ? OFFSET ?""",
+            (date_str, limit, offset),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_hand_count_for_date(date_str: str) -> int:
+    """Total hand count for a specific day (for pagination UI)."""
+    _ensure_history_index()
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM played_hands WHERE date(created_at) = ?",
+            (date_str,),
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
+
+def get_overall_archive_stats() -> dict:
+    """Aggregate stats across the entire archive (cheap-ish, uses indices)."""
+    _ensure_history_index()
+    with get_connection() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM played_hands").fetchone()[0]
+        if total == 0:
+            return {"total_hands": 0, "total_days": 0, "net_bb": 0.0,
+                    "first_date": None, "last_date": None}
+        net = conn.execute(
+            "SELECT COALESCE(SUM(hero_profit), 0) FROM played_hands"
+        ).fetchone()[0]
+        days_row = conn.execute(
+            "SELECT COUNT(DISTINCT date(created_at)) FROM played_hands"
+        ).fetchone()
+        bounds = conn.execute(
+            "SELECT MIN(date(created_at)) AS first_d, "
+            "       MAX(date(created_at)) AS last_d "
+            "FROM played_hands"
+        ).fetchone()
+        return {
+            "total_hands": int(total),
+            "total_days": int(days_row[0]),
+            "net_bb": float(net),
+            "first_date": bounds["first_d"],
+            "last_date": bounds["last_d"],
+        }
+
+
 def get_leak_analysis() -> list:
     """Auto-detect leaks from played hand data."""
     stats = get_player_stats()
