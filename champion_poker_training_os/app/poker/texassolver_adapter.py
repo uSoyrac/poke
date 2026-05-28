@@ -137,13 +137,28 @@ class TexasSolverEngine:
         threads: int = 4,
         timeout_sec: int = 300,
     ) -> TexasSolverResult:
-        """TexasSolver'ı çalıştır ve OOP/IP stratejilerini döndür."""
+        """TexasSolver'ı çalıştır ve OOP/IP stratejilerini döndür.
+
+        DISK CACHE: aynı (board, pot, stack, range, bet, iter) tekrar
+        çözülmez — cache'ten anında döner. ~11s solve → 0ms cache hit.
+        """
         import time
         if not self.available:
             return TexasSolverResult(ok=False, error="TexasSolver binary bulunamadı")
 
         bet_sizes = bet_sizes or [50]
         t0 = time.time()
+
+        # ── CACHE LOOKUP ──
+        cache_hit = _cache_get(board, pot, effective_stack, range_oop,
+                               range_ip, bet_sizes, iterations, accuracy)
+        if cache_hit is not None:
+            return TexasSolverResult(
+                ok=True, oop_strategy=cache_hit.get("oop", {}),
+                ip_strategy=cache_hit.get("ip", {}),
+                raw=cache_hit, elapsed_ms=0,   # 0ms = cache
+            )
+
         tmpdir = Path(tempfile.mkdtemp(prefix="texassolver_"))
         input_file = tmpdir / "input.txt"
         output_file = tmpdir / "output.json"
@@ -190,6 +205,9 @@ class TexasSolverEngine:
                                      error=f"JSON parse hatası: {e}")
 
         oop, ip = self._parse_strategy(raw)
+        # ── CACHE STORE (sadece parse edilmiş strateji — ham ağaç değil) ──
+        _cache_put(board, pot, effective_stack, range_oop, range_ip,
+                   bet_sizes, iterations, accuracy, {"oop": oop, "ip": ip})
         return TexasSolverResult(
             ok=True, oop_strategy=oop, ip_strategy=ip,
             raw=raw, elapsed_ms=elapsed,
@@ -263,9 +281,65 @@ class TexasSolverEngine:
 def texassolver_status() -> dict:
     """UI için: TexasSolver mevcut mu, path nerede?"""
     eng = TexasSolverEngine()
+    n = 0
+    try:
+        n = len(list(_cache_dir().glob("*.json")))
+    except Exception:
+        pass
     return {
         "available": eng.available,
         "binary": eng.binary or "",
+        "cached_solves": n,
         "hint": ("TEXASSOLVER_PATH env var ile veya Settings'ten "
                  "console_solver binary path'ini ver."),
     }
+
+
+# ── DISK CACHE ─────────────────────────────────────────────────────────
+# Aynı solve input'u tekrar çözülmez. Key = sha1(normalize edilmiş input).
+# Sadece parse edilmiş strateji saklanır (ham ağaç MB'larca olabilir).
+
+def _cache_dir() -> Path:
+    d = Path.home() / ".champion_poker" / "texassolver_cache"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _cache_key(board, pot, eff, roop, rip, bets, iters, acc) -> str:
+    import hashlib
+    raw = "|".join([
+        board.replace(" ", "").lower(), f"{pot:.1f}", f"{eff:.1f}",
+        ",".join(sorted(roop.replace(" ", "").split(","))),
+        ",".join(sorted(rip.replace(" ", "").split(","))),
+        ",".join(str(b) for b in bets), str(iters), f"{acc:.2f}",
+    ])
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:20]
+
+
+def _cache_get(board, pot, eff, roop, rip, bets, iters, acc):
+    try:
+        f = _cache_dir() / f"{_cache_key(board, pot, eff, roop, rip, bets, iters, acc)}.json"
+        if f.exists():
+            return json.loads(f.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return None
+
+
+def _cache_put(board, pot, eff, roop, rip, bets, iters, acc, data) -> None:
+    try:
+        f = _cache_dir() / f"{_cache_key(board, pot, eff, roop, rip, bets, iters, acc)}.json"
+        f.write_text(json.dumps(data), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def clear_texassolver_cache() -> int:
+    """Cache'i temizle, silinen dosya sayısını döndür."""
+    n = 0
+    try:
+        for f in _cache_dir().glob("*.json"):
+            f.unlink(); n += 1
+    except Exception:
+        pass
+    return n
