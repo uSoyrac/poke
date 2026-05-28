@@ -371,10 +371,19 @@ class MTTTrainerScreen(QWidget):
         ctrl.addWidget(self.ex_pos)
         ctrl.addWidget(self._lbl("Stack"))
         self.ex_stack = QComboBox()
-        self.ex_stack.addItems([f"{d}bb" for d in STACK_DEPTHS])
+        # Kısa stack'ler (push/fold + ICM/PKO için) + derin stack'ler (RFI)
+        self.ex_stack.addItems([f"{d}bb" for d in [10, 12, 15] + STACK_DEPTHS])
         self.ex_stack.setCurrentText("100bb")
         self.ex_stack.currentTextChanged.connect(self._refresh_explorer)
         ctrl.addWidget(self.ex_stack)
+        ctrl.addWidget(self._lbl("Scenario"))
+        self.ex_scen = QComboBox()
+        self.ex_scen.addItems([
+            "Auto (RFI/Push)", "ICM Bubble", "ICM Final Table",
+            "Satellite", "PKO Bounty", "Squeeze",
+        ])
+        self.ex_scen.currentTextChanged.connect(self._refresh_explorer)
+        ctrl.addWidget(self.ex_scen)
         ctrl.addStretch(1)
         self.ex_stats_lbl = QLabel("")
         self.ex_stats_lbl.setStyleSheet(f"color:{COLOR_MUTED};font-size:12px;font-family:monospace;")
@@ -406,9 +415,34 @@ class MTTTrainerScreen(QWidget):
         return w
 
     def _refresh_explorer(self, *_) -> None:
+        from app.poker.mtt_ranges import (
+            build_icm_push_fold, build_pko_jam, build_squeeze,
+        )
         pos = self.ex_pos.currentText()
         stack = int(self.ex_stack.currentText().replace("bb", ""))
-        if stack <= 15:
+        scen = self.ex_scen.currentText() if hasattr(self, "ex_scen") else "Auto (RFI/Push)"
+
+        if scen == "ICM Bubble":
+            table = build_icm_push_fold(pos, stack, "bubble")
+            mode_note = (f"BUBBLE — ICM baskısı jam'i daraltır. {pos} {stack}bb. "
+                         f"Her chip kaybı kazançtan pahalı → tighter jam.")
+        elif scen == "ICM Final Table":
+            table = build_icm_push_fold(pos, stack, "final table")
+            mode_note = (f"FINAL TABLE — pay jump'lar büyük, ICM ağır. "
+                         f"{pos} {stack}bb jam range daralır.")
+        elif scen == "Satellite":
+            table = build_icm_push_fold(pos, stack, "satellite")
+            mode_note = (f"SATELLITE — sadece hayatta kalmak yeter (seat win). "
+                         f"En sıkı jam — sadece premium + sağlam value.")
+        elif scen == "PKO Bounty":
+            table = build_pko_jam(pos, stack, 0.5)
+            mode_note = (f"PKO — bounty (0.5× stack) jam'i genişletir. {pos} {stack}bb. "
+                         f"Rakibi elersen bounty alırsın → biraz daha agresif.")
+        elif scen == "Squeeze":
+            table = build_squeeze(pos, stack, 1)
+            mode_note = (f"SQUEEZE — open + caller'a karşı 3-bet. {pos}. "
+                         f"Polarized: value + A5s/A4s bluff. Multiway daralır.")
+        elif stack <= 15:
             table = build_mtt_push_fold(pos, stack)
             mode_note = (f"≤15bb → PUSH/FOLD modu. {pos} {stack}bb jam range "
                          f"~%{mtt_jam_pct(pos, stack):.0f}. Kırmızı = jam (all-in).")
