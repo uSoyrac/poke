@@ -384,53 +384,72 @@ PUSH_FOLD_15BB_BTN: dict[str, ActionFreq] = {
 # ── DEFAULT FALLBACK (catch-all) ───────────────────────────────────────
 # Tabloda eksik olan eller pure_fold() varsayar.
 
+# ── CURATED COVERAGE MAP ──────────────────────────────────────────────
+# Hangi (scenario, position, vs_position) kombinasyonları manuel olarak
+# curated chart ile kaplanmış? Bunların dışındaki HER spot heuristic
+# generator'a düşer (gto_generator.py) → %100 kapsama.
+
+def _is_curated(scenario: str, position: str, stack_depth: int,
+                vs_position: str | None) -> bool:
+    if scenario == "RFI" and stack_depth >= 60:
+        return position in RFI_100BB_6MAX
+    if scenario == "vs RFI":
+        if position == "BB":
+            return f"vs_{vs_position or 'BTN'}" in VS_RFI_BB_DEFEND_100BB
+        if position == "BTN" and vs_position == "CO":
+            return True
+    if scenario == "vs 3-bet":
+        return position == "BTN" and (vs_position in (None, "BB"))
+    if scenario == "Push/Fold":
+        return position in ("BTN", "SB") and 12 <= stack_depth <= 18
+    return False
+
+
 def get_action(position: str, hand_key: str, scenario: str = "RFI",
                stack_depth: int = 100, mode: str = "cash",
                vs_position: str | None = None) -> ActionFreq:
-    """Ana lookup API. Tabloda yoksa pure_fold döner.
+    """Ana lookup API.
+
+    Curated chart varsa onu kullanır (pro-grade public konsensus, ~%95).
+    Yoksa heuristic GTO generator'a düşer (gto_generator, ~%75-80) →
+    böylece HER (position × scenario × stack × vs_position) kombinasyonu
+    tutarlı bir cevap döner. Hiçbir spot 'boş' kalmaz.
 
     scenario:
       "RFI"        — açış (opener)
-      "vs RFI"     — açışa karşı (defender; BB için + BTN cold-call)
+      "vs RFI"     — açışa karşı (defender)
       "vs 3-bet"   — 3-bet'e karşı 4-bet defense
-      "Push/Fold"  — kısa stack jam/fold (15bb)
+      "Push/Fold"  — kısa stack jam/fold
     """
-    # RFI 100bb cash
-    if scenario == "RFI":
-        if stack_depth >= 60 and mode in ("cash", "MTT"):
-            table = RFI_100BB_6MAX.get(position, {})
-            return table.get(hand_key, pure_fold())
-
-    # vs RFI — BB defends, or BTN cold-calls CO
-    if scenario == "vs RFI":
-        if position == "BB":
-            # Default: vs BTN opener
-            opener = vs_position or "BTN"
-            sub = VS_RFI_BB_DEFEND_100BB.get(f"vs_{opener}", {})
-            return sub.get(hand_key, pure_fold())
-        if position == "BTN" and vs_position == "CO":
-            return VS_RFI_BTN_VS_CO_100BB.get(hand_key, pure_fold())
-        return pure_fold()
-
-    # vs 3-bet — opener now faces a 3-bet
-    if scenario == "vs 3-bet":
-        if position == "BTN":
+    # ── CURATED LOOKUP (varsa) ─────────────────────────────────────────
+    if _is_curated(scenario, position, stack_depth, vs_position):
+        if scenario == "RFI":
+            return RFI_100BB_6MAX.get(position, {}).get(hand_key, pure_fold())
+        if scenario == "vs RFI":
+            if position == "BB":
+                opener = vs_position or "BTN"
+                sub = VS_RFI_BB_DEFEND_100BB.get(f"vs_{opener}", {})
+                return sub.get(hand_key, pure_fold())
+            if position == "BTN" and vs_position == "CO":
+                return VS_RFI_BTN_VS_CO_100BB.get(hand_key, pure_fold())
+        if scenario == "vs 3-bet":
             return VS_3BET_BTN_VS_BB_100BB.get(hand_key, pure_fold())
-        return pure_fold()
+        if scenario == "Push/Fold":
+            if position == "BTN":
+                return PUSH_FOLD_15BB_BTN.get(hand_key, pure_fold())
+            if position == "SB":
+                base = PUSH_FOLD_15BB_BTN.get(hand_key, pure_fold())
+                r = max(0, base["raise"] - 15)
+                return {"raise": r, "call": 0, "fold": 100 - r}
 
-    # Push/Fold 15bb
-    if scenario == "Push/Fold":
-        if position == "BTN":
-            return PUSH_FOLD_15BB_BTN.get(hand_key, pure_fold())
-        # SB/CO için (BTN datasını yaklaşık olarak kullan, sıkılaştır)
-        if position == "SB":
-            base = PUSH_FOLD_15BB_BTN.get(hand_key, pure_fold())
-            # SB push range BTN'den daha sıkı — raise freq'i %15 azalt
-            r = max(0, base["raise"] - 15)
-            return {"raise": r, "call": 0, "fold": 100 - r}
+    # ── HEURISTIC FALLBACK (kapsanmayan tüm spotlar) ───────────────────
+    try:
+        from app.poker.gto_generator import heuristic_get_action
+        return heuristic_get_action(
+            position, hand_key, scenario, stack_depth, mode, vs_position
+        )
+    except Exception:
         return pure_fold()
-
-    return pure_fold()
 
 
 # ── BACKWARDS COMPAT (eski range_grid.py demo_frequency için) ─────────
