@@ -1004,7 +1004,18 @@ class PlaySessionScreen(QWidget):
 
         if hasattr(self, "gto_range") and hero and not hand.is_complete:
             pos = getattr(hero, "position", "") or ""
-            self.gto_range.update_range(pos, float(hero.stack), game_type="cash")
+            hero_hk = None
+            if hero.hole_cards and len(hero.hole_cards) >= 2:
+                try:
+                    from app.engine.bot_brain import hand_key
+                    hero_hk = hand_key(hero.hole_cards[0], hero.hole_cards[1])
+                except Exception:
+                    hero_hk = None
+            self.gto_range.update_range(
+                pos, float(hero.stack),
+                game_type="cash",
+                hero_hand=hero_hk,
+            )
 
         villain_idx = None
         max_bet = 0.0

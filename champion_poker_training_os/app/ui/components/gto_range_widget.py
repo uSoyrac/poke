@@ -169,13 +169,31 @@ class GTORangeWidget(QFrame):
         )
         root.addWidget(self._stack_lbl)
 
+        # En sağ: hero hand → tavsiye edilen aksiyon badge'i
+        # Örnek: "K7s\nRAISE 55%" (renk: kırmızı raise, yeşil call, mavi fold)
+        self._hero_badge = QLabel("")
+        self._hero_badge.setAlignment(Qt.AlignCenter)
+        self._hero_badge.setMinimumWidth(110)
+        self._hero_badge.setStyleSheet(
+            f"font-family:'JetBrains Mono',monospace; font-size:11px; "
+            f"font-weight:700; color:{_MUTED}; background:transparent; "
+            f"padding: 2px 8px; border-radius:4px;"
+        )
+        self._hero_badge.hide()   # only shown when hero hand is known
+        root.addWidget(self._hero_badge)
+
     def update_range(
         self,
         position: str,
         stack_bb: float,
-        game_type: str = "cash",   # "cash" veya "tournament"
+        game_type: str = "cash",       # "cash" veya "tournament"
+        hero_hand: str | None = None,  # canonical key, örn "AKs", "QJo", "77"
     ) -> None:
-        """Pozisyon ve stack'e göre GTO range bilgisini güncelle."""
+        """Pozisyon ve stack'e göre GTO range bilgisini güncelle.
+
+        ``hero_hand`` verilirse o spesifik el için tavsiye edilen aksiyon
+        (RAISE/CALL/FOLD frekansı) sağdaki badge'de gösterilir.
+        """
         if not position:
             return
 
@@ -190,6 +208,7 @@ class GTORangeWidget(QFrame):
         self._note_lbl.setVisible(bool(display_note))
 
         self._stack_lbl.setText(f"{stack_bb:.0f}bb")
+        self._update_hero_badge(position, stack_bb, hero_hand)
 
         # Renk uyarısı: çok kısa stack
         if stack_bb < 15:
@@ -209,6 +228,63 @@ class GTORangeWidget(QFrame):
                 f"font-family:'JetBrains Mono',monospace; font-size:13px; "
                 f"font-weight:700; color:{_INK}; background:transparent;"
             )
+
+    def _update_hero_badge(
+        self,
+        position: str,
+        stack_bb: float,
+        hero_hand: str | None,
+    ) -> None:
+        """Hero'nun spesifik eli için GTO tavsiyesini badge olarak göster."""
+        if not hero_hand:
+            self._hero_badge.hide()
+            return
+        try:
+            from app.poker.gto_ranges import get_action
+        except Exception:
+            self._hero_badge.hide()
+            return
+
+        # Stack'e göre yaklaşık depth seç (100bb data var)
+        depth = 100 if stack_bb >= 60 else (40 if stack_bb >= 30 else 20)
+        # Pozisyon normalize: "UTG+1" gibi 6max'ta yok → MP'ye fallback
+        pos = position.upper()
+        if pos in ("LJ", "UTG+1"):
+            pos = "MP"
+        if pos == "HJ":
+            pos = "CO"
+
+        action = get_action(pos, hero_hand, scenario="RFI",
+                            stack_depth=depth, mode="cash")
+        r = action.get("raise", 0)
+        c = action.get("call", 0)
+        f = action.get("fold", 0)
+
+        # En yüksek frekanslı aksiyonu primary olarak göster
+        if r >= c and r >= f:
+            primary, primary_color = "RAISE", _DANGER
+            primary_pct = r
+        elif c >= f:
+            primary, primary_color = "CALL", _ACCENT
+            primary_pct = c
+        else:
+            primary, primary_color = "FOLD", _INFO
+            primary_pct = f
+
+        # Mixed strategy uyarısı
+        sub = ""
+        if 0 < r < 100 and 0 < f < 100:
+            sub = f"  (mixed)"
+
+        text = f"{hero_hand}\n{primary} {primary_pct}%{sub}"
+        self._hero_badge.setText(text)
+        self._hero_badge.setStyleSheet(
+            f"font-family:'JetBrains Mono',monospace; font-size:11px; "
+            f"font-weight:700; color:{primary_color}; background:transparent; "
+            f"padding: 2px 10px; border-radius:4px; "
+            f"border: 2px solid {primary_color};"
+        )
+        self._hero_badge.show()
 
 
 # ══════════════════════════════════════════════════════════════════════════

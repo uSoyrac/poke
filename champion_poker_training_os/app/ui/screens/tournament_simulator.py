@@ -880,7 +880,19 @@ class TournamentSimulatorScreen(QWidget):
             if hero_p:
                 pos = getattr(hero_p, "position", "") or ""
                 stack_bb = float(hero_p.stack) / bb
-                self.gto_range.update_range(pos, stack_bb, game_type="tournament")
+                # Compute hero hand key (e.g. "AKs", "QJo", "77") for GTO lookup
+                hero_hk = None
+                if hero_p.hole_cards and len(hero_p.hole_cards) >= 2:
+                    try:
+                        from app.engine.bot_brain import hand_key
+                        hero_hk = hand_key(hero_p.hole_cards[0], hero_p.hole_cards[1])
+                    except Exception:
+                        hero_hk = None
+                self.gto_range.update_range(
+                    pos, stack_bb,
+                    game_type="tournament",
+                    hero_hand=hero_hk,
+                )
         # Flag the most-aggressive non-hero as villain
         villain_idx = None
         max_bet = 0.0
