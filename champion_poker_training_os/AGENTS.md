@@ -63,7 +63,10 @@ sidebar nav.
 | **Hand History Archive screen** | `app/ui/screens/hand_history.py` — `HandHistoryScreen`. Date list + paginated hands table + detail panel with per-street equity track + Gemini "analyze this hand" (`analysis_requested` Signal). DB helpers in repository.py: `get_dates_with_hands`, `get_hands_for_date`, `get_overall_archive_stats`, `_ensure_history_index` |
 | **In-game GTO assist** | `app/ui/components/gto_range_widget.py` — `GTORangeWidget.update_range(pos, stack, game_type, hero_hand)` shows a colored RAISE/CALL/FOLD badge for hero's exact hand via `gto_ranges.get_action`. Wired in tournament_simulator + play_session |
 | **MTT range engine** | `app/poker/mtt_ranges.py` — `get_action(mode="MTT")` routes here. `JAM_PCT` table (Nash push/fold, 8-25bb × position, interpolated), `call_vs_jam_pct`, ante-aware depth-shaped `build_mtt_rfi` (20-200bb: deep adds suited connectors, shallow tightens). `mtt_jam_pct(pos, stack)` is the public jam% lookup |
-| **MTT Trainer screen** | `app/ui/screens/mtt_trainer.py` — `MTTTrainerScreen`. Mode 1: Push/Fold Drill (random spot + Nash compare + countdown + per-stack stats). Mode 2: Stack Explorer (13×13 range grid for any position × 20-200bb). NAV "MTT Trainer". ICM (icm.py Malmuth-Harville) available for future bubble/FT scenarios |
+| **MTT Trainer screen** | `app/ui/screens/mtt_trainer.py` — `MTTTrainerScreen`. Mode 1: Push/Fold Drill (random spot + Nash compare + countdown + per-stack stats). Mode 2: Stack Explorer (13×13 range grid; position × 10-200bb × Scenario: Auto/ICM Bubble/ICM FT/Satellite/PKO/Squeeze) |
+| **ICM/PKO/Squeeze ranges** | `app/poker/mtt_ranges.py` — `build_icm_push_fold(pos, stack, stage)` (jam tightens under ICM), `build_icm_call_vs_jam(stack, stage, bubble_factor)`, `build_pko_jam/call_vs_jam(.., bounty_ratio)` (widens), `build_squeeze(pos, stack, num_callers)` (polarized). Uses `app/poker/icm.py` (Malmuth-Harville, risk_premium, bubble_factor, bounty_ev). mtt_get_action scenarios: "ICM Push/Fold", "PKO Jam", "Squeeze" |
+| **Accuracy provenance** | `app/poker/gto_provenance.py` — `range_provenance(scenario, pos, stack, mode)` → tier (EXACT ✅ / APPROX 🟡 / CONCEPT 🟠 / GAP ❌). GTO Chart shows a badge so the user ALWAYS knows what they're learning. **Honest map**: curated RFI + push/fold Nash + equity + ICM = EXACT; heuristic vs-RFI/vs-3bet/MTT-depth = APPROX; river solver = CONCEPT; full postflop multiway = GAP |
+| **Multi-street solver** | `app/poker/multistreet_solver.py` — `MultiBetRiverSolver` (EXACT: CHECK/BET_SMALL 33%/BET_BIG 75%, river is single node so multi-size is exactly solvable; big=polarized, small=thin-value verified). `solve_turn` (CONCEPT: turn bet/check with river-equity rollout, ~14s, experimental). Full nested multi-street CFR (PioSolver-grade) remains the frontier |
 
 ---
 
@@ -257,8 +260,14 @@ then bind a `QShortcut` in the relevant screen.
 ## 5 · Recent commits (read for context)
 
 ```
-# MTT system (2026-05-28) — newest first
-<this>   feat(mtt): MTT Trainer screen — push/fold drill + stack explorer
+# Full GTO completeness (2026-05-28) — newest first
+4ccc45b feat(solver): multi-bet-size river (EXACT) + turn rollout (CONCEPT)
+b0a1052 feat(mtt): ICM/PKO/Squeeze scenarios wired into Stack Explorer
+56bddd7 feat(mtt): ICM + squeeze + bounty range engines
+1178cea feat(gto): accuracy provenance system — "yanlış öğrenme" koruması
+# MTT system (2026-05-28)
+4ceba63 docs: AGENTS.md — MTT engine + trainer
+<mtt>   feat(mtt): MTT Trainer screen — push/fold drill + stack explorer
 1d872f1 feat(mtt): stack-depth-aware MTT range engine (Nash + ante)
 # GTO + equity + solver session (2026-05-28)
 40e9a42 docs: AGENTS.md — GTO/equity/solver session
