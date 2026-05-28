@@ -570,7 +570,20 @@ def get_action(position: str, hand_key: str, scenario: str = "RFI",
       "vs RFI"     — açışa karşı (defender)
       "vs 3-bet"   — 3-bet'e karşı 4-bet defense
       "Push/Fold"  — kısa stack jam/fold
+      "Call vs Jam"— jam'a karşı call (MTT)
+
+    mode="MTT" → ante-aware, stack-depth-shaped, Nash push/fold
+    (app/poker/mtt_ranges.py). mode="cash" → curated + heuristic.
     """
+    # ── MTT MODE → dedicated ante/Nash engine ──────────────────────────
+    if mode == "MTT":
+        try:
+            from app.poker.mtt_ranges import mtt_get_action
+            return mtt_get_action(position, hand_key, scenario,
+                                  stack_depth, vs_position)
+        except Exception:
+            pass   # fall through to cash logic on any error
+
     # ── CURATED LOOKUP (varsa) ─────────────────────────────────────────
     if _is_curated(scenario, position, stack_depth, vs_position):
         if scenario == "RFI":
