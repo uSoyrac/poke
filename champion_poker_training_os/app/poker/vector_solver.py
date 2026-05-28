@@ -47,6 +47,9 @@ class VectorResult:
     hero: List[VectorStrategy]
     iterations: int
     elapsed_ms: int
+    # Solver Sandbox _on_solved uyumluluğu için (river_solver.HandStrategy benzeri)
+    hero_strategies: list = field(default_factory=list)
+    villain_strategies: list = field(default_factory=list)
 
 
 class VectorRiverSolver:
@@ -200,18 +203,45 @@ class VectorRiverSolver:
             return np.where(s > 0, ss / np.where(s > 0, s, 1), 0.5)
         ah = avg(self.ss_h_root)
         ahvb = avg(self.ss_h_vb)
+        avvb = avg(self.ss_v_vb)    # villain vs hero bet (call/fold)
+        avac = avg(self.ss_v_ac)    # villain after check (check/bet)
+
+        from app.poker.river_solver import HandStrategy
 
         hero_strats = []
+        hero_compat = []
         for i, (c1, c2) in enumerate(self.hero):
+            label = f"{c1.rank}{c1.suit}{c2.rank}{c2.suit}"
             hero_strats.append(VectorStrategy(
-                hand_label=f"{c1.rank}{c1.suit}{c2.rank}{c2.suit}",
+                hand_label=label,
                 check=round(100 * ah[i, 0], 1),
                 bet=round(100 * ah[i, 1], 1),
                 call_vs_bet=round(100 * ahvb[i, 0], 1),
                 fold_vs_bet=round(100 * ahvb[i, 1], 1),
             ))
+            hero_compat.append(HandStrategy(
+                hand_label=label,
+                bet_freq=round(100 * ah[i, 1], 1),
+                check_freq=round(100 * ah[i, 0], 1),
+                call_freq_vs_bet=round(100 * ahvb[i, 0], 1),
+                fold_freq_vs_bet=round(100 * ahvb[i, 1], 1),
+            ))
+
+        vill_compat = []
+        for j, (c1, c2) in enumerate(self.vill):
+            label = f"{c1.rank}{c1.suit}{c2.rank}{c2.suit}"
+            vill_compat.append(HandStrategy(
+                hand_label=label,
+                v_call_freq=round(100 * avvb[j, 0], 1),
+                v_fold_freq=round(100 * avvb[j, 1], 1),
+                v_check_freq=round(100 * avac[j, 0], 1),
+                v_bet_freq=round(100 * avac[j, 1], 1),
+            ))
+
         return VectorResult(
             hero=hero_strats,
             iterations=iterations,
             elapsed_ms=int((time.time() - t0) * 1000),
+            hero_strategies=hero_compat,
+            villain_strategies=vill_compat,
         )
