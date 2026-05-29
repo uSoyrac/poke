@@ -33,7 +33,8 @@ from app.simulator.tournament_runner import (
 from app.ui.components.card_view import CardView, CardBackView, CardPlaceholder
 from app.ui.components.field_picker import FieldPicker
 from app.ui.components.gto_range_dialog import show_gto_dialog
-from app.ui.components.gto_range_widget import GTORangeWidget
+from app.ui.components.gto_range_widget import GTORangeWidget, GTODecisionReveal
+from app.poker.decision_capture import DecisionRecorder
 from app.ui.components.metric_card import MetricCard
 from app.ui.components.poker_table import LivePokerTable, SeatState, seats_from_hand
 
@@ -304,6 +305,7 @@ class TournamentSimulatorScreen(QWidget):
         self._bot_timer.setInterval(450)
         self._bot_timer.timeout.connect(self._tick_bot)
         self._between_hands = False
+        self._recorder = DecisionRecorder()   # hero karar yakalama (reveal/grade)
 
         # Background auto-play timer — fires every 250 ms regardless of
         # visibility.  When this tab is the active one it's a no-op; when
@@ -569,6 +571,10 @@ class TournamentSimulatorScreen(QWidget):
         gto_row.addWidget(self.gto_range, 1)
         deck_v.addLayout(gto_row)
 
+        # El-sonu notlandırılmış GTO reveal (Real Experience Mode'da bloklayan)
+        self.gto_reveal = GTODecisionReveal()
+        deck_v.addWidget(self.gto_reveal)
+
         # TO CALL banner above the buttons (kept out of the felt center
         # so hero cards never cover it).
         self.to_call_banner = QLabel("")
@@ -665,6 +671,9 @@ class TournamentSimulatorScreen(QWidget):
         if self.tournament.is_complete:
             self._build_report()
             return
+        self._recorder.reset()
+        if hasattr(self, "gto_reveal"):
+            self.gto_reveal.hide_panel()
         self.tournament.start_hand()
         self._refresh_table()
         # Begin paced bot processing
@@ -693,6 +702,7 @@ class TournamentSimulatorScreen(QWidget):
         elif action_type == ActionType.ALL_IN:
             amount = hero.stack
 
+        self._recorder.attach_hero(action_type, amount, bb=max(hand.big_blind, 1))
         self.tournament.hero_act(action_type, amount)
         self._refresh_table()
 
@@ -901,7 +911,11 @@ class TournamentSimulatorScreen(QWidget):
         )
 
         # ── GTO Range widget güncelle ──────────────────────────────
-        if hasattr(self, "gto_range") and not hand.is_complete:
+        _real_xp = bool(getattr(getattr(self, "state", None), "real_experience", False))
+        if hasattr(self, "gto_range"):
+            # Real Experience Mode: TÜM GTO bağlamı gizli (gerçek deneyim).
+            self.gto_range.setVisible(not _real_xp)
+        if hasattr(self, "gto_range") and not _real_xp and not hand.is_complete:
             hero_p = hand.hero
             if hero_p:
                 pos = getattr(hero_p, "position", "") or ""
@@ -918,6 +932,7 @@ class TournamentSimulatorScreen(QWidget):
                     pos, stack_bb,
                     game_type="tournament",
                     hero_hand=hero_hk,
+                    reveal_action=False,   # eğitim modu: cevabı el sonunda göster
                 )
         # Flag the most-aggressive non-hero as villain
         villain_idx = None
@@ -1048,7 +1063,16 @@ class TournamentSimulatorScreen(QWidget):
         except Exception:
             gto = None
 
+        # ── Karar noktasını yakala (el sonu reveal/grade için) ──
+        _st = getattr(self, "state", None)
+        _real_xp = bool(getattr(_st, "real_experience", False))
+        _sz = _st.live_gto.get("sizing") if (_st and getattr(_st, "live_gto", None)) else None
+        self._recorder.capture(hand, hero_idx, gto, bb=bb, sizing=_sz)
+
         def lbl(base: str, atype) -> str:
+            # Real Experience Mode: oyun sırasında cevabı sızdırma.
+            if _real_xp:
+                return base
             if gto and gto.available:
                 return f"{base}   {gto.per_action().get(atype, 0.0):.0f}%"
             return base
@@ -1223,6 +1247,15 @@ class TournamentSimulatorScreen(QWidget):
             return
         if not self.tournament.hand_log:
             return
+        # ── El-sonu GTO reveal + karar persist ──
+        _real_xp = bool(getattr(getattr(self, "state", None), "real_experience", False))
+        if hasattr(self, "gto_reveal"):
+            self.gto_reveal.show_decisions(self._recorder.log, graded=_real_xp)
+        try:
+            from app.db.repository import record_decision_log
+            record_decision_log(self._recorder.log)
+        except Exception:
+            pass
         result = self.tournament.hand_log[-1]
         # Live HUD güncelle
         if self.tournament.game.current_hand:
@@ -1336,9 +1369,15 @@ class TournamentSimulatorScreen(QWidget):
             # Brief pause so the showdown is readable, then auto-deal.
             # Spacebar can skip the wait — _space_pressed checks the flag.
             self._between_hands = True
-            QTimer.singleShot(1400, self._maybe_auto_deal_next)
+            # Real Experience Mode: OTOMATİK dağıtma — kullanıcı notlandırılmış
+            # reveal'ı görsün, SPACE ile onaylayıp geçsin.
+            if not _real_xp:
+                QTimer.singleShot(1400, self._maybe_auto_deal_next)
 
     def _maybe_auto_deal_next(self):
+        # Real Experience Mode: sadece manuel (SPACE) ilerleme.
+        if bool(getattr(getattr(self, "state", None), "real_experience", False)):
+            return
         if self._between_hands:
             self._between_hands = False
             self._deal_next_hand()
@@ -1348,6 +1387,16 @@ class TournamentSimulatorScreen(QWidget):
         if self._between_hands:
             self._between_hands = False
             self._deal_next_hand()
+
+    def apply_experience_mode(self, real: bool) -> None:
+        """Real Experience Mode toggle'ı — GTO panel görünürlüğünü tazele."""
+        if hasattr(self, "gto_range"):
+            self.gto_range.setVisible(not real)
+        try:
+            if self.tournament and self.tournament.game.current_hand:
+                self._refresh_table()
+        except Exception:
+            pass
 
     # ── BACKGROUND AUTO-PLAY ──────────────────────────────────────
 

@@ -943,9 +943,25 @@ class PlaySessionScreen(QWidget):
         if hasattr(self, "next_btn") and self.next_btn and self.next_btn.isVisible():
             self._deal_next()
             return
-        # Fold ettiysen el bitmeyi bekleme — botları anında ileri sar + sonraki el
+        # Fold ettiysen el bitmeyi bekleme — botları anında ileri sar.
         if self._hero_folded_midhand():
-            self._fast_forward_then_next(self._deal_next)
+            _real_xp = bool(getattr(self.state, "real_experience", False)) if self.state else False
+            if _real_xp:
+                # Real Experience: hızlı-ileri sar + notlandırılmış reveal göster,
+                # ama sonraki ele GEÇME — kullanıcı karneyi görsün, tekrar SPACE.
+                self._fast_forward_then_next(None)
+            else:
+                # Eğitim modu: fold → anında sonraki el (hızlı, #41).
+                self._fast_forward_then_next(self._deal_next)
+
+    def apply_experience_mode(self, real: bool) -> None:
+        """Real Experience Mode toggle'ı — GTO panel görünürlüğünü tazele."""
+        if hasattr(self, "gto_range"):
+            self.gto_range.setVisible(not real)
+        try:
+            self._refresh()
+        except Exception:
+            pass
 
     def _hero_folded_midhand(self) -> bool:
         if not self.game or not self.game.current_hand:
@@ -968,7 +984,8 @@ class PlaySessionScreen(QWidget):
         if self.game.current_hand and self.game.current_hand.is_complete:
             self._refresh()
             self._on_complete()
-        deal_fn()
+        if deal_fn is not None:
+            deal_fn()
 
     def _key_action(self, key: str) -> None:
         if not self.game or not self.game.is_waiting_for_hero:
@@ -1042,7 +1059,11 @@ class PlaySessionScreen(QWidget):
             bot_profiles=merged_profiles,
         )
 
-        if hasattr(self, "gto_range") and hero and not hand.is_complete:
+        _real_xp = bool(getattr(self.state, "real_experience", False)) if self.state else False
+        if hasattr(self, "gto_range"):
+            # Real Experience Mode: TÜM GTO bağlamı gizli (gerçek deneyim).
+            self.gto_range.setVisible(not _real_xp)
+        if hasattr(self, "gto_range") and not _real_xp and hero and not hand.is_complete:
             pos = getattr(hero, "position", "") or ""
             hero_hk = None
             if hero.hole_cards and len(hero.hole_cards) >= 2:
@@ -1295,8 +1316,10 @@ class PlaySessionScreen(QWidget):
             last["hero_amount"] = float(amount or 0) / max(bb, 1)
 
     def _on_complete(self):
+        _real_xp = bool(getattr(self.state, "real_experience", False)) if self.state else False
         if hasattr(self, "gto_reveal"):
-            self.gto_reveal.show_decisions(getattr(self, "_decision_log", []))
+            self.gto_reveal.show_decisions(
+                getattr(self, "_decision_log", []), graded=_real_xp)
         try:
             from app.db.repository import record_decision_log
             record_decision_log(getattr(self, "_decision_log", []))
@@ -1653,8 +1676,10 @@ class PlaySessionScreen(QWidget):
             self.mtt_allin_btn.show()
 
     def _on_complete_mtt(self):
+        _real_xp = bool(getattr(self.state, "real_experience", False)) if self.state else False
         if hasattr(self, "mtt_gto_reveal"):
-            self.mtt_gto_reveal.show_decisions(getattr(self, "_decision_log_mtt", []))
+            self.mtt_gto_reveal.show_decisions(
+                getattr(self, "_decision_log_mtt", []), graded=_real_xp)
         try:
             from app.db.repository import record_decision_log
             record_decision_log(getattr(self, "_decision_log_mtt", []))

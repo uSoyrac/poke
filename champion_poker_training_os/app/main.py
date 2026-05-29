@@ -160,6 +160,7 @@ class MainWindow(QMainWindow):
         self.sidebar = SidebarNav(NAV_ITEMS)
         self.sidebar.navigation_requested.connect(self.navigate)
         self.topbar = TopStatusBar(self.state)
+        self.topbar.experience_toggled.connect(self._on_experience_toggled)
         self.coach = CoachPanel()
         self.coach.ask_requested.connect(self.explain_selected_spot)
         self.coach.chat_requested.connect(self.chat_with_coach)
@@ -308,6 +309,33 @@ class MainWindow(QMainWindow):
                 )
             self.screens[name] = screen
             self.stack.addWidget(screen)
+
+    def _on_experience_toggled(self, real: bool) -> None:
+        """Real Experience Mode değişti → tüm play/tournament ekranlarını tazele.
+
+        GTO range panelinin görünürlüğü her ekranın ``apply_experience_mode``
+        metodunda yönetilir (multi-tab çocukları dahil).
+        """
+        def _apply(widget) -> None:
+            if hasattr(widget, "apply_experience_mode"):
+                try:
+                    widget.apply_experience_mode(real)
+                except Exception:
+                    pass
+            if hasattr(widget, "screens"):   # MultiSessionTabs
+                try:
+                    for child in widget.screens():
+                        _apply(child)
+                except Exception:
+                    pass
+        for scr in self.screens.values():
+            _apply(scr)
+        self.coach.set_message(
+            "🎭 REAL EXPERIENCE MODE açık — oyun sırasında GTO ipucu yok. "
+            "Kararını ver, el bitince notlandırılmış GTO geri bildirimini gör."
+            if real else
+            "📚 Eğitim modu — GTO range bağlamı tekrar görünür."
+        )
 
     def on_tournament_advice(self, briefing_prompt: str) -> None:
         """Forward tournament briefing prompt to Gemini and pipe response to coach."""

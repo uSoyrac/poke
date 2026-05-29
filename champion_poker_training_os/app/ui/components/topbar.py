@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QLineEdit, QVBoxLayout
 
 from app.core.app_state import AppState
@@ -31,6 +31,57 @@ class _Cell(QFrame):
             self.value_lbl.style().polish(self.value_lbl)
 
 
+class _ExperienceToggle(QFrame):
+    """Tıklanır hücre: Real Experience Mode aç/kapa.
+
+    REAL (yeşil) = oyun sırasında GTO gizli, el sonu notlandırılmış reveal.
+    TRAIN (muted) = eğitim modu, range bağlamı görünür.
+    """
+
+    toggled = Signal(bool)
+
+    def __init__(self, state: AppState):
+        super().__init__()
+        self.state = state
+        self.setObjectName("TopCell")
+        self.setStyleSheet("border-left: 1px solid #23271f;")
+        self.setCursor(Qt.PointingHandCursor)
+        l = QVBoxLayout(self)
+        l.setContentsMargins(16, 6, 16, 6)
+        l.setSpacing(2)
+        self.title_lbl = QLabel("DENEYİM MODU")
+        self.title_lbl.setObjectName("TLabel")
+        self.value_lbl = QLabel()
+        self.value_lbl.setStyleSheet(
+            "font-family: 'JetBrains Mono', Menlo, monospace; font-size: 12px;")
+        l.addWidget(self.title_lbl)
+        l.addWidget(self.value_lbl)
+        self._render()
+
+    def _render(self) -> None:
+        on = bool(getattr(self.state, "real_experience", False))
+        if on:
+            self.value_lbl.setText("● REAL")
+            self.value_lbl.setStyleSheet(
+                "font-family:'JetBrains Mono',Menlo,monospace; font-size:12px; "
+                "color:#5ad17a; font-weight:700;")
+            self.setToolTip("Real Experience: oyun sırasında GTO ipucu YOK. "
+                            "El sonu notlandırılmış reveal. Tıkla → eğitim moduna geç.")
+        else:
+            self.value_lbl.setText("○ TRAIN")
+            self.value_lbl.setStyleSheet(
+                "font-family:'JetBrains Mono',Menlo,monospace; font-size:12px; "
+                "color:#898d80; font-weight:700;")
+            self.setToolTip("Eğitim modu: GTO range bağlamı görünür. "
+                            "Tıkla → gerçek deneyim moduna geç (ipuçları gizlenir).")
+
+    def mousePressEvent(self, ev) -> None:   # noqa: N802 (Qt override)
+        self.state.real_experience = not getattr(self.state, "real_experience", False)
+        self._render()
+        self.toggled.emit(self.state.real_experience)
+        super().mousePressEvent(ev)
+
+
 class ComplianceStatusBadge(QLabel):
     def __init__(self):
         super().__init__("STRICT")
@@ -47,8 +98,11 @@ class ComplianceStatusBadge(QLabel):
 
 
 class TopStatusBar(QFrame):
+    experience_toggled = Signal(bool)
+
     def __init__(self, state: AppState):
         super().__init__()
+        self.state = state
         self.setObjectName("TopBar")
         self.setFixedHeight(56)
 
@@ -74,6 +128,8 @@ class TopStatusBar(QFrame):
         # Right: stat cells
         self.cell_status = _Cell("STATUS", "ACTIVE", "Green")
         self.cell_session = _Cell("SESSION", "0 hands", "Mono")
+        self.experience = _ExperienceToggle(state)
+        self.experience.toggled.connect(self.experience_toggled.emit)
         self.cell_rta = _Cell("RTA GUARD", "STRICT", "Green")
         self.compliance = ComplianceStatusBadge()
 
@@ -82,6 +138,7 @@ class TopStatusBar(QFrame):
         right.setSpacing(0)
         right.addWidget(self.cell_status)
         right.addWidget(self.cell_session)
+        right.addWidget(self.experience)
         right.addWidget(self.cell_rta)
 
         right_w = QFrame()

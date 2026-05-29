@@ -26,6 +26,10 @@ class AppState:
     # "is my decision GTO-correct?" with real frequency data. None when not
     # in a live preflop decision.
     live_gto: dict[str, Any] | None = None
+    # Real Experience Mode — açıkken oyun sırasında TÜM GTO ipuçları gizli
+    # (gerçek deneyim); GTO geri bildirimi sadece el sonu notlandırılmış
+    # reveal panelinde verilir. Kapalı = eğitim modu (range bağlamı görünür).
+    real_experience: bool = False
 
     @property
     def accuracy(self) -> float:

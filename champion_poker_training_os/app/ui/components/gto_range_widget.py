@@ -359,15 +359,24 @@ class GTODecisionReveal(QFrame):
                     if sub.widget():
                         sub.widget().deleteLater()
 
-    def show_decisions(self, decisions: list) -> None:
+    def show_decisions(self, decisions: list, graded: bool = False) -> None:
         """``decisions``: her biri bir hero karar noktası (dict).
 
         Beklenen anahtarlar (eksikler tolere edilir):
           street, scenario, tier, fold, call, raise, allin,
           sizing_label, sizing_bb, hero_action, hero_amount,
           available (bool), note (str)
+
+        ``graded=True`` (Real Experience Mode): üstte el skoru başlığı + her
+        karar satırında harf notu (A-F) + "SPACE → sonraki el" ipucu gösterilir.
         """
         self._clear_rows()
+        self._graded = graded
+        if graded:
+            self._title.setText("EL SONU · KARAR KARNESİ  ·  GTO OPTİMAL")
+        else:
+            self._title.setText("EL SONU · GTO OPTİMAL KARAR")
+
         if not decisions:
             lbl = QLabel("Bu elde hero karar noktası yok (fold edildi / blind).")
             lbl.setStyleSheet(
@@ -378,9 +387,48 @@ class GTODecisionReveal(QFrame):
             self.show()
             return
 
+        # ── El skoru başlığı (graded) ──
+        if graded:
+            try:
+                from app.poker.decision_grade import grade_hand
+                hg = grade_hand(decisions)
+            except Exception:
+                hg = None
+            if hg and hg.score is not None:
+                color = self._grade_color(hg.letter)
+                ev_s = (f"  ·  EV kaybı ~{hg.ev_loss_total:.1f}bb"
+                        if hg.ev_loss_total else "")
+                hdr = QLabel(
+                    f"<span style='color:{color}; font-weight:700'>EL NOTU: "
+                    f"{hg.letter}  (%{hg.score:.0f})</span>"
+                    f"<span style='color:{_MUTED}'>  ·  {hg.n_decisions} karar"
+                    f"{ev_s}</span>"
+                )
+                hdr.setTextFormat(Qt.RichText)
+                hdr.setStyleSheet(
+                    f"font-family:'JetBrains Mono',monospace; font-size:13px; "
+                    f"background:transparent;"
+                )
+                self._rows.addWidget(hdr)
+
         for d in decisions:
             self._rows.addLayout(self._build_row(d))
+
+        if graded:
+            hint = QLabel("▸ SPACE ile onayla → sonraki el")
+            hint.setStyleSheet(
+                f"font-family:'JetBrains Mono',monospace; font-size:10px; "
+                f"letter-spacing:1px; color:{_INFO}; background:transparent; "
+                f"font-weight:700; padding-top:3px;"
+            )
+            self._rows.addWidget(hint)
         self.show()
+
+    @staticmethod
+    def _grade_color(letter: str) -> str:
+        return {
+            "A": _ACCENT, "B": _ACCENT, "C": _WARN, "D": _DANGER, "F": _DANGER,
+        }.get(letter, _MUTED)
 
     @staticmethod
     def _verdict(d: dict) -> tuple[str, str]:
@@ -504,13 +552,25 @@ class GTODecisionReveal(QFrame):
         opt.setWordWrap(True)
         col.addWidget(opt)
 
-        # Hero'nun gerçek kararı + verdict
+        # Hero'nun gerçek kararı + verdict (+ graded: harf notu)
         ha = d.get("hero_action")
         if ha:
             amt = d.get("hero_amount")
             amt_s = f" {amt:.1f}bb" if isinstance(amt, (int, float)) and amt else ""
             mark, mcolor = self._verdict(d)
-            you = QLabel(f"Senin kararın:  {ha}{amt_s}    {mark}")
+            grade_s = ""
+            if getattr(self, "_graded", False):
+                try:
+                    from app.poker.decision_grade import grade_decision
+                    g = grade_decision(d)
+                    if g.score is not None:
+                        gcolor = self._grade_color(g.letter)
+                        grade_s = (f"   <span style='color:{gcolor}; "
+                                   f"font-weight:700'>[{g.letter}]</span>")
+                except Exception:
+                    grade_s = ""
+            you = QLabel(f"Senin kararın:  {ha}{amt_s}    {mark}{grade_s}")
+            you.setTextFormat(Qt.RichText)
             you.setStyleSheet(
                 f"font-family:'JetBrains Mono',monospace; font-size:10px; "
                 f"font-weight:700; color:{mcolor}; background:transparent;"
