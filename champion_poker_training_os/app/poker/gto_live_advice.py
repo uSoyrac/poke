@@ -100,12 +100,42 @@ def _villain_continuing_range(n_active: int, bet_frac: float = 0.0) -> list:
     return out
 
 
+def _hero_has_initiative(hand: HandState, hero_idx: int) -> bool:
+    """Hero preflop'taki son agresör mü (postflop c-bet inisiyatifi)?"""
+    last = None
+    for a in hand.actions:
+        if a.street != Street.PREFLOP:
+            break
+        if a.action_type in (ActionType.RAISE, ActionType.BET, ActionType.ALL_IN):
+            last = a.player_idx
+    return last == hero_idx
+
+
+def _hero_in_position(hand: HandState, hero_idx: int) -> bool:
+    """Postflop hero en geç mi konuşuyor (button'a en yakın aktif oyuncu)?"""
+    n = len(hand.players)
+    if n <= 0:
+        return True
+    d = getattr(hand, "dealer_idx", 0)
+
+    def order(seat: int) -> int:        # postflop: dealer+1 ilk, dealer son
+        return (seat - (d + 1)) % n
+
+    active = [i for i, p in enumerate(hand.players)
+              if not getattr(p, "is_folded", False)
+              and not getattr(p, "is_eliminated", False)]
+    if hero_idx not in active or not active:
+        return True
+    hero_o = order(hero_idx)
+    return all(order(i) <= hero_o for i in active)
+
+
 def _postflop_advice(hand: HandState, hero_idx: int, adv: LiveAdvice) -> LiveAdvice:
-    """Equity-temelli postflop frekans modeli (🟠 CONCEPT).
+    """Board-texture-aware postflop frekans modeli (🟠 CONCEPT).
 
     1) Hero equity'sini modellenmiş villain devam-range'ine karşı hesapla (MC).
-    2) pot odds + equity → action frekansları (GTO-flavored model).
-    Solver-exact DEĞİL — yön doğru, dürüstçe CONCEPT etiketli.
+    2) board dokusu + inisiyatif + pozisyon + equity → action frekansları
+       (postflop_gto motoru). Solver-exact DEĞİL — yön/şekil doğru, CONCEPT.
     """
     hero = hand.players[hero_idx]
     from app.engine.bot_brain import hand_key
@@ -135,45 +165,40 @@ def _postflop_advice(hand: HandState, hero_idx: int, adv: LiveAdvice) -> LiveAdv
     except Exception:
         return adv   # available=False kalır
 
-    # ── Equity → frekans modeli ──
+    # ── Board-texture-aware frekans modeli ──
+    from app.poker.postflop_gto import (
+        classify_board, cbet_strategy, defend_strategy,
+    )
+    tex = classify_board(hand.community)
+    in_pos = _hero_in_position(hand, hero_idx)
+    init = _hero_has_initiative(hand, hero_idx)
+
     if to_call > 0.01:
-        # Facing a bet: pot odds = call için gereken equity
-        pot_odds = to_call / (pot + to_call)
-        # Value raise: yüksek equity
-        raise_freq = max(0.0, min(0.55, (eq - 0.68) * 1.8))
-        # Bluff raise: çok düşük equity + küçük bet (blocker/leverage)
-        if eq < 0.30 and to_call / max(pot, 0.01) < 0.6:
-            raise_freq = max(raise_freq, 0.10)
-        # Fold: equity pot odds'un altındaysa
-        if eq < pot_odds:
-            fold_freq = min(0.92, (pot_odds - eq) / max(pot_odds, 0.01) * 1.3)
-        else:
-            fold_freq = max(0.0, (pot_odds - eq + 0.10) * 0.5)
-        fold_freq = max(0.0, min(0.92, fold_freq))
-        call_freq = max(0.0, 1.0 - raise_freq - fold_freq)
-        adv.raise_ = round(100 * raise_freq, 0)
-        adv.call = round(100 * call_freq, 0)
-        adv.fold = round(100 * fold_freq, 0)
+        # Bahis karşısında: doku + equity + pot-odds → fold/call/raise
+        fold_f, call_f, raise_f = defend_strategy(eq, tex, pot, to_call)
+        adv.fold = round(100 * fold_f, 0)
+        adv.call = round(100 * call_f, 0)
+        adv.raise_ = round(100 * raise_f, 0)
         adv.allin = 0.0
     else:
-        # No bet: bet (value/bluff) or check
-        # Value bet: yüksek equity
-        bet_value = max(0.0, min(0.85, (eq - 0.55) * 2.2))
-        # Bluff bet: düşük equity (showdown value yok)
-        bet_bluff = max(0.0, (0.30 - eq) * 0.9) if eq < 0.30 else 0.0
-        bet_freq = min(0.90, bet_value + bet_bluff)
-        adv.raise_ = round(100 * bet_freq, 0)   # BET butonu
-        adv.call = round(100 * (1.0 - bet_freq), 0)  # CHECK slotu
+        # Bahis yok: c-bet (doku/inisiyatif/pozisyon) veya check
+        bet_f, _size = cbet_strategy(eq, tex, in_pos, init)
+        adv.raise_ = round(100 * bet_f, 0)        # BET slotu
+        adv.call = round(100 * (1.0 - bet_f), 0)  # CHECK slotu
         adv.fold = 0.0
         adv.allin = 0.0
 
+    pos_s = "IP" if in_pos else "OOP"
+    init_s = "inisiyatif var" if init else "inisiyatif yok"
     adv.available = True
     adv.equity = round(eq * 100, 1)
-    adv.scenario = f"Postflop ({hand.street_name}, eq %{eq*100:.0f})"
+    adv.scenario = (f"Postflop ({hand.street_name} · {tex.label} · "
+                    f"{pos_s}, eq %{eq*100:.0f})")
     adv.tier_icon = "🟠"
-    adv.tier_label = "Equity-temelli (CONCEPT)"
-    adv.note = ("Equity-temelli model — solver-exact değil. Tam GTO için "
-                "Solver Sandbox kullan. Yön doğru, kesin frekans yaklaşık.")
+    adv.tier_label = "Board-texture model (CONCEPT)"
+    adv.note = (f"{tex.label} board · {pos_s} · {init_s}. Board-doku + equity "
+                "heuristiği — yön/şekil doğru, solver-exact değil (tam GTO için "
+                "Solver Sandbox).")
     adv.stack_bb = round((hero.stack + hero.current_bet) / bb, 1)
     _PF_CACHE[cache_key] = adv
     if len(_PF_CACHE) > 500:
