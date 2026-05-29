@@ -37,7 +37,7 @@ from app.simulator.tournament_runner import Tournament, TournamentConfig
 from app.ui.components.card_view import CardView, CardBackView, CardPlaceholder
 from app.ui.components.field_picker import FieldPicker
 from app.ui.components.gto_range_dialog import show_gto_dialog
-from app.ui.components.gto_range_widget import GTORangeWidget
+from app.ui.components.gto_range_widget import GTORangeWidget, GTODecisionReveal
 from app.ui.components.metric_card import MetricCard
 from app.ui.components.poker_table import LivePokerTable, SeatState, seats_from_hand
 
@@ -524,7 +524,7 @@ class PlaySessionScreen(QWidget):
 
         self.table = LivePokerTable()
         self.table.set_unit("bb")
-        self.table.setMinimumHeight(440)
+        self.table.setMinimumHeight(380)
         cl.addWidget(self.table)
 
         self.feedback = QLabel("Dealing first hand...")
@@ -593,6 +593,10 @@ class PlaySessionScreen(QWidget):
         gto_row.addWidget(self.gto_range, 1)
         deck_v.addLayout(gto_row)
 
+        # El-sonu GTO reveal — oyun sırasında gizli, el bitince optimal karar
+        self.gto_reveal = GTODecisionReveal()
+        deck_v.addWidget(self.gto_reveal)
+
         self.to_call_banner = QLabel("")
         self.to_call_banner.setAlignment(Qt.AlignCenter)
         self.to_call_banner.setStyleSheet(
@@ -654,8 +658,8 @@ class PlaySessionScreen(QWidget):
         self.allin_btn.clicked.connect(lambda: self._hero_action(ActionType.ALL_IN))
 
         for b in (self.fold_btn, self.check_btn, self.call_btn, self.raise_btn, self.allin_btn):
-            b.setMinimumWidth(68)   # was 150 — shrinks gracefully at narrow widths
-            b.setMinimumHeight(44)  # was 48
+            b.setMinimumWidth(64)   # was 150 — shrinks gracefully at narrow widths
+            b.setMinimumHeight(38)  # was 48
             b.setCursor(Qt.PointingHandCursor)
             b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             acts.addWidget(b, 1)
@@ -749,7 +753,7 @@ class PlaySessionScreen(QWidget):
 
         self.mtt_table = LivePokerTable()
         self.mtt_table.set_unit("bb")   # tournament simulator displays in bb too
-        self.mtt_table.setMinimumHeight(440)
+        self.mtt_table.setMinimumHeight(380)
         cl.addWidget(self.mtt_table)
 
         self.mtt_feedback = QLabel("Dealing first hand...")
@@ -801,6 +805,10 @@ class PlaySessionScreen(QWidget):
         banner_row.addStretch(1); banner_row.addWidget(self.mtt_to_call_banner); banner_row.addStretch(1)
         deck_v.addLayout(banner_row)
 
+        # El-sonu GTO reveal (turnuva) — oyun sırasında gizli
+        self.mtt_gto_reveal = GTODecisionReveal()
+        deck_v.addWidget(self.mtt_gto_reveal)
+
         # MTT deck row — same horizontal-scroll pattern as cash game
         mtt_dl_container = QWidget()
         mtt_dl_container.setStyleSheet("background:transparent;")
@@ -850,8 +858,8 @@ class PlaySessionScreen(QWidget):
 
         for b in (self.mtt_fold_btn, self.mtt_check_btn, self.mtt_call_btn,
                   self.mtt_raise_btn, self.mtt_allin_btn):
-            b.setMinimumWidth(68)   # was 150
-            b.setMinimumHeight(44)  # was 48
+            b.setMinimumWidth(64)   # was 150
+            b.setMinimumHeight(38)  # was 48
             b.setCursor(Qt.PointingHandCursor)
             b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             acts.addWidget(b, 1)
@@ -891,6 +899,10 @@ class PlaySessionScreen(QWidget):
             return
         if self.next_btn:
             self.next_btn.hide()
+        self._decision_log = []
+        self._captured_keys = set()
+        if hasattr(self, "gto_reveal"):
+            self.gto_reveal.hide_panel()
         self.game.start_hand()
         self._refresh()
         if not self.game.is_waiting_for_hero and not self.game.current_hand.is_complete:
@@ -908,6 +920,7 @@ class PlaySessionScreen(QWidget):
             amount = hand.to_call(hand.hero_idx)
         elif action_type == ActionType.ALL_IN:
             amount = hero.stack
+        self._record_hero_decision(action_type, amount)
         self.game.hero_act(action_type, amount)
         self._refresh()
         if hand.is_complete:
@@ -1042,6 +1055,7 @@ class PlaySessionScreen(QWidget):
                 pos, float(hero.stack),
                 game_type="cash",
                 hero_hand=hero_hk,
+                reveal_action=False,   # eğitim modu: cevabı el sonunda göster
             )
 
         villain_idx = None
@@ -1122,14 +1136,14 @@ class PlaySessionScreen(QWidget):
         to_call = hand.to_call(hero_idx)
         stack_meaningful = (hero and hero.stack >= 0.05)
 
-        # ── Canlı GTO advice (preflop EXACT/APPROX, postflop yok) ──
+        # ── Canlı GTO advice — hesapla ama EKRANDA GÖSTERME ──
+        # Eğitim modu: önce sen karar ver. Optimal karar el sonunda reveal
+        # panelinde açıklanır. Burada sadece snapshot alıp koça veriyoruz.
         gto = self._gto_pct(hand, hero_idx, mode="cash")
+        self._capture_decision(hand, gto, to_call)
 
         def lbl(base: str, atype) -> str:
-            if gto and gto.available:
-                pct = gto.per_action().get(atype, 0.0)
-                return f"{base}   {pct:.0f}%"
-            return base
+            return base   # canlı oyunda cevabı sızdırma
 
         if ActionType.FOLD in valid_types:
             self.fold_btn.setText(lbl("FOLD", ActionType.FOLD))
@@ -1160,11 +1174,19 @@ class PlaySessionScreen(QWidget):
             adv = live_gto_advice(hand, hero_idx, mode=mode)
             # AI koçun 'kararım doğru mu' sorusuna cevap verebilmesi için state'e koy
             if adv and adv.available and self.state is not None:
+                # Somut pot-matematiği için pot/to_call'ı da sakla (AI koç)
+                try:
+                    to_call = float(hand.to_call(hero_idx))
+                    pot = float(hand.pot)
+                    street = hand.street_name
+                except Exception:
+                    to_call, pot, street = 0.0, 0.0, ""
                 self.state.live_gto = {
                     "scenario": adv.scenario, "hand": adv.hand_key,
                     "stack_bb": adv.stack_bb, "tier": adv.tier_label,
                     "fold": adv.fold, "call": adv.call,
                     "raise": adv.raise_, "allin": adv.allin,
+                    "pot_bb": pot, "to_call_bb": to_call, "street": street,
                 }
                 self._attach_sizing(hand, hero_idx, mode)
             elif self.state is not None:
@@ -1186,7 +1208,89 @@ class PlaySessionScreen(QWidget):
         except Exception:
             pass
 
+    def _capture_decision(self, hand, gto, to_call) -> None:
+        """Hero'nun bu karar noktasındaki GTO-optimal dağılımını sakla.
+
+        El bitince ``gto_reveal`` panelinde gösterilir. Street başına bir kez
+        (to_call seviyesi değişirse yeni karar) — re-render'da tekrar eklemez.
+        """
+        log = getattr(self, "_decision_log", None)
+        if log is None:
+            self._decision_log = log = []
+            self._captured_keys = set()
+        key = (hand.street_name, round(to_call, 1))
+        if key in self._captured_keys:
+            return
+        self._captured_keys.add(key)
+        snap = {
+            "street": hand.street_name,
+            "scenario": getattr(gto, "scenario", "") if gto else "",
+            "tier": getattr(gto, "tier_label", "") if gto else "",
+            "available": bool(getattr(gto, "available", False)) if gto else False,
+            "note": getattr(gto, "note", "") if gto else "",
+            "fold": getattr(gto, "fold", 0) if gto else 0,
+            "call": getattr(gto, "call", 0) if gto else 0,
+            "raise": getattr(gto, "raise_", 0) if gto else 0,
+            "allin": getattr(gto, "allin", 0) if gto else 0,
+            "hero_action": None, "hero_amount": None,
+        }
+        sz = (self.state.live_gto or {}).get("sizing") if (self.state and self.state.live_gto) else None
+        if sz:
+            snap["sizing_label"] = sz.get("label")
+            snap["sizing_bb"] = sz.get("rec_bb")
+        self._decision_log.append(snap)
+
+    def _record_hero_decision(self, action_type, amount) -> None:
+        """Hero'nun gerçek kararını son karar snapshot'ına ekle."""
+        log = getattr(self, "_decision_log", None)
+        if not log:
+            return
+        last = log[-1]
+        if last.get("hero_action") is None:
+            last["hero_action"] = action_type.name
+            last["hero_amount"] = float(amount or 0)
+
+    def _capture_decision_mtt(self, hand, gto, to_call, bb) -> None:
+        """Turnuva karar noktası snapshot'ı (chip → bb dönüşümlü)."""
+        log = getattr(self, "_decision_log_mtt", None)
+        if log is None:
+            self._decision_log_mtt = log = []
+            self._captured_keys_mtt = set()
+        key = (hand.street_name, round(to_call / max(bb, 1), 1))
+        if key in self._captured_keys_mtt:
+            return
+        self._captured_keys_mtt.add(key)
+        snap = {
+            "street": hand.street_name,
+            "scenario": getattr(gto, "scenario", "") if gto else "",
+            "tier": getattr(gto, "tier_label", "") if gto else "",
+            "available": bool(getattr(gto, "available", False)) if gto else False,
+            "note": getattr(gto, "note", "") if gto else "",
+            "fold": getattr(gto, "fold", 0) if gto else 0,
+            "call": getattr(gto, "call", 0) if gto else 0,
+            "raise": getattr(gto, "raise_", 0) if gto else 0,
+            "allin": getattr(gto, "allin", 0) if gto else 0,
+            "hero_action": None, "hero_amount": None, "_bb": bb,
+        }
+        sz = (self.state.live_gto or {}).get("sizing") if (self.state and self.state.live_gto) else None
+        if sz:
+            snap["sizing_label"] = sz.get("label")
+            snap["sizing_bb"] = sz.get("rec_bb")
+        self._decision_log_mtt.append(snap)
+
+    def _record_hero_decision_mtt(self, action_type, amount) -> None:
+        log = getattr(self, "_decision_log_mtt", None)
+        if not log:
+            return
+        last = log[-1]
+        if last.get("hero_action") is None:
+            last["hero_action"] = action_type.name
+            bb = last.get("_bb", 1)
+            last["hero_amount"] = float(amount or 0) / max(bb, 1)
+
     def _on_complete(self):
+        if hasattr(self, "gto_reveal"):
+            self.gto_reveal.show_decisions(getattr(self, "_decision_log", []))
         if not self.game or not self.game.hand_history:
             return
         if self.game.current_hand:
@@ -1305,6 +1409,10 @@ class PlaySessionScreen(QWidget):
             return
         if hasattr(self, "mtt_next_btn"):
             self.mtt_next_btn.hide()
+        self._decision_log_mtt = []
+        self._captured_keys_mtt = set()
+        if hasattr(self, "mtt_gto_reveal"):
+            self.mtt_gto_reveal.hide_panel()
         self.tournament.start_hand()
         self._refresh_mtt()
         game = self.tournament.game
@@ -1330,6 +1438,7 @@ class PlaySessionScreen(QWidget):
         elif action_type == ActionType.ALL_IN:
             amount = hero.stack if hero else 0.0
 
+        self._record_hero_decision_mtt(action_type, amount)
         self.tournament.hero_act(action_type, amount)
         self._refresh_mtt()
 
@@ -1508,6 +1617,10 @@ class PlaySessionScreen(QWidget):
         level = self.tournament.state.current_level
         bb = max(level.bb, 1)
 
+        # GTO snapshot al (gösterme — el sonunda reveal'da açılacak)
+        gto = self._gto_pct(hand, hero_idx, mode="MTT")
+        self._capture_decision_mtt(hand, gto, to_call, bb)
+
         if ActionType.FOLD in valid_types:
             self.mtt_fold_btn.show()
         if ActionType.CHECK in valid_types:
@@ -1529,6 +1642,8 @@ class PlaySessionScreen(QWidget):
             self.mtt_allin_btn.show()
 
     def _on_complete_mtt(self):
+        if hasattr(self, "mtt_gto_reveal"):
+            self.mtt_gto_reveal.show_decisions(getattr(self, "_decision_log_mtt", []))
         if not self.tournament:
             return
         t = self.tournament

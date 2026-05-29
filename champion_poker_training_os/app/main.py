@@ -424,6 +424,30 @@ class MainWindow(QMainWindow):
             f"CALL %{g.get('call',0):.0f} · RAISE %{g.get('raise',0):.0f} · "
             f"ALLIN %{g.get('allin',0):.0f}\n"
         )
+        # ── SOMUT POT-MATEMATİĞİ — bu spotun gerçek sayıları ──
+        # Koç teoriyi değil, BU spotun rakamlarını öğretsin.
+        pot = float(g.get("pot_bb", 0) or 0)
+        to_call = float(g.get("to_call_bb", 0) or 0)
+        if to_call > 0 and pot > 0:
+            pot_odds = to_call / (pot + to_call)          # call maliyeti / toplam pot
+            be_equity = pot_odds                          # break-even equity = pot odds
+            risk_reward = (pot + to_call) / to_call       # kaç-1 alıyorum
+            block += (
+                f"[BU SPOTUN POT-MATEMATİĞİ]\n"
+                f"Pot: {pot:.1f}bb · Call maliyeti: {to_call:.1f}bb\n"
+                f"Pot odds = {to_call:.1f} / ({pot:.1f}+{to_call:.1f}) = "
+                f"%{pot_odds*100:.1f}  →  call için break-even equity %{be_equity*100:.1f}\n"
+                f"Risk/ödül: {risk_reward:.1f}-e-1 (call başına {risk_reward:.1f}bb kazanma şansı)\n"
+            )
+            # Bet potun yüzdesi kadarsa MDF/alpha — rakip bet attıysa
+            bet = to_call  # hero call'a bakıyorsa karşıdaki bet ≈ to_call
+            mdf = pot / (pot + bet)
+            alpha = bet / (pot + bet)
+            block += (
+                f"Rakip {bet:.1f}bb bet attı → MDF = {pot:.1f}/({pot:.1f}+{bet:.1f}) = "
+                f"%{mdf*100:.0f} (bu kadar range'i savunmalıyım, daha fazla fold = "
+                f"exploit edilirim) · Bluff'un break-even fold oranı (alpha) = %{alpha*100:.0f}\n"
+            )
         sz = g.get("sizing")
         if sz:
             block += (
@@ -434,8 +458,15 @@ class MainWindow(QMainWindow):
                 f"Örn '5bb yerine 12bb daha iyi olurdu çünkü...' tarzı somut sizing leak ver.\n"
             )
         block += (
-            f"Hero'nun kararını bu GTO frekanslarına göre değerlendir: "
-            f"doğru mu, ne kadar sapma var, neden? Kısa ve net.\n\n"
+            f"[KOÇLUK TARZI — NASIL DÜŞÜNMELİ ÖĞRET]\n"
+            f"Hero'ya optimal kararı doğrudan dayatma; ona NASIL düşüneceğini öğret. "
+            f"Yukarıdaki BU spotun gerçek sayılarını kullanarak adım adım yürüt:\n"
+            f"1) Elimin tahmini equity'si bu range'e karşı kabaca ne? "
+            f"2) Pot odds'un istediği break-even equity'yi geçiyor muyum? "
+            f"3) Geçmiyorsam fold; geçiyorsam call/raise — implied/fold equity ekle. "
+            f"4) Karar mixed'se neden (indifference / dengeli range) açıkla.\n"
+            f"Sonra hero'nun gerçek kararını GTO frekanslarıyla karşılaştır: "
+            f"doğru mu, kaç-puan sapma, hangi matematik adımı kaçırmış? Kısa ve somut sayılarla.\n\n"
         )
         return block
 

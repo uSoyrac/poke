@@ -1018,11 +1018,20 @@ class TournamentSimulatorScreen(QWidget):
             st = getattr(self, "state", None)
             if st is not None:
                 if gto and gto.available:
+                    # Somut pot-matematiği (bb cinsinden) için pot/to_call sakla
+                    try:
+                        _to_call_bb = float(hand.to_call(hero_idx)) / bb
+                        _pot_bb = float(hand.pot) / bb
+                        _street = hand.street_name
+                    except Exception:
+                        _to_call_bb, _pot_bb, _street = 0.0, 0.0, ""
                     st.live_gto = {
                         "scenario": gto.scenario, "hand": gto.hand_key,
                         "stack_bb": gto.stack_bb, "tier": gto.tier_label,
                         "fold": gto.fold, "call": gto.call,
                         "raise": gto.raise_, "allin": gto.allin,
+                        "pot_bb": _pot_bb, "to_call_bb": _to_call_bb,
+                        "street": _street,
                     }
                     try:
                         from app.poker.sizing_advice import sizing_advice

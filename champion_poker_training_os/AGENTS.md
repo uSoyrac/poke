@@ -222,6 +222,55 @@ Fix lives in `BotBrain._bet_amount` / `_raise_size` + helper `_commit_ok`:
 - NB: this is decision-quality, NOT a stat target — it shrinks the spewy
   tail without touching archetype VPIP/PFR/AF.
 
+### Eğitim döngüsü: cevabı oyun sırasında SAKLA, el sonu reveal — Phase B (2026-05-29)
+User direktifi: "oyunda bana optimal kararı vermesin ama her el sonunda …
+fold check call raise x size raise y size etc optimal kararı versin."
+- **Canlı bar artık cevabı sızdırmıyor.** `GTORangeWidget.update_range(...,
+  reveal_action=False)` → hero rozeti `"<hand>\n? KARARINI VER"` (dashed
+  border) gösterir; aksiyon butonları yüzde etiketi taşımaz (`lbl()` sadece
+  base string döner). GTO yine de arka planda hesaplanır (koç + reveal için).
+- **Yeni `GTODecisionReveal(QFrame)`** (`gto_range_widget.py`): her hero karar
+  noktasını `_capture_decision()` (cash) / `_capture_decision_mtt()` ile
+  street başına bir kez kaydeder (`_decision_log` + `_captured_keys` dedup,
+  `_deal_next`'te sıfırlanır). Hero gerçek aksiyonu `_record_hero_decision*`
+  ile snapshot'a iliştirilir. El bitince (`_on_complete*`) panel her street
+  için optimal dağılımı (FOLD/CHECK-CALL/RAISE/ALL-IN renkli %), raise size'ı
+  (raise% > 0 ise `→ raise size: X bb`), hero'nun gerçek kararını ve verdict'i
+  (`✓ uyumlu ≥50% · ≈ kabul edilebilir ≥15% · ✗ sapma`) basar.
+- PNG kanıt: `docs/screens/play_reveal.png`.
+
+### AI koç = GTO-matematik eğitmeni — Phase B (2026-05-29)
+User direktifi: "Koça soruncada … gto ya göre koçlık etsin. Nasıl düşünmem
+gerektiğini söylersin. Bu gto'nun bir math hesabı … sistemimizi bu math
+hesabına göre optimize edebiliriz."
+- `_gto_pct` (cash) ve tournament_simulator MTT yolu artık `state.live_gto`
+  içine `pot_bb` / `to_call_bb` / `street` de yazıyor (MTT'de chip→bb bölünür).
+- `MainWindow._gto_context_block()` (main.py) bu spotun **somut sayılarını**
+  hesaplayıp prompt'a enjekte ediyor: pot odds = `to_call/(pot+to_call)`,
+  break-even equity, risk/ödül oranı, MDF = `pot/(pot+bet)`, alpha. Ardından
+  "[KOÇLUK TARZI — NASIL DÜŞÜNMELİ ÖĞRET]" 4-adımlı düşünme direktifi (equity →
+  pot-odds eşiği → fold/call/raise + fold/implied equity → mixed ise neden).
+  Sistem prompt'u (`coach_prompts.py SYSTEM_PROMPT_TR`) zaten Socratic GTO
+  mentoru; bu blok ona **bu el'in gerçek rakamlarını** verir.
+
+### GTO chart matrisi aksiyon-bazlı renk — Phase B (2026-05-29)
+User direktifi: "gto chartları düzelt … call raise fold ve optimal decision'a
+göre bir chart." `gto_range_widget._HandMatrixWidget.set_action_range(pos,
+stack, mode, scenario, vs_position)` her 169 hücre için `get_action()` çağırıp
+`_action_cell_bg()` (RAISE `#DC2626` / CALL `#10B981` / FOLD `#2563EB`, mixed =
+yatay `qlineargradient`) + `_action_text_color()` uygular. `gto_range_dialog.py`
+artık `set_range(hands)` yerine `set_action_range(...)` çağırır, legend de
+Raise/Call/Fold/Senin elin. PNG: `docs/screens/gto_dialog_action.png`.
+
+### Kart + buton boyutlarını küçült — Phase B (2026-05-29)
+User: "kartların boyu çok büyük … küçültüp diğer alanlara yer açabiliriz."
+- Hero hole kartları `lg` (60×84) → `md` (44×60); board kartları `md` → `sm`
+  (32×44) (`poker_table.py`).
+- `LivePokerTable.minimumHeight` 380 → 330; play/MTT tablo holder 440 → 380.
+- Aksiyon butonları minH 44 → 38, minW 68 → 64 (cash + MTT).
+- PNG empati testi yapıldı (`docs/screens/05_play_session_live.png`): masa
+  daha kompakt, alt bölge nefes alıyor.
+
 ### MTT field simulation + table balancing
 `MTTField` runs a background Poisson elimination model:
 - Phase rates: early 0.55x, mid 1.0x, bubble 1.45x
@@ -291,6 +340,9 @@ then bind a `QShortcut` in the relevant screen.
 ## 5 · Recent commits (read for context)
 
 ```
+# Phase B — el-sonu GTO reveal + math koçu + chart/kart UI (2026-05-29) — newest first
+#   el sonu optimal karar paneli (cevap oyunda gizli), koça somut pot-odds/MDF,
+#   aksiyon-bazlı chart matrisi (gto_range_dialog), kart/buton küçültme.
 # Bot realism + PeakGTO trainer + sizing (2026-05-29) — newest first
 253db58 fix(bot): SPR-aware commitment gate — botlar trash ile all-in atmıyor
 b9b7abf feat(trainer): preflop Range Quiz'i PeakGTO seviyesine çıkar + BB-defans leak fix
@@ -424,8 +476,32 @@ commit short-SHA back to the user with the run command.
 
 ---
 
-## 9 · What's NOT done (good first tasks)
+## 9 · Yapılacaklar — Roadmap (sıradaki ajan buradan devam etsin)
 
+Phase B (2026-05-29) tamamlandı: el-sonu GTO reveal, GTO-math koçu, aksiyon-
+bazlı chart matrisi, küçültülmüş kart/butonlar. Aşağıdakiler **henüz açık** —
+kabaca öncelik sırasıyla.
+
+### 9a · GTO derinliği (en yüksek değer)
+- **Postflop GTO ranges canlı oyunda yok.** `gto_live_advice` + `get_action`
+  esas olarak preflop'u kapsıyor; flop/turn/river'da reveal paneli çoğu zaman
+  "GTO datası yok" düşüyor. Sıradaki büyük iş: postflop spotlarda (c-bet, vs
+  c-bet, turn barrel, river) en azından heuristik bir aksiyon dağılımı +
+  sizing üretmek (mevcut `river_solver` / `postflop` CFR'yi canlı reveal'a
+  bağla).
+- **Reveal paneli equity göstermiyor.** El sonu her street için `mc_equity`
+  ile hero'nun o noktadaki equity'sini hesaplayıp "GTO dağılımı + senin
+  equity'n + pot-odds eşiği" üçlüsünü yan yana koy (koç prompt'undaki 4-adımlı
+  matematiği görselleştir).
+- **Curated chart kapsamı dar.** `gto_ranges.py` sadece RFI 100bb 6-max +
+  15bb push/fold'u curate ediyor; gerisi heuristik. vs-RFI / vs-3bet / 4-bet
+  spotları için doğrulanmış curated chart'lar (PeakGTO/GTOWizard kıyaslı)
+  eklenince accuracy rozetleri "Solver-Exact"e çıkar.
+- **Multiway + sizing tree zayıf.** `sizing_advice` tek bir önerilen boyut
+  veriyor; GTO'da spot başına 2-3 boyut karışımı olur. Sizing matrisi
+  (small/big/overbet frekansları) ileride.
+
+### 9b · UI / UX
 - **Responsive table sizing at narrow widths** — slot positions are %
   but seat tile minWidth=132 is fixed. At < 1100 px effective table
   width the seats start to overlap. Consider scaling tile padding +
@@ -437,11 +513,21 @@ commit short-SHA back to the user with the run command.
 - **Bet-chip flight (seat → pot at street end)** — design spec calls
   for an animated chip-fly. Today chips just disappear when the street
   advances. Translate transform animation per Style Guide § 7.
+
+### 9c · Veri / kalıcılık
 - **Hand-history persistence display** — `app/db/repository.py` saves
   every hand, but no UI surfaces lifetime stats. Reports screen is
   seeded with demo data.
-- **Solver integration** — every "solver" output is mock data with a
-  source-confidence label. Hooking a real solver is a separate project.
+- **Leak Finder gerçek veriye bağlı değil** — oynanan ellerden otomatik
+  leak tespiti (örn. "BB defend çok tight", "river over-fold") agregasyonu.
+
+### 9d · Solver
+- **Solver integration** — built-in CFR çalışıyor ama "EXACT" çıktılar
+  TexasSolver subprocess'ine bağlı (AGPL, repo dışında `~/TexasSolver/`).
+  Canlı postflop reveal'i bu motora bağlamak ayrı bir proje.
+
+> NOT (lisans): TexasSolver AGPL — binary'yi repoya KOYMA, sadece subprocess
+> ile arms-length çağır. Gemini API key `.env`'de, git-ignored — ASLA commit etme.
 
 ---
 

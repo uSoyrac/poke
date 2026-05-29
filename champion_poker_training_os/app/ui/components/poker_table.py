@@ -452,7 +452,7 @@ class _Center(QFrame):
         # under the hero hole cards.
         self.street_tag.setText(street.upper())
         _clear_layout(self.board_row)
-        size = "md"
+        size = "sm"
         cards_to_show = list(board)
         for c in cards_to_show:
             self.board_row.addWidget(CardView(c, size=size))
@@ -598,7 +598,7 @@ class LivePokerTable(QWidget):
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
-        self.setMinimumHeight(380)
+        self.setMinimumHeight(330)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setAutoFillBackground(False)
@@ -676,7 +676,7 @@ class LivePokerTable(QWidget):
         # Hero hole
         if hero_cards and len(hero_cards) >= 2:
             for card in list(hero_cards)[:2]:
-                cv = CardView(card, size="lg")
+                cv = CardView(card, size="md")
                 cv.setParent(self)
                 cv.show()
                 self._hole_widgets.append(cv)

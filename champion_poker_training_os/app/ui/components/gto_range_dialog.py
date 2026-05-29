@@ -243,19 +243,25 @@ class GTORangeDialog(QDialog):
             )
             mat_hdr.addWidget(mat_title)
             mat_hdr.addStretch(1)
-            # Legend chips
-            for col, label in [(_ACCENT, "Premium"), ("#5ad1ce", "Range içi"), ("#7c3aed", "Küçük pair"), (_BG2, "Dışı")]:
+            # Legend chips — aksiyon-bazlı (range_trainer ile tutarlı)
+            for col, label, txt in [
+                ("#DC2626", "Raise", "#ffffff"),
+                ("#10B981", "Call",  "#ffffff"),
+                ("#2563EB", "Fold",  "#ffffff"),
+                ("#d6c668", "Senin elin", "#0a0c0a"),
+            ]:
                 chip = QLabel(label)
                 chip.setStyleSheet(
                     f"font-family:'JetBrains Mono',monospace; font-size:8px; "
-                    f"background:{col}; color:{'#0a0c0a' if col != _BG2 else _MUTED}; "
+                    f"background:{col}; color:{txt}; "
                     f"padding:2px 7px; border:1px solid #23271f; margin-left:4px;"
                 )
                 mat_hdr.addWidget(chip)
             b_l.addLayout(mat_hdr)
 
             matrix = _HandMatrixWidget()
-            matrix.set_range(hands)
+            # Aksiyon-frekans renklendirmesi: her hücre = o el için optimal karar
+            matrix.set_action_range(position, stack_bb, mode=game_type, scenario="RFI")
             # Highlight hero's hand if we can parse it (e.g. "9♣J♥" → "J9o")
             if hero_cards:
                 _try_highlight_hero(matrix, hero_cards)

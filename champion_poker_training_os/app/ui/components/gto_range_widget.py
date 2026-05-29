@@ -188,11 +188,17 @@ class GTORangeWidget(QFrame):
         stack_bb: float,
         game_type: str = "cash",       # "cash" veya "tournament"
         hero_hand: str | None = None,  # canonical key, örn "AKs", "QJo", "77"
+        reveal_action: bool = True,    # False → spesifik tavsiyeyi gizle (train modu)
     ) -> None:
         """Pozisyon ve stack'e göre GTO range bilgisini güncelle.
 
         ``hero_hand`` verilirse o spesifik el için tavsiye edilen aksiyon
         (RAISE/CALL/FOLD frekansı) sağdaki badge'de gösterilir.
+
+        ``reveal_action=False`` ise (oyun-içi eğitim modu) spesifik aksiyon
+        tavsiyesi gizlenir — önce sen karar verirsin, el bitince doğru karar
+        GTO reveal panelinde açıklanır. Genel pozisyon/range bilgisi görünür
+        kalır (öğretici bağlam), sadece "bu el ne yap" cevabı saklanır.
         """
         if not position:
             return
@@ -208,7 +214,7 @@ class GTORangeWidget(QFrame):
         self._note_lbl.setVisible(bool(display_note))
 
         self._stack_lbl.setText(f"{stack_bb:.0f}bb")
-        self._update_hero_badge(position, stack_bb, hero_hand)
+        self._update_hero_badge(position, stack_bb, hero_hand, reveal=reveal_action)
 
         # Renk uyarısı: çok kısa stack
         if stack_bb < 15:
@@ -234,10 +240,22 @@ class GTORangeWidget(QFrame):
         position: str,
         stack_bb: float,
         hero_hand: str | None,
+        reveal: bool = True,
     ) -> None:
         """Hero'nun spesifik eli için GTO tavsiyesini badge olarak göster."""
         if not hero_hand:
             self._hero_badge.hide()
+            return
+        # Eğitim modu: cevabı şimdi gösterme — önce sen karar ver
+        if not reveal:
+            self._hero_badge.setText(f"{hero_hand}\n? KARARINI VER")
+            self._hero_badge.setStyleSheet(
+                f"font-family:'JetBrains Mono',monospace; font-size:11px; "
+                f"font-weight:700; color:{_MUTED}; background:transparent; "
+                f"padding: 2px 10px; border-radius:4px; "
+                f"border: 1px dashed {_LINE2};"
+            )
+            self._hero_badge.show()
             return
         try:
             from app.poker.gto_ranges import get_action
@@ -288,6 +306,168 @@ class GTORangeWidget(QFrame):
 
 
 # ══════════════════════════════════════════════════════════════════════════
+#  El-sonu GTO reveal — oyun sırasında gizli, el bitince optimal kararı açar
+# ══════════════════════════════════════════════════════════════════════════
+
+class GTODecisionReveal(QFrame):
+    """El bittikten sonra GTO-optimal kararı/kararları gösteren panel.
+
+    Oyun sırasında gizli kalır (``hide_panel()``); el tamamlanınca
+    ``show_decisions([...])`` ile her hero karar noktasının optimal aksiyon
+    dağılımını (FOLD/CALL/RAISE/ALL-IN % + size) ve senin gerçek kararını
+    yan yana gösterir — "kod-doğru ≠ user-anlıyor": önce karar ver, sonra gör.
+    """
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("GTOReveal")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setStyleSheet(
+            f"QFrame#GTOReveal {{ background:{_BG2}; "
+            f"border:1px solid {_LINE2}; border-left:3px solid {_WARN}; }}"
+        )
+        self._root = QVBoxLayout(self)
+        self._root.setContentsMargins(12, 8, 12, 8)
+        self._root.setSpacing(4)
+
+        self._title = QLabel("EL SONU · GTO OPTİMAL KARAR")
+        self._title.setStyleSheet(
+            f"font-family:'JetBrains Mono',monospace; font-size:10px; "
+            f"letter-spacing:2px; font-weight:700; color:{_WARN}; "
+            f"background:transparent;"
+        )
+        self._root.addWidget(self._title)
+
+        self._rows = QVBoxLayout()
+        self._rows.setSpacing(3)
+        self._root.addLayout(self._rows)
+        self.hide()
+
+    def hide_panel(self) -> None:
+        self.hide()
+
+    def _clear_rows(self) -> None:
+        while self._rows.count():
+            it = self._rows.takeAt(0)
+            w = it.widget()
+            if w:
+                w.deleteLater()
+            elif it.layout():
+                _lay = it.layout()
+                while _lay.count():
+                    sub = _lay.takeAt(0)
+                    if sub.widget():
+                        sub.widget().deleteLater()
+
+    def show_decisions(self, decisions: list) -> None:
+        """``decisions``: her biri bir hero karar noktası (dict).
+
+        Beklenen anahtarlar (eksikler tolere edilir):
+          street, scenario, tier, fold, call, raise, allin,
+          sizing_label, sizing_bb, hero_action, hero_amount,
+          available (bool), note (str)
+        """
+        self._clear_rows()
+        if not decisions:
+            lbl = QLabel("Bu elde hero karar noktası yok (fold edildi / blind).")
+            lbl.setStyleSheet(
+                f"font-family:'JetBrains Mono',monospace; font-size:10px; "
+                f"color:{_MUTED}; background:transparent;"
+            )
+            self._rows.addWidget(lbl)
+            self.show()
+            return
+
+        for d in decisions:
+            self._rows.addLayout(self._build_row(d))
+        self.show()
+
+    @staticmethod
+    def _verdict(d: dict) -> tuple[str, str]:
+        """(işaret, renk) — hero kararı optimal frekansla uyumlu mu?"""
+        action_to_key = {
+            "FOLD": "fold", "CHECK": "call", "CALL": "call",
+            "BET": "raise", "RAISE": "raise", "ALL_IN": "allin", "ALLIN": "allin",
+        }
+        ha = (d.get("hero_action") or "").upper().replace("-", "_")
+        key = action_to_key.get(ha)
+        if not d.get("available") or key is None:
+            return "", _MUTED
+        pct = float(d.get(key, 0) or 0)
+        if pct >= 50:
+            return "✓ GTO ile uyumlu", _ACCENT
+        if pct >= 15:
+            return "≈ kabul edilebilir (mixed)", _WARN
+        return "✗ GTO'dan sapma", _DANGER
+
+    def _build_row(self, d: dict):
+        col = QVBoxLayout()
+        col.setSpacing(1)
+
+        street = (d.get("street") or "").upper()
+        scen = d.get("scenario") or ""
+        tier = d.get("tier") or ""
+        head = QLabel(f"{street}  ·  {scen}" + (f"  ·  {tier}" if tier else ""))
+        head.setStyleSheet(
+            f"font-family:'JetBrains Mono',monospace; font-size:9px; "
+            f"letter-spacing:1px; color:{_INFO}; background:transparent; font-weight:700;"
+        )
+        col.addWidget(head)
+
+        if not d.get("available"):
+            note = d.get("note") or "Postflop GTO için solver gerekli (Solver Sandbox)."
+            nl = QLabel(f"  {note}")
+            nl.setStyleSheet(
+                f"font-family:'JetBrains Mono',monospace; font-size:10px; "
+                f"color:{_MUTED}; background:transparent;"
+            )
+            nl.setWordWrap(True)
+            col.addWidget(nl)
+            return col
+
+        # Optimal aksiyon dağılımı
+        parts = []
+        for label, key, color in [
+            ("FOLD", "fold", _INFO), ("CHECK/CALL", "call", _ACCENT),
+            ("RAISE", "raise", _DANGER), ("ALL-IN", "allin", _DANGER),
+        ]:
+            pct = float(d.get(key, 0) or 0)
+            if pct > 0:
+                parts.append(f"<span style='color:{color}'>{label} {pct:.0f}%</span>")
+        dist = "   ·   ".join(parts) if parts else "—"
+
+        # Size sadece raise/bet öneriliyorsa anlamlı (fold/call için gizle)
+        sizing = ""
+        if d.get("sizing_bb") and float(d.get("raise", 0) or 0) > 0:
+            sizing = f"   →   raise size: {d['sizing_bb']:.1f}bb"
+            if d.get("sizing_label"):
+                sizing += f" ({d['sizing_label']})"
+
+        opt = QLabel(f"Optimal:  {dist}{sizing}")
+        opt.setTextFormat(Qt.RichText)
+        opt.setStyleSheet(
+            f"font-family:'JetBrains Mono',monospace; font-size:11px; "
+            f"font-weight:700; color:{_INK}; background:transparent;"
+        )
+        opt.setWordWrap(True)
+        col.addWidget(opt)
+
+        # Hero'nun gerçek kararı + verdict
+        ha = d.get("hero_action")
+        if ha:
+            amt = d.get("hero_amount")
+            amt_s = f" {amt:.1f}bb" if isinstance(amt, (int, float)) and amt else ""
+            mark, mcolor = self._verdict(d)
+            you = QLabel(f"Senin kararın:  {ha}{amt_s}    {mark}")
+            you.setStyleSheet(
+                f"font-family:'JetBrains Mono',monospace; font-size:10px; "
+                f"font-weight:700; color:{mcolor}; background:transparent;"
+            )
+            col.addWidget(you)
+        return col
+
+
+# ══════════════════════════════════════════════════════════════════════════
 #  Hand Matrix — 13×13 colour-coded range grid
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -327,6 +507,59 @@ def _matrix_cell_colors(hand: str, in_range: bool) -> tuple[str, str]:
         if _MATRIX_RIDX.get(hand[0], 0) >= 6:
             return _MC_PAIR_SM, _MC_SM_TXT
     return _MC_VALUE, _MC_IN_TXT
+
+
+# ── Action-frequency coloring (GTOWizard / range_trainer ile tutarlı) ──
+# RAISE=kırmızı, CALL=yeşil, FOLD=mavi. Mixed → yatay gradient split.
+_AC_RAISE = "#DC2626"
+_AC_CALL  = "#10B981"
+_AC_FOLD  = "#2563EB"
+_AC_FOLD_DIM = "#16203a"   # tam-fold hücreler için kısık mavi (grid'i boğmasın)
+
+
+def _action_cell_bg(action: dict) -> str:
+    """Build a horizontal RAISE|CALL|FOLD gradient from an action-freq dict.
+
+    Pure action → solid color. Mixed → linear-gradient with hard stops, so
+    the cell visually splits the same way the live range_trainer chart does.
+    """
+    r = max(0.0, float(action.get("raise", 0)))
+    c = max(0.0, float(action.get("call", 0)))
+    f = max(0.0, float(action.get("fold", 0)))
+    total = r + c + f
+    if total <= 0:
+        return _AC_FOLD_DIM
+    r, c, f = r / total, c / total, f / total
+
+    # Pure-action fast paths
+    if f >= 0.999:
+        return _AC_FOLD_DIM          # whole-grid fold cells stay subtle
+    if r >= 0.999:
+        return _AC_RAISE
+    if c >= 0.999:
+        return _AC_CALL
+
+    # Mixed → hard-stop horizontal gradient: raise | call | fold
+    stops: list[tuple[float, str]] = []
+    pos = 0.0
+    for frac, color in ((r, _AC_RAISE), (c, _AC_CALL), (f, _AC_FOLD)):
+        if frac <= 0:
+            continue
+        stops.append((pos, color))
+        pos += frac
+        stops.append((min(pos, 1.0), color))
+    parts = ", ".join(f"stop:{p:.3f} {col}" for p, col in stops)
+    return f"qlineargradient(x1:0, y1:0, x2:1, y2:0, {parts})"
+
+
+def _action_text_color(action: dict) -> str:
+    """Readable ink for an action cell — light on saturated, muted on dim fold."""
+    f = float(action.get("fold", 0))
+    r = float(action.get("raise", 0))
+    c = float(action.get("call", 0))
+    if f >= 99.9 and r <= 0 and c <= 0:
+        return "#6b7da3"   # muted on dim-fold
+    return "#ffffff"
 
 
 def parse_range_str(s: str) -> set[str]:
@@ -416,6 +649,9 @@ class _HandMatrixWidget(QWidget):
         super().__init__(parent)
         self._in_range: set[str] = set()
         self._cells: list[list[QLabel]] = []
+        # Per-cell base (bg, fg, weight) cache so highlight_hero can re-apply
+        # the gold border without losing action/category coloring.
+        self._base: list[list[tuple[str, str, str]]] = []
         self._build()
 
     def _build(self) -> None:
@@ -425,50 +661,101 @@ class _HandMatrixWidget(QWidget):
 
         for i in range(13):
             row: list[QLabel] = []
+            base_row: list[tuple[str, str, str]] = []
             for j in range(13):
                 hand = _matrix_cell_hand(i, j)
                 lbl = QLabel(hand)
                 lbl.setAlignment(Qt.AlignCenter)
                 lbl.setFixedSize(self.CELL_W, self.CELL_H)
-                lbl.setStyleSheet(self._style(hand, False))
+                bg, fg = _matrix_cell_colors(hand, False)
+                lbl.setStyleSheet(self._compose(bg, fg, "400"))
                 grid.addWidget(lbl, i, j)
                 row.append(lbl)
+                base_row.append((bg, fg, "400"))
             self._cells.append(row)
+            self._base.append(base_row)
 
-    def _style(self, hand: str, in_r: bool) -> str:
-        bg, fg = _matrix_cell_colors(hand, in_r)
-        weight = "700" if in_r else "400"
+    @staticmethod
+    def _compose(bg: str, fg: str, weight: str,
+                 border: str = "1px solid #1a1e18") -> str:
         return (
             f"background:{bg}; color:{fg}; "
             f"font-family:'JetBrains Mono','Menlo',monospace; "
             f"font-size:8px; font-weight:{weight}; "
-            f"border:1px solid #1a1e18;"
+            f"border:{border};"
         )
 
+    def _apply(self, i: int, j: int, bg: str, fg: str, weight: str) -> None:
+        self._base[i][j] = (bg, fg, weight)
+        self._cells[i][j].setStyleSheet(self._compose(bg, fg, weight))
+
     def set_range(self, hands_str: str) -> None:
-        """Colour cells based on parsed range string."""
+        """Colour cells by category membership (legacy / fallback path)."""
         self._in_range = parse_range_str(hands_str)
-        for i in range(13):
-            for j in range(13):
-                hand = _matrix_cell_hand(i, j)
-                self._cells[i][j].setStyleSheet(self._style(hand, hand in self._in_range))
-
-    def highlight_hero(self, *hero_hands: str) -> None:
-        """Add a gold border to the hero's specific hand cell(s).
-
-        Pass one or two hands (suited + offsuit) to highlight both.
-        """
-        highlighted = set(hero_hands)
         for i in range(13):
             for j in range(13):
                 hand = _matrix_cell_hand(i, j)
                 in_r = hand in self._in_range
                 bg, fg = _matrix_cell_colors(hand, in_r)
-                weight = "700" if in_r else "400"
-                border = "2px solid #d6c668" if hand in highlighted else "1px solid #1a1e18"
-                self._cells[i][j].setStyleSheet(
-                    f"background:{bg}; color:{fg}; "
-                    f"font-family:'JetBrains Mono','Menlo',monospace; "
-                    f"font-size:8px; font-weight:{weight}; "
-                    f"border:{border};"
-                )
+                self._apply(i, j, bg, fg, "700" if in_r else "400")
+
+    def set_action_range(
+        self,
+        position: str,
+        stack_bb: float,
+        mode: str = "cash",
+        scenario: str = "RFI",
+        vs_position: str | None = None,
+    ) -> None:
+        """Colour every cell by its GTO action frequency (RAISE/CALL/FOLD).
+
+        Mirrors the range_trainer chart: red=raise, green=call, blue=fold,
+        mixed strategies show a horizontal split. This is the math-driven
+        view — each cell is the optimal action for that hand at this spot.
+        """
+        try:
+            from app.poker.gto_ranges import get_action
+        except Exception:
+            # Fall back to the textual range if the engine is unavailable
+            return
+
+        pos = position.upper()
+        if pos in ("LJ", "UTG+1"):
+            pos = "MP"
+        if pos == "HJ":
+            pos = "CO"
+        depth = 100 if stack_bb >= 60 else (40 if stack_bb >= 30 else 20)
+        eng_mode = "MTT" if mode == "tournament" else "cash"
+
+        self._in_range = set()
+        for i in range(13):
+            for j in range(13):
+                hand = _matrix_cell_hand(i, j)
+                try:
+                    action = get_action(pos, hand, scenario=scenario,
+                                        stack_depth=depth, mode=eng_mode,
+                                        vs_position=vs_position)
+                except Exception:
+                    action = {"raise": 0, "call": 0, "fold": 100}
+                bg = _action_cell_bg(action)
+                fg = _action_text_color(action)
+                # Treat any non-fold action as "in range" for hero weighting
+                in_r = (action.get("raise", 0) + action.get("call", 0)) > 0
+                if in_r:
+                    self._in_range.add(hand)
+                self._apply(i, j, bg, fg, "700" if in_r else "400")
+
+    def highlight_hero(self, *hero_hands: str) -> None:
+        """Add a gold border to the hero's specific hand cell(s).
+
+        Pass one or two hands (suited + offsuit) to highlight both.
+        Works for both category and action coloring (reads the base cache).
+        """
+        highlighted = set(hero_hands)
+        for i in range(13):
+            for j in range(13):
+                hand = _matrix_cell_hand(i, j)
+                bg, fg, weight = self._base[i][j]
+                border = ("2px solid #d6c668" if hand in highlighted
+                          else "1px solid #1a1e18")
+                self._cells[i][j].setStyleSheet(self._compose(bg, fg, weight, border))
