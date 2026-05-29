@@ -1247,10 +1247,16 @@ class TournamentSimulatorScreen(QWidget):
             return
         if not self.tournament.hand_log:
             return
-        # ── El-sonu GTO reveal + karar persist ──
+        # ── El-sonu GTO reveal + karar persist + oturum karnesi ──
         _real_xp = bool(getattr(getattr(self, "state", None), "real_experience", False))
+        if not hasattr(self, "_session_score"):
+            from app.poker.session_score import SessionScore
+            self._session_score = SessionScore()
+        self._session_score.add_hand(self._recorder.log)
         if hasattr(self, "gto_reveal"):
-            self.gto_reveal.show_decisions(self._recorder.log, graded=_real_xp)
+            self.gto_reveal.show_decisions(
+                self._recorder.log, graded=_real_xp,
+                session_summary=self._session_score.summary())
         try:
             from app.db.repository import record_decision_log
             record_decision_log(self._recorder.log)

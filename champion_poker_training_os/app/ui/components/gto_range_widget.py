@@ -359,7 +359,8 @@ class GTODecisionReveal(QFrame):
                     if sub.widget():
                         sub.widget().deleteLater()
 
-    def show_decisions(self, decisions: list, graded: bool = False) -> None:
+    def show_decisions(self, decisions: list, graded: bool = False,
+                       session_summary: dict | None = None) -> None:
         """``decisions``: her biri bir hero karar noktası (dict).
 
         Beklenen anahtarlar (eksikler tolere edilir):
@@ -369,6 +370,8 @@ class GTODecisionReveal(QFrame):
 
         ``graded=True`` (Real Experience Mode): üstte el skoru başlığı + her
         karar satırında harf notu (A-F) + "SPACE → sonraki el" ipucu gösterilir.
+        ``session_summary``: verilirse en üstte oturum karnesi satırı (oturum
+        boyu GTO doğruluk %, EV kaybı, en zayıf street).
         """
         self._clear_rows()
         self._graded = graded
@@ -376,6 +379,28 @@ class GTODecisionReveal(QFrame):
             self._title.setText("EL SONU · KARAR KARNESİ  ·  GTO OPTİMAL")
         else:
             self._title.setText("EL SONU · GTO OPTİMAL KARAR")
+
+        # ── Oturum karnesi satırı (en üstte) ──
+        if session_summary and session_summary.get("n_decisions", 0) > 0:
+            acc = session_summary.get("accuracy", 0)
+            acc_color = (_ACCENT if acc >= 70 else
+                         _WARN if acc >= 50 else _DANGER)
+            ev = session_summary.get("ev_lost", 0)
+            weak = session_summary.get("weakest")
+            weak_s = f"  ·  en zayıf: <span style='color:{_DANGER}'>{weak}</span>" if weak else ""
+            sess = QLabel(
+                f"<span style='color:{_MUTED}'>OTURUM "
+                f"{session_summary.get('n_hands', 0)} el</span>  ·  "
+                f"<span style='color:{acc_color}; font-weight:700'>GTO doğruluk "
+                f"%{acc:.0f}</span>  ·  "
+                f"<span style='color:{_MUTED}'>EV kaybı {ev:.1f}bb</span>{weak_s}"
+            )
+            sess.setTextFormat(Qt.RichText)
+            sess.setStyleSheet(
+                f"font-family:'JetBrains Mono',monospace; font-size:11px; "
+                f"background:transparent; padding-bottom:2px;"
+            )
+            self._rows.addWidget(sess)
 
         if not decisions:
             lbl = QLabel("Bu elde hero karar noktası yok (fold edildi / blind).")

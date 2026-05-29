@@ -1317,12 +1317,19 @@ class PlaySessionScreen(QWidget):
 
     def _on_complete(self):
         _real_xp = bool(getattr(self.state, "real_experience", False)) if self.state else False
+        log = getattr(self, "_decision_log", [])
+        # Oturum karnesini güncelle
+        if not hasattr(self, "_session_score"):
+            from app.poker.session_score import SessionScore
+            self._session_score = SessionScore()
+        self._session_score.add_hand(log)
         if hasattr(self, "gto_reveal"):
             self.gto_reveal.show_decisions(
-                getattr(self, "_decision_log", []), graded=_real_xp)
+                log, graded=_real_xp,
+                session_summary=self._session_score.summary())
         try:
             from app.db.repository import record_decision_log
-            record_decision_log(getattr(self, "_decision_log", []))
+            record_decision_log(log)
         except Exception:
             pass
         if not self.game or not self.game.hand_history:
@@ -1677,12 +1684,18 @@ class PlaySessionScreen(QWidget):
 
     def _on_complete_mtt(self):
         _real_xp = bool(getattr(self.state, "real_experience", False)) if self.state else False
+        log = getattr(self, "_decision_log_mtt", [])
+        if not hasattr(self, "_session_score_mtt"):
+            from app.poker.session_score import SessionScore
+            self._session_score_mtt = SessionScore()
+        self._session_score_mtt.add_hand(log)
         if hasattr(self, "mtt_gto_reveal"):
             self.mtt_gto_reveal.show_decisions(
-                getattr(self, "_decision_log_mtt", []), graded=_real_xp)
+                log, graded=_real_xp,
+                session_summary=self._session_score_mtt.summary())
         try:
             from app.db.repository import record_decision_log
-            record_decision_log(getattr(self, "_decision_log_mtt", []))
+            record_decision_log(log)
         except Exception:
             pass
         if not self.tournament:
