@@ -128,6 +128,216 @@ def save_hero_decision(decision: dict) -> None:
         conn.commit()
 
 
+def _ensure_decision_columns() -> None:
+    """hero_decisions tablosuna analiz için ek kolonlar ekle (idempotent).
+
+    Eski şema sadece spot_id/hero_action/solver_action/ev_loss/frequency_error/
+    sizing_error içeriyordu. Leak Finder'ın zaman ve kategori bazlı analizi
+    için ``category``, ``street`` ve ``created_at`` ekliyoruz.
+    """
+    with get_connection() as conn:
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(hero_decisions)")}
+        if "category" not in cols:
+            conn.execute("ALTER TABLE hero_decisions ADD COLUMN category TEXT")
+        if "street" not in cols:
+            conn.execute("ALTER TABLE hero_decisions ADD COLUMN street TEXT")
+        if "created_at" not in cols:
+            # SQLite: ALTER ADD COLUMN can't use non-constant default → no default,
+            # we set it explicitly on insert.
+            conn.execute("ALTER TABLE hero_decisions ADD COLUMN created_at TEXT")
+        conn.commit()
+
+
+def _decision_category(snap: dict) -> str:
+    """Snapshot scenario'sunu kaba bir leak kategorisine indirger."""
+    scen = (snap.get("scenario") or "").lower()
+    street = (snap.get("street") or "").lower()
+    if street and street not in ("preflop", "pre-flop", "pre"):
+        return "Postflop"
+    if scen.startswith("push/fold") or "push/fold" in scen:
+        return "Push/Fold"
+    if scen.startswith("vs 3-bet") or "3-bet" in scen:
+        return "vs 3-bet"
+    if scen.startswith("vs rfi") or "vs rfi" in scen:
+        return "vs RFI"
+    if scen.startswith("rfi"):
+        return "RFI"
+    if "postflop" in scen:
+        return "Postflop"
+    return "Preflop"
+
+
+def _hero_action_freq(snap: dict, action_name: str) -> float:
+    """Hero'nun aldığı aksiyona GTO'nun atadığı % (0-100)."""
+    a = (action_name or "").upper()
+    if a == "FOLD":
+        return float(snap.get("fold", 0) or 0)
+    if a in ("CALL", "CHECK"):
+        return float(snap.get("call", 0) or 0)
+    if a in ("RAISE", "BET"):
+        return float(snap.get("raise", 0) or 0)
+    if a in ("ALL_IN", "ALLIN"):
+        return float(snap.get("allin", 0) or 0)
+    return 0.0
+
+
+def _best_gto_action(snap: dict) -> str:
+    opts = {
+        "FOLD": float(snap.get("fold", 0) or 0),
+        "CALL": float(snap.get("call", 0) or 0),
+        "RAISE": float(snap.get("raise", 0) or 0),
+        "ALL_IN": float(snap.get("allin", 0) or 0),
+    }
+    return max(opts, key=lambda k: opts[k])
+
+
+def _decision_ev_loss(snap: dict, hero_action: str) -> float:
+    """Kararın kaba EV kaybı (bb) — equity + pot odds'tan.
+
+    +EV bir spotu fold ettiyse: vazgeçilen EV ≈ eq*(pot+call) - call.
+    -EV bir call yaptıysa: kayıp ≈ call - eq*(pot+call).
+    Diğer durumlarda 0 (sizing/frekans kaybı ayrı izlenir). Solver-exact
+    değil — dürüst bir büyüklük tahmini.
+    """
+    eq = float(snap.get("equity", 0) or 0) / 100.0
+    pot = float(snap.get("pot_bb", 0) or 0)
+    to_call = float(snap.get("to_call_bb", 0) or 0)
+    if eq <= 0 or to_call <= 0.01:
+        return 0.0
+    call_ev = eq * (pot + to_call) - to_call   # +EV ise call kârlı
+    a = (hero_action or "").upper()
+    if a == "FOLD" and call_ev > 0:
+        return round(call_ev, 2)               # +EV spotu fold ettin
+    if a in ("CALL", "CHECK") and call_ev < 0:
+        return round(-call_ev, 2)              # -EV call yaptın
+    return 0.0
+
+
+def record_decision_log(log: list) -> int:
+    """Bir elin karar snapshot'larını hero_decisions'a kalıcılaştır.
+
+    Sadece GTO mevcut (available) ve hero aksiyonu kaydedilmiş kararlar
+    yazılır. frequency_error = 100 - (hero aksiyonuna GTO'nun atadığı %)
+    → 0 = tam GTO çizgisinde, 100 = GTO'nun asla yapmadığı aksiyon.
+    Döndürür: yazılan satır sayısı.
+    """
+    if not log:
+        return 0
+    _ensure_decision_columns()
+    written = 0
+    with get_connection() as conn:
+        for snap in log:
+            if not snap.get("available"):
+                continue
+            hero = snap.get("hero_action")
+            if not hero:
+                continue
+            cat = _decision_category(snap)
+            best = _best_gto_action(snap)
+            hero_freq = _hero_action_freq(snap, hero)
+            freq_err = max(0.0, 100.0 - hero_freq)
+            ev_loss = _decision_ev_loss(snap, hero)
+            sizing_err = ""
+            if snap.get("sizing_bb") and snap.get("hero_amount"):
+                try:
+                    diff = float(snap["hero_amount"]) - float(snap["sizing_bb"])
+                    sizing_err = f"{diff:+.1f}bb"
+                except Exception:
+                    sizing_err = ""
+            conn.execute(
+                """INSERT INTO hero_decisions
+                   (spot_id, hero_action, solver_action, ev_loss,
+                    frequency_error, sizing_error, category, street, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+                (
+                    f"{snap.get('street','')}|{snap.get('scenario','')}",
+                    hero, best, ev_loss, freq_err, sizing_err,
+                    cat, snap.get("street", ""),
+                ),
+            )
+            written += 1
+        conn.commit()
+    return written
+
+
+def get_decision_leaks(min_sample: int = 8) -> list:
+    """hero_decisions'tan sistematik GTO-sapması leak'leri tespit et.
+
+    Kategori (RFI / vs RFI / vs 3-bet / Postflop / Push/Fold) bazında:
+      - over-fold: GTO devam ederken (call/raise) hero fold ediyor
+      - over-aggression: GTO fold ederken hero raise/bet ediyor (spew)
+      - genel sapma oranı yüksek
+    Veri yetersizse boş liste döner (graceful).
+    """
+    _ensure_decision_columns()
+    with get_connection() as conn:
+        try:
+            rows = [dict(r) for r in conn.execute(
+                "SELECT spot_id, hero_action, solver_action, ev_loss, "
+                "frequency_error, category FROM hero_decisions"
+            ).fetchall()]
+        except sqlite3.OperationalError:
+            return []
+    if len(rows) < min_sample:
+        return []
+
+    from collections import defaultdict
+    buckets: dict[str, list] = defaultdict(list)
+    for r in rows:
+        buckets[r.get("category") or "Preflop"].append(r)
+
+    leaks: list = []
+    for cat, recs in buckets.items():
+        n = len(recs)
+        if n < min_sample:
+            continue
+        over_fold = [r for r in recs
+                     if (r["hero_action"] == "FOLD")
+                     and (r["solver_action"] not in ("FOLD",))]
+        over_aggro = [r for r in recs
+                      if (r["hero_action"] in ("RAISE", "BET", "ALL_IN"))
+                      and (r["solver_action"] == "FOLD")]
+        big_dev = [r for r in recs if (r["frequency_error"] or 0) >= 60]
+        ev_lost = round(sum(float(r["ev_loss"] or 0) for r in recs), 1)
+
+        of_rate = 100 * len(over_fold) / n
+        oa_rate = 100 * len(over_aggro) / n
+        dev_rate = 100 * len(big_dev) / n
+
+        if of_rate >= 25:
+            leaks.append({
+                "name": f"Over-folding ({cat})",
+                "severity": "High" if of_rate >= 40 else "Medium",
+                "detail": (f"{cat} spotlarında GTO devam ederken %{of_rate:.0f} "
+                           f"oranında fold ettin ({len(over_fold)}/{n} karar)."),
+                "fix": "Devam eşiğini gözden geçir: equity ≥ break-even ise call et. "
+                       "vs-3bet'te value+blocker bluff'ları folding'i bırak.",
+                "ev_lost": ev_lost, "sample_size": n,
+            })
+        if oa_rate >= 18:
+            leaks.append({
+                "name": f"Over-aggression / spew ({cat})",
+                "severity": "High" if oa_rate >= 30 else "Medium",
+                "detail": (f"{cat} spotlarında GTO fold ederken %{oa_rate:.0f} "
+                           f"oranında raise/bet yaptın ({len(over_aggro)}/{n})."),
+                "fix": "Bluff frekansını düşür; sadece blocker/equity olan ellerle "
+                       "agresyon. Zayıf ellerle value bölgesine girme.",
+                "ev_lost": ev_lost, "sample_size": n,
+            })
+        if dev_rate >= 35 and of_rate < 25 and oa_rate < 18:
+            leaks.append({
+                "name": f"GTO çizgisinden sapma ({cat})",
+                "severity": "Medium",
+                "detail": (f"{cat} kararlarının %{dev_rate:.0f}'inde GTO'nun nadir "
+                           f"yaptığı bir aksiyon seçtin ({len(big_dev)}/{n})."),
+                "fix": "El sonu reveal panelindeki optimal dağılımı incele; "
+                       "yüksek frekanslı aksiyona yaklaş.",
+                "ev_lost": ev_lost, "sample_size": n,
+            })
+    leaks.sort(key=lambda l: l.get("ev_lost", 0), reverse=True)
+    return leaks
+
+
 def get_player_stats() -> dict:
     """Calculate player stats from played hands: VPIP, PFR, WTSD, W$SD, AF."""
     with get_connection() as conn:
@@ -280,11 +490,24 @@ def get_overall_archive_stats() -> dict:
 
 
 def get_leak_analysis() -> list:
-    """Auto-detect leaks from played hand data."""
+    """Auto-detect leaks from played hand data + GTO-decision history.
+
+    İki kaynak: (1) played_hands aggregate istatistikleri (VPIP/WTSD/W$SD…),
+    (2) hero_decisions karar-bazlı GTO sapmaları (over-fold/spew, kategori
+    bazında). İkisi birleşir.
+    """
     stats = get_player_stats()
     leaks_found = []
 
+    # ── Karar-bazlı GTO leak'leri (her zaman dene; veri varsa ekler) ──
+    try:
+        leaks_found.extend(get_decision_leaks())
+    except Exception:
+        pass
+
     if stats["total_hands"] < 10:
+        if leaks_found:
+            return leaks_found
         return [{"name": "Not enough data", "severity": "Info",
                  "detail": f"Play {10 - stats['total_hands']} more hands for leak analysis."}]
 
@@ -327,7 +550,13 @@ def get_leak_analysis() -> list:
             "fix": "Focus on leak repair drills and study plan adherence.",
         })
 
-    if not leaks_found:
+    # Aggregate (played_hands) leak'lerinin örneklem boyutu = oynanan el sayısı
+    for lk in leaks_found:
+        if "sample_size" not in lk and lk.get("severity") != "Info":
+            lk["sample_size"] = stats["total_hands"]
+
+    has_real = any(l.get("severity") != "Info" for l in leaks_found)
+    if not has_real:
         leaks_found.append({
             "name": "No major leaks detected",
             "severity": "Info",

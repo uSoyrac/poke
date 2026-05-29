@@ -1232,6 +1232,9 @@ class PlaySessionScreen(QWidget):
             "call": getattr(gto, "call", 0) if gto else 0,
             "raise": getattr(gto, "raise_", 0) if gto else 0,
             "allin": getattr(gto, "allin", 0) if gto else 0,
+            "equity": getattr(gto, "equity", 0) if gto else 0,
+            "pot_bb": float(getattr(hand, "pot", 0) or 0),
+            "to_call_bb": float(to_call or 0),
             "hero_action": None, "hero_amount": None,
         }
         sz = (self.state.live_gto or {}).get("sizing") if (self.state and self.state.live_gto) else None
@@ -1270,6 +1273,9 @@ class PlaySessionScreen(QWidget):
             "call": getattr(gto, "call", 0) if gto else 0,
             "raise": getattr(gto, "raise_", 0) if gto else 0,
             "allin": getattr(gto, "allin", 0) if gto else 0,
+            "equity": getattr(gto, "equity", 0) if gto else 0,
+            "pot_bb": float(getattr(hand, "pot", 0) or 0) / max(bb, 1),
+            "to_call_bb": float(to_call or 0) / max(bb, 1),
             "hero_action": None, "hero_amount": None, "_bb": bb,
         }
         sz = (self.state.live_gto or {}).get("sizing") if (self.state and self.state.live_gto) else None
@@ -1291,6 +1297,11 @@ class PlaySessionScreen(QWidget):
     def _on_complete(self):
         if hasattr(self, "gto_reveal"):
             self.gto_reveal.show_decisions(getattr(self, "_decision_log", []))
+        try:
+            from app.db.repository import record_decision_log
+            record_decision_log(getattr(self, "_decision_log", []))
+        except Exception:
+            pass
         if not self.game or not self.game.hand_history:
             return
         if self.game.current_hand:
@@ -1644,6 +1655,11 @@ class PlaySessionScreen(QWidget):
     def _on_complete_mtt(self):
         if hasattr(self, "mtt_gto_reveal"):
             self.mtt_gto_reveal.show_decisions(getattr(self, "_decision_log_mtt", []))
+        try:
+            from app.db.repository import record_decision_log
+            record_decision_log(getattr(self, "_decision_log_mtt", []))
+        except Exception:
+            pass
         if not self.tournament:
             return
         t = self.tournament

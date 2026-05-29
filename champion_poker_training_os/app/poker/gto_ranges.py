@@ -541,17 +541,31 @@ def _is_curated(scenario: str, position: str, stack_depth: int,
                 vs_position: str | None) -> bool:
     """Hangi spotlar için curated chart kullanılır?
 
-    NOT: vs-RFI (BB defend) ve vs-3bet için curated chart'lar elle yazıldığında
-    sistematik olarak ÇOK SIKI çıktı (BB vs UTG %14 vs gerçek ~%38). Bu yüzden
-    bu geniş range'ler için curated DEVRE DIŞI — heuristic generator daha doğru
-    aggregate yüzdeler üretiyor (BB vs UTG %31, vs SB %51). Curated sadece
-    RFI ve Push/Fold için aktif (orada doğrulandı, doğru).
+    DOMAIN-BAĞIMLI KARAR (kör "hepsini aç/kapat" değil):
+
+    • RFI, Push/Fold → curated EXACT (doğrulandı, doğru).
+
+    • vs-RFI (BB defend) → curated DEVRE DIŞI. Bu GENİŞ bir domain
+      (BB savunması doğru oynayışta %30-50 olmalı). Elle yazılan curated
+      sistematik olarak çok SIKI çıktı (BB vs UTG %14 vs gerçek ~%38).
+      Heuristic generator daha doğru aggregate üretiyor (%31 / %51). →
+      heuristic kullan.
+
+    • vs-3bet → curated AKTİF (BTN/UTG/MP/CO, cash, ≥60bb). Bu POLARİZE
+      bir domain (çoğu el fold; devam edenler value-4bet / flat / bluff-4bet
+      olarak ayrışır). Heuristic burada SHAPE'i tamamen yanlış üretiyordu:
+      TT/99/AQs/KQs ile %100 4-bet (flat YOK), A5s gibi blocker bluff-4bet
+      ellerini %100 fold ediyordu — ders olarak ZARARLI. Curated tablolar
+      ders-kitabı şeklinde (pure value, mixed, geniş flat, polarize bluff).
+      Aggregate biraz sıkı olsa da SHAPE doğru → curated kullan (APPROX tier).
     """
     if scenario == "RFI" and stack_depth >= 60:
         return position in RFI_100BB_6MAX
     if scenario == "Push/Fold":
         return position in ("BTN", "SB") and 12 <= stack_depth <= 18
-    # vs RFI / vs 3-bet → heuristic (daha doğru, aşağıda fallback eder)
+    if scenario == "vs 3-bet" and stack_depth >= 60:
+        return position in ("BTN", "UTG", "MP", "CO")
+    # vs RFI (BB defend) → heuristic (daha doğru, aşağıda fallback eder)
     return False
 
 

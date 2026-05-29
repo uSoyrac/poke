@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QProgressBar,
     QPushButton,
@@ -17,13 +18,46 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.app_state import AppState
-from app.db.seed_data import leaks
+from app.db.repository import get_leak_analysis, get_player_stats
 from app.training.drill_library import DrillLibrary
-from app.ui.components.leak_card import LeakCard
 from app.ui.components.metric_card import MetricCard
 
 
-# Extended leak catalog matching the prompt's full list
+def _infer_category(name: str) -> str:
+    """Leak adından kaba kategori çıkar (data-driven leak'lerde category yoksa)."""
+    n = (name or "").lower()
+    # Karar-bazlı leak'ler adlarında "(vs 3-bet)" gibi parantez taşır
+    if "(" in name and ")" in name:
+        inside = name[name.rfind("(") + 1:name.rfind(")")].strip()
+        if inside:
+            return inside
+    if "preflop" in n or "loose" in n or "tight" in n or "rfi" in n:
+        return "Preflop"
+    if "showdown" in n or "river" in n:
+        return "River"
+    if "postflop" in n or "cbet" in n or "turn" in n or "flop" in n:
+        return "Postflop"
+    if "icm" in n or "final table" in n or "short stack" in n or "mtt" in n:
+        return "MTT"
+    return "General"
+
+
+def _normalize_leak(raw: dict) -> dict:
+    """get_leak_analysis() çıktısını tablo şemasına dönüştür."""
+    return {
+        "name": raw.get("name", ""),
+        "severity": raw.get("severity", "Medium"),
+        "category": raw.get("category") or _infer_category(raw.get("name", "")),
+        "sample_size": int(raw.get("sample_size", 0) or 0),
+        "ev_lost": float(raw.get("ev_lost", 0) or 0),
+        "frequency_deviation": raw.get("frequency_deviation", "—"),
+        "why": raw.get("detail", "") or raw.get("why", ""),
+        "fix": raw.get("fix", ""),
+        "repair_days": int(raw.get("repair_days", 5) or 5),
+    }
+
+
+# Fallback örnek katalog — gerçek el verisi yetersizken gösterilir.
 EXTENDED_LEAKS = [
     {
         "name": "BB underdefend vs BTN min-raise",
@@ -145,7 +179,8 @@ class LeakFinderScreen(QWidget):
     def __init__(self, state: AppState):
         super().__init__()
         self.state = state
-        self.all_leaks = EXTENDED_LEAKS
+        self.data_driven = False
+        self.all_leaks = []
         self._selected_leak: dict | None = None
 
         scroll = QScrollArea()
@@ -164,33 +199,49 @@ class LeakFinderScreen(QWidget):
         title = QLabel("Leak Finder")
         title.setObjectName("Title")
         header.addWidget(title)
+        header.addStretch(1)
+        self.refresh_btn = QPushButton("↻ Refresh")
+        self.refresh_btn.clicked.connect(self.reload)
+        header.addWidget(self.refresh_btn)
         self.sort_combo = QComboBox()
         self.sort_combo.addItems(["Sort by EV Lost", "Sort by Severity", "Sort by Category", "Sort by Sample Size"])
         self.sort_combo.currentTextChanged.connect(self._render)
         self.category_filter = QComboBox()
-        categories = sorted(set(l["category"] for l in self.all_leaks))
-        self.category_filter.addItems(["All Categories"] + categories)
         self.category_filter.currentTextChanged.connect(self._render)
         header.addWidget(self.sort_combo)
         header.addWidget(self.category_filter)
         layout.addLayout(header)
 
-        # Summary stats
-        stats = QGridLayout()
-        total_ev = sum(l["ev_lost"] for l in self.all_leaks)
-        critical = sum(1 for l in self.all_leaks if l["severity"] == "Critical")
-        high = sum(1 for l in self.all_leaks if l["severity"] == "High")
-        stats.addWidget(MetricCard("Total EV Lost", f"{total_ev:.1f}bb", f"{len(self.all_leaks)} leaks detected", "Red"), 0, 0)
-        stats.addWidget(MetricCard("Critical Leaks", str(critical), "fix immediately", "Red"), 0, 1)
-        stats.addWidget(MetricCard("High Severity", str(high), "fix this week", "Amber"), 0, 2)
-        stats.addWidget(MetricCard("Repair Progress", "0%", "start repair drills", "Green"), 0, 3)
-        layout.addLayout(stats)
+        # Data-source banner (real vs example catalog)
+        self.banner = QLabel()
+        self.banner.setWordWrap(True)
+        self.banner.setObjectName("Muted")
+        layout.addWidget(self.banner)
+
+        # Summary stats (MetricCards refreshed in _render via _update_summary)
+        self.stats_grid = QGridLayout()
+        self.metric_ev = MetricCard("Total EV Lost", "0.0bb", "0 leaks detected", "Red")
+        self.metric_crit = MetricCard("Critical Leaks", "0", "fix immediately", "Red")
+        self.metric_high = MetricCard("High Severity", "0", "fix this week", "Amber")
+        self.metric_hands = MetricCard("Hands Analyzed", "0", "play to gather data", "Green")
+        self.stats_grid.addWidget(self.metric_ev, 0, 0)
+        self.stats_grid.addWidget(self.metric_crit, 0, 1)
+        self.stats_grid.addWidget(self.metric_high, 0, 2)
+        self.stats_grid.addWidget(self.metric_hands, 0, 3)
+        layout.addLayout(self.stats_grid)
 
         # Leak table
         self.table = QTableWidget(0, 6)
-        self.table.setHorizontalHeaderLabels(["Leak", "Severity", "Category", "EV Lost", "Deviation", "Repair Days"])
+        self.table.setHorizontalHeaderLabels(["Leak", "Severity", "Category", "EV Lost", "Deviation", "Sample"])
         self.table.setAlternatingRowColors(True)
         self.table.cellClicked.connect(self._select_leak)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setWordWrap(False)
+        _hdr = self.table.horizontalHeader()
+        _hdr.setStretchLastSection(False)
+        _hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)        # Leak name fills
+        for _c in (1, 2, 3, 4, 5):
+            _hdr.setSectionResizeMode(_c, QHeaderView.ResizeMode.ResizeToContents)
         layout.addWidget(self.table)
 
         # Detail panel
@@ -231,7 +282,68 @@ class LeakFinderScreen(QWidget):
         detail_layout.addLayout(btn_row)
         layout.addWidget(self.detail_frame)
 
+        self.reload()
+
+    # ── Data loading ────────────────────────────────────────────────────
+    def reload(self) -> None:
+        """Gerçek el verisinden leak'leri yeniden yükle (Refresh / ekran açılış)."""
+        self._load_leaks()
+        # Kategori filtresini mevcut leak'lere göre güncelle
+        cats = sorted({l["category"] for l in self.all_leaks})
+        cur = self.category_filter.currentText()
+        self.category_filter.blockSignals(True)
+        self.category_filter.clear()
+        self.category_filter.addItems(["All Categories"] + cats)
+        idx = self.category_filter.findText(cur)
+        self.category_filter.setCurrentIndex(idx if idx >= 0 else 0)
+        self.category_filter.blockSignals(False)
+        self._update_summary()
         self._render()
+
+    def _load_leaks(self) -> None:
+        """get_leak_analysis() → tablo leak'leri. Veri yoksa örnek katalog."""
+        try:
+            raw = get_leak_analysis()
+        except Exception:
+            raw = []
+        # "Info" placeholder'ları (Not enough data / No major leaks) gerçek leak değil
+        real = [r for r in raw if r.get("severity") not in (None, "Info")]
+        if real:
+            self.data_driven = True
+            self.all_leaks = [_normalize_leak(r) for r in real]
+            info = next((r for r in raw if r.get("severity") == "Info"), None)
+            extra = f"  {info['detail']}" if info else ""
+            self.banner.setText(
+                f"✅  Gerçek oyun verinden {len(self.all_leaks)} leak tespit edildi."
+                f"{extra}  ·  Daha çok el oyna, analiz keskinleşir."
+            )
+        else:
+            self.data_driven = False
+            self.all_leaks = list(EXTENDED_LEAKS)
+            info = next((r for r in raw if r.get("severity") == "Info"), None)
+            note = info["detail"] if info else "Daha fazla el oyna."
+            self.banner.setText(
+                f"ⓘ  Henüz yeterli veri yok — aşağıdakiler ÖRNEK katalog (gerçek "
+                f"sonuçların değil). {note}  Play Session / Tournament'ta el oyna, "
+                f"sonra ↻ Refresh'e bas."
+            )
+
+    def _update_summary(self) -> None:
+        total_ev = sum(l["ev_lost"] for l in self.all_leaks)
+        critical = sum(1 for l in self.all_leaks if l["severity"] == "Critical")
+        high = sum(1 for l in self.all_leaks if l["severity"] == "High")
+        try:
+            hands = get_player_stats().get("total_hands", 0)
+        except Exception:
+            hands = 0
+        src = "from your hands" if self.data_driven else "example catalog"
+        self.metric_ev.set_value(f"{total_ev:.1f}bb")
+        self.metric_ev.set_detail(f"{len(self.all_leaks)} leaks · {src}")
+        self.metric_crit.set_value(str(critical))
+        self.metric_high.set_value(str(high))
+        self.metric_hands.set_value(str(hands))
+        self.metric_hands.set_detail(
+            "data-driven" if self.data_driven else "play to gather data")
 
     def _get_filtered_leaks(self) -> list[dict]:
         category = self.category_filter.currentText()
@@ -262,7 +374,8 @@ class LeakFinderScreen(QWidget):
             self.table.setItem(row, 2, QTableWidgetItem(leak["category"]))
             self.table.setItem(row, 3, QTableWidgetItem(f"{leak['ev_lost']:.1f}bb"))
             self.table.setItem(row, 4, QTableWidgetItem(leak["frequency_deviation"]))
-            self.table.setItem(row, 5, QTableWidgetItem(f"{leak['repair_days']} days"))
+            n = leak.get("sample_size", 0)
+            self.table.setItem(row, 5, QTableWidgetItem(f"{n} hands" if n else "—"))
 
     def _select_leak(self, row: int, _col: int) -> None:
         filtered = self.table.property("filtered_leaks") or self.all_leaks
@@ -270,9 +383,14 @@ class LeakFinderScreen(QWidget):
             leak = filtered[row]
             self._selected_leak = leak
             self.detail_title.setText(f"{leak['name']} | {leak['severity']} | {leak['category']}")
-            self.detail_why.setText(f"Why: {leak['why']}\n\nSample size: {leak['sample_size']} decisions | EV lost: {leak['ev_lost']:.1f}bb")
+            n = leak.get("sample_size", 0)
+            ev = leak.get("ev_lost", 0)
+            meta = f"Sample: {n} hands" if n else "Sample: —"
+            if ev:
+                meta += f" | EV lost: {ev:.1f}bb"
+            self.detail_why.setText(f"Why: {leak['why']}\n\n{meta}")
             self.detail_fix.setText(f"Fix: {leak['fix']}")
-            self.repair_bar.setFormat(f"Repair plan: {leak['repair_days']} days")
+            self.repair_bar.setFormat("Combat repair plan available")
             self.repair_bar.setValue(0)
 
     def _create_drill(self) -> None:
@@ -292,8 +410,22 @@ class LeakFinderScreen(QWidget):
         self.navigate_requested.emit("Spot Practice Trainer")
 
     def _ask_coach(self) -> None:
+        leaks = self._get_filtered_leaks()
+        if not leaks:
+            self.coach_message.emit(
+                "Henüz leak verisi yok. Play Session / Tournament'ta birkaç el oyna, "
+                "sonra Leak Finder → ↻ Refresh ile analiz oluştur."
+            )
+            return
+        top = leaks[:3]
+        src = ("Gerçek oyun verinden" if self.data_driven
+               else "Örnek katalogdan (henüz yeterli el yok)")
+        lines = "  ".join(
+            f"{i+1}) {l['name']} ({l['ev_lost']:.1f}bb, {l['severity']})"
+            for i, l in enumerate(top)
+        )
         self.coach_message.emit(
-            "Leak analizi: En büyük EV kaybı river overbluff (26.2bb). "
-            "Öncelik sırası: 1) River bluff disiplini 2) BB defend genişletme 3) ICM call-off sıkılaştırma. "
-            "7 günlük repair planı önerisi: günde 30dk leak-specific drill + 20dk hand review."
+            f"{src} öncelikli leak'ler: {lines}.  "
+            f"İlk hedef: \"{top[0]['name']}\" — {top[0]['fix']}  "
+            "Günde 30dk leak-specific drill + 20dk hand review öner."
         )

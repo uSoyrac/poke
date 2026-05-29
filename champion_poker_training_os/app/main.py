@@ -348,7 +348,14 @@ class MainWindow(QMainWindow):
         self.state.active_mode = name
         self.sidebar.set_active(name)
         self.topbar.set_mode(name)
-        self.stack.setCurrentWidget(self.screens[name])
+        target = self.screens[name]
+        # Leak Finder gerçek el verisinden beslenir → ekrana her girişte tazele
+        if hasattr(target, "reload"):
+            try:
+                target.reload()
+            except Exception:
+                pass
+        self.stack.setCurrentWidget(target)
         self.bottom_label.setText(
             f"Progress: {self.state.completed_drills} drills | Accuracy {self.state.accuracy:.0f}% | "
             f"Session EV loss {self.state.ev_loss_total:.2f}bb | Source confidence shown per result"

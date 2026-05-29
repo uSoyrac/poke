@@ -400,6 +400,46 @@ class GTODecisionReveal(QFrame):
             return "≈ kabul edilebilir (mixed)", _WARN
         return "✗ GTO'dan sapma", _DANGER
 
+    @staticmethod
+    def _math_line(d: dict) -> str:
+        """Bu karar noktasının somut GTO-matematiği (RichText).
+
+        equity %  ·  pot odds (break-even) %  ·  MDF %  →  +EV/-EV yorumu.
+        Veri yoksa "" döner (satır gizlenir).
+        """
+        pot = float(d.get("pot_bb", 0) or 0)
+        to_call = float(d.get("to_call_bb", 0) or 0)
+        eq = float(d.get("equity", 0) or 0)
+        parts: list[str] = []
+
+        if eq > 0:
+            parts.append(f"<span style='color:{_ACCENT}'>Equity %{eq:.0f}</span>")
+
+        if to_call > 0.01 and pot > 0:
+            pot_odds = 100.0 * to_call / (pot + to_call)   # break-even equity
+            mdf = 100.0 * pot / (pot + to_call)            # min defense freq
+            parts.append(
+                f"<span style='color:{_WARN}'>break-even %{pot_odds:.0f}</span> "
+                f"(pot {pot:.1f}bb · call {to_call:.1f}bb)"
+            )
+            parts.append(f"MDF %{mdf:.0f}")
+            # Equity biliniyorsa +EV/-EV call yorumu
+            if eq > 0:
+                if eq >= pot_odds:
+                    parts.append(
+                        f"<span style='color:{_ACCENT}'>→ call +EV "
+                        f"(equity &gt; break-even)</span>"
+                    )
+                else:
+                    parts.append(
+                        f"<span style='color:{_DANGER}'>→ call -EV "
+                        f"(equity &lt; break-even)</span>"
+                    )
+
+        if not parts:
+            return ""
+        return "📊  " + "  ·  ".join(parts)
+
     def _build_row(self, d: dict):
         col = QVBoxLayout()
         col.setSpacing(1)
@@ -413,6 +453,18 @@ class GTODecisionReveal(QFrame):
             f"letter-spacing:1px; color:{_INFO}; background:transparent; font-weight:700;"
         )
         col.addWidget(head)
+
+        # ── Matematik satırı (equity · pot-odds · MDF) — her zaman göster ──
+        math_line = self._math_line(d)
+        if math_line:
+            ml = QLabel(math_line)
+            ml.setTextFormat(Qt.RichText)
+            ml.setStyleSheet(
+                f"font-family:'JetBrains Mono',monospace; font-size:10px; "
+                f"color:{_MUTED}; background:transparent;"
+            )
+            ml.setWordWrap(True)
+            col.addWidget(ml)
 
         if not d.get("available"):
             note = d.get("note") or "Postflop GTO için solver gerekli (Solver Sandbox)."

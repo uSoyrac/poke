@@ -117,6 +117,39 @@ def test_rfi_range_pct_sane():
     assert 12 <= utg <= 22 and 40 <= btn <= 52
 
 
+def test_vs_3bet_curated_shape():
+    """vs-3bet curated (BTN/UTG/MP/CO, cash, 100bb) doğru POLARİZE şekil:
+
+    Heuristic burada zararlıydı (TT/AQs ile %100 4-bet, A5s'i %100 fold).
+    Curated ders-kitabı şekli üretmeli:
+      - AA pure value 4-bet
+      - TT/AQs flat-heavy (4-bet DEĞİL)
+      - A5s polarize bluff-4bet (fold DEĞİL)
+      - çöp (AJo vs UTG) fold
+    """
+    from app.poker.gto_ranges import get_action
+    # Pure value 4-bet
+    assert get_action("BTN", "AA", "vs 3-bet", 100, "cash")["raise"] == 100
+    # Flat-heavy, NOT 4-bet
+    btn_tt = get_action("BTN", "TT", "vs 3-bet", 100, "cash")
+    assert btn_tt["call"] >= 70 and btn_tt["raise"] <= 20
+    btn_aqs = get_action("BTN", "AQs", "vs 3-bet", 100, "cash")
+    assert btn_aqs["call"] >= 70 and btn_aqs["raise"] <= 20
+    # Bluff 4-bet candidate — must raise some, not pure-fold
+    btn_a5s = get_action("BTN", "A5s", "vs 3-bet", 100, "cash")
+    assert btn_a5s["raise"] >= 30, btn_a5s
+    # UTG JJ continues (call-heavy), trash folds
+    assert get_action("UTG", "JJ", "vs 3-bet", 100, "cash")["call"] >= 70
+    assert get_action("UTG", "AJo", "vs 3-bet", 100, "cash")["fold"] == 100
+
+
+def test_vs_3bet_uncovered_falls_back_to_heuristic():
+    """SB (curated dışı) vs-3bet → heuristic fallback, yine de geçerli dict."""
+    from app.poker.gto_ranges import get_action
+    a = get_action("SB", "AA", "vs 3-bet", 100, "cash")
+    assert abs(a["raise"] + a["call"] + a["fold"] - 100) < 0.5
+
+
 # ─────────────────────────────────────────────────────────────────────
 # Heuristic generator
 # ─────────────────────────────────────────────────────────────────────

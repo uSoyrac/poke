@@ -51,6 +51,7 @@ class LiveAdvice:
     note: str = ""
     hand_key: str = ""
     stack_bb: float = 0.0
+    equity: float = 0.0         # hero equity % vs modellenmiş villain range (postflop)
 
     def per_action(self) -> Dict[ActionType, float]:
         """ActionType → % eşlemesi (görünür butonlara uygulamak için)."""
@@ -72,12 +73,22 @@ def _norm_pos(pos: str) -> str:
 _PF_CACHE: Dict[tuple, "LiveAdvice"] = {}
 
 
-def _villain_continuing_range(n_active: int) -> list:
-    """Postflop villain'in devam ettiği makul range (top-X% playability)."""
+def _villain_continuing_range(n_active: int, bet_frac: float = 0.0) -> list:
+    """Postflop villain'in devam ettiği makul range (top-X% playability).
+
+    ``bet_frac`` > 0 ise villain BU bet'i attı/devam etti → range'i daralt:
+    büyük bet = daha güçlü/polarize range, küçük bet = daha geniş. Pasif
+    (check, bet_frac=0) durumda baz range kullanılır (capped, geniş).
+    """
     from app.poker.gto_generator import get_ranked_hands
     ranked = get_ranked_hands()
     # Heads-up postflop'ta villain ~top %55, multiway daha sıkı
     pct = 55 if n_active <= 2 else (42 if n_active == 3 else 32)
+    # Aksiyon-duyarlı daraltma: villain bahis yaptıysa range güçlenir.
+    if bet_frac > 0:
+        # 1/3 pot → ×0.88, 1/2 → ×0.82, 2/3 → ×0.76, pot → ×0.68, overbet → ~0.6
+        factor = max(0.55, 1.0 - min(0.45, bet_frac * 0.42))
+        pct *= factor
     target = 1326 * pct / 100
     out, acc = [], 0
     for hk in ranked:
@@ -115,7 +126,9 @@ def _postflop_advice(hand: HandState, hero_idx: int, adv: LiveAdvice) -> LiveAdv
     # ── Equity (MC, hız için sınırlı iter) ──
     try:
         from app.poker.mc_equity import equity_hand_vs_range
-        vr = _villain_continuing_range(hand.active_count)
+        # Villain bet attıysa (to_call>0) range'i bet boyutuna göre daralt
+        bet_frac = (to_call / max(pot, 0.01)) if to_call > 0.01 else 0.0
+        vr = _villain_continuing_range(hand.active_count, bet_frac)
         r = equity_hand_vs_range(hero_code, vr, board=" ".join(
             c.code for c in hand.community), iterations=1200)
         eq = r.a_equity / 100.0
@@ -155,6 +168,7 @@ def _postflop_advice(hand: HandState, hero_idx: int, adv: LiveAdvice) -> LiveAdv
         adv.allin = 0.0
 
     adv.available = True
+    adv.equity = round(eq * 100, 1)
     adv.scenario = f"Postflop ({hand.street_name}, eq %{eq*100:.0f})"
     adv.tier_icon = "🟠"
     adv.tier_label = "Equity-temelli (CONCEPT)"

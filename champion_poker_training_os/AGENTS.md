@@ -479,27 +479,36 @@ commit short-SHA back to the user with the run command.
 ## 9 · Yapılacaklar — Roadmap (sıradaki ajan buradan devam etsin)
 
 Phase B (2026-05-29) tamamlandı: el-sonu GTO reveal, GTO-math koçu, aksiyon-
-bazlı chart matrisi, küçültülmüş kart/butonlar. Aşağıdakiler **henüz açık** —
-kabaca öncelik sırasıyla.
+bazlı chart matrisi, küçültülmüş kart/butonlar.
+
+Phase C (2026-05-29) tamamlandı:
+- ✅ **Reveal paneline equity + pot-matematiği** — her street için MC equity +
+  break-even (pot odds) + MDF + "call +EV/-EV" satırı (`gto_range_widget.py`
+  `_math_line`, `gto_live_advice` `equity` alanı).
+- ✅ **Postflop villain range aksiyon-duyarlı** — villain bet boyutuna göre
+  devam-range'i daralıyor (`_villain_continuing_range(n, bet_frac)`).
+- ✅ **vs-3bet (4-bet) curated chart'ları etkinleştirildi** — BTN/UTG/MP/CO,
+  cash, ≥60bb. Heuristik bu polarize domende ZARARLIYDI (TT/AQs ile %100 4-bet,
+  A5s bluff-4bet'i fold). Curated ders-kitabı şekli (value/flat/bluff) →
+  APPROX tier (`_is_curated`). BB-defend hâlâ heuristik (geniş domain).
+- ✅ **Hero kararları persist + Leak Finder gerçek veriye bağlandı** —
+  `record_decision_log` her el sonu `hero_decisions`'a yazıyor; `get_decision_leaks`
+  kategori bazlı over-fold/spew/sapma tespiti; `get_leak_analysis` iki kaynağı
+  birleştiriyor; `LeakFinderScreen` artık data-driven (örnek katalog sadece
+  veri yokken fallback).
+
+Aşağıdakiler **henüz açık** — kabaca öncelik sırasıyla.
 
 ### 9a · GTO derinliği (en yüksek değer)
-- **Postflop GTO ranges canlı oyunda yok.** `gto_live_advice` + `get_action`
-  esas olarak preflop'u kapsıyor; flop/turn/river'da reveal paneli çoğu zaman
-  "GTO datası yok" düşüyor. Sıradaki büyük iş: postflop spotlarda (c-bet, vs
-  c-bet, turn barrel, river) en azından heuristik bir aksiyon dağılımı +
-  sizing üretmek (mevcut `river_solver` / `postflop` CFR'yi canlı reveal'a
-  bağla).
-- **Reveal paneli equity göstermiyor.** El sonu her street için `mc_equity`
-  ile hero'nun o noktadaki equity'sini hesaplayıp "GTO dağılımı + senin
-  equity'n + pot-odds eşiği" üçlüsünü yan yana koy (koç prompt'undaki 4-adımlı
-  matematiği görselleştir).
-- **Curated chart kapsamı dar.** `gto_ranges.py` sadece RFI 100bb 6-max +
-  15bb push/fold'u curate ediyor; gerisi heuristik. vs-RFI / vs-3bet / 4-bet
-  spotları için doğrulanmış curated chart'lar (PeakGTO/GTOWizard kıyaslı)
-  eklenince accuracy rozetleri "Solver-Exact"e çıkar.
+- **Postflop GTO solver-exact değil.** Canlı reveal postflop'ta equity-temelli
+  CONCEPT (🟠) model kullanıyor (`_postflop_advice`); yön doğru ama solver-exact
+  değil. TexasSolver / nested CFR'yi canlı reveal'a bağlamak gerçek frekans verir.
 - **Multiway + sizing tree zayıf.** `sizing_advice` tek bir önerilen boyut
   veriyor; GTO'da spot başına 2-3 boyut karışımı olur. Sizing matrisi
   (small/big/overbet frekansları) ileride.
+- **vs-RFI (BB defend) curated yok.** Bu geniş domain hâlâ heuristik (curated
+  elle yazıldığında sistematik çok-sıkı çıkıyor). Solver-verified geniş range
+  tabloları gerekir.
 
 ### 9b · UI / UX
 - **Responsive table sizing at narrow widths** — slot positions are %
@@ -518,8 +527,10 @@ kabaca öncelik sırasıyla.
 - **Hand-history persistence display** — `app/db/repository.py` saves
   every hand, but no UI surfaces lifetime stats. Reports screen is
   seeded with demo data.
-- **Leak Finder gerçek veriye bağlı değil** — oynanan ellerden otomatik
-  leak tespiti (örn. "BB defend çok tight", "river over-fold") agregasyonu.
+- ✅ **Leak Finder gerçek veriye bağlandı** (Phase C) — `hero_decisions`
+  persist + `get_decision_leaks` + data-driven `LeakFinderScreen`. Sıradaki:
+  stats-temelli leak'lere de EV-tahmini eklemek (şu an sadece karar-bazlı
+  leak'ler EV gösteriyor).
 
 ### 9d · Solver
 - **Solver integration** — built-in CFR çalışıyor ama "EXACT" çıktılar
