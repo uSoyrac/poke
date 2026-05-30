@@ -356,6 +356,12 @@ then bind a `QShortcut` in the relevant screen.
 ## 5 · Recent commits (read for context)
 
 ```
+# Phase E — rakip kompozisyonu + hover HUD + perf (2026-05-31) — newest first
+#   D46 oyuncu hover HUD'u: profil adı + Hellmuth tipi + VPIP/PFR/AF/… + exploit ipucu
+#   D45 masa kompozisyonu preset'leri (Soft/Tough/Bubble/Aggro/Efsaneler/Karışık)
+#   D44 havuz dağıtıcı: %'ye göre profil kompozisyonu (sample_field) — play + tournament
+#   D43 lazy ekran yükleme: boot 4842ms→250ms (19×); _ensure_screen
+#   D42 _TournCard çift-layout fix + layout anti-pattern taraması (0 Qt uyarısı)
 # Phase D — segment analizi + 3-araç onarımı + sistem sağlamlaştırma (2026-05-31) — newest first
 #   D40 postflop/river trainer'a gerçek board+hero kartları (CardRow/CardView)
 #   D39 yutulan hataları sağlamlaştır — merkezi log_swallowed (CPT_DEBUG=1)
