@@ -25,3 +25,22 @@ def test_empty_and_preflop():
     assert parse_cards("preflop") == []
     assert parse_cards(None) == []
     assert parse_cards("—") == []
+
+
+def test_table_size_parsing():
+    from app.ui.components.spot_table import _table_size
+    assert _table_size("9-max") == 9
+    assert _table_size("4-max") == 4
+    assert _table_size("HU") == 2
+    assert _table_size("2-max") == 2
+    assert _table_size("6-max") == 6
+    assert _table_size("") == 6           # varsayılan
+
+
+def test_icm_drill_builds_full_table():
+    from app.ui.screens.icm_trainer import _generate_icm_drills
+    from app.ui.components.spot_table import _seats_from_spot
+    for d in _generate_icm_drills(8):
+        seats, _, _ = _seats_from_spot(d)
+        # Koltuk sayısı pot/oyuncu sayısıyla tutarlı, asla 9'u aşmaz
+        assert 2 <= len(seats) <= 9

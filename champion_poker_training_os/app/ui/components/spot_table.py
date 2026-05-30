@@ -27,12 +27,17 @@ def parse_cards(s: str | None) -> list[str]:
 
 
 def _table_size(table_str: str) -> int:
-    t = table_str.upper()
-    if "HU" in t or "2-MAX" in t:
+    """'9-max'→9, '4-max'→4, 'HU'/'2-max'→2 … (2-9 destekli, varsayılan 6)."""
+    import re
+    t = str(table_str or "").upper()
+    if "HU" in t or "HEADS" in t:
         return 2
-    if "9" in t:
-        return 9
-    return 6  # default 6-max
+    m = re.search(r"(\d+)", t)
+    if m:
+        n = int(m.group(1))
+        if 2 <= n <= 9:
+            return n
+    return 6  # varsayılan 6-max
 
 
 def _seats_from_spot(spot: dict) -> tuple[list[SeatState], int, int]:
@@ -47,8 +52,9 @@ def _seats_from_spot(spot: dict) -> tuple[list[SeatState], int, int]:
     hero_stack = float(spot.get("stack_bb", 100))
     action_hist = spot.get("action_history", "").lower()
 
-    # Villain positions (everything except hero)
-    villain_positions = [p for p in positions if p != hero_pos]
+    # Villain positions (hero hariç) — toplam koltuk num_players'ı aşmasın
+    # (hero pozisyonu set'te yoksa bile taşma olmaz).
+    villain_positions = [p for p in positions if p != hero_pos][:max(0, num_players - 1)]
 
     seats: list[SeatState] = [
         SeatState(pos=hero_pos, name="Hero", stack=hero_stack, is_hero=True)

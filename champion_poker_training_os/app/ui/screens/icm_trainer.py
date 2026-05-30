@@ -73,10 +73,15 @@ def _generate_icm_drills(count: int = 40) -> list[dict]:
         bf = bubble_factor(stacks, payouts, 0) if len(stacks) <= 6 else round(1.2 + idx * 0.05, 2)
         range_width = push_fold_range_width(hero_stack, stage)
 
+        # Hero'nun masasındaki koltuk sayısı = min(kalan oyuncu, 9). Field 15/25/47
+        # olsa da bir poker masası en çok 9 kişiliktir → masa gerçekçi çizilir.
+        table_seats = min(players_left, 9)
+        table_str = "HU" if table_seats <= 2 else f"{table_seats}-max"
         drills.append({
             **spot,
             "id": f"ICM-{idx + 1:03d}",
             "title": f"{spot_type}: {spot['position']} {hero_stack}bb {stage}",
+            "table": table_str,
             "stage": stage,
             "spot_type": spot_type,
             "players_left": players_left,
