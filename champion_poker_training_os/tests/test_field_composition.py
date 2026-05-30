@@ -86,6 +86,35 @@ def test_distributor_clear_resets_to_random(qapp):
     assert fp._weights == {}
 
 
+def test_preset_tough_loads_sharks(qapp):
+    from app.ui.components.field_picker import FieldPicker, FIELD_PRESETS
+    tough = dict(FIELD_PRESETS)["🦈 Tough"]
+    fp = FieldPicker(default_bots=8)
+    fp._apply_preset(tough)
+    assert fp._weights.get("Shark", 0) == 60
+    arch = fp.get_archetypes()
+    assert arch.count("Shark") >= 4              # 60% of 8 ≈ 5 sabit shark
+    assert len(arch) == 8
+
+
+def test_preset_karisik_clears_to_random(qapp):
+    from app.ui.components.field_picker import FieldPicker
+    fp = FieldPicker(default_bots=6)
+    fp._dist_combo.setCurrentText("Shark"); fp._dist_pct.setValue(50); fp._add_weight()
+    fp._apply_preset({})                          # 🎲 Karışık
+    assert fp._weights == {}
+
+
+def test_all_presets_valid_and_capped(qapp):
+    from app.ui.components.field_picker import FieldPicker, FIELD_PRESETS
+    fp = FieldPicker(default_bots=8)              # MAX_BOTS = 8
+    for label, weights in FIELD_PRESETS:
+        fp._apply_preset(weights)
+        assert sum(fp._weights.values()) <= 100, f"{label} %100 aştı"
+        assert all(a in BOT_ARCHETYPES for a in fp._weights), f"{label} geçersiz profil"
+        assert len(fp.get_archetypes()) == 8      # her preset masayı doldurur
+
+
 def test_full_pool_selectable_in_distributor(qapp):
     """Dağıtıcı combosu havuzdaki HER profili içermeli (kullanıcı herkesten seçebilir)."""
     from app.ui.components.field_picker import FieldPicker

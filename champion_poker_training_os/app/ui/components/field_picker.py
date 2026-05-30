@@ -29,6 +29,18 @@ from app.engine.bot_brain import BOT_ARCHETYPES, KARMA_MIX, sample_field
 
 RANDOM_LABEL = "Random (Karma)"
 
+# Tek-tık masa kompozisyonu preset'leri. Her biri {arketip: yüzde}; kalan
+# otomatik Random. "Karışık" → boş (tamamı random, varsayılan).
+FIELD_PRESETS: "list[tuple[str, dict]]" = [
+    ("🎲 Karışık",   {}),
+    ("🐟 Soft",      {"Fish": 50, "Calling Station": 25}),
+    ("🦈 Tough",     {"Shark": 60, "GTO Expert": 20}),
+    ("🧊 Bubble",    {"Bubble Nit": 40, "Nit": 30}),
+    ("⚔️ Aggro",     {"LAG": 40, "Maniac": 30}),
+    ("👑 Efsaneler", {"Doyle Brunson": 25, "Phil Ivey": 25,
+                      "Phil Hellmuth": 25, "Daniel Negreanu": 25}),
+]
+
 
 class _SeatRow(QFrame):
     """One opponent seat — archetype combo + remove button."""
@@ -217,6 +229,21 @@ class FieldPicker(QFrame):
         self._dist_label.setStyleSheet("font-size:11px; color:#5a5e54;")
         v.addWidget(self._dist_label)
 
+        # Tek-tık preset'ler — tipik masa kompozisyonları
+        presets = QHBoxLayout()
+        presets.setSpacing(6)
+        for label, weights in FIELD_PRESETS:
+            b = QPushButton(label)
+            b.setCursor(Qt.PointingHandCursor)
+            b.setStyleSheet(
+                "QPushButton{background:#15181a;color:#cdd2c4;border:1px solid #2a2e26;"
+                "font-size:11px;font-weight:600;padding:3px 10px;border-radius:4px;}"
+                "QPushButton:hover{background:#1d2420;border-color:#5ad17a;color:#5ad17a;}")
+            b.clicked.connect(lambda _=False, w=weights: self._apply_preset(w))
+            presets.addWidget(b)
+        presets.addStretch(1)
+        v.addLayout(presets)
+
         # Build defaults
         n = max(self.MIN_BOTS, min(default_bots, self.MAX_BOTS))
         for _ in range(n):
@@ -277,6 +304,18 @@ class FieldPicker(QFrame):
         if rem > 0:
             parts.append(f"kalan %{rem:.0f} Random")
         self._dist_label.setText("  ·  ".join(parts) + "   → 'Dağıt' ile uygula")
+
+    def _apply_preset(self, weights: dict) -> None:
+        """Tek-tık preset: ağırlıkları ayarla, etiketi güncelle, hemen dağıt."""
+        # Havuzda olmayan adları ele (güvenlik) ve %100'le sınırla
+        clean: dict = {}
+        for arch, pct in weights.items():
+            if arch in BOT_ARCHETYPES:
+                room = max(0.0, 100.0 - sum(clean.values()))
+                clean[arch] = min(float(pct), room)
+        self._weights = clean
+        self._update_weight_label()
+        self._apply_distribution()
 
     def _apply_distribution(self) -> None:
         """Ağırlıkları mevcut bot sayısına oransal dağıt → koltukları doldur."""
