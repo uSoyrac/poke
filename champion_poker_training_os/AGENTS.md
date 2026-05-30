@@ -356,6 +356,17 @@ then bind a `QShortcut` in the relevant screen.
 ## 5 · Recent commits (read for context)
 
 ```
+# Phase D — segment analizi + 3-araç onarımı + sistem sağlamlaştırma (2026-05-31) — newest first
+#   D40 postflop/river trainer'a gerçek board+hero kartları (CardRow/CardView)
+#   D39 yutulan hataları sağlamlaştır — merkezi log_swallowed (CPT_DEBUG=1)
+#   D38 Practice-this-spot handoff: Study Library → Spot Trainer (state.practice_spot)
+#   D37 GTO doğruluk doğrulama paketi (20 test: RFI bantları, monotonluk, push/fold,
+#       premium-asla-fold, vs-3bet polarize) — "%95 ki yanıltmasın" güvencesi
+#   D36 ölü kod temizliği (HandDisplay/_Cards) + tüm-uygulama smoke testi (her ekran)
+#   D35 MTT/Quiz/Study onarımı: (1) sayaç arka planda akıyordu → showEvent/hideEvent
+#       gating; (2) kırılgan elle-kart → güvenilir CardView/TwoCardHand; (3) Study
+#       Library filtreleri matrisi sürmüyordu → set_config+refresh dinamik
+#   D33/D34 Reports segment analizi: format×aşama×masa×pozisyon×stack (mistake_spots)
 # Phase B — el-sonu GTO reveal + math koçu + chart/kart UI (2026-05-29) — newest first
 #   el sonu optimal karar paneli (cevap oyunda gizli), koça somut pot-odds/MDF,
 #   aksiyon-bazlı chart matrisi (gto_range_dialog), kart/buton küçültme.
