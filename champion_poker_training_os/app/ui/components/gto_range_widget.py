@@ -12,10 +12,36 @@ from __future__ import annotations
 
 import re
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QObject, QThread, Signal
 from PySide6.QtWidgets import (
     QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
 )
+
+
+class _SolveWorker(QObject):
+    """TexasSolver EXACT çözümünü arka planda koşturur (UI donmasın)."""
+    done = Signal(object)   # dict {action: freq} veya None
+
+    def __init__(self, spot: dict):
+        super().__init__()
+        self._spot = spot
+
+    def run(self) -> None:
+        out = None
+        try:
+            from app.poker.postflop_solver import solve_spot_exact
+            s = self._spot
+            out = solve_spot_exact(
+                board=s.get("board", ""),
+                pot_bb=float(s.get("pot_bb", 0) or 0),
+                eff_stack_bb=float(s.get("eff_stack_bb", 100) or 100),
+                hero_in_position=bool(s.get("in_position", True)),
+                hero_combo=s.get("hero_combo", ""),
+                iterations=80,
+            )
+        except Exception:
+            out = None
+        self.done.emit(out)
 
 # ── Renk tokenleri (tema ile uyumlu) ──────────────────────────────
 _ACCENT  = "#5ad17a"
@@ -341,6 +367,31 @@ class GTODecisionReveal(QFrame):
         self._rows = QVBoxLayout()
         self._rows.setSpacing(3)
         self._root.addLayout(self._rows)
+
+        # ── On-demand EXACT solver (TexasSolver, arka planda) ──
+        self._exact_btn = QPushButton("🎯  EXACT solver ile kesinleştir")
+        self._exact_btn.setStyleSheet(
+            f"QPushButton {{ background:#0f2318; color:{_INFO}; "
+            f"border:1px solid {_INFO}; border-radius:5px; "
+            f"font-family:'JetBrains Mono',monospace; font-size:10px; "
+            f"font-weight:700; padding:4px 10px; }} "
+            f"QPushButton:hover {{ background:#132a20; }} "
+            f"QPushButton:disabled {{ color:{_MUTED}; border-color:{_LINE2}; }}")
+        self._exact_btn.clicked.connect(self._run_exact_solve)
+        self._exact_btn.hide()
+        self._root.addWidget(self._exact_btn)
+        self._exact_result = QLabel("")
+        self._exact_result.setTextFormat(Qt.RichText)
+        self._exact_result.setWordWrap(True)
+        self._exact_result.setStyleSheet(
+            f"font-family:'JetBrains Mono',monospace; font-size:10px; "
+            f"color:{_INK}; background:transparent;")
+        self._exact_result.hide()
+        self._root.addWidget(self._exact_result)
+        self._solve_thread = None
+        self._solve_worker = None
+        self._solvable_spot = None
+
         self.hide()
 
     def hide_panel(self) -> None:
@@ -375,6 +426,7 @@ class GTODecisionReveal(QFrame):
         """
         self._clear_rows()
         self._graded = graded
+        self._setup_exact_button(decisions)
         if graded:
             self._title.setText("EL SONU · KARAR KARNESİ  ·  GTO OPTİMAL")
         else:
@@ -454,6 +506,72 @@ class GTODecisionReveal(QFrame):
         return {
             "A": _ACCENT, "B": _ACCENT, "C": _WARN, "D": _DANGER, "F": _DANGER,
         }.get(letter, _MUTED)
+
+    # ── On-demand EXACT solver (TexasSolver, arka planda) ───────────────
+    def _setup_exact_button(self, decisions: list) -> None:
+        """Çözülebilir bir postflop spot varsa EXACT butonunu göster."""
+        self._exact_result.hide()
+        self._exact_result.setText("")
+        spot = None
+        for d in (decisions or []):
+            if not d.get("available"):
+                continue
+            board = d.get("board") or ""
+            ncards = len([x for x in board.split() if x])
+            if ncards >= 3 and d.get("hero_combo"):
+                spot = d                      # son uygun postflop spot
+        self._solvable_spot = spot
+        can = spot is not None
+        if can:
+            try:
+                from app.poker.postflop_solver import solver_available
+                can = solver_available()
+            except Exception:
+                can = False
+        self._exact_btn.setVisible(bool(can))
+        if can:
+            self._exact_btn.setEnabled(True)
+            self._exact_btn.setText("🎯  EXACT solver ile kesinleştir")
+
+    def _run_exact_solve(self) -> None:
+        if not self._solvable_spot:
+            return
+        # Önceki thread bitmediyse yok say
+        if self._solve_thread is not None and self._solve_thread.isRunning():
+            return
+        self._exact_btn.setEnabled(False)
+        self._exact_btn.setText("🎯  Çözülüyor… (~5–15s, TexasSolver)")
+        self._exact_result.hide()
+        self._solve_thread = QThread(self)
+        self._solve_worker = _SolveWorker(self._solvable_spot)
+        self._solve_worker.moveToThread(self._solve_thread)
+        self._solve_thread.started.connect(self._solve_worker.run)
+        self._solve_worker.done.connect(self._on_exact_done)
+        self._solve_worker.done.connect(self._solve_thread.quit)
+        self._solve_thread.start()
+
+    def _on_exact_done(self, out) -> None:
+        self._exact_btn.setEnabled(True)
+        self._exact_btn.setText("🎯  EXACT solver ile kesinleştir")
+        if not out:
+            self._exact_result.setText(
+                f"<span style='color:{_MUTED}'>Solver şu an çözemedi "
+                f"(binary/board/zaman aşımı). CONCEPT öneri geçerli.</span>")
+            self._exact_result.show()
+            return
+        parts = []
+        for a, f in sorted(out.items(), key=lambda kv: -kv[1]):
+            au = a.upper()
+            color = (_DANGER if au.startswith(("BET", "RAISE", "ALL"))
+                     else _ACCENT if au in ("CHECK", "CALL") else _INFO)
+            parts.append(f"<span style='color:{color}'>{a} %{f:.0f}</span>")
+        spot = self._solvable_spot or {}
+        self._exact_result.setText(
+            f"✅ <b style='color:{_ACCENT}'>EXACT</b> "
+            f"<span style='color:{_MUTED}'>(TexasSolver · {spot.get('board','')}"
+            f" · {'IP' if spot.get('in_position') else 'OOP'}):</span>  "
+            + "   ·   ".join(parts))
+        self._exact_result.show()
 
     @staticmethod
     def _verdict(d: dict) -> tuple[str, str]:

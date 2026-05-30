@@ -1229,6 +1229,24 @@ class PlaySessionScreen(QWidget):
         except Exception:
             pass
 
+    @staticmethod
+    def _spot_context(hand, hero_idx, bb=1.0) -> dict:
+        """Postflop EXACT solver için spot bağlamı (board/hero/stack/IP)."""
+        ctx = {"board": "", "hero_combo": "", "eff_stack_bb": 0.0,
+               "in_position": True}
+        try:
+            comm = getattr(hand, "community", []) or []
+            ctx["board"] = " ".join(c.code for c in comm)
+            hero = hand.players[hero_idx]
+            if getattr(hero, "hole_cards", None) and len(hero.hole_cards) >= 2:
+                ctx["hero_combo"] = hero.hole_cards[0].code + hero.hole_cards[1].code
+            ctx["eff_stack_bb"] = round((hero.stack + hero.current_bet) / max(bb, 1e-9), 1)
+            from app.poker.gto_live_advice import _hero_in_position
+            ctx["in_position"] = _hero_in_position(hand, hero_idx)
+        except Exception:
+            pass
+        return ctx
+
     def _capture_decision(self, hand, gto, to_call) -> None:
         """Hero'nun bu karar noktasındaki GTO-optimal dağılımını sakla.
 
@@ -1257,6 +1275,7 @@ class PlaySessionScreen(QWidget):
             "pot_bb": float(getattr(hand, "pot", 0) or 0),
             "to_call_bb": float(to_call or 0),
             "hero_action": None, "hero_amount": None,
+            **self._spot_context(hand, hand.hero_idx, bb=1.0),
         }
         sz = (self.state.live_gto or {}).get("sizing") if (self.state and self.state.live_gto) else None
         if sz:
@@ -1297,6 +1316,7 @@ class PlaySessionScreen(QWidget):
             "equity": getattr(gto, "equity", 0) if gto else 0,
             "pot_bb": float(getattr(hand, "pot", 0) or 0) / max(bb, 1),
             "to_call_bb": float(to_call or 0) / max(bb, 1),
+            **self._spot_context(hand, hand.hero_idx, bb=bb),
             "hero_action": None, "hero_amount": None, "_bb": bb,
         }
         sz = (self.state.live_gto or {}).get("sizing") if (self.state and self.state.live_gto) else None

@@ -21,6 +21,23 @@ def make_snapshot(hand, hero_idx: int, gto, bb: float = 1.0,
         to_call = float(hand.to_call(hero_idx))
     except Exception:
         to_call = 0.0
+    # Postflop EXACT solver için spot bağlamı (board, hero combo, stack, IP)
+    board = ""
+    hero_combo = ""
+    eff_stack_bb = 0.0
+    in_position = True
+    try:
+        comm = getattr(hand, "community", []) or []
+        board = " ".join(c.code for c in comm)
+        hero = hand.players[hero_idx]
+        if getattr(hero, "hole_cards", None) and len(hero.hole_cards) >= 2:
+            hero_combo = hero.hole_cards[0].code + hero.hole_cards[1].code
+        eff_stack_bb = round((hero.stack + hero.current_bet) / _bb, 1)
+        from app.poker.gto_live_advice import _hero_in_position
+        in_position = _hero_in_position(hand, hero_idx)
+    except Exception:
+        pass
+
     snap = {
         "street": getattr(hand, "street_name", ""),
         "scenario": getattr(gto, "scenario", "") if gto else "",
@@ -34,6 +51,8 @@ def make_snapshot(hand, hero_idx: int, gto, bb: float = 1.0,
         "equity": getattr(gto, "equity", 0) if gto else 0,
         "pot_bb": float(getattr(hand, "pot", 0) or 0) / _bb,
         "to_call_bb": to_call / _bb,
+        "board": board, "hero_combo": hero_combo,
+        "eff_stack_bb": eff_stack_bb, "in_position": in_position,
         "hero_action": None, "hero_amount": None, "_bb": _bb,
     }
     if sizing:
