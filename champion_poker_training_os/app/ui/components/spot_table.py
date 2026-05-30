@@ -40,6 +40,29 @@ def _table_size(table_str: str) -> int:
     return 6  # varsayılan 6-max
 
 
+# Pozisyon eşlemesi: bir pozisyon masa setinde yoksa tercih sırasıyla en yakın.
+# Örn. 6-max set'te LJ/HJ yok → MP/CO'ya düşer; 9-max'ta zaten varlar.
+_POS_ALIAS = {
+    "MP": ["MP", "LJ", "HJ", "UTG+1"],
+    "MP+1": ["MP+1", "HJ", "LJ", "MP"],
+    "LJ": ["LJ", "MP", "HJ"],
+    "HJ": ["HJ", "CO", "LJ", "MP"],
+    "UTG+1": ["UTG+1", "UTG+2", "MP", "UTG"],
+    "UTG+2": ["UTG+2", "MP", "LJ"],
+}
+
+
+def _canonical_pos(pos: str, positions: list[str]) -> str:
+    """`pos` masa pozisyon setinde değilse geçerli en yakın pozisyona eşle."""
+    if pos in positions:
+        return pos
+    for alt in _POS_ALIAS.get(pos, []):
+        if alt in positions:
+            return alt
+    # Bilinmeyen → setin ortasından bir pozisyon (erken/orta)
+    return positions[len(positions) // 2] if positions else pos
+
+
 def _seats_from_spot(spot: dict) -> tuple[list[SeatState], int, int]:
     """Build seat list from spot-drill dict.
 
@@ -49,6 +72,9 @@ def _seats_from_spot(spot: dict) -> tuple[list[SeatState], int, int]:
     num_players = _table_size(spot.get("table", "6-max"))
     positions: list[str] = list(POSITIONS_BY_SIZE.get(num_players, POSITIONS_BY_SIZE[6]))
     hero_pos = spot.get("position", "BTN")
+    # Hero pozisyonu bu masa-boyutunun setinde yoksa (örn. 6-max "MP" → 9-max
+    # setinde yok) geçerli bir pozisyona eşle → tüm koltuk etiketleri tutarlı.
+    hero_pos = _canonical_pos(hero_pos, positions)
     hero_stack = float(spot.get("stack_bb", 100))
     action_hist = spot.get("action_history", "").lower()
 
