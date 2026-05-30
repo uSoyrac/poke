@@ -172,17 +172,21 @@ def _postflop_advice(hand: HandState, hero_idx: int, adv: LiveAdvice) -> LiveAdv
     tex = classify_board(hand.community)
     in_pos = _hero_in_position(hand, hero_idx)
     init = _hero_has_initiative(hand, hero_idx)
+    street_name = (hand.street_name or "flop").lower()
+    n_active = max(2, int(getattr(hand, "active_count", 2) or 2))
 
     if to_call > 0.01:
-        # Bahis karşısında: doku + equity + pot-odds → fold/call/raise
-        fold_f, call_f, raise_f = defend_strategy(eq, tex, pot, to_call)
+        # Bahis karşısında: doku + equity + pot-odds + multiway → fold/call/raise
+        fold_f, call_f, raise_f = defend_strategy(eq, tex, pot, to_call,
+                                                  n_active=n_active)
         adv.fold = round(100 * fold_f, 0)
         adv.call = round(100 * call_f, 0)
         adv.raise_ = round(100 * raise_f, 0)
         adv.allin = 0.0
     else:
-        # Bahis yok: c-bet (doku/inisiyatif/pozisyon) veya check
-        bet_f, _size = cbet_strategy(eq, tex, in_pos, init)
+        # Bahis yok: c-bet (doku/inisiyatif/pozisyon/sokak/multiway) veya check
+        bet_f, _size = cbet_strategy(eq, tex, in_pos, init,
+                                     street=street_name, n_active=n_active)
         adv.raise_ = round(100 * bet_f, 0)        # BET slotu
         adv.call = round(100 * (1.0 - bet_f), 0)  # CHECK slotu
         adv.fold = 0.0

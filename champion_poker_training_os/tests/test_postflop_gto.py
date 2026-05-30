@@ -101,3 +101,40 @@ def test_frequencies_sum_to_one():
     for eq in (0.1, 0.3, 0.5, 0.7, 0.9):
         f, c, r = defend_strategy(eq, tex, pot=8, to_call=4)
         assert abs(f + c + r - 1.0) < 0.02
+
+
+# ── Street barrel decay + multiway (D3+) ──────────────────────────────
+def test_river_barrels_less_than_flop():
+    tex = classify_board(_b("Ac", "7d", "2h"))
+    flop, _ = cbet_strategy(0.40, tex, True, True, street="flop")
+    river, _ = cbet_strategy(0.40, tex, True, True, street="river")
+    assert river < flop
+
+
+def test_later_street_bigger_size():
+    tex = classify_board(_b("9s", "8s", "7s"))
+    _, flop_sz = cbet_strategy(0.7, tex, True, True, street="flop")
+    _, river_sz = cbet_strategy(0.7, tex, True, True, street="river")
+    assert river_sz > flop_sz
+
+
+def test_multiway_cbets_less():
+    tex = classify_board(_b("Ac", "7d", "2h"))
+    hu, _ = cbet_strategy(0.45, tex, True, True, n_active=2)
+    mw, _ = cbet_strategy(0.45, tex, True, True, n_active=4)
+    assert mw < hu
+
+
+def test_multiway_defends_tighter():
+    tex = classify_board(_b("Ac", "7d", "2h"))
+    f_hu, _, _ = defend_strategy(0.30, tex, pot=10, to_call=5, n_active=2)
+    f_mw, _, _ = defend_strategy(0.30, tex, pot=10, to_call=5, n_active=4)
+    assert f_mw > f_hu
+
+
+def test_defaults_unchanged_flop_headsup():
+    # Varsayılan (flop, 2 oyuncu) D3 davranışını korumalı
+    tex = classify_board(_b("Ac", "7d", "2h"))
+    a, _ = cbet_strategy(0.55, tex, True, True)
+    b, _ = cbet_strategy(0.55, tex, True, True, street="flop", n_active=2)
+    assert abs(a - b) < 1e-9

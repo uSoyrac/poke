@@ -104,10 +104,14 @@ def classify_board(community: list) -> BoardTexture:
 
 
 def cbet_strategy(equity: float, tex: BoardTexture, in_position: bool,
-                  has_initiative: bool) -> tuple[float, float]:
+                  has_initiative: bool, street: str = "flop",
+                  n_active: int = 2) -> tuple[float, float]:
     """Bahis YOKKEN (hero aksiyonu): (bet_freq, size_frac).
 
     bet_freq → BET slotu, (1-bet_freq) → CHECK slotu.
+
+    ``street`` (flop/turn/river): sonraki sokaklarda barrel frekansı düşer,
+    size büyür (polarize). ``n_active``: multiway'de c-bet sıkılaşır.
     """
     wet = tex.wetness
     # Baz c-bet frekansı: kuru→yüksek, ıslak→düşük
@@ -119,7 +123,14 @@ def cbet_strategy(equity: float, tex: BoardTexture, in_position: bool,
     if not has_initiative:
         base *= 0.45            # inisiyatif yoksa donk-lead nadir
 
-    # Size: kuru küçük, ıslak büyük; paired küçük
+    # Sokak barrel azalması (value hafif, bluff/orta tam etkilenir)
+    street_mult = {"flop": 1.0, "turn": 0.85, "river": 0.72}.get(
+        (street or "flop").lower(), 1.0)
+    # Multiway sıkılaşma: kalabalıkta daha az c-bet
+    mw_mult = 1.0 if n_active <= 2 else (0.70 if n_active == 3 else 0.50)
+    decay = street_mult * mw_mult
+
+    # Size: kuru küçük, ıslak büyük; paired küçük; sonraki sokak büyür
     if wet < 0.35:
         size = 0.33
     elif wet < 0.6:
@@ -128,22 +139,29 @@ def cbet_strategy(equity: float, tex: BoardTexture, in_position: bool,
         size = 0.75
     if tex.paired:
         size = min(size, 0.45)
+    if (street or "").lower() == "turn":
+        size = min(0.95, size + 0.10)
+    elif (street or "").lower() == "river":
+        size = min(1.0, size + 0.20)
 
-    # Equity modülasyonu
+    # Equity modülasyonu (value hafif, bluff/orta tam decay)
     if equity >= 0.62:
-        bet_freq = min(0.92, base + 0.18)              # value bölgesi
+        bet_freq = min(0.92, base * (0.85 + 0.15 * decay) + 0.18)   # value
     elif equity <= 0.30:
-        bet_freq = base * (0.95 - 0.55 * wet)          # bluff (kuruda daha çok)
+        bet_freq = base * (0.95 - 0.55 * wet) * decay                # bluff
     else:
-        # Orta/showdown-value: KURU board'da range-bet (yine çok bahis, küçük
-        # size), ISLAK board'da polarize ol → check. Dokuya bağlı.
-        bet_freq = base * (0.85 - 0.65 * wet)
+        # Orta/showdown-value: KURU board'da range-bet, ISLAK'ta polarize→check.
+        bet_freq = base * (0.85 - 0.65 * wet) * decay
     return _clamp(bet_freq, 0.0, 0.95), size
 
 
 def defend_strategy(equity: float, tex: BoardTexture, pot: float,
-                    to_call: float) -> tuple[float, float, float]:
-    """Bahis KARŞISINDA: (fold, call, raise) frekansları (toplam ~1)."""
+                    to_call: float, n_active: int = 2) -> tuple[float, float, float]:
+    """Bahis KARŞISINDA: (fold, call, raise) frekansları (toplam ~1).
+
+    ``n_active`` ≥ 3 (multiway): daha sıkı savun (daha çok fold, daha az bluff
+    raise) — birinin güçlü range'i olma ihtimali artar.
+    """
     be = to_call / max(pot + to_call, 1e-9)     # break-even equity
     wet = tex.wetness
 
@@ -158,6 +176,11 @@ def defend_strategy(equity: float, tex: BoardTexture, pot: float,
         fold_freq = _clamp((be - equity) / max(be, 1e-9) * 1.25, 0.0, 0.9)
     else:
         fold_freq = _clamp((be - equity + 0.08) * 0.5, 0.0, 0.9)
+
+    # Multiway: bluff-raise'i kıs, fold'u artır
+    if n_active >= 3:
+        raise_freq *= 0.6
+        fold_freq = _clamp(fold_freq * 1.18 + 0.05, 0.0, 0.95)
 
     call_freq = _clamp(1.0 - raise_freq - fold_freq, 0.0, 1.0)
     return fold_freq, call_freq, raise_freq
