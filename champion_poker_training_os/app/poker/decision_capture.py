@@ -49,6 +49,7 @@ def make_snapshot(hand, hero_idx: int, gto, bb: float = 1.0,
     hero_position = ""
     n_active = 2
     raiser_pos = ""
+    villain_position = ""
     eff_stack_bb = 0.0
     in_position = True
     pot_type = "SRP"
@@ -68,6 +69,12 @@ def make_snapshot(hand, hero_idx: int, gto, bb: float = 1.0,
         pot_type = preflop_pot_type(hand)
         _, _rp = _count_preflop_raises_before_hero(hand, hero_idx)
         raiser_pos = _rp or ""
+        # Tek aktif rakip (HU postflop) pozisyonu → pozisyon-bazlı solver range
+        others = [p for i, p in enumerate(hand.players)
+                  if i != hero_idx and not getattr(p, "is_folded", False)
+                  and not getattr(p, "is_eliminated", False)]
+        if len(others) == 1:
+            villain_position = getattr(others[0], "position", "") or ""
     except Exception:
         pot_type = "SRP"
 
@@ -87,6 +94,7 @@ def make_snapshot(hand, hero_idx: int, gto, bb: float = 1.0,
         "board": board, "hero_combo": hero_combo,
         "hero_cards_disp": hero_cards_disp, "hero_position": hero_position,
         "n_active": n_active, "raiser_pos": raiser_pos,
+        "villain_position": villain_position,
         "eff_stack_bb": eff_stack_bb, "in_position": in_position,
         "pot_type": pot_type,
         "hero_action": None, "hero_amount": None, "_bb": _bb,

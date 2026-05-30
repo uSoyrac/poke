@@ -30,6 +30,26 @@ def test_pot_type_ranges_exist_and_tighten():
     assert len(fbp_oop) < len(srp_oop)
 
 
+def test_position_aware_ranges_build():
+    from app.poker.postflop_solver import _position_aware_ranges
+    # BTN açar, BB savunur. Hero=BB (OOP), villain=BTN (IP).
+    pr = _position_aware_ranges("BB", "BTN", raiser_pos="BTN",
+                                hero_in_position=False)
+    assert pr is not None
+    oop, ip = pr
+    assert oop and ip and "," in oop and "," in ip
+    # OOP=BB savunma range'i hero'nun; içerik açan-range'den farklı olmalı
+    assert set(oop.split(",")) != set(ip.split(","))
+
+
+def test_position_aware_ranges_ambiguous_returns_none():
+    from app.poker.postflop_solver import _position_aware_ranges
+    # Villain pozisyonu yok → belirsiz → None (pot-tipi fallback tetiklenir)
+    assert _position_aware_ranges("BB", "", "BTN", False) is None
+    # Aggressor iki oyuncudan biri değil → None
+    assert _position_aware_ranges("BB", "BTN", "CO", False) is None
+
+
 def test_preflop_pot_type_detection():
     from types import SimpleNamespace as NS
     from app.engine.hand_state import ActionType, Street

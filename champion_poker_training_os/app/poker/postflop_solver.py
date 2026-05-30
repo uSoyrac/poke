@@ -34,6 +34,51 @@ _POT_TYPE_RANGES = {
 }
 
 
+def _pos_range_str(position: str, scenario: str, stack: int = 100,
+                   vs_position: str | None = None) -> str:
+    """Bir pozisyonun belirtilen senaryodaki devam-range'ini hand-key string'i
+    olarak üret (TexasSolver kabul eder). Hata → "" (fallback tetikler)."""
+    try:
+        from app.poker.gto_ranges import get_action
+        from app.poker.gto_generator import get_ranked_hands
+    except Exception:
+        return ""
+    out = []
+    for hk in get_ranked_hands():
+        try:
+            a = get_action(position, hk, scenario, stack, "cash", vs_position)
+        except Exception:
+            continue
+        if (float(a.get("raise", 0)) + float(a.get("call", 0))) > 0:
+            out.append(hk)
+    return ",".join(out)
+
+
+def _position_aware_ranges(hero_position: str, villain_position: str,
+                           raiser_pos: str, hero_in_position: bool,
+                           stack: int = 100):
+    """Gerçek pozisyonlardan (OOP_range, IP_range) üret: açan=RFI, savunan=vs-RFI.
+
+    Heads-up postflop için; eksik/belirsiz veride None döner (pot-tipi fallback).
+    """
+    hp = (hero_position or "").upper()
+    vp = (villain_position or "").upper()
+    agg = (raiser_pos or "").upper()
+    if not hp or not vp or agg not in (hp, vp):
+        return None
+    defender = vp if agg == hp else hp
+    agg_range = _pos_range_str(agg, "RFI", stack)
+    def_range = _pos_range_str(defender, "vs RFI", stack, vs_position=agg)
+    if not agg_range or not def_range:
+        return None
+    hero_is_agg = (agg == hp)
+    hero_range = agg_range if hero_is_agg else def_range
+    vill_range = def_range if hero_is_agg else agg_range
+    if hero_in_position:
+        return (vill_range, hero_range)      # OOP=villain, IP=hero
+    return (hero_range, vill_range)            # OOP=hero, IP=villain
+
+
 def solver_available() -> bool:
     try:
         from app.poker.texassolver_adapter import TexasSolverEngine
@@ -56,6 +101,9 @@ def solve_spot_exact(
     bet_sizes: Optional[list] = None,
     iterations: int = 60,
     pot_type: str = "SRP",
+    hero_position: str = "",
+    villain_position: str = "",
+    raiser_pos: str = "",
 ) -> Optional[dict]:
     """Bir postflop spotunu TexasSolver ile çöz, hero elinin EXACT frekansları.
 
@@ -75,9 +123,18 @@ def solve_spot_exact(
     if not eng.available:
         return None
 
-    range_oop, range_ip = _POT_TYPE_RANGES.get(
-        (pot_type or "SRP").upper() if pot_type else "SRP",
-        (_SRP_OOP, _SRP_IP))
+    # Pozisyon-bazlı GERÇEK range'ler (SRP HU) — yoksa pot-tipi fallback
+    range_oop = range_ip = None
+    if (pot_type or "SRP").upper() == "SRP":
+        pr = _position_aware_ranges(
+            hero_position, villain_position, raiser_pos, hero_in_position,
+            stack=int(round(eff_stack_bb)) if eff_stack_bb else 100)
+        if pr:
+            range_oop, range_ip = pr
+    if not range_oop or not range_ip:
+        range_oop, range_ip = _POT_TYPE_RANGES.get(
+            (pot_type or "SRP").upper() if pot_type else "SRP",
+            (_SRP_OOP, _SRP_IP))
     res = eng.solve(
         board=bd,
         pot=round(float(pot_bb), 1),

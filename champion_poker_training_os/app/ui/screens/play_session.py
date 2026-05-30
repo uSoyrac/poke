@@ -1241,6 +1241,7 @@ class PlaySessionScreen(QWidget):
         """Postflop EXACT solver için spot bağlamı (board/hero/stack/IP)."""
         ctx = {"board": "", "hero_combo": "", "hero_cards_disp": "",
                "hero_position": "", "n_active": 2, "raiser_pos": "",
+               "villain_position": "",
                "eff_stack_bb": 0.0, "in_position": True, "pot_type": "SRP"}
         try:
             comm = getattr(hand, "community", []) or []
@@ -1259,6 +1260,11 @@ class PlaySessionScreen(QWidget):
             ctx["pot_type"] = preflop_pot_type(hand)
             _, _rp = _count_preflop_raises_before_hero(hand, hero_idx)
             ctx["raiser_pos"] = _rp or ""
+            others = [p for i, p in enumerate(hand.players)
+                      if i != hero_idx and not getattr(p, "is_folded", False)
+                      and not getattr(p, "is_eliminated", False)]
+            if len(others) == 1:
+                ctx["villain_position"] = getattr(others[0], "position", "") or ""
         except Exception:
             pass
         return ctx
