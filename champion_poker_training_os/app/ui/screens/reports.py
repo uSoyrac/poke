@@ -145,15 +145,33 @@ class ReportsScreen(QWidget):
         self._gto_chart_holder = QVBoxLayout()
         self._gto_layout.addLayout(self._gto_chart_holder)
         layout.addWidget(self.gto_frame)
-        self.reload()
 
-        # Summary cards
+        # Summary cards (gerçek veriden — reload() günceller)
         stats = QGridLayout()
-        stats.addWidget(MetricCard("Skill Score", str(metrics["skill_score"]), f"{metrics['streak']}-day streak", "Green"), 0, 0)
-        stats.addWidget(MetricCard("Drills Completed", "315", "this week"), 0, 1)
-        stats.addWidget(MetricCard("EV Loss Trend", f"{metrics['ev_loss_per_100']:.1f}bb", "per 100 decisions", "Amber"), 0, 2)
-        stats.addWidget(MetricCard("Fixed Leaks", "2", "SB overflat, delayed cbet", "Green"), 0, 3)
+        self.card_hands = MetricCard("Oynanan El", "0", "gerçek oyun", "Green")
+        self.card_acc = MetricCard("GTO Doğruluk", "—", "kararların", "Green")
+        self.card_evloss = MetricCard("EV Kaybı", "0.0bb", "toplam (gerçek)", "Amber")
+        self.card_winrate = MetricCard("bb/100", "0.0", "kazanç oranı", "Green")
+        stats.addWidget(self.card_hands, 0, 0)
+        stats.addWidget(self.card_acc, 0, 1)
+        stats.addWidget(self.card_evloss, 0, 2)
+        stats.addWidget(self.card_winrate, 0, 3)
         layout.addLayout(stats)
+
+        # ── GÜÇLÜ / ZAYIF YÖNLER (gerçek veriden içgörü) ──
+        self.insights_frame = QFrame()
+        self.insights_frame.setObjectName("Card")
+        self._insights_layout = QVBoxLayout(self.insights_frame)
+        ins_title = QLabel("🔎  GÜÇLÜ / ZAYIF YÖNLER  ·  gerçek veriden")
+        ins_title.setObjectName("SectionTitle")
+        self._insights_layout.addWidget(ins_title)
+        self.insights_body = QLabel("")
+        self.insights_body.setWordWrap(True)
+        self.insights_body.setTextFormat(Qt.TextFormat.RichText)
+        self.insights_body.setStyleSheet(
+            "font-family:'JetBrains Mono',Menlo,monospace; font-size:12px;")
+        self._insights_layout.addWidget(self.insights_body)
+        layout.addWidget(self.insights_frame)
 
         # Charts row
         charts = QHBoxLayout()
@@ -275,16 +293,49 @@ class ReportsScreen(QWidget):
             rec_layout.addWidget(label)
         layout.addWidget(rec)
 
+        self.reload()   # tüm bölümler gerçek veriden dolsun
+
     def reload(self) -> None:
-        """GTO GELİŞİM bölümünü gerçek hero_decisions verisinden tazele."""
+        """Tüm bölümleri gerçek veriden tazele (kartlar + içgörü + GTO gelişim)."""
         try:
             from app.db.repository import (
                 get_gto_accuracy_trend, get_gto_category_accuracy,
+                get_player_stats, get_self_insights,
             )
             trend = get_gto_accuracy_trend(days=14)
             cats = get_gto_category_accuracy()
+            pstats = get_player_stats()
+            insights = get_self_insights()
         except Exception:
-            trend, cats = [], {}
+            trend, cats, pstats, insights = [], {}, {}, {"strengths": [], "weaknesses": []}
+
+        # ── Özet kartları (gerçek) ──
+        tot = sum(c["n"] for c in cats.values())
+        acc = (round(sum(c["accuracy"] * c["n"] for c in cats.values()) / tot, 0)
+               if tot else 0)
+        ev_total = round(sum(c.get("avg_ev_loss", 0) * c["n"] for c in cats.values()), 1)
+        self.card_hands.set_value(str(pstats.get("total_hands", 0)))
+        self.card_acc.set_value(f"%{acc:.0f}" if tot else "—")
+        self.card_acc.set_detail(f"{tot} karar")
+        self.card_evloss.set_value(f"{ev_total:.1f}bb")
+        self.card_winrate.set_value(f"{pstats.get('bb_per_100', 0):+.1f}")
+
+        # ── Güçlü / Zayıf yönler ──
+        st = insights.get("strengths", []); wk = insights.get("weaknesses", [])
+        if not st and not wk:
+            self.insights_body.setText(
+                "<span style='color:#94A3B8'>Yeterli veri yok. Real Experience "
+                "modda el oyna / HH import et — güçlü ve zayıf yönlerin burada "
+                "gerçek kararlarından çıkarılacak.</span>")
+        else:
+            html = ""
+            if st:
+                html += "<span style='color:#10B981; font-weight:700'>✓ GÜÇLÜ:</span><br>"
+                html += "<br>".join(f"&nbsp;&nbsp;• {s}" for s in st) + "<br>"
+            if wk:
+                html += "<span style='color:#DC2626; font-weight:700'>⚠ GELİŞTİR:</span><br>"
+                html += "<br>".join(f"&nbsp;&nbsp;• {w}" for w in wk)
+            self.insights_body.setText(html)
 
         # Eski grafiği temizle
         while self._gto_chart_holder.count():

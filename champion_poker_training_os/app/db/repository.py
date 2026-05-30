@@ -338,6 +338,69 @@ def get_mistake_spots(limit: int = 30) -> list:
     return out
 
 
+def get_position_leaks(min_sample: int = 3) -> list:
+    """Pozisyon bazında EV-kaybı (mistake_spots) → 'hangi pozisyonda sızıyorum'.
+
+    [{position, n, ev_lost}] — EV kaybı yüksekten düşüğe. "Erken pozisyonda
+    marjinal raise" gibi içgörüler için. Veri yoksa [].
+    """
+    _ensure_mistake_table()
+    with get_connection() as conn:
+        try:
+            rows = conn.execute(
+                "SELECT hero_position AS pos, COUNT(*) AS n, "
+                "COALESCE(SUM(ev_loss),0) AS ev FROM mistake_spots "
+                "WHERE hero_position != '' GROUP BY hero_position").fetchall()
+        except sqlite3.OperationalError:
+            return []
+    out = [{"position": r["pos"], "n": int(r["n"]), "ev_lost": round(float(r["ev"]), 1)}
+           for r in rows if int(r["n"]) >= min_sample]
+    out.sort(key=lambda x: x["ev_lost"], reverse=True)
+    return out
+
+
+def get_self_insights() -> dict:
+    """Oyuncunun güçlü/zayıf yönleri — gerçek veriden derlenmiş içgörüler.
+
+    {strengths: [...], weaknesses: [...], summary: str} — Reports'ta gösterilir.
+    Kaynaklar: kategori-bazlı GTO doğruluk, pozisyon-bazlı EV kaybı, leak'ler,
+    played-hands istatistikleri (VPIP/WTSD/W$SD).
+    """
+    cats = get_gto_category_accuracy()
+    pos = get_position_leaks()
+    stats = get_player_stats()
+    strengths, weaknesses = [], []
+
+    # Kategori doğruluğu → güçlü (≥70) / zayıf (<55, yeterli örneklem)
+    for cat, d in sorted(cats.items(), key=lambda kv: kv[1]["accuracy"]):
+        if d["n"] < 5:
+            continue
+        if d["accuracy"] >= 72:
+            strengths.append(f"{cat}: GTO doğruluk %{d['accuracy']:.0f} ({d['n']} karar)")
+        elif d["accuracy"] < 55:
+            weaknesses.append(f"{cat}: GTO doğruluk %{d['accuracy']:.0f} — "
+                              f"en çok burada sapıyorsun ({d['n']} karar)")
+    # Pozisyon-bazlı EV kaybı → en pahalı pozisyon
+    if pos and pos[0]["ev_lost"] > 1:
+        p = pos[0]
+        weaknesses.append(f"{p['position']} pozisyonunda EV kaybın yüksek "
+                          f"(~{p['ev_lost']:.0f}bb, {p['n']} hata) — bu pozisyonda "
+                          f"range/sizing'ini gözden geçir.")
+    # Played-hands stilistik
+    if stats["total_hands"] >= 20:
+        if stats["vpip"] > 33:
+            weaknesses.append(f"VPIP %{stats['vpip']:.0f} fazla loose — preflop sıkılaş.")
+        elif 18 <= stats["vpip"] <= 28:
+            strengths.append(f"VPIP %{stats['vpip']:.0f} sağlıklı aralıkta.")
+        if stats["wsd"] >= 50 and stats["wtsd"] >= 24:
+            strengths.append(f"W$SD %{stats['wsd']:.0f} — showdown'larını iyi seçiyorsun.")
+        elif stats["wsd"] < 45 and stats["wtsd"] > 20:
+            weaknesses.append(f"W$SD %{stats['wsd']:.0f} düşük — zayıf ellerle showdown'a "
+                              f"gidiyorsun, river fold'larını sıkılaştır.")
+    return {"strengths": strengths[:5], "weaknesses": weaknesses[:5],
+            "n_decisions": sum(d["n"] for d in cats.values())}
+
+
 def get_decision_leaks(min_sample: int = 8) -> list:
     """hero_decisions'tan sistematik GTO-sapması leak'leri tespit et.
 

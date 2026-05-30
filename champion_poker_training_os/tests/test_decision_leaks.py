@@ -151,3 +151,29 @@ def test_mistake_spots_skips_good_decisions(isolated_db):
 
 def test_mistake_spots_empty(isolated_db):
     assert isolated_db.get_mistake_spots() == []
+
+
+def test_position_leaks_and_self_insights(isolated_db):
+    R = isolated_db
+    # UTG'de tekrar tekrar büyük sapma → pozisyon leak + zayıf-yön
+    log = [{
+        "available": True, "street": "Flop", "scenario": "Postflop",
+        "fold": 5, "call": 10, "raise": 85, "allin": 0,
+        "equity": 70, "pot_bb": 12, "to_call_bb": 6,
+        "hero_action": "FOLD", "hero_amount": 0,
+        "board": "Ah 7c 2d", "hero_combo": "AsKs", "hero_position": "UTG",
+        "n_active": 2, "eff_stack_bb": 95, "pot_type": "SRP",
+    }]
+    for _ in range(4):
+        R.record_decision_log([dict(log[0])])
+    pl = R.get_position_leaks()
+    assert pl and pl[0]["position"] == "UTG" and pl[0]["ev_lost"] > 0
+    ins = R.get_self_insights()
+    assert isinstance(ins["strengths"], list) and isinstance(ins["weaknesses"], list)
+    # UTG EV kaybı zayıf-yön olarak çıkmalı
+    assert any("UTG" in w for w in ins["weaknesses"])
+
+
+def test_self_insights_empty(isolated_db):
+    ins = isolated_db.get_self_insights()
+    assert ins["strengths"] == [] and ins["weaknesses"] == []
