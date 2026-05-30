@@ -1078,11 +1078,8 @@ class TournamentSimulatorScreen(QWidget):
         self._recorder.capture(hand, hero_idx, gto, bb=bb, sizing=_sz)
 
         def lbl(base: str, atype) -> str:
-            # Real Experience Mode: oyun sırasında cevabı sızdırma.
-            if _real_xp:
-                return base
-            if gto and gto.available:
-                return f"{base}   {gto.per_action().get(atype, 0.0):.0f}%"
+            # Oyun sırasında ASLA GTO cevabı/%'si gösterme (her iki modda).
+            # GTO sadece el bitince, duruma göre reveal panelinde açıklanır.
             return base
 
         if ActionType.FOLD in valid_types:
