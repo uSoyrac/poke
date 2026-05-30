@@ -11,10 +11,19 @@ from app.ui.components.poker_table import LivePokerTable, SeatState
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 def parse_cards(s: str | None) -> list[str]:
-    """'A♦ K♥' → ['A♦', 'K♥'].  Returns [] for preflop/empty."""
+    """Kart string'ini ['As','Kh'] gibi tek-kartlık listeye ayır.
+
+    Hem boşluklu ('As Kh', 'A♦ K♥') hem BİTİŞİK ('AsKh', '7c2d9s') formatları
+    destekler — eskiden bitişik formatı tek token sanıp masada kapalı kart
+    gösteriyordu (ICM/Math spotlarında hero eli görünmüyordu). Boş/preflop → [].
+    """
     if not s or s.strip().lower() in ("", "preflop", "—", "-"):
         return []
-    return [c.strip() for c in s.split() if c.strip()]
+    s = s.strip()
+    if " " in s:
+        return [c.strip() for c in s.split() if c.strip()]
+    # Bitişik: her kart = 2 karakter (rank + suit; 'T' kullanılır, '10' değil)
+    return [s[i:i + 2] for i in range(0, len(s) - 1, 2)]
 
 
 def _table_size(table_str: str) -> int:
