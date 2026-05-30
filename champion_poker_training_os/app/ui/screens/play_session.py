@@ -1239,19 +1239,26 @@ class PlaySessionScreen(QWidget):
     @staticmethod
     def _spot_context(hand, hero_idx, bb=1.0) -> dict:
         """Postflop EXACT solver için spot bağlamı (board/hero/stack/IP)."""
-        ctx = {"board": "", "hero_combo": "", "eff_stack_bb": 0.0,
-               "in_position": True, "pot_type": "SRP"}
+        ctx = {"board": "", "hero_combo": "", "hero_cards_disp": "",
+               "hero_position": "", "n_active": 2, "raiser_pos": "",
+               "eff_stack_bb": 0.0, "in_position": True, "pot_type": "SRP"}
         try:
             comm = getattr(hand, "community", []) or []
             ctx["board"] = " ".join(c.code for c in comm)
             hero = hand.players[hero_idx]
+            ctx["hero_position"] = getattr(hero, "position", "") or ""
             if getattr(hero, "hole_cards", None) and len(hero.hole_cards) >= 2:
                 ctx["hero_combo"] = hero.hole_cards[0].code + hero.hole_cards[1].code
+                ctx["hero_cards_disp"] = " ".join(c.display for c in hero.hole_cards[:2])
             ctx["eff_stack_bb"] = round((hero.stack + hero.current_bet) / max(bb, 1e-9), 1)
-            from app.poker.gto_live_advice import _hero_in_position
+            ctx["n_active"] = int(getattr(hand, "active_count", 2) or 2)
+            from app.poker.gto_live_advice import (
+                _hero_in_position, _count_preflop_raises_before_hero)
             from app.poker.decision_capture import preflop_pot_type
             ctx["in_position"] = _hero_in_position(hand, hero_idx)
             ctx["pot_type"] = preflop_pot_type(hand)
+            _, _rp = _count_preflop_raises_before_hero(hand, hero_idx)
+            ctx["raiser_pos"] = _rp or ""
         except Exception:
             pass
         return ctx

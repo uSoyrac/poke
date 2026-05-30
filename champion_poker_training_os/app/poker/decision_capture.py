@@ -45,6 +45,10 @@ def make_snapshot(hand, hero_idx: int, gto, bb: float = 1.0,
     # Postflop EXACT solver için spot bağlamı (board, hero combo, stack, IP)
     board = ""
     hero_combo = ""
+    hero_cards_disp = ""
+    hero_position = ""
+    n_active = 2
+    raiser_pos = ""
     eff_stack_bb = 0.0
     in_position = True
     pot_type = "SRP"
@@ -52,12 +56,18 @@ def make_snapshot(hand, hero_idx: int, gto, bb: float = 1.0,
         comm = getattr(hand, "community", []) or []
         board = " ".join(c.code for c in comm)
         hero = hand.players[hero_idx]
+        hero_position = getattr(hero, "position", "") or ""
         if getattr(hero, "hole_cards", None) and len(hero.hole_cards) >= 2:
             hero_combo = hero.hole_cards[0].code + hero.hole_cards[1].code
+            hero_cards_disp = " ".join(c.display for c in hero.hole_cards[:2])
         eff_stack_bb = round((hero.stack + hero.current_bet) / _bb, 1)
-        from app.poker.gto_live_advice import _hero_in_position
+        n_active = int(getattr(hand, "active_count", 2) or 2)
+        from app.poker.gto_live_advice import (
+            _hero_in_position, _count_preflop_raises_before_hero)
         in_position = _hero_in_position(hand, hero_idx)
         pot_type = preflop_pot_type(hand)
+        _, _rp = _count_preflop_raises_before_hero(hand, hero_idx)
+        raiser_pos = _rp or ""
     except Exception:
         pot_type = "SRP"
 
@@ -75,6 +85,8 @@ def make_snapshot(hand, hero_idx: int, gto, bb: float = 1.0,
         "pot_bb": float(getattr(hand, "pot", 0) or 0) / _bb,
         "to_call_bb": to_call / _bb,
         "board": board, "hero_combo": hero_combo,
+        "hero_cards_disp": hero_cards_disp, "hero_position": hero_position,
+        "n_active": n_active, "raiser_pos": raiser_pos,
         "eff_stack_bb": eff_stack_bb, "in_position": in_position,
         "pot_type": pot_type,
         "hero_action": None, "hero_amount": None, "_bb": _bb,

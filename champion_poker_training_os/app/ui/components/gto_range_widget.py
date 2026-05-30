@@ -647,6 +647,33 @@ class GTODecisionReveal(QFrame):
         return "✗ GTO'dan sapma", _DANGER
 
     @staticmethod
+    def _situation_line(d: dict) -> str:
+        """Bu kararın somut DURUMU: pozisyon · oyuncu · el · pot · kim açtı.
+
+        GTO'nun ezber değil duruma-göre olduğunu gösterir (BB vs CO-açış ≠
+        BB vs UTG-açış). Eksik alanlar atlanır.
+        """
+        parts: list[str] = []
+        pos = d.get("hero_position") or ""
+        if pos:
+            parts.append(f"<b>{pos}</b>")
+        cards = d.get("hero_cards_disp") or ""
+        if cards:
+            parts.append(f"<span style='color:{_INFO}'>{cards}</span>")
+        n = d.get("n_active")
+        if n:
+            parts.append(f"{int(n)} oyuncu")
+        pt = d.get("pot_type")
+        if pt and pt != "limped":
+            parts.append(pt)
+        raiser = d.get("raiser_pos") or ""
+        if raiser and raiser != pos:
+            parts.append(f"{raiser} açtı")
+        if not parts:
+            return ""
+        return "👤  " + "  ·  ".join(parts)
+
+    @staticmethod
     def _math_line(d: dict) -> str:
         """Bu karar noktasının somut GTO-matematiği (RichText).
 
@@ -699,6 +726,16 @@ class GTODecisionReveal(QFrame):
             f"letter-spacing:1px; color:{_INFO}; background:transparent; font-weight:700;"
         )
         col.addWidget(head)
+
+        # ── DURUM satırı: pozisyon · oyuncu · el · pot · kim açtı (duruma-göre) ──
+        sit = self._situation_line(d)
+        if sit:
+            sl = QLabel(sit)
+            sl.setStyleSheet(
+                f"font-family:'JetBrains Mono',monospace; font-size:10px; "
+                f"color:{_INK}; background:transparent;")
+            sl.setWordWrap(True)
+            col.addWidget(sl)
 
         # ── Matematik satırı (equity · pot-odds · MDF) — her zaman göster ──
         math_line = self._math_line(d)
