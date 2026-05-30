@@ -211,8 +211,12 @@ class Tournament:
         if self.state.hands_this_level >= self.config.hands_per_level:
             self.state.level_idx = min(self.state.level_idx + 1, len(self.state.levels) - 1)
             self.state.hands_this_level = 0
-            lvl = self.state.current_level
-            self.game.set_blinds(float(lvl.sb), float(lvl.bb), float(lvl.ante))
+
+        # Her el başında mevcut level'in blind+ante'sini SENKRONLA — eskiden
+        # set_blinds yalnızca level atlayınca çağrılıyordu; level_idx başka
+        # yoldan değişirse (late-reg, restore) ante kesilmeden kalıyordu.
+        lvl = self.state.current_level
+        self.game.set_blinds(float(lvl.sb), float(lvl.bb), float(lvl.ante))
 
         # Track who is in
         pre_alive = {i for i, p in enumerate(self.game.players) if not p.is_eliminated}
