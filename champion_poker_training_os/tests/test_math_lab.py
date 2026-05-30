@@ -90,6 +90,18 @@ def test_pot_odds_less_than_alpha_same_spot():
         assert p["answer"] < a["answer"] + 1e-9
 
 
+def test_pushfold_real_equity_sane():
+    # Gerçek MC equity: QQ vs tight UTG-call > %55; küçük çift vs tight < %50
+    pf = {d["prompt"]: d["answer"] for d in _by_cat("push_fold")}
+    assert len(pf) == 15
+    for ans in pf.values():
+        assert 0.0 < ans < 1.0          # geçerli equity
+    qq = next(v for k, v in pf.items() if k.startswith("15bb QQ"))
+    assert qq > 0.55                    # QQ tight range'e karşı favori
+    p22 = next(v for k, v in pf.items() if "22 jam" in k)
+    assert p22 < 0.50                   # 22 tight calling range'e karşı underdog
+
+
 def test_spot_check_exact_values():
     # Pot 10, bet 4 → pot_odds 4/18=0.222, alpha 4/14=0.286, mdf 10/14=0.714
     po = _by_cat("pot_odds")[0]

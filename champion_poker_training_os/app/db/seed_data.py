@@ -91,6 +91,79 @@ def generate_hands(count: int = 100) -> list[dict]:
     return hands
 
 
+_PF_EQUITY_CACHE: list | None = None
+
+# Push/fold spotları: (el sınıfı, somut combo, villain range etiketi, stack)
+_PF_SPOTS = [
+    ("AJs", "Ah Jh", "CO call (~17%)", 10), ("K9s", "Ks 9s", "BB defend (~40%)", 8),
+    ("22", "2c 2d", "CO call (~17%)", 12), ("A5o", "Ah 5c", "BB defend (~40%)", 7),
+    ("QQ", "Qh Qd", "UTG call (~9%)", 15), ("KJo", "Kh Jc", "UTG call (~9%)", 9),
+    ("A7s", "Ah 7h", "tight BB (~12%)", 6), ("JTs", "Jh Th", "CO call (~17%)", 11),
+    ("A2s", "As 2s", "BB defend (~40%)", 13), ("88", "8h 8d", "UTG call (~9%)", 8),
+    ("AQo", "Ah Qc", "BTN open (~45%)", 20), ("K7s", "Kh 7h", "BB defend (~40%)", 5),
+    ("TT", "Th Td", "UTG call (~9%)", 16), ("J9s", "Jh 9h", "CO call (~17%)", 10),
+    ("AKo", "Ah Kc", "CO call (~17%)", 14),
+]
+
+
+def _pushfold_equity_drills() -> list:
+    """Push/fold equity drill'leri — GERÇEK MC equity (elle-tahmin değil).
+
+    Her spot: hero combo'nun belirtilen top-% villain range'ine karşı equity'si
+    Monte Carlo ile hesaplanır. Süreç başına bir kez (cache) + sabit seed →
+    deterministik. mc_equity yoksa boş döner (drill atlanır).
+    """
+    global _PF_EQUITY_CACHE
+    if _PF_EQUITY_CACHE is not None:
+        return _PF_EQUITY_CACHE
+    try:
+        import random
+        from app.poker.mc_equity import equity_hand_vs_range
+        from app.poker.gto_generator import get_ranked_hands
+    except Exception:
+        _PF_EQUITY_CACHE = []
+        return _PF_EQUITY_CACHE
+
+    ranked = get_ranked_hands()
+
+    def _top_pct(pct: float) -> list:
+        target = 1326 * pct / 100.0
+        out, acc = [], 0
+        for hk in ranked:
+            acc += 6 if len(hk) == 2 else (4 if hk.endswith("s") else 12)
+            out.append(hk)
+            if acc >= target:
+                break
+        return out
+
+    ranges = {
+        "UTG call (~9%)": _top_pct(9), "CO call (~17%)": _top_pct(17),
+        "BB defend (~40%)": _top_pct(40), "BTN open (~45%)": _top_pct(45),
+        "tight BB (~12%)": _top_pct(12),
+    }
+    random.seed(20260530)        # deterministik baked equity
+    out = []
+    for idx, (hand_class, combo, rlabel, stack) in enumerate(_PF_SPOTS):
+        rng = ranges[rlabel]
+        try:
+            eq = round(equity_hand_vs_range(
+                combo, rng, "", iterations=2500).a_equity / 100.0, 3)
+        except Exception:
+            eq = 0.5
+        verdict = "Jam (+equity)" if eq >= 0.5 else "Marjinal — fold equity gerek"
+        out.append({
+            "id": f"MATH-PF-{idx+1:02d}", "kind": "push_fold", "category": "push_fold",
+            "difficulty": ["easy", "medium", "medium", "hard", "hard"][idx % 5],
+            "prompt": f"{stack}bb {hand_class} jam — {rlabel} range'ine karşı equity?",
+            "answer": eq, "tolerance": 0.06,
+            "explanation": (f"{hand_class} vs {rlabel}: gerçek MC ≈ {eq*100:.0f}% "
+                            f"equity ({stack}bb). {verdict}."),
+            "formula": "Gerçek Monte Carlo equity (hero combo vs top-% range)",
+        })
+    _PF_EQUITY_CACHE = out
+    return out
+
+
 def generate_math_drills(count: int = 0) -> list[dict]:
     """Generate comprehensive math drills across 9 poker math categories.
 
@@ -233,46 +306,8 @@ def generate_math_drills(count: int = 0) -> list[dict]:
             "formula": "Pairs: C(4,2)=6 · Suited: 4 · Offsuit: 12 · Total: 16",
         })
 
-    # ── 7. PUSH / FOLD (15 drills) ────────────────────────────────────────
-    for idx, (prompt, answer, explanation) in enumerate([
-        ("10bb stack, AJs from CO. Jam equity vs typical CO calling range?", 0.68,
-         "AJs at 10bb from CO: ≈68% equity vs CO calling range. Clear jam."),
-        ("8bb stack, K9s from BTN. Push equity vs BB defend?", 0.62,
-         "K9s at 8bb BTN: ≈62% vs BB defend range — standard push."),
-        ("12bb stack, 22 from CO. Approximate equity vs calling range?", 0.52,
-         "22 at 12bb: ≈52% vs CO calling range — marginal jam."),
-        ("7bb stack, A5o from SB. Jam equity vs BB defense?", 0.58,
-         "A5o at 7bb SB vs BB: ≈58% vs BB defend — push."),
-        ("15bb stack, QQ facing UTG open. Jam equity?", 0.80,
-         "QQ at 15bb vs UTG open: ≈80%+ equity — always jam."),
-        ("9bb, KJo from UTG. Fold or shove? Equity vs UTG calling range?", 0.55,
-         "KJo at 9bb UTG: ≈55% vs UTG calling range — marginal."),
-        ("6bb vs fold-happy BB. Approximate profitable push frequency?", 0.70,
-         "At 6bb vs tight BB: push ≈70%+ of hands for fold equity."),
-        ("11bb, JTs from CO. Push equity vs typical calling range?", 0.62,
-         "JTs at 11bb CO: ≈62% vs calling range — profitable push."),
-        ("13bb, A2s from SB. Jam equity vs BB?", 0.56,
-         "A2s at 13bb SB: ≈56% vs BB defend — push."),
-        ("8bb, 88 from UTG. Equity vs UTG calling range?", 0.70,
-         "88 at 8bb UTG: ≈70% equity — clear jam."),
-        ("20bb, AQo facing BTN open. Rejam equity?", 0.62,
-         "AQo 3bet jam at 20bb vs BTN opening range: ≈62% — profitable."),
-        ("5bb stack from SB — profitable push frequency vs BB?", 0.75,
-         "At 5bb any two from SB: ≈75%+ profitable vs most BB defenses."),
-        ("16bb, TT facing UTG open. Jam equity?", 0.72,
-         "TT at 16bb vs UTG open: ≈72% equity — jam."),
-        ("10bb, J9s from BTN. Push equity vs calling range?", 0.58,
-         "J9s at 10bb BTN: ≈58% vs calling range — marginal push."),
-        ("14bb, AKo. Jam equity vs most calling ranges?", 0.68,
-         "AKo at 14bb: ≈68% equity vs most calling ranges — always jam."),
-    ]):
-        drills.append({
-            "id": f"MATH-PF-{idx+1:02d}", "kind": "push_fold", "category": "push_fold",
-            "difficulty": ["easy", "medium", "medium", "hard", "hard"][idx % 5],
-            "prompt": prompt, "answer": answer, "tolerance": 0.10,
-            "explanation": explanation,
-            "formula": "Equity vs calling range (ICM stack depth + position + hand strength)",
-        })
+    # ── 7. PUSH / FOLD (15 drills) — GERÇEK MC equity (hesaplanır, cache) ──
+    drills.extend(_pushfold_equity_drills())
 
     # ── 8. GTO FREQUENCY (15 drills) ─────────────────────────────────────
     for idx, (prompt, answer, tolerance, explanation) in enumerate([
