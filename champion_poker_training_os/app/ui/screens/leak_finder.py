@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -218,6 +218,14 @@ class LeakFinderScreen(QWidget):
         self.banner.setObjectName("Muted")
         layout.addWidget(self.banner)
 
+        # GTO progress trend strip (son N gün doğruluk eğilimi)
+        self.trend_label = QLabel()
+        self.trend_label.setWordWrap(True)
+        self.trend_label.setTextFormat(Qt.TextFormat.RichText)
+        self.trend_label.setStyleSheet(
+            "font-family:'JetBrains Mono',Menlo,monospace; font-size:11px;")
+        layout.addWidget(self.trend_label)
+
         # Summary stats (MetricCards refreshed in _render via _update_summary)
         self.stats_grid = QGridLayout()
         self.metric_ev = MetricCard("Total EV Lost", "0.0bb", "0 leaks detected", "Red")
@@ -303,7 +311,45 @@ class LeakFinderScreen(QWidget):
         self.category_filter.setCurrentIndex(idx if idx >= 0 else 0)
         self.category_filter.blockSignals(False)
         self._update_summary()
+        self._update_trend()
         self._render()
+
+    def _update_trend(self) -> None:
+        """GTO ilerleme şeridi — son günlerin doğruluk eğilimi (sparkline)."""
+        try:
+            from app.db.repository import get_gto_accuracy_trend
+            trend = get_gto_accuracy_trend(days=14)
+        except Exception:
+            trend = []
+        if not trend:
+            self.trend_label.setText(
+                "<span style='color:#898d80'>GTO İLERLEME: henüz veri yok — "
+                "Real Experience Mode'da el oyna, gün gün doğruluğun burada "
+                "görünecek.</span>")
+            return
+        blocks = "▁▂▃▄▅▆▇█"
+        spark = "".join(
+            blocks[min(7, int(d["accuracy"] / 12.5))] for d in trend
+        )
+        first = trend[0]["accuracy"]
+        last = trend[-1]["accuracy"]
+        delta = last - first
+        if delta > 3:
+            arrow, acol = "↑", "#5ad17a"
+        elif delta < -3:
+            arrow, acol = "↓", "#e87474"
+        else:
+            arrow, acol = "→", "#d6c668"
+        today = trend[-1]
+        self.trend_label.setText(
+            f"<span style='color:#5ad1ce; font-weight:700'>GTO İLERLEME</span> "
+            f"<span style='color:#898d80'>(son {len(trend)} gün)</span>  "
+            f"<span style='color:#5ad17a'>{spark}</span>  "
+            f"<span style='color:{acol}; font-weight:700'>%{first:.0f} → "
+            f"%{last:.0f} {arrow}</span>  "
+            f"<span style='color:#898d80'>· bugün {today['decisions']} karar · "
+            f"ort. EV kaybı {today['avg_ev_loss']:.1f}bb</span>"
+        )
 
     def _load_leaks(self) -> None:
         """get_leak_analysis() → tablo leak'leri. Veri yoksa örnek katalog."""

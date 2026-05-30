@@ -76,3 +76,24 @@ def test_leak_analysis_combines_sources(isolated_db):
     R.record_decision_log(_over_fold_vs_3bet(12))
     combined = R.get_leak_analysis()
     assert any("Over-folding" in l["name"] for l in combined)
+
+
+def test_gto_accuracy_trend(isolated_db):
+    R = isolated_db
+    # On-line decisions (raise 100, hero RAISE → freq_error 0 → on-GTO)
+    good = [{
+        "available": True, "street": "Preflop", "scenario": "RFI",
+        "fold": 0, "call": 0, "raise": 100, "allin": 0,
+        "equity": 0, "pot_bb": 2, "to_call_bb": 0,
+        "hero_action": "RAISE", "hero_amount": 2.5,
+    } for _ in range(6)]
+    R.record_decision_log(good)
+    trend = R.get_gto_accuracy_trend()
+    assert len(trend) >= 1
+    today = trend[-1]
+    assert today["decisions"] == 6
+    assert today["accuracy"] == 100.0    # hepsi GTO çizgisinde
+
+
+def test_gto_accuracy_trend_empty(isolated_db):
+    assert isolated_db.get_gto_accuracy_trend() == []

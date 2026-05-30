@@ -338,6 +338,43 @@ def get_decision_leaks(min_sample: int = 8) -> list:
     return leaks
 
 
+def get_gto_accuracy_trend(days: int = 14) -> list:
+    """Günlük GTO doğruluk eğilimi (hero_decisions'tan).
+
+    Her gün için: karar sayısı, GTO doğruluk % (frequency_error ≤ 65 ≈ A/B
+    notu, SessionScore.accuracy ile tutarlı), ortalama EV kaybı. Gelişim
+    grafiği / "ilerliyor muyum" göstergesi için. Eskiden yeniye sıralı.
+    """
+    _ensure_decision_columns()
+    with get_connection() as conn:
+        try:
+            rows = conn.execute(
+                """SELECT date(created_at) AS d,
+                          COUNT(*) AS n,
+                          SUM(CASE WHEN frequency_error <= 65 THEN 1 ELSE 0 END) AS ok,
+                          COALESCE(AVG(ev_loss), 0) AS avg_ev
+                   FROM hero_decisions
+                   WHERE created_at IS NOT NULL
+                   GROUP BY date(created_at)
+                   ORDER BY d DESC
+                   LIMIT ?""",
+                (days,),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return []
+    out = [
+        {
+            "date": r["d"],
+            "decisions": int(r["n"]),
+            "accuracy": round(100.0 * (r["ok"] or 0) / r["n"], 1) if r["n"] else 0.0,
+            "avg_ev_loss": round(float(r["avg_ev"] or 0), 2),
+        }
+        for r in rows if r["d"]
+    ]
+    out.reverse()   # eskiden yeniye
+    return out
+
+
 def get_player_stats() -> dict:
     """Calculate player stats from played hands: VPIP, PFR, WTSD, W$SD, AF."""
     with get_connection() as conn:
