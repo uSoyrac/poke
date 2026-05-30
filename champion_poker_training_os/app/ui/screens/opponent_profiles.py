@@ -371,6 +371,17 @@ _PROFILES: list[dict] = [
         ],
         "counter": "Pozisyon + güçlü range ile karşı baskı; ince blöfleri ona bırak.",
         "common_mistake": "Sürekli baskısına panikleyip iyi elleri fold etmek.",
+        "concepts_title": "SUPER/SYSTEM KAVRAMLARI",
+        "concepts": [
+            "Power Poker felsefesi: agresyon kazandırır, pasif oyun para kaybettirir. "
+            "İnisiyatifi al, rakibi karar vermeye zorla.",
+            "Rakip okuma: oyuncunun NE YAPTIĞI, ne söylediğinden önemlidir — "
+            "betting pattern + timing tell'lerini izle.",
+            "Pozisyon = güç. No-Limit'te küçük kartlarla bile pozisyon+agresyonla "
+            "pot çalınır (10-2 efsanesi).",
+            "Tipoloji: oyuncuları tight/loose × passive/aggressive matrisine yerleştir; "
+            "'gambler', 'rock', 'sucker' sınıflarına göre hat seç.",
+        ],
     },
     {
         "id": "phil_ivey", "name": "Phil Ivey", "tag": "EFSANE — KOMPLE / OKUYUCU",
@@ -388,6 +399,16 @@ _PROFILES: list[dict] = [
         ],
         "counter": "Hatasız + dengeli oyna; variance'ı düşür, net spotları al.",
         "common_mistake": "Ona 'fazla yaratıcı' oynayıp kendini zora sokmak.",
+        "concepts_title": "IVEY OKUMA KAVRAMLARI",
+        "concepts": [
+            "Game flow okuma: spot'u izole değerlendirme — rakibin o anki ruh hali, "
+            "geçmiş eller ve masa dinamiğine göre uyarla.",
+            "Korkusuz agresyon + disiplinli fold: büyük el bile geride olunca bırakılır; "
+            "'sonuç odaklı değil, karar odaklı' düşün.",
+            "Canlı tell ustası: bahis zamanlaması (timing) ve sizing tutarsızlıkları "
+            "value/blöf ayrımını ele verir.",
+            "Her sokakta bilgi topla, range'ini sürekli güncelle; pattern verme.",
+        ],
     },
     {
         "id": "phil_hellmuth", "name": "Phil Hellmuth", "tag": "EFSANE — TIGHT / MTT",
@@ -406,6 +427,21 @@ _PROFILES: list[dict] = [
         ],
         "counter": "Pozisyon + sabırlı value; blöf hattını ona karşı kapat.",
         "common_mistake": "Onu blöfle kovmaya çalışmak (en pahalı hata).",
+        "concepts_title": "HELLMUTH'UN HAYVAN TİPLERİ (kitabından)",
+        "concepts": [
+            "🐭 MOUSE (Fare): çok sıkı-pasif, sadece premium oynar, riskten kaçar. "
+            "EXPLOIT: körlerini çal, blöfle kovalа, baskı uygula.",
+            "🦁 LION (Aslan): sıkı-agresif, disiplinli solid pro. Masadaki en zorlardan; "
+            "ona karşı dengeli oyna, leak verme.",
+            "🐺 JACKAL (Çakal): loose-aggressive maniac, kaotik ve öngörülemez. "
+            "EXPLOIT: güçlü elle bekle, geniş range'ine value al, bluff-catch et.",
+            "🐘 ELEPHANT (Fil): loose-passive calling station, her şeyi takip eder. "
+            "EXPLOIT: acımasız value-bet, ASLA blöf yapma.",
+            "🦅 EAGLE (Kartal): en üst %1 — dünya klası, az sayıda. Masaya oturma, "
+            "oturduysan minimum çatışma.",
+            "Top-10 el + sabır felsefesi: turnuvada varyanstan kaç, premium-ağırlıklı "
+            "oyna, doğru anı bekle.",
+        ],
     },
     {
         "id": "daniel_negreanu", "name": "Daniel Negreanu", "tag": "EFSANE — SMALL BALL / OKUYUCU",
@@ -424,6 +460,17 @@ _PROFILES: list[dict] = [
         ],
         "counter": "Bilgi sızdırma; dengeli + net hatlarla küçük pot savaşını kazan.",
         "common_mistake": "Konuşmasına/okumasına kapılıp range'ini ona göstermek.",
+        "concepts_title": "POWER HOLD'EM — KAVRAMLAR (kitabından)",
+        "concepts": [
+            "SMALL BALL: küçük açış/bahis boyutları, çok flop gör, ucuz bilgi topla, "
+            "büyük varyanstan kaçın — pozisyon ve okuma ile küçük potları biriktir.",
+            "RANGE OKUMA (hand reading): rakibi tek ele değil ARALIĞA koy; her sokakta "
+            "(preflop→river) aksiyona göre aralığı daralt. Modern range-bazlı "
+            "düşüncenin popülerleştiricisi.",
+            "Aralık daraltma adımları: açış pozisyonu → preflop aksiyon → board dokusu "
+            "→ bet sizing → timing; her bilgi range'i keser.",
+            "Live tell + profilleme: oyuncuyu tipine göre sınıfla, ona göre exploit hattı seç.",
+        ],
     },
 ]
 
@@ -768,6 +815,26 @@ class OpponentProfilesScreen(QWidget):
 
         row.addWidget(counter_frame, 1)
         self._detail_layout.addWidget(row_container)  # widget, not layout — clears correctly
+
+        # ── KAVRAMLAR / TİPOLOJİLER (efsanenin kitabından) ──
+        concepts = profile.get("concepts")
+        if concepts:
+            cf = QFrame()
+            cf.setObjectName("Card")
+            cf.setStyleSheet(f"QFrame#Card {{ border-left: 3px solid {color}; }}")
+            cl = QVBoxLayout(cf)
+            cl.setContentsMargins(20, 16, 20, 16)
+            cl.setSpacing(8)
+            chdr = QLabel(f"📚  {profile.get('concepts_title', 'KAVRAMLAR / TİPOLOJİLER')}")
+            chdr.setObjectName("SectionTitle")
+            chdr.setStyleSheet(f"color: {color};")
+            cl.addWidget(chdr)
+            for c in concepts:
+                cl_lbl = QLabel(f"•  {c}")
+                cl_lbl.setWordWrap(True)
+                cl_lbl.setStyleSheet("font-size: 12px; line-height: 1.5;")
+                cl.addWidget(cl_lbl)
+            self._detail_layout.addWidget(cf)
 
         self._detail_layout.addStretch(1)
 
