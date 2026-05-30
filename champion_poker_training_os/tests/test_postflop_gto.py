@@ -138,3 +138,42 @@ def test_defaults_unchanged_flop_headsup():
     a, _ = cbet_strategy(0.55, tex, True, True)
     b, _ = cbet_strategy(0.55, tex, True, True, street="flop", n_active=2)
     assert abs(a - b) < 1e-9
+
+
+# ── Spot types: donk-lead board dependence (D6) ───────────────────────
+def test_caller_favored_flag():
+    assert classify_board(_b("8c", "6d", "4h")).caller_favored      # low board
+    assert not classify_board(_b("Ac", "7d", "2h")).caller_favored  # A-high
+    assert not classify_board(_b("Kc", "Qd", "5h")).caller_favored  # K-high
+
+
+def test_donk_near_zero_on_ace_high():
+    # OOP, no initiative (donk) on A-high → almost never lead
+    tex = classify_board(_b("Ac", "7d", "2h"))
+    donk, _ = cbet_strategy(0.45, tex, in_position=False, has_initiative=False)
+    assert donk < 0.12
+
+
+def test_donk_higher_on_low_board_than_high_board():
+    low = classify_board(_b("8c", "6d", "4h"))    # caller-favored
+    high = classify_board(_b("Ac", "Kd", "2h"))   # aggressor-favored
+    d_low, _ = cbet_strategy(0.45, low, in_position=False, has_initiative=False)
+    d_high, _ = cbet_strategy(0.45, high, in_position=False, has_initiative=False)
+    assert d_low > d_high
+
+
+def test_initiative_cbet_unaffected_by_caller_favored():
+    # has_initiative=True → caller_favored gating uygulanmaz (normal c-bet)
+    low = classify_board(_b("8c", "6d", "4h"))
+    freq, _ = cbet_strategy(0.55, low, in_position=True, has_initiative=True)
+    assert freq > 0.2
+
+
+def test_probe_bets_more_than_donk():
+    # Agresör check-back yaptıysa (probe) → donk'tan çok daha sık bet
+    tex = classify_board(_b("Ac", "7d", "2h"))    # high board, donk≈0
+    donk, _ = cbet_strategy(0.45, tex, in_position=True, has_initiative=False,
+                            probe=False)
+    probe, _ = cbet_strategy(0.45, tex, in_position=True, has_initiative=False,
+                             probe=True)
+    assert probe > donk

@@ -26,6 +26,7 @@ class BoardTexture:
     high_card: int          # 0(2)..12(A)
     wetness: float          # 0(kuru) .. 1(çok ıslak/dinamik)
     label: str
+    caller_favored: bool = False   # düşük/bağlı board → preflop CALLER range/nut avantajı
 
 
 def _clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
@@ -99,19 +100,27 @@ def classify_board(community: list) -> BoardTexture:
         label = "dry"
     else:
         label = "semi-wet"
+
+    # Caller-favored board: en yüksek kart 9 veya altı (value 7) → tipik
+    # preflop AÇAN'ın yüksek-kart ağırlıklı range'ini ıskalar, savunan tarafın
+    # (BB defend) suited-connector/düşük range'ine yarar. Donk-lead burada
+    # makul; A/K/Q board'larda agresörün avantajıdır.
+    caller_favored = (high_card <= 7) and not paired
     return BoardTexture(paired, monotone, two_tone, connected,
-                        high_card, wetness, label)
+                        high_card, wetness, label, caller_favored)
 
 
 def cbet_strategy(equity: float, tex: BoardTexture, in_position: bool,
                   has_initiative: bool, street: str = "flop",
-                  n_active: int = 2) -> tuple[float, float]:
+                  n_active: int = 2, probe: bool = False) -> tuple[float, float]:
     """Bahis YOKKEN (hero aksiyonu): (bet_freq, size_frac).
 
     bet_freq → BET slotu, (1-bet_freq) → CHECK slotu.
 
     ``street`` (flop/turn/river): sonraki sokaklarda barrel frekansı düşer,
     size büyür (polarize). ``n_active``: multiway'de c-bet sıkılaşır.
+    ``probe``: agresör bir önceki sokağı check'leyip geçtiyse (inisiyatifi
+    bıraktı) → probe bet; donk cezası yerine daha yüksek frekans.
     """
     wet = tex.wetness
     # Baz c-bet frekansı: kuru→yüksek, ıslak→düşük
@@ -121,7 +130,13 @@ def cbet_strategy(equity: float, tex: BoardTexture, in_position: bool,
     if not in_position:
         base *= 0.72            # OOP daha çok check
     if not has_initiative:
-        base *= 0.45            # inisiyatif yoksa donk-lead nadir
+        if probe:
+            # Agresör check-back yaptı (zayıflık gösterdi) → probe bet yüksek
+            base *= 0.65
+        else:
+            # Donk-lead: board'a bağlı. Caller-favored board'da makul küçük
+            # lead; A/K/Q (agresör avantajı) board'da neredeyse yok.
+            base *= 0.45 if tex.caller_favored else 0.12
 
     # Sokak barrel azalması (value hafif, bluff/orta tam etkilenir)
     street_mult = {"flop": 1.0, "turn": 0.85, "river": 0.72}.get(

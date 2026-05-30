@@ -111,6 +111,30 @@ def _hero_has_initiative(hand: HandState, hero_idx: int) -> bool:
     return last == hero_idx
 
 
+def _prev_street_checked_through(hand: HandState) -> bool:
+    """Bir önceki sokak agresif aksiyon olmadan (check'lenerek) mi geçildi?
+
+    Postflop'ta önceki sokakta hiç BET/RAISE/ALL_IN yoksa agresör inisiyatifi
+    bırakmış demektir → probe bet fırsatı.
+    """
+    cur = hand.street
+    order = [Street.PREFLOP, Street.FLOP, Street.TURN, Street.RIVER]
+    try:
+        idx = order.index(cur)
+    except ValueError:
+        return False
+    if idx <= 1:                       # flop'ta "önceki postflop sokak" yok
+        return False
+    prev = order[idx - 1]
+    saw_aggression = False
+    for a in hand.actions:
+        if a.street == prev and a.action_type in (
+                ActionType.BET, ActionType.RAISE, ActionType.ALL_IN):
+            saw_aggression = True
+            break
+    return not saw_aggression
+
+
 def _hero_in_position(hand: HandState, hero_idx: int) -> bool:
     """Postflop hero en geç mi konuşuyor (button'a en yakın aktif oyuncu)?"""
     n = len(hand.players)
@@ -184,9 +208,11 @@ def _postflop_advice(hand: HandState, hero_idx: int, adv: LiveAdvice) -> LiveAdv
         adv.raise_ = round(100 * raise_f, 0)
         adv.allin = 0.0
     else:
-        # Bahis yok: c-bet (doku/inisiyatif/pozisyon/sokak/multiway) veya check
+        # Bahis yok: c-bet / donk / probe (doku/inisiyatif/pozisyon/sokak/multiway)
+        probe = (not init) and _prev_street_checked_through(hand)
         bet_f, _size = cbet_strategy(eq, tex, in_pos, init,
-                                     street=street_name, n_active=n_active)
+                                     street=street_name, n_active=n_active,
+                                     probe=probe)
         adv.raise_ = round(100 * bet_f, 0)        # BET slotu
         adv.call = round(100 * (1.0 - bet_f), 0)  # CHECK slotu
         adv.fold = 0.0
