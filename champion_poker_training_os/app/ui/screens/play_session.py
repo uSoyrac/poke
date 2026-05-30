@@ -27,6 +27,7 @@ def _big_title(text: str) -> QLabel:
 
 
 from app.core.app_state import AppState
+from app.core.logging import log_swallowed
 from app.ai.coach_engine import analyze_played_hand, session_summary
 from app.db.repository import save_played_hand
 from app.core.live_hud import LiveHUD
@@ -1400,8 +1401,8 @@ class PlaySessionScreen(QWidget):
         try:
             from app.db.repository import record_decision_log
             record_decision_log(log)
-        except Exception:
-            pass
+        except Exception as e:
+            log_swallowed("play_session.record_decision_log", e)
         if not self.game or not self.game.hand_history:
             return
         if self.game.current_hand:
@@ -1766,8 +1767,8 @@ class PlaySessionScreen(QWidget):
         try:
             from app.db.repository import record_decision_log
             record_decision_log(log)
-        except Exception:
-            pass
+        except Exception as e:
+            log_swallowed("play_session.record_decision_log", e)
         if not self.tournament:
             return
         t = self.tournament

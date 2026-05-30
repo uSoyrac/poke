@@ -23,6 +23,7 @@ def _big_title(text: str) -> QLabel:
     return lbl
 
 from app.core.app_state import AppState
+from app.core.logging import log_swallowed
 from app.core.live_hud import LiveHUD
 from app.db.repository import save_played_hand
 from app.engine.hand_state import ActionType, Street
@@ -1291,8 +1292,8 @@ class TournamentSimulatorScreen(QWidget):
         try:
             from app.db.repository import record_decision_log
             record_decision_log(self._recorder.log)
-        except Exception:
-            pass
+        except Exception as e:
+            log_swallowed("tournament_simulator.record_decision_log", e)
         result = self.tournament.hand_log[-1]
         # Live HUD güncelle
         if self.tournament.game.current_hand:

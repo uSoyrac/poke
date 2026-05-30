@@ -17,7 +17,7 @@ from app.ai.coach_engine import explain_spot
 from app.ai.gemini_client import GeminiCoach
 from app.core.app_state import AppState
 from app.core.config import APP_NAME
-from app.core.logging import configure_logging
+from app.core.logging import configure_logging, log_swallowed
 from app.core.rta_guard import RtaGuard
 from app.db.repository import initialize_database
 from app.ui.components.coach_panel import CoachPanel
@@ -381,8 +381,8 @@ class MainWindow(QMainWindow):
         if hasattr(target, "reload"):
             try:
                 target.reload()
-            except Exception:
-                pass
+            except Exception as e:
+                log_swallowed(f"navigate.reload({name})", e)
         self.stack.setCurrentWidget(target)
         self.bottom_label.setText(
             f"Progress: {self.state.completed_drills} drills | Accuracy {self.state.accuracy:.0f}% | "
