@@ -16,6 +16,10 @@ class AppState:
     ev_loss_total: float = 0.0
     session_notes: list[str] = field(default_factory=list)
     selected_spot: dict[str, Any] | None = None
+    # "Practice this spot" tıklandığında set edilir (selected_spot her filtre
+    # değişiminde set olduğu için ayrı sinyal gerekir). Spot Trainer tüketince
+    # None'a çeker → tek seferlik handoff.
+    practice_spot: dict[str, Any] | None = None
     last_hand: dict[str, Any] | None = None
     # Live tournament context — populated by TournamentSimulatorScreen each
     # refresh, consumed by the AI coach to give tournament-aware advice

@@ -126,6 +126,8 @@ class StudyLibraryScreen(QWidget):
             if label == "Ask coach why":
                 button.clicked.connect(
                     lambda: self.coach_message.emit(explain_spot(self._current_spot())))
+            elif label == "Practice this spot":
+                button.clicked.connect(self._practice_this_spot)
             elif target:
                 button.clicked.connect(
                     lambda checked=False, t=target: self.navigate_requested.emit(t))
@@ -163,6 +165,11 @@ class StudyLibraryScreen(QWidget):
             scenario = _POT_TO_SCENARIO.get(scen_key, "RFI")
         return {"format": fmt, "position": position, "scenario": scenario,
                 "stack": stack, "mode": mode}
+
+    def _practice_this_spot(self) -> None:
+        """Seçili node'u Spot Trainer'a taşı (tek seferlik handoff) ve geç."""
+        self.state.practice_spot = self._current_spot()
+        self.navigate_requested.emit("Spot Practice Trainer")
 
     def _current_spot(self) -> dict:
         """Koç açıklaması için sentetik spot dict'i (filtrelerden)."""

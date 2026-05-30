@@ -111,6 +111,42 @@ def test_node_summary_sums_to_100(qapp):
     assert 35 <= summ["raise"] + summ["call"] <= 60
 
 
+def test_practice_spot_handoff(qapp):
+    """Study Library 'Practice this spot' → Spot Trainer en yakın drill'i oynar."""
+    from app.core.app_state import AppState
+    from app.ui.screens.spot_trainer import SpotTrainerScreen
+    st = AppState()
+    st.practice_spot = {"format": "cash", "position": "BTN",
+                        "pot_type": "SRP", "stack_bb": 100, "scenario": "RFI"}
+    s = SpotTrainerScreen(st)
+    s.show()
+    qapp.processEvents()
+    assert st.practice_spot is None              # tek seferlik tüketildi
+    assert s._current_drill is not None          # bir drill yüklendi
+    s.hide()
+
+
+def test_practice_spot_noop_when_unset(qapp):
+    """practice_spot yoksa Spot Trainer normal açılır (handoff tetiklenmez)."""
+    from app.core.app_state import AppState
+    from app.ui.screens.spot_trainer import SpotTrainerScreen
+    s = SpotTrainerScreen(AppState())
+    s.show()
+    qapp.processEvents()
+    assert s._current_drill is None
+    s.hide()
+
+
+def test_study_practice_button_sets_practice_spot(qapp):
+    from app.core.app_state import AppState
+    from app.ui.screens.study_library import StudyLibraryScreen
+    s = StudyLibraryScreen(AppState())
+    s.filter_boxes["Position"].setCurrentText("CO")
+    s._practice_this_spot()
+    assert s.state.practice_spot is not None
+    assert s.state.practice_spot["position"] == "CO"
+
+
 def test_node_summary_tighter_when_shorter(qapp):
     """40bb MTT açış range'i 100bb cash'ten dar olmalı."""
     from app.ui.screens.study_library import _node_summary

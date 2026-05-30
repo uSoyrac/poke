@@ -379,6 +379,42 @@ class SpotTrainerScreen(QWidget):
         self._q_idx = 0
         self._play_next()
 
+    def showEvent(self, ev) -> None:
+        super().showEvent(ev)
+        self._consume_practice_spot()
+
+    def _consume_practice_spot(self) -> None:
+        """Study Library 'Practice this spot' handoff'u — seçili node'a en
+        yakın gerçek drill'i bul ve oyna. Tek seferlik (state temizlenir)."""
+        spot = getattr(self.state, "practice_spot", None)
+        if not spot:
+            return
+        self.state.practice_spot = None          # tek seferlik
+        drills = self.lib.get_drills("All")
+        if not drills:
+            self.coach_message.emit(
+                "Kütüphanede drill yok — Study Library node'u açılamadı.")
+            return
+
+        def score(d: dict) -> float:
+            s = 0.0
+            if d.get("format") == spot.get("format"):
+                s += 3
+            if d.get("position") == spot.get("position"):
+                s += 3
+            if d.get("pot_type") == spot.get("pot_type"):
+                s += 2
+            s -= abs(float(d.get("stack_bb", 100)) -
+                     float(spot.get("stack_bb", 100))) / 20.0
+            return s
+
+        best = max(drills, key=score)
+        self.coach_message.emit(
+            f"Study Library'den geldin: {spot.get('position')} "
+            f"{spot.get('scenario')} {spot.get('stack_bb')}bb — en yakın drill "
+            f"yüklendi ({best.get('id')}).")
+        self._play_single(best)
+
     def _play_single(self, drill: dict) -> None:
         self._queue = [drill]
         self._q_idx = 0
