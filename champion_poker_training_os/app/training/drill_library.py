@@ -44,12 +44,38 @@ class DrillLibrary(QObject):
         self._drills.append(drill)
         self.drill_added.emit(drill)
 
-    def generate_from_leak(self, leak: dict) -> list[dict]:
-        """Create 5 focused drill entries from a *leak* dict.
+    def generate_repair_pack(self, leaks: list[dict],
+                             max_total: int = 18) -> list[dict]:
+        """Gerçek leak listesinden ağırlıklı 'tamir paketi' üret.
+
+        Spaced-repetition mantığı: daha ağır leak → daha çok tekrar (drill).
+        Critical=6, High=4, Medium=2 drill (max_total ile sınırlı). Info/Low
+        atlanır. `get_leak_analysis()` çıktısını doğrudan kabul eder.
+        """
+        weight = {"Critical": 6, "High": 4, "Medium": 2}
+        # En ağırdan başla (EV kaybı / severity)
+        ordered = sorted(
+            (l for l in (leaks or []) if l.get("severity") in weight),
+            key=lambda l: (weight.get(l.get("severity"), 0),
+                           float(l.get("ev_lost", 0) or 0)),
+            reverse=True,
+        )
+        pack: list[dict] = []
+        for leak in ordered:
+            if len(pack) >= max_total:
+                break
+            n = weight.get(leak.get("severity"), 2)
+            n = min(n, max_total - len(pack))
+            pack.extend(self.generate_from_leak(leak, count=n))
+        return pack
+
+    def generate_from_leak(self, leak: dict, count: int = 5) -> list[dict]:
+        """Create ``count`` focused drill entries from a *leak* dict.
 
         The drills are added to the library immediately (drill_added fires
         for each one) and the list is returned for convenience.
         """
+        count = max(1, int(count))
         category = leak.get("category", "Preflop")
         street_map = {
             "Preflop": "preflop", "Flop": "flop", "Turn": "turn",
@@ -73,8 +99,9 @@ class DrillLibrary(QObject):
         leak_tag = leak["name"][:12].replace(" ", "")
 
         new_drills: list[dict] = []
-        for i in range(5):
-            drill_id = f"LEAK-{leak_tag}-{i+1}"
+        for i in range(count):
+            # Kütüphane boyutunu da kat → tekrar üretimde ID çakışmasın
+            drill_id = f"LEAK-{leak_tag}-{len(self._drills)+1}"
             pos = positions[i % len(positions)]
             stack = stacks[i % len(stacks)]
             d: dict = {

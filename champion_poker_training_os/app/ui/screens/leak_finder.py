@@ -264,13 +264,18 @@ class LeakFinderScreen(QWidget):
         self.repair_bar.setFormat("Repair: 0%")
 
         btn_row = QHBoxLayout()
-        drill_btn = QPushButton("Create Drill Pack")
-        drill_btn.setObjectName("PrimaryButton")
+        repair_btn = QPushButton("🔧 Hatalarımdan Drill Üret")
+        repair_btn.setObjectName("PrimaryButton")
+        repair_btn.setToolTip("Tüm gerçek leak'lerinden ağırlıklı bir tamir "
+                              "paketi üret (ağır leak → daha çok tekrar).")
+        repair_btn.clicked.connect(self._create_repair_pack)
+        drill_btn = QPushButton("Seçili Leak → Drill")
         drill_btn.clicked.connect(self._create_drill)
         combat_btn = QPushButton("Start Combat Repair")
         combat_btn.clicked.connect(lambda: self.navigate_requested.emit("Combat Trainer"))
         coach_btn = QPushButton("Ask AI Coach")
         coach_btn.clicked.connect(self._ask_coach)
+        btn_row.addWidget(repair_btn)
         btn_row.addWidget(drill_btn)
         btn_row.addWidget(combat_btn)
         btn_row.addWidget(coach_btn)
@@ -393,11 +398,35 @@ class LeakFinderScreen(QWidget):
             self.repair_bar.setFormat("Combat repair plan available")
             self.repair_bar.setValue(0)
 
+    def _create_repair_pack(self) -> None:
+        """Tüm gerçek leak'lerden ağırlıklı tamir paketi üret (spaced-rep)."""
+        leaks = [l for l in self.all_leaks if l.get("severity") in
+                 ("Critical", "High", "Medium")]
+        if not leaks:
+            self.coach_message.emit(
+                "Drill üretecek leak yok. Önce birkaç el oyna (Play/Tournament), "
+                "sonra ↻ Refresh ile leak analizi oluştur."
+            )
+            return
+        lib = DrillLibrary.instance()
+        pack = lib.generate_repair_pack(leaks)
+        if not self.data_driven:
+            note = " (örnek katalogdan — gerçek veri için daha çok el oyna)"
+        else:
+            note = " (gerçek oyun hatalarından)"
+        names = ", ".join(dict.fromkeys(l["name"] for l in leaks[:3]))
+        self.coach_message.emit(
+            f"🔧 {len(pack)} drill'lik tamir paketi oluşturuldu{note}. Ağır "
+            f"leak'lere daha çok tekrar düştü. Öncelik: {names}. "
+            "Spot Practice Trainer → Drill Library'de seni bekliyor!"
+        )
+        self.navigate_requested.emit("Spot Practice Trainer")
+
     def _create_drill(self) -> None:
         leak = self._selected_leak
         if leak is None:
             self.coach_message.emit(
-                "Önce tabloda bir leak seç, sonra 'Create Drill Pack' butonuna bas."
+                "Önce tabloda bir leak seç, sonra 'Seçili Leak → Drill' butonuna bas."
             )
             return
         lib = DrillLibrary.instance()
