@@ -359,6 +359,85 @@ def get_position_leaks(min_sample: int = 3) -> list:
     return out
 
 
+_EARLY_POS = {"UTG", "UTG+1", "UTG+2", "MP", "EP"}
+_MID_POS = {"LJ", "HJ", "CO", "MP+1"}
+_LATE_POS = {"BTN", "SB", "BTN/SB"}
+
+
+def _pos_bucket(pos: str) -> str:
+    p = (pos or "").upper()
+    if p in _EARLY_POS:
+        return "erken pozisyon"
+    if p in _MID_POS:
+        return "orta pozisyon"
+    if p in _LATE_POS:
+        return "geç pozisyon"
+    if p == "BB":
+        return "BB"
+    return "diğer"
+
+
+def _stack_bucket(eff: float) -> str:
+    if eff <= 20:
+        return "sığ stack (≤20bb)"
+    if eff <= 50:
+        return "orta stack (20–50bb)"
+    return "derin stack (>50bb)"
+
+
+def get_segmented_insights(min_sample: int = 3) -> list:
+    """Pozisyon × stack-derinliği segmentlerinde sistematik hatalar.
+
+    "MTT'de short-stack'e düşünce erken pozisyonda marjinal raise" gibi
+    içgörüler — gerçek mistake_spots verisinden. [{segment, n, ev_lost,
+    pattern, tip}] EV-kaybı yüksekten düşüğe. Veri yoksa [].
+    """
+    _ensure_mistake_table()
+    with get_connection() as conn:
+        try:
+            rows = [dict(r) for r in conn.execute(
+                "SELECT hero_position, eff_stack_bb, best_action, hero_action, "
+                "ev_loss, scenario FROM mistake_spots").fetchall()]
+        except sqlite3.OperationalError:
+            return []
+    from collections import defaultdict
+    seg: dict = defaultdict(lambda: {"n": 0, "ev": 0.0, "over_raise": 0, "over_fold": 0})
+    for r in rows:
+        key = (_pos_bucket(r.get("hero_position")),
+               _stack_bucket(float(r.get("eff_stack_bb") or 0)))
+        s = seg[key]
+        s["n"] += 1
+        s["ev"] += float(r.get("ev_loss") or 0)
+        ha = (r.get("hero_action") or "").upper()
+        ba = (r.get("best_action") or "").upper()
+        if ha in ("RAISE", "BET", "ALL_IN") and ba == "FOLD":
+            s["over_raise"] += 1            # GTO fold derken raise = gereksiz agresyon
+        elif ha == "FOLD" and ba in ("RAISE", "BET", "CALL", "ALL_IN"):
+            s["over_fold"] += 1
+    out = []
+    for (pos_b, stk_b), s in seg.items():
+        if s["n"] < min_sample:
+            continue
+        if s["over_raise"] >= s["over_fold"] and s["over_raise"] > 0:
+            pattern = (f"%{100*s['over_raise']/s['n']:.0f} oranında GTO fold "
+                       f"derken raise/bet ettin (gereksiz agresyon)")
+            tip = "Bu segmentte açılış/raise eşiğini yükselt; marjinal elleri pas geç."
+        elif s["over_fold"] > 0:
+            pattern = (f"%{100*s['over_fold']/s['n']:.0f} oranında GTO devam "
+                       f"ederken fold ettin (over-fold)")
+            tip = "Bu segmentte devam eşiğini düşür; equity'n yetiyorsa bırakma."
+        else:
+            pattern = "karışık sapmalar"
+            tip = "El sonu reveal'da bu segment kararlarını incele."
+        out.append({
+            "segment": f"{pos_b} · {stk_b}",
+            "n": s["n"], "ev_lost": round(s["ev"], 1),
+            "pattern": pattern, "tip": tip,
+        })
+    out.sort(key=lambda x: x["ev_lost"], reverse=True)
+    return out
+
+
 def get_self_insights() -> dict:
     """Oyuncunun güçlü/zayıf yönleri — gerçek veriden derlenmiş içgörüler.
 

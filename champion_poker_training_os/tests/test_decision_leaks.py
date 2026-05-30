@@ -177,3 +177,25 @@ def test_position_leaks_and_self_insights(isolated_db):
 def test_self_insights_empty(isolated_db):
     ins = isolated_db.get_self_insights()
     assert ins["strengths"] == [] and ins["weaknesses"] == []
+
+
+def test_segmented_insights_early_short_overraise(isolated_db):
+    R = isolated_db
+    # Erken pozisyon + sığ stack: GTO fold derken raise (gereksiz agresyon)
+    for _ in range(4):
+        R.record_decision_log([{
+            "available": True, "street": "Preflop", "scenario": "RFI",
+            "fold": 85, "call": 0, "raise": 15, "allin": 0,
+            "equity": 0, "pot_bb": 3, "to_call_bb": 0,
+            "hero_action": "RAISE", "hero_amount": 2.5, "board": "",
+            "hero_combo": "Jd9c", "hero_position": "UTG", "n_active": 8,
+            "eff_stack_bb": 16, "pot_type": "SRP"}])
+    segs = R.get_segmented_insights()
+    assert segs, "segment çıkmalı"
+    top = segs[0]
+    assert "erken pozisyon" in top["segment"] and "sığ stack" in top["segment"]
+    assert top["n"] == 4 and "raise" in top["pattern"].lower()
+
+
+def test_segmented_insights_empty(isolated_db):
+    assert isolated_db.get_segmented_insights() == []

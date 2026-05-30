@@ -173,6 +173,21 @@ class ReportsScreen(QWidget):
         self._insights_layout.addWidget(self.insights_body)
         layout.addWidget(self.insights_frame)
 
+        # ── SEGMENT ANALİZİ (pozisyon × stack — derin içgörü) ──
+        self.segment_frame = QFrame()
+        self.segment_frame.setObjectName("Card")
+        self._segment_layout = QVBoxLayout(self.segment_frame)
+        seg_title = QLabel("📊  SEGMENT ANALİZİ  ·  pozisyon × stack derinliği")
+        seg_title.setObjectName("SectionTitle")
+        self._segment_layout.addWidget(seg_title)
+        self.segment_body = QLabel("")
+        self.segment_body.setWordWrap(True)
+        self.segment_body.setTextFormat(Qt.TextFormat.RichText)
+        self.segment_body.setStyleSheet(
+            "font-family:'JetBrains Mono',Menlo,monospace; font-size:12px;")
+        self._segment_layout.addWidget(self.segment_body)
+        layout.addWidget(self.segment_frame)
+
         # Charts row
         charts = QHBoxLayout()
 
@@ -300,14 +315,17 @@ class ReportsScreen(QWidget):
         try:
             from app.db.repository import (
                 get_gto_accuracy_trend, get_gto_category_accuracy,
-                get_player_stats, get_self_insights,
+                get_player_stats, get_self_insights, get_segmented_insights,
             )
             trend = get_gto_accuracy_trend(days=14)
             cats = get_gto_category_accuracy()
             pstats = get_player_stats()
             insights = get_self_insights()
+            segments = get_segmented_insights()
         except Exception:
-            trend, cats, pstats, insights = [], {}, {}, {"strengths": [], "weaknesses": []}
+            trend, cats, pstats = [], {}, {}
+            insights = {"strengths": [], "weaknesses": []}
+            segments = []
 
         # ── Özet kartları (gerçek) ──
         tot = sum(c["n"] for c in cats.values())
@@ -336,6 +354,24 @@ class ReportsScreen(QWidget):
                 html += "<span style='color:#DC2626; font-weight:700'>⚠ GELİŞTİR:</span><br>"
                 html += "<br>".join(f"&nbsp;&nbsp;• {w}" for w in wk)
             self.insights_body.setText(html)
+
+        # ── Segment analizi ──
+        if not segments:
+            self.segment_body.setText(
+                "<span style='color:#94A3B8'>Yeterli hata-spotu yok. Real "
+                "Experience modda el oyna — pozisyon × stack segmentlerindeki "
+                "sistematik hataların (örn. 'erken pozisyon + sığ stack'te "
+                "gereksiz raise') burada çıkacak.</span>")
+        else:
+            shtml = []
+            for s in segments[:5]:
+                shtml.append(
+                    f"<b style='color:#22D3EE'>{s['segment']}</b> "
+                    f"<span style='color:#94A3B8'>({s['n']} hata · "
+                    f"~{s['ev_lost']:.0f}bb)</span><br>"
+                    f"&nbsp;&nbsp;{s['pattern']}<br>"
+                    f"&nbsp;&nbsp;<span style='color:#5ad17a'>→ {s['tip']}</span>")
+            self.segment_body.setText("<br><br>".join(shtml))
 
         # Eski grafiği temizle
         while self._gto_chart_holder.count():
