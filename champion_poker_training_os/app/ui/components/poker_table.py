@@ -336,25 +336,35 @@ class _Seat(QFrame):
         else:
             self.name_label.hide()
 
-        # HUD tooltip — opponent stats on hover
+        # HUD tooltip — opponent PROFILE + stats on hover
         if state.hud_stats and not state.is_hero:
             h = state.hud_stats
             af = h.get("af", h.get("aggression", 0))
-            animal_line = (f"<br><b style='color:#f4c842'>{state.animal}</b>"
-                           if state.animal else "")
+            arch = h.get("archetype", "") or (state.name or state.pos)
+            # Başlık: profil adı + (varsa) Hellmuth hayvan-tipi
+            header = f"<span style='color:#5ad17a;font-size:14px'><b>{arch}</b></span>"
+            if state.animal:
+                header += (f"  <span style='color:#f4c842'>· {state.animal}</span>")
+            seat_line = ""
+            if state.name and state.name != arch:
+                seat_line = (f"<br><span style='color:#898d80;font-size:11px'>"
+                             f"{state.name} · {state.pos}</span>")
+            notes = h.get("notes", "")
+            tip_line = (f"<br><br><span style='color:#cdd2c4'>💡 {notes}</span>"
+                        if notes else "")
             self.card.setToolTip(
-                f"<b style='color:#5ad17a'>{state.name or state.pos}</b>{animal_line}<br>"
-                f"<table cellpadding='2'>"
-                f"<tr><td>VPIP</td><td><b>{h.get('vpip',0):.0f}%</b></td>"
-                f"    <td>&nbsp;PFR</td><td><b>{h.get('pfr',0):.0f}%</b></td>"
-                f"    <td>&nbsp;3bet</td><td><b>{h.get('three_bet',0):.0f}%</b></td></tr>"
-                f"<tr><td>AF</td><td><b>{af:.1f}</b></td>"
+                f"{header}{seat_line}<br>"
+                f"<table cellpadding='2' style='color:#cdd2c4'>"
+                f"<tr><td>VPIP</td><td><b style='color:#5ad17a'>{h.get('vpip',0):.0f}%</b></td>"
+                f"    <td>&nbsp;PFR</td><td><b style='color:#5ad17a'>{h.get('pfr',0):.0f}%</b></td>"
+                f"    <td>&nbsp;3bet</td><td><b style='color:#5ad17a'>{h.get('three_bet',0):.0f}%</b></td></tr>"
+                f"<tr><td>AF</td><td><b style='color:#f4c842'>{af:.1f}</b></td>"
                 f"    <td>&nbsp;F-cbet</td><td><b>{h.get('fold_to_cbet',0):.0f}%</b></td>"
                 f"    <td>&nbsp;Call↓</td><td><b>{h.get('call_down',0)*100:.0f}%</b></td></tr>"
                 f"<tr><td>RvBluff</td><td><b>{h.get('river_bluff',0)*100:.0f}%</b></td>"
                 f"    <td>&nbsp;Overbet</td><td><b>{h.get('overbet_freq',0)*100:.0f}%</b></td></tr>"
                 f"</table>"
-                f"<i style='color:#898d80'>{h.get('notes','')}</i>"
+                f"{tip_line}"
             )
         else:
             self.card.setToolTip("")
@@ -1004,6 +1014,7 @@ def seats_from_hand(
             if bot_profiles and cur in bot_profiles and not p.is_hero:
                 prof = bot_profiles[cur]
                 hud = {
+                    "archetype":    getattr(prof, "name", ""),
                     "vpip":         getattr(prof, "vpip", 0),
                     "pfr":          getattr(prof, "pfr", 0),
                     "three_bet":    getattr(prof, "three_bet", 0),
