@@ -271,6 +271,30 @@ class IcmTrainerScreen(QWidget):
         )
 
         self.coach_message.emit(explain_spot(spot, action))
+        # Otomatik ilerleme YOK — oynadığın spot + feedback ekranda kalsın,
+        # GTO-doğru aksiyon vurgulanır; SONRAKİ SPOT ile geç (inceleme döngüsü).
+        self._show_review(spot, action, result)
+
+    def _show_review(self, spot: dict, action: str, result: dict) -> None:
+        """Karar sonrası: doğru aksiyonu vurgula + 'Sonraki Spot' butonu."""
+        _clear_layout(self.action_layout)
+        best = (result.get("best_action") or "").lower()
+        for opt in spot["options"]:
+            b = QPushButton(opt.upper())
+            b.setEnabled(False)
+            if opt.lower() == best:
+                b.setObjectName("PrimaryButton")     # GTO-doğru = yeşil
+                b.setText(f"✓ {opt.upper()}  (GTO)")
+            elif opt.lower() == action.lower():
+                b.setObjectName("DangerButton" if opt.lower() != best else "")
+                b.setText(f"• {opt.upper()}  (senin)")
+            self.action_layout.addWidget(b)
+        nxt = QPushButton("Sonraki Spot  →")
+        nxt.setObjectName("PrimaryButton")
+        nxt.clicked.connect(self._next_spot)
+        self.action_layout.addWidget(nxt)
+
+    def _next_spot(self) -> None:
         self.index += 1
         self.load_spot()
 
