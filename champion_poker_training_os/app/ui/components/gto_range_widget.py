@@ -38,6 +38,7 @@ class _SolveWorker(QObject):
                 hero_in_position=bool(s.get("in_position", True)),
                 hero_combo=s.get("hero_combo", ""),
                 iterations=80,
+                pot_type=s.get("pot_type", "SRP"),
             )
         except Exception:
             out = None

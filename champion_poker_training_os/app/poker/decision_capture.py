@@ -13,6 +13,27 @@ from __future__ import annotations
 from typing import Optional
 
 
+def preflop_pot_type(hand) -> str:
+    """Preflop raise sayısından pot tipi: SRP / 3BP / 4BP / limped."""
+    try:
+        from app.engine.hand_state import ActionType, Street
+        raises = 0
+        for a in hand.actions:
+            if a.street != Street.PREFLOP:
+                continue
+            if a.action_type in (ActionType.RAISE, ActionType.BET, ActionType.ALL_IN):
+                raises += 1
+        if raises >= 3:
+            return "4BP"
+        if raises == 2:
+            return "3BP"
+        if raises == 1:
+            return "SRP"
+        return "limped"
+    except Exception:
+        return "SRP"
+
+
 def make_snapshot(hand, hero_idx: int, gto, bb: float = 1.0,
                   sizing: Optional[dict] = None) -> dict:
     """Bir karar noktasının snapshot dict'ini üret (reveal/grade/persist şeması)."""
@@ -26,6 +47,7 @@ def make_snapshot(hand, hero_idx: int, gto, bb: float = 1.0,
     hero_combo = ""
     eff_stack_bb = 0.0
     in_position = True
+    pot_type = "SRP"
     try:
         comm = getattr(hand, "community", []) or []
         board = " ".join(c.code for c in comm)
@@ -35,8 +57,9 @@ def make_snapshot(hand, hero_idx: int, gto, bb: float = 1.0,
         eff_stack_bb = round((hero.stack + hero.current_bet) / _bb, 1)
         from app.poker.gto_live_advice import _hero_in_position
         in_position = _hero_in_position(hand, hero_idx)
+        pot_type = preflop_pot_type(hand)
     except Exception:
-        pass
+        pot_type = "SRP"
 
     snap = {
         "street": getattr(hand, "street_name", ""),
@@ -53,6 +76,7 @@ def make_snapshot(hand, hero_idx: int, gto, bb: float = 1.0,
         "to_call_bb": to_call / _bb,
         "board": board, "hero_combo": hero_combo,
         "eff_stack_bb": eff_stack_bb, "in_position": in_position,
+        "pot_type": pot_type,
         "hero_action": None, "hero_amount": None, "_bb": _bb,
     }
     if sizing:

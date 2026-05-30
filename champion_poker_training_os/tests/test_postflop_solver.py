@@ -20,6 +20,35 @@ def test_invalid_board_returns_none():
     assert solve_spot_exact("Ah", 10, 100, True, "AhKh") is None
 
 
+def test_pot_type_ranges_exist_and_tighten():
+    import app.poker.postflop_solver as ps
+    for k in ("SRP", "3BP", "4BP"):
+        assert k in ps._POT_TYPE_RANGES
+    # 4-bet potu SRP'den çok daha sıkı (string daha kısa)
+    srp_oop = ps._POT_TYPE_RANGES["SRP"][0]
+    fbp_oop = ps._POT_TYPE_RANGES["4BP"][0]
+    assert len(fbp_oop) < len(srp_oop)
+
+
+def test_preflop_pot_type_detection():
+    from types import SimpleNamespace as NS
+    from app.engine.hand_state import ActionType, Street
+    from app.poker.decision_capture import preflop_pot_type
+
+    def act(at):
+        return NS(street=Street.PREFLOP, action_type=at)
+
+    srp = NS(actions=[act(ActionType.RAISE), act(ActionType.CALL)])
+    assert preflop_pot_type(srp) == "SRP"
+    tbp = NS(actions=[act(ActionType.RAISE), act(ActionType.RAISE),
+                      act(ActionType.CALL)])
+    assert preflop_pot_type(tbp) == "3BP"
+    fbp = NS(actions=[act(ActionType.RAISE)] * 3 + [act(ActionType.CALL)])
+    assert preflop_pot_type(fbp) == "4BP"
+    limp = NS(actions=[act(ActionType.CALL), act(ActionType.CHECK)])
+    assert preflop_pot_type(limp) == "limped"
+
+
 def test_graceful_when_no_binary(monkeypatch):
     # Binary yokmuş gibi davran → None (UI çökmeden düşer)
     import app.poker.postflop_solver as ps

@@ -1240,7 +1240,7 @@ class PlaySessionScreen(QWidget):
     def _spot_context(hand, hero_idx, bb=1.0) -> dict:
         """Postflop EXACT solver için spot bağlamı (board/hero/stack/IP)."""
         ctx = {"board": "", "hero_combo": "", "eff_stack_bb": 0.0,
-               "in_position": True}
+               "in_position": True, "pot_type": "SRP"}
         try:
             comm = getattr(hand, "community", []) or []
             ctx["board"] = " ".join(c.code for c in comm)
@@ -1249,7 +1249,9 @@ class PlaySessionScreen(QWidget):
                 ctx["hero_combo"] = hero.hole_cards[0].code + hero.hole_cards[1].code
             ctx["eff_stack_bb"] = round((hero.stack + hero.current_bet) / max(bb, 1e-9), 1)
             from app.poker.gto_live_advice import _hero_in_position
+            from app.poker.decision_capture import preflop_pot_type
             ctx["in_position"] = _hero_in_position(hand, hero_idx)
+            ctx["pot_type"] = preflop_pot_type(hand)
         except Exception:
             pass
         return ctx
