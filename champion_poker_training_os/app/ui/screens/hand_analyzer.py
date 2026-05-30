@@ -145,9 +145,10 @@ class HandAnalyzerScreen(QWidget):
         self._load_played_hands()
 
     def _load_played_hands(self) -> None:
-        """Load played hands from SQLite."""
+        """Load played hands from SQLite — sadece OYNANAN eller (insta-fold değil)."""
         try:
-            self.played_hands = get_session_history(100)
+            # Preflop'ta direkt fold etmediğin gerçek eller (flop+ veya VPIP)
+            self.played_hands = get_session_history(200, voluntary_only=True)
         except Exception:
             self.played_hands = []
         self._populate_table()

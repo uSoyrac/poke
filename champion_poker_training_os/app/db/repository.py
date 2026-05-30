@@ -546,13 +546,31 @@ def import_hands_from_text(text: str, session_id: int = 1) -> int:
     return n
 
 
-def get_session_history(limit: int = 50) -> list:
-    """Get recent played hands."""
+def get_session_history(limit: int = 50, voluntary_only: bool = False) -> list:
+    """Get recent played hands.
+
+    ``voluntary_only=True`` → sadece OYNANAN eller (preflop'ta direkt fold
+    etmediğin): flop+ gördüğün (streets_seen≥2) VEYA blind dışı para koyduğun
+    (hero_invested>1.01bb) eller. Hand History Analyzer bunu kullanır — sıkıcı
+    preflop fold'ları eler, gerçek kararlarını gösterir.
+    """
+    where = ("WHERE streets_seen >= 2 OR hero_invested > 1.01"
+             if voluntary_only else "")
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT * FROM played_hands ORDER BY created_at DESC LIMIT ?", (limit,)
+            f"SELECT * FROM played_hands {where} "
+            f"ORDER BY created_at DESC LIMIT ?", (limit,)
         ).fetchall()
         return [dict(row) for row in rows]
+
+
+def count_played_hands(voluntary_only: bool = False) -> int:
+    """Toplam (veya sadece oynanan) el sayısı."""
+    where = ("WHERE streets_seen >= 2 OR hero_invested > 1.01"
+             if voluntary_only else "")
+    with get_connection() as conn:
+        return int(conn.execute(
+            f"SELECT COUNT(*) FROM played_hands {where}").fetchone()[0])
 
 
 # ─── Hand History Archive (date-indexed) ──────────────────────────────

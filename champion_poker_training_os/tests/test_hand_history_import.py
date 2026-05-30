@@ -88,6 +88,28 @@ def test_empty():
     assert parse_pokerstars("") == []
 
 
+def test_voluntary_only_filters_preflop_folds(tmp_path, monkeypatch):
+    from app.db import repository as R
+    monkeypatch.setattr(R, "DB_PATH", tmp_path / "vol.db")
+    R.initialize_database()
+    # Insta-fold (streets 1, sadece blind) — gösterilmemeli
+    R.save_played_hand({"hand_id": 1, "hero_cards": "7d2c", "community": "",
+                        "pot": 1.5, "hero_invested": 0.5, "hero_profit": -0.5,
+                        "hero_won": 0, "streets_seen": 1})
+    # Oynanan: flop gördü
+    R.save_played_hand({"hand_id": 2, "hero_cards": "AhKh", "community": "Ah7c2d",
+                        "pot": 8, "hero_invested": 4, "hero_profit": 4,
+                        "hero_won": 1, "streets_seen": 2})
+    # Oynanan: preflop raise edip 3bet'e fold (VPIP, streets 1 ama invested>1)
+    R.save_played_hand({"hand_id": 3, "hero_cards": "QsJs", "community": "",
+                        "pot": 12, "hero_invested": 3, "hero_profit": -3,
+                        "hero_won": 0, "streets_seen": 1})
+    assert R.count_played_hands() == 3
+    assert R.count_played_hands(voluntary_only=True) == 2     # insta-fold elenir
+    ids = {h["hand_id"] for h in R.get_session_history(10, voluntary_only=True)}
+    assert ids == {2, 3}
+
+
 def test_import_roundtrip_to_db(tmp_path, monkeypatch):
     from app.db import repository as R
     monkeypatch.setattr(R, "DB_PATH", tmp_path / "imp.db")
