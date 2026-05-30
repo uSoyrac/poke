@@ -725,6 +725,70 @@ class GTODecisionReveal(QFrame):
         return "📊  " + "  ·  ".join(parts)
 
     @staticmethod
+    def _preflop_facing_why(d: dict) -> str:
+        """Preflop raise/re-raise muhakemesi — pozisyon · stack · senaryo · mix.
+
+        "Raise ettim, 3-bet geldi" gibi spotlarda NASIL düşünüleceğini öğretir:
+        4-bet/flat/fold tercihinin nedenini, pozisyon ve stack derinliğinin
+        etkisini ve GTO aksiyon karışımını açıklar.
+        """
+        scen = (d.get("scenario") or "").lower()
+        f = float(d.get("fold", 0) or 0); c = float(d.get("call", 0) or 0)
+        r = float(d.get("raise", 0) or 0); a = float(d.get("allin", 0) or 0)
+        pos = d.get("hero_position") or "?"
+        vs = d.get("raiser_pos") or "rakip"
+        eff = float(d.get("eff_stack_bb", 0) or 0)
+        ip = bool(d.get("in_position", False))
+        posnote = "IP (pozisyon sende)" if ip else "OOP (pozisyon dışı)"
+        depth = ("derin" if eff >= 45 else "orta" if eff >= 22 else "sığ")
+        best = max({"fold": f, "call": c, "raise": r, "allin": a},
+                   key=lambda k: {"fold": f, "call": c, "raise": r, "allin": a}[k])
+        mix = ", ".join(f"{lbl} %{v:.0f}" for lbl, v in
+                        (("4bet/raise", r), ("call", c), ("fold", f), ("jam", a)) if v >= 8)
+
+        if "4-bet" in scen and "vs" in scen:           # 4-bet'e karşı (sen 3-bet'ledin)
+            head = f"vs 4-bet ({pos}): "
+            if best == "fold":
+                body = ("Range zaten çok dar — sadece QQ+/AK devam eder, gerisi fold. "
+                        "4-bet'e blöf-call kârsızdır (rakip range'i polarize).")
+            elif best in ("raise", "allin"):
+                body = "5-bet/jam değeri (KK+/AKs) ya da seçili blocker blöf; ara eller fold."
+            else:
+                body = (f"Call: {depth} stack'te QQ/AK flat olabilir ama çoğu spot 5-bet ya da "
+                        "fold — 4-bet potunda SPR düşer, postflop manevra azalır.")
+        elif "3-bet" in scen:                          # sen açtın, 3-bet geldi
+            head = f"vs 3-bet ({pos} · {posnote} · {depth} {eff:.0f}bb): "
+            if best == "call":
+                body = (f"FLAT en iyi — fold edemeyecek kadar güçlü, ama 4-bet edersen elini "
+                        f"bluff-catcher'a çevirip {vs}'in polarize 4-bet/fold range'ine maruz "
+                        f"kalırsın. Flat'leyerek {vs}'in blöflerini içeride tutar, "
+                        f"{'pozisyonla rahat' if ip else 'OOP olduğun için dikkatli'} oynarsın.")
+            elif best in ("raise", "allin"):
+                body = (f"4-bet — value (QQ+/AK) ya da blocker blöf (A5s). {vs}'i daha zayıf "
+                        f"range'le call/fold'a zorlar; {depth} stack 4-bet vs fold dengesini belirler.")
+            else:
+                body = (f"FOLD — 3-bet'e devam için yeterli equity/playability yok. {pos} "
+                        "açışın zaten güçlü olduğundan range'in dibini pas geç (over-defend etme).")
+        elif "vs rfi" in scen or "vs açış" in scen:     # açışa karşı
+            head = f"vs açış ({vs} açtı · sen {pos} · {posnote}): "
+            if best == "raise":
+                body = (f"3-BET — value + blocker blöf karışımı. {vs}'i kapasiteli bir range'le "
+                        f"savunmaya zorla; {'IP 3-bet daha kârlı' if ip else 'OOP 3-bet daha polarize olmalı'}.")
+            elif best == "call":
+                body = ("FLAT — 3-bet için fazla ince, fold için fazla iyi. Pozisyon + pot odds "
+                        "varsa kârlı çağırış; arkanda kalan oyuncu varsa squeeze riskine dikkat.")
+            else:
+                body = f"FOLD — {vs} açışına karşı yeterli equity/pozisyon yok; dominasyona girme."
+        elif "push" in scen:
+            head = f"Push/Fold ({depth} {eff:.0f}bb): "
+            body = ("Jam ya da fold — kısa stack Nash; flat yok. Fold-equity + showdown equity "
+                    "kararı belirler, pozisyon ve kalan oyuncu sayısı eşiği kaydırır.")
+        else:
+            return ""
+        mix_s = f"  <span style='color:#898d80'>[GTO: {mix}]</span>" if mix else ""
+        return "💡  " + head + body + mix_s
+
+    @staticmethod
     def _why_line(d: dict) -> str:
         """Strateji NEDEN'i — sayıyı değil mantığı öğret (dünya-klası eğitim).
 
@@ -744,6 +808,14 @@ class GTODecisionReveal(QFrame):
         be = 100.0 * to_call / (pot + to_call) if facing else 0.0
         dry = "dry" in scen
         wet = ("wet" in scen) or ("monotone" in scen)
+
+        # ── PREFLOP raise/re-raise spotları → öğretici muhakeme ──
+        is_postflop = "postflop" in scen
+        if facing and not is_postflop and eq <= 0:
+            pf = GTODecisionReveal._preflop_facing_why(d)
+            if pf:
+                return pf
+
         msg = ""
         if facing:
             if eq > 0 and eq < be - 1:
@@ -814,6 +886,7 @@ class GTODecisionReveal(QFrame):
         why = self._why_line(d)
         if why:
             wl = QLabel(why)
+            wl.setTextFormat(Qt.RichText)
             wl.setStyleSheet(
                 f"font-family:'JetBrains Mono',monospace; font-size:10px; "
                 f"color:{_WARN}; background:transparent;")
