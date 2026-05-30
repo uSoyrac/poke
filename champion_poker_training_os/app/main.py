@@ -264,7 +264,7 @@ class MainWindow(QMainWindow):
                 title_prefix="Tournament",
             ),
         }
-        single_factories = {
+        single_classes = {
             "Dashboard": DashboardScreen,
             "My Profile": PlayerProfileScreen,
             "GTO Study Library": StudyLibraryScreen,
@@ -290,25 +290,45 @@ class MainWindow(QMainWindow):
             "Reports": ReportsScreen,
             "Settings / Compliance Guard": SettingsScreen,
         }
-        for name in NAV_ITEMS:
-            if name in multi_factories:
-                screen = multi_factories[name]()
-            else:
-                screen = single_factories[name](self.state)
-            if hasattr(screen, "coach_message"):
-                screen.coach_message.connect(self.coach.set_message)
-            if hasattr(screen, "hand_completed"):
-                screen.hand_completed.connect(self.on_hand_completed)
-            if hasattr(screen, "navigate_requested"):
-                screen.navigate_requested.connect(self.navigate)
-            if hasattr(screen, "tournament_advice_requested"):
-                screen.tournament_advice_requested.connect(self.on_tournament_advice)
-            if hasattr(screen, "analysis_requested"):
-                screen.analysis_requested.connect(
-                    lambda prompt, s=screen: self._gemini_for_screen(prompt, s)
-                )
-            self.screens[name] = screen
-            self.stack.addWidget(screen)
+        # LAZY: ekranları sıfır-argümanlı factory'lerde tut; gerçekten
+        # gezildiğinde kur. Hepsini açılışta kurmak ~4.8 sn sürüyordu →
+        # talep üzerine kurmak boot'u anlık yapar (26 ekranın çoğu hiç
+        # açılmayabilir).
+        self._screen_factories: dict = dict(multi_factories)
+        for nm, cls in single_classes.items():
+            self._screen_factories[nm] = (lambda c=cls: c(self.state))
+        # İlk görünen ekranı hemen kur ki açılışta içerik anında gelsin.
+        self._ensure_screen(NAV_ITEMS[0])
+
+    def _ensure_screen(self, name: str):
+        """Ekranı (lazily) kurar, sinyalleri bağlar, stack'e ekler, cache'ler.
+        Zaten kuruluysa cache'ten döner."""
+        if name in self.screens:
+            return self.screens[name]
+        screen = self._screen_factories[name]()
+        if hasattr(screen, "coach_message"):
+            screen.coach_message.connect(self.coach.set_message)
+        if hasattr(screen, "hand_completed"):
+            screen.hand_completed.connect(self.on_hand_completed)
+        if hasattr(screen, "navigate_requested"):
+            screen.navigate_requested.connect(self.navigate)
+        if hasattr(screen, "tournament_advice_requested"):
+            screen.tournament_advice_requested.connect(self.on_tournament_advice)
+        if hasattr(screen, "analysis_requested"):
+            screen.analysis_requested.connect(
+                lambda prompt, s=screen: self._gemini_for_screen(prompt, s)
+            )
+        # Yeni kurulan ekran mevcut Real Experience modunu almalı (lazy
+        # olduğu için toggle anında var olmayabilir).
+        if getattr(self.state, "real_experience", False) and \
+                hasattr(screen, "apply_experience_mode"):
+            try:
+                screen.apply_experience_mode(True)
+            except Exception as e:
+                log_swallowed(f"ensure_screen.apply_experience_mode({name})", e)
+        self.screens[name] = screen
+        self.stack.addWidget(screen)
+        return screen
 
     def _on_experience_toggled(self, real: bool) -> None:
         """Real Experience Mode değişti → tüm play/tournament ekranlarını tazele.
@@ -376,7 +396,7 @@ class MainWindow(QMainWindow):
         self.state.active_mode = name
         self.sidebar.set_active(name)
         self.topbar.set_mode(name)
-        target = self.screens[name]
+        target = self._ensure_screen(name)
         # Leak Finder gerçek el verisinden beslenir → ekrana her girişte tazele
         if hasattr(target, "reload"):
             try:

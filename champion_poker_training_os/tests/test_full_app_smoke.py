@@ -44,11 +44,23 @@ def test_every_screen_navigates_and_renders(main_window):
     assert not failures, "Ekran hataları:\n" + "\n".join(failures)
 
 
-def test_all_nav_items_have_screens(main_window):
+def test_all_nav_items_have_factories(main_window):
+    """Lazy loading: her NAV öğesinin bir factory'si olmalı (ekran talep
+    üzerine kurulur, başlangıçta değil)."""
     from app.main import NAV_ITEMS
     win, _ = main_window
     for name in NAV_ITEMS:
-        assert name in win.screens, f"{name} kayıtlı değil"
+        assert name in win._screen_factories, f"{name} factory kayıtlı değil"
+
+
+def test_lazy_boot_builds_only_default(main_window):
+    """Açılışta yalnızca varsayılan ekran kurulu olmalı (lazy boot).
+    NOT: bu test modül-scoped fixture'ı paylaştığı için diğer testler
+    ekran kurmuş olabilir → en az default'un kurulu olduğunu doğrula."""
+    from app.main import NAV_ITEMS
+    win, _ = main_window
+    assert NAV_ITEMS[0] in win.screens          # default eager kurulur
+    assert len(win._screen_factories) == len(NAV_ITEMS)
 
 
 def test_drill_timers_idle_when_not_current(main_window):
