@@ -587,6 +587,10 @@ class GTODecisionReveal(QFrame):
         if can:
             self._exact_btn.setEnabled(True)
             self._exact_btn.setText("🎯  EXACT solver ile kesinleştir")
+            # Real Experience (graded) modda: el sonu reveal zaten SPACE bekliyor;
+            # EXACT'i arka planda OTOMATİK tetikle → sen okurken kendiliğinden gelir.
+            if getattr(self, "_graded", False):
+                self._run_exact_solve()
 
     def _run_exact_solve(self) -> None:
         if not self._solvable_spot:
@@ -597,6 +601,7 @@ class GTODecisionReveal(QFrame):
         self._exact_btn.setEnabled(False)
         self._exact_btn.setText("🎯  Çözülüyor… (~5–15s, TexasSolver)")
         self._exact_result.hide()
+        self._solving_spot = self._solvable_spot   # stale-sonuç koruması
         self._solve_thread = QThread(self)
         self._solve_worker = _SolveWorker(self._solvable_spot)
         self._solve_worker.moveToThread(self._solve_thread)
@@ -606,6 +611,9 @@ class GTODecisionReveal(QFrame):
         self._solve_thread.start()
 
     def _on_exact_done(self, out) -> None:
+        # Bayat sonuç koruması: bu sonuç, hâlâ gösterilen spota mı ait?
+        if getattr(self, "_solving_spot", None) is not getattr(self, "_solvable_spot", None):
+            return
         self._exact_btn.setEnabled(True)
         self._exact_btn.setText("🎯  EXACT solver ile kesinleştir")
         if not out:
