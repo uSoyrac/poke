@@ -18,17 +18,16 @@ import random
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter
 from PySide6.QtWidgets import (
-    QComboBox, QFrame, QHBoxLayout, QLabel, QProgressBar, QPushButton,
+    QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton,
     QSplitter, QVBoxLayout, QWidget,
 )
 
 from app.poker.mtt_ranges import (
     build_mtt_push_fold, build_mtt_rfi, mtt_jam_pct,
 )
-from app.ui.components.card_view import TwoCardHand
 
 
 COLOR_INK = "#FAFAFA"
@@ -134,11 +133,6 @@ class MTTTrainerScreen(QWidget):
         self._spot = None
         self._mode = "pf"
         self._answered = False
-        self._cd = 5.0
-        self._cd_total = 5.0
-        self._timer = QTimer(self)
-        self._timer.setInterval(100)
-        self._timer.timeout.connect(self._tick)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 18, 20, 20)
@@ -178,20 +172,13 @@ class MTTTrainerScreen(QWidget):
         self.content.addWidget(self._ex_widget)
         self._ex_widget.hide()
 
-        # İlk spotu hazırla ama sayacı BAŞLATMA — geri sayım yalnızca ekran
-        # gerçekten görünürken (showEvent) işler. Aksi halde sekme arkada
-        # plandayken sayaç akar ve kullanıcı hep "SÜRE DOLDU"ya gelir.
-        self._new_pf_spot(start_timer=False)
+        self._new_pf_spot()
 
-    # ── VISIBILITY: sayaç yalnızca ekran görünürken çalışır ──────────────
     def showEvent(self, ev) -> None:
         super().showEvent(ev)
-        if self._mode == "pf":
-            self._new_pf_spot()          # her açılışta taze, canlı spot
-
-    def hideEvent(self, ev) -> None:
-        super().hideEvent(ev)
-        self._timer.stop()
+        # Ekran açılınca taze spot (yalnızca cevaplanmışsa / spot yoksa)
+        if self._mode == "pf" and (self._answered or self._spot is None):
+            self._new_pf_spot()
 
     def _tab_style(self) -> str:
         return (
@@ -208,7 +195,6 @@ class MTTTrainerScreen(QWidget):
         self._pf_widget.setVisible(mode == "pf")
         self._ex_widget.setVisible(mode == "ex")
         if mode == "ex":
-            self._timer.stop()          # explorer'da geri sayım yok
             self._refresh_explorer()
         else:
             self._new_pf_spot()         # drill'e dönünce taze spot + sayaç
@@ -232,8 +218,9 @@ class MTTTrainerScreen(QWidget):
         self.diff = QComboBox()
         self.diff.addItems(list(self.DIFFICULTY.keys()))
         self.diff.setCurrentText("Normal")
+        # Zaman kısıtı kaldırıldı; zorluk seçimi bilgilendirme amaçlı
         self.diff.currentTextChanged.connect(
-            lambda t: setattr(self, "_cd_total", self.DIFFICULTY.get(t, 5)))
+            lambda t: setattr(self, "_difficulty", t))
         ctrl.addWidget(self.diff)
         ctrl.addStretch(1)
         skip = QPushButton("⏭ Skip")
@@ -243,30 +230,10 @@ class MTTTrainerScreen(QWidget):
         ctrl.addWidget(skip)
         v.addLayout(ctrl)
 
-        # Context chips
-        ctx = QHBoxLayout()
-        ctx.setSpacing(16)
-        self.pf_pos = self._chip("Position", "—", COLOR_INK)
-        self.pf_stack = self._chip("Stack", "—", COLOR_AMBER)
-        self.pf_action_label = self._chip("Action", "JAM or FOLD?", COLOR_ACCENT)
-        for c in (self.pf_pos, self.pf_stack, self.pf_action_label):
-            ctx.addWidget(c)
-        ctx.addStretch(1)
-        v.addLayout(ctx)
-
-        # Cards
-        hw = QHBoxLayout()
-        hw.addStretch(1)
-        self.pf_cards = TwoCardHand(size="xl")
-        hw.addWidget(self.pf_cards)
-        hw.addStretch(1)
-        v.addLayout(hw)
-
-        self.pf_hand_lbl = QLabel("AKs")
-        self.pf_hand_lbl.setAlignment(Qt.AlignCenter)
-        self.pf_hand_lbl.setStyleSheet(f"color:{COLOR_INK}; font-size:26px; "
-                                       f"font-weight:800; font-family:monospace;")
-        v.addWidget(self.pf_hand_lbl)
+        # GERÇEK POKER MASASI — hero koltukta, kartları, pozisyon, rakipler, pot
+        from app.ui.components.poker_table import LivePokerTable
+        self.pf_table = LivePokerTable()
+        v.addWidget(self.pf_table, 1)
 
         # Plain-language durum cümlesi (gerçek turnuva bağlamı)
         self.pf_situation = QLabel("")
@@ -275,17 +242,7 @@ class MTTTrainerScreen(QWidget):
         self.pf_situation.setStyleSheet(f"color:{COLOR_MUTED}; font-size:13px;")
         v.addWidget(self.pf_situation)
 
-        # Timer
-        self.pf_timer = QProgressBar()
-        self.pf_timer.setMaximum(100)
-        self.pf_timer.setTextVisible(False)
-        self.pf_timer.setFixedHeight(6)
-        self.pf_timer.setStyleSheet(
-            f"QProgressBar{{background:{COLOR_LINE};border:none;border-radius:3px;}}"
-            f"QProgressBar::chunk{{background:{COLOR_GOOD};border-radius:3px;}}")
-        v.addWidget(self.pf_timer)
-
-        # Jam / Fold buttons
+        # Jam / Fold buttons — zaman kısıtı YOK
         btns = QHBoxLayout()
         btns.setSpacing(12)
         self.btn_fold = QPushButton("FOLD")
@@ -465,12 +422,16 @@ class MTTTrainerScreen(QWidget):
         action = table.get(hand, {"raise": 0, "call": 0, "fold": 100})
         self._spot = {"pos": pos, "stack": stack, "hand": hand, "action": action}
         self._answered = False
-        self._cd = self._cd_total
-        self.pf_pos._value.setText(pos)
-        self.pf_stack._value.setText(f"{stack}bb")
-        self.pf_action_label._value.setText("JAM or FOLD?")
-        self.pf_cards.set_hand(hand)
-        self.pf_hand_lbl.setText(hand)
+
+        # Spotu GERÇEK poker masasına çiz (hero koltukta + kartları + pot)
+        from app.ui.components.card_view import hand_key_to_cards
+        from app.ui.components.spot_table import render_spot_on_table
+        c1, c2 = hand_key_to_cards(hand)
+        render_spot_on_table(self.pf_table, {
+            "hero_cards": f"{c1} {c2}", "board": "", "position": pos,
+            "table": "6-max", "stack_bb": stack, "street": "preflop",
+            "pot_bb": 1.5, "action_history": "",
+        })
         self.pf_situation.setText(
             f"♟ Turnuva · {stack}bb efektif stack, {pos} pozisyonundasın. "
             f"Herkes sana fold etti — jam mı, fold mu? "
@@ -481,9 +442,6 @@ class MTTTrainerScreen(QWidget):
         self.btn_jam.setStyleSheet(self._action_style(COLOR_JAM))
         self.pf_fb.setText("")
         self.pf_next.hide()
-        self._update_timer()
-        if start_timer:
-            self._timer.start()
 
     @staticmethod
     def _all_hands() -> list:
@@ -496,27 +454,10 @@ class MTTTrainerScreen(QWidget):
                 else: out.append(lo + hi + "o")
         return out
 
-    def _tick(self) -> None:
-        self._cd -= 0.1
-        if self._cd <= 0:
-            self._timer.stop()
-            self._pf_answer("fold", timed_out=True)
-        else:
-            self._update_timer()
-
-    def _update_timer(self) -> None:
-        pct = max(0, int(100 * self._cd / self._cd_total))
-        self.pf_timer.setValue(pct)
-        col = COLOR_GOOD if pct > 60 else COLOR_AMBER if pct > 30 else COLOR_BAD
-        self.pf_timer.setStyleSheet(
-            f"QProgressBar{{background:{COLOR_LINE};border:none;border-radius:3px;}}"
-            f"QProgressBar::chunk{{background:{col};border-radius:3px;}}")
-
-    def _pf_answer(self, user: str, timed_out: bool = False) -> None:
+    def _pf_answer(self, user: str) -> None:
         if self._answered or not self._spot:
             return
         self._answered = True
-        self._timer.stop()
         sp = self._spot
         a = sp["action"]
         jam_freq = a.get("raise", 0)
@@ -531,11 +472,9 @@ class MTTTrainerScreen(QWidget):
             elif key == user and not ok:
                 b.setStyleSheet(self._action_style(COLOR_BAD))
 
-        head = (f"<span style='color:{COLOR_BAD};font-size:16px;'>⏱ SÜRE DOLDU</span>"
-                if timed_out else
-                (f"<span style='color:{COLOR_GOOD};font-size:18px;'>✓ DOĞRU</span>"
-                 if ok else
-                 f"<span style='color:{COLOR_BAD};font-size:18px;'>✗ YANLIŞ</span>"))
+        head = (f"<span style='color:{COLOR_GOOD};font-size:18px;'>✓ DOĞRU</span>"
+                if ok else
+                f"<span style='color:{COLOR_BAD};font-size:18px;'>✗ YANLIŞ</span>")
         jam_note = (f"Nash jam frekansı: <b>%{jam_freq}</b>  "
                     f"({sp['pos']} {sp['stack']}bb {sp['hand']})")
         if 20 <= jam_freq <= 80:
@@ -572,19 +511,6 @@ class MTTTrainerScreen(QWidget):
         l.setStyleSheet(f"color:{COLOR_MUTED};font-size:11px;font-weight:600;"
                        f"text-transform:uppercase;letter-spacing:1px;")
         return l
-
-    def _chip(self, label: str, value: str, color: str) -> QFrame:
-        f = QFrame()
-        f.setStyleSheet(f"QFrame{{background:{COLOR_BG};border:1px solid {COLOR_LINE};"
-                       f"border-radius:8px;padding:8px 14px;}}")
-        v = QVBoxLayout(f); v.setSpacing(2); v.setContentsMargins(8, 4, 8, 4)
-        lab = QLabel(label.upper())
-        lab.setStyleSheet(f"color:{COLOR_MUTED};font-size:9px;font-weight:700;letter-spacing:1.5px;")
-        val = QLabel(value)
-        val.setStyleSheet(f"color:{color};font-size:16px;font-weight:800;font-family:monospace;")
-        v.addWidget(lab); v.addWidget(val)
-        f._value = val
-        return f
 
     def _action_style(self, color: str) -> str:
         return (f"QPushButton{{background:{color};color:white;border:none;"

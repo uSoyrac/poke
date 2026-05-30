@@ -69,32 +69,21 @@ def test_two_card_hand_updates(qapp):
     assert w._c1.rank == "T" and w._c2.rank == "9"
 
 
-# ── SAYAÇ GÖRÜNÜRLÜĞÜ ─────────────────────────────────────────────────
-def test_mtt_timer_idle_until_shown(qapp):
+# ── ZAMAN KISITI KALDIRILDI + GERÇEK MASA ────────────────────────────
+def test_mtt_no_timer_and_uses_table(qapp):
     from app.ui.screens.mtt_trainer import MTTTrainerScreen
     s = MTTTrainerScreen(None)
-    # init'te sayaç ÇALIŞMAMALI (arka planda akıp SÜRE DOLDU'ya düşmemeli)
-    assert not s._timer.isActive()
-    assert s._spot is not None          # ama spot hazır (ekran boş değil)
-    s.show()
-    qapp.processEvents()
-    assert s._timer.isActive()          # görününce başlar
-    s.hide()
-    qapp.processEvents()
-    assert not s._timer.isActive()      # gizlenince durur
+    assert not hasattr(s, "_timer")      # sayaç tamamen kaldırıldı
+    assert hasattr(s, "pf_table")        # gerçek poker masası
+    assert s._spot is not None           # spot hazır (ekran boş değil)
 
 
-def test_quiz_timer_idle_until_shown(qapp):
+def test_quiz_no_timer_and_uses_table(qapp):
     from app.ui.screens.quiz_trainer import QuizTrainerScreen
     s = QuizTrainerScreen(None)
-    assert not s._timer.isActive()
+    assert not hasattr(s, "_timer")      # sayaç tamamen kaldırıldı
+    assert hasattr(s, "table_view")      # gerçek poker masası
     assert s._current_spot is not None
-    s.show()
-    qapp.processEvents()
-    assert s._timer.isActive()
-    s.hide()
-    qapp.processEvents()
-    assert not s._timer.isActive()
 
 
 # ── STUDY LIBRARY FİLTRE → MATRİS ────────────────────────────────────

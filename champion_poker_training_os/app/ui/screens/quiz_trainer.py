@@ -17,17 +17,17 @@ import random
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup, QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
-    QProgressBar, QPushButton, QSizePolicy, QSpacerItem, QSplitter,
+    QPushButton, QSizePolicy, QSpacerItem, QSplitter,
     QVBoxLayout, QWidget,
 )
 
 from app.poker.gto_ranges import (
     POSITIONS_6MAX, STACK_DEPTHS, get_action,
 )
-from app.ui.components.card_view import TwoCardHand
+from app.ui.components.poker_table import LivePokerTable
 
 
 # ── COLOR PALETTE ────────────────────────────────────────────────────
@@ -186,13 +186,8 @@ class QuizTrainerScreen(QWidget):
         self.stats = QuizStats()
         self._current_spot: Optional[QuizSpot] = None
         self._answered = False
-        self._countdown_remaining = 5
-        self._countdown_total = 5
         self._mode_filter = {"position": "All", "scenario": "RFI",
                               "stack_depth": "All"}
-        self._timer = QTimer(self)
-        self._timer.setInterval(100)   # 10× per second
-        self._timer.timeout.connect(self._on_tick)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 18, 20, 20)
@@ -205,8 +200,8 @@ class QuizTrainerScreen(QWidget):
         )
         root.addWidget(title)
         subtitle = QLabel(
-            "Random spot → 5 saniyede aksiyon seç → GTO ile karşılaştır.  "
-            "Günde 15 dakika = preflop muscle memory."
+            "Gerçek masada random spot → acele etmeden aksiyon seç → GTO ile "
+            "karşılaştır.  Günde 15 dakika = preflop muscle memory."
         )
         subtitle.setStyleSheet(f"color: {COLOR_MUTED}; font-size: 12px;")
         root.addWidget(subtitle)
@@ -229,19 +224,13 @@ class QuizTrainerScreen(QWidget):
         splitter.setStretchFactor(1, 1)
         root.addWidget(splitter, 1)
 
-        # İlk spotu hazırla ama sayacı BAŞLATMA — geri sayım yalnızca ekran
-        # görünürken işler (showEvent). Aksi halde sekme arka plandayken sayaç
-        # akar ve kullanıcı hep "SÜRE DOLDU"ya gelir.
-        self._start_new_spot(start_timer=False)
+        self._start_new_spot()
 
-    # ── VISIBILITY: sayaç yalnızca ekran görünürken çalışır ──────────────
     def showEvent(self, ev) -> None:
         super().showEvent(ev)
-        self._start_new_spot()           # her açılışta taze, canlı spot
-
-    def hideEvent(self, ev) -> None:
-        super().hideEvent(ev)
-        self._timer.stop()
+        # Ekran her açıldığında taze spot (yalnızca cevaplanmışsa / spot yoksa)
+        if self._answered or self._current_spot is None:
+            self._start_new_spot()
 
     # ── KONTROLLER ────────────────────────────────────────────────────
     def _build_controls(self) -> QHBoxLayout:
@@ -302,9 +291,9 @@ class QuizTrainerScreen(QWidget):
         self._mode_filter[key] = val
 
     def _on_difficulty_changed(self, level: str) -> None:
-        self._countdown_total = self.DIFFICULTY.get(level, 5)
-        if not self._answered:
-            self._countdown_remaining = self._countdown_total
+        # Zaman kısıtı kaldırıldı; zorluk seçimi artık bilgilendirme amaçlı
+        # (gelecekte spot ağırlığı için kullanılabilir).
+        self._difficulty = level
 
     # ── SESSION BAR (PeakGTO-tarzı) ───────────────────────────────────
     def _build_session_bar(self) -> QWidget:
@@ -413,24 +402,17 @@ class QuizTrainerScreen(QWidget):
         card = QFrame()
         card.setStyleSheet(
             f"QFrame {{ background: {COLOR_CARD}; border: 1px solid {COLOR_LINE}; "
-            f"border-radius: 12px; padding: 24px; }}"
+            f"border-radius: 12px; }}"
         )
         v = QVBoxLayout(card)
-        v.setSpacing(20)
-        v.setContentsMargins(28, 28, 28, 28)
+        v.setSpacing(12)
+        v.setContentsMargins(16, 16, 16, 16)
 
-        # Context bar (pos + stack + scenario)
-        ctx = QHBoxLayout()
-        ctx.setSpacing(20)
-        self.ctx_pos = self._context_chip("Position", "—", COLOR_INK)
-        self.ctx_stack = self._context_chip("Stack", "—", "#F59E0B")
-        self.ctx_scenario = self._context_chip("Scenario", "RFI", "#8B5CF6")
-        for w in (self.ctx_pos, self.ctx_stack, self.ctx_scenario):
-            ctx.addWidget(w)
-        ctx.addStretch(1)
-        v.addLayout(ctx)
+        # GERÇEK POKER MASASI — hero koltukta, kartları, pozisyon, rakipler, pot
+        self.table_view = LivePokerTable()
+        v.addWidget(self.table_view, 1)
 
-        # Plain-language durum cümlesi (gerçek poker bağlamı)
+        # Plain-language durum cümlesi (masanın altında, ne yapman gerektiği)
         self.situation_label = QLabel("")
         self.situation_label.setWordWrap(True)
         self.situation_label.setAlignment(Qt.AlignCenter)
@@ -438,43 +420,7 @@ class QuizTrainerScreen(QWidget):
             f"color:{COLOR_MUTED}; font-size:13px; padding:2px 0;")
         v.addWidget(self.situation_label)
 
-        # Hand display (ortalı)
-        hand_wrap = QHBoxLayout()
-        hand_wrap.addStretch(1)
-        self.hand_display = TwoCardHand(size="xl")
-        hand_wrap.addWidget(self.hand_display)
-        hand_wrap.addStretch(1)
-        v.addLayout(hand_wrap)
-
-        self.hand_key_label = QLabel("AKs")
-        self.hand_key_label.setAlignment(Qt.AlignCenter)
-        self.hand_key_label.setStyleSheet(
-            f"color: {COLOR_INK}; font-size: 28px; font-weight: 800; "
-            f"font-family: 'JetBrains Mono', monospace;"
-        )
-        v.addWidget(self.hand_key_label)
-
-        # Geri sayım bar
-        self.timer_bar = QProgressBar()
-        self.timer_bar.setMaximum(100)
-        self.timer_bar.setTextVisible(False)
-        self.timer_bar.setFixedHeight(8)
-        self.timer_bar.setStyleSheet(
-            f"QProgressBar {{ background: {COLOR_LINE}; border: none; "
-            f"border-radius: 4px; }} "
-            f"QProgressBar::chunk {{ background: {COLOR_GOOD}; "
-            f"border-radius: 4px; }}"
-        )
-        v.addWidget(self.timer_bar)
-
-        self.timer_label = QLabel("5.0s")
-        self.timer_label.setAlignment(Qt.AlignCenter)
-        self.timer_label.setStyleSheet(
-            f"color: {COLOR_MUTED}; font-size: 12px; font-family: monospace;"
-        )
-        v.addWidget(self.timer_label)
-
-        # Aksiyon butonları
+        # Aksiyon butonları — zaman kısıtı YOK, acele etmeden karar ver
         actions = QHBoxLayout()
         actions.setSpacing(12)
         self.btn_fold = QPushButton("FOLD")
@@ -485,7 +431,7 @@ class QuizTrainerScreen(QWidget):
             (self.btn_call, COLOR_CALL, "call"),
             (self.btn_raise, COLOR_RAISE, "raise"),
         ]:
-            btn.setFixedHeight(58)
+            btn.setFixedHeight(56)
             btn.setStyleSheet(self._btn_style(color))
             btn.clicked.connect(lambda _, k=key: self._on_answer(k))
             actions.addWidget(btn, 1)
@@ -515,30 +461,29 @@ class QuizTrainerScreen(QWidget):
 
         return card
 
-    def _context_chip(self, label: str, value: str, color: str) -> QWidget:
-        w = QFrame()
-        w.setStyleSheet(
-            f"QFrame {{ background: {COLOR_BG}; border: 1px solid {COLOR_LINE}; "
-            f"border-radius: 8px; padding: 8px 14px; }}"
-        )
-        h = QVBoxLayout(w)
-        h.setSpacing(2)
-        h.setContentsMargins(8, 4, 8, 4)
-        lab = QLabel(label.upper())
-        lab.setStyleSheet(
-            f"color: {COLOR_MUTED}; font-size: 9px; font-weight: 700; "
-            f"letter-spacing: 1.5px;"
-        )
-        val = QLabel(value)
-        val.setStyleSheet(
-            f"color: {color}; font-size: 16px; font-weight: 800; "
-            f"font-family: 'JetBrains Mono', monospace;"
-        )
-        h.addWidget(lab)
-        h.addWidget(val)
-        # Public ref so we can update later
-        w._value_label = val
-        return w
+    @staticmethod
+    def _spot_to_table_dict(spot) -> dict:
+        """QuizSpot → render_spot_on_table için spot dict (preflop masa)."""
+        from app.ui.components.card_view import hand_key_to_cards
+        c1, c2 = hand_key_to_cards(spot.hand)
+        # vs-RFI/3-bet → açan oyuncu raise etmiş; pot ona göre büyür
+        opener = spot.vs_position or ""
+        if spot.scenario in ("vs RFI", "vs 3-bet") and opener:
+            action_hist = f"{opener} raises 2.5"
+            pot = 3.5 if spot.scenario == "vs RFI" else 8.0
+        else:
+            action_hist = ""              # RFI / Push-Fold → herkes fold, sıra hero'da
+            pot = 1.5
+        return {
+            "hero_cards": f"{c1} {c2}",
+            "board": "",
+            "position": spot.position,
+            "table": "6-max",
+            "stack_bb": spot.stack_depth,
+            "street": "preflop",
+            "pot_bb": pot,
+            "action_history": action_hist,
+        }
 
     def _btn_style(self, color: str, secondary: bool = False) -> str:
         if secondary:
@@ -628,8 +573,8 @@ class QuizTrainerScreen(QWidget):
         return panel
 
     # ── QUIZ FLOW ─────────────────────────────────────────────────────
-    def _start_new_spot(self, start_timer: bool = True) -> None:
-        """Yeni rastgele spot üret ve quiz'i başlat."""
+    def _start_new_spot(self) -> None:
+        """Yeni rastgele spot üret ve gerçek masaya çiz (zaman kısıtı YOK)."""
         # Spaced repetition: %25 ihtimalle wrong queue'dan al
         if self.stats.wrong_queue and random.random() < 0.25:
             spot = random.choice(self.stats.wrong_queue)
@@ -638,33 +583,24 @@ class QuizTrainerScreen(QWidget):
 
         self._current_spot = spot
         self._answered = False
-        self._countdown_remaining = self._countdown_total
 
-        # UI güncelle
-        self.ctx_pos._value_label.setText(spot.position)
-        self.ctx_stack._value_label.setText(f"{spot.stack_depth}bb")
-        # Scenario chip — vs_position varsa göster (örn "vs RFI (UTG)")
-        scen_text = spot.scenario
-        if spot.vs_position:
-            scen_text = f"{spot.scenario} ({spot.vs_position})"
-        self.ctx_scenario._value_label.setText(scen_text)
-        self.hand_display.set_hand(spot.hand)
-        self.hand_key_label.setText(spot.hand)
+        # Spotu GERÇEK poker masasına çiz (hero koltukta + kartları + pot)
+        from app.ui.components.spot_table import render_spot_on_table
+        render_spot_on_table(self.table_view, self._spot_to_table_dict(spot))
         self.situation_label.setText(self._situation_text(spot))
 
-        # Aksiyon butonlarını sıfırla (text + renk) ve etkinleştir
-        for btn, color, base_txt in [(self.btn_fold, COLOR_FOLD, "FOLD"),
-                                      (self.btn_call, COLOR_CALL, "CALL"),
-                                      (self.btn_raise, COLOR_RAISE, "RAISE")]:
+        # Push/Fold → CALL butonu gizli (jam/fold); diğer senaryolarda görünür
+        self.btn_call.setVisible(spot.scenario != "Push/Fold")
+        self.btn_raise.setText("JAM" if spot.scenario == "Push/Fold" else "RAISE")
+
+        # Aksiyon butonlarını sıfırla (renk) ve etkinleştir
+        for btn, color in [(self.btn_fold, COLOR_FOLD),
+                           (self.btn_call, COLOR_CALL),
+                           (self.btn_raise, COLOR_RAISE)]:
             btn.setEnabled(True)
-            btn.setText(base_txt)
             btn.setStyleSheet(self._btn_style(color))
 
-        # Feedback gizle, timer başlat
         self.feedback_panel.hide()
-        self._update_timer_ui()
-        if start_timer:
-            self._timer.start()
 
     @staticmethod
     def _situation_text(spot) -> str:
@@ -750,39 +686,11 @@ class QuizTrainerScreen(QWidget):
                     out.append(lo + hi + "o")
         return out
 
-    def _on_tick(self) -> None:
-        """Her 100ms'de bir timer tick."""
-        self._countdown_remaining -= 0.1
-        if self._countdown_remaining <= 0:
-            # Süre doldu → otomatik FOLD
-            self._timer.stop()
-            self._on_answer("fold", timed_out=True)
-        else:
-            self._update_timer_ui()
-
-    def _update_timer_ui(self) -> None:
-        pct = max(0, int(100 * self._countdown_remaining / self._countdown_total))
-        self.timer_bar.setValue(pct)
-        self.timer_label.setText(f"{max(0, self._countdown_remaining):.1f}s")
-        # Renk: yeşil → sarı → kırmızı
-        if pct > 60:
-            color = COLOR_GOOD
-        elif pct > 30:
-            color = "#F59E0B"
-        else:
-            color = COLOR_BAD
-        self.timer_bar.setStyleSheet(
-            f"QProgressBar {{ background: {COLOR_LINE}; border: none; "
-            f"border-radius: 4px; }} "
-            f"QProgressBar::chunk {{ background: {color}; border-radius: 4px; }}"
-        )
-
-    def _on_answer(self, user_action: str, timed_out: bool = False) -> None:
-        """Hero bir aksiyon seçti."""
+    def _on_answer(self, user_action: str) -> None:
+        """Hero bir aksiyon seçti (zaman kısıtı yok — acele yok)."""
         if self._answered or not self._current_spot:
             return
         self._answered = True
-        self._timer.stop()
 
         spot = self._current_spot
         correct = spot.correct_action
@@ -802,9 +710,10 @@ class QuizTrainerScreen(QWidget):
                           ev_loss=ev_loss)
 
         # Aksiyon butonlarını disable et + GTO% göster (cevap sonrası — test bütünlüğü)
+        jam = spot.scenario == "Push/Fold"
         for btn, key, base_txt in [(self.btn_fold, "fold", "FOLD"),
                                     (self.btn_call, "call", "CALL"),
-                                    (self.btn_raise, "raise", "RAISE")]:
+                                    (self.btn_raise, "raise", "JAM" if jam else "RAISE")]:
             btn.setEnabled(False)
             pct = action.get(key, 0)
             btn.setText(f"{base_txt}   {pct:.0f}%")
@@ -815,7 +724,7 @@ class QuizTrainerScreen(QWidget):
 
         # Feedback metni
         self.feedback_label.setText(self._build_feedback(
-            spot, user_action, is_correct, is_strict_correct, timed_out
+            spot, user_action, is_correct, is_strict_correct, False
         ))
         self.feedback_panel.show()
 
