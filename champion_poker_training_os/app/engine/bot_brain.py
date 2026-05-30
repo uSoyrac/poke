@@ -563,8 +563,11 @@ class BotBrain:
             # C-bet frequency scales with archetype aggression as the primary driver.
             # Passive bots (Rock agg=1.0) c-bet ~25% so they protect their
             # checking range; Maniac (agg=4.6) fires ~80%+ on most boards.
-            agg_scale = max(0.20, min(1.20, agg / 2.5))
-            cbet_freq = 0.50 * agg_scale
+            # C-bet frekansı: agresyonla ölçeklenir ama modern GTO ~%50-65 tek-bet
+            # range bet'tir; eski 0.50×1.20 cap'i agresif botları %90+ c-bet'e
+            # itip AF'yi şişiriyordu. Cap düşürüldü → daha gerçekçi + dengeli AF.
+            agg_scale = max(0.20, min(1.05, agg / 2.8))
+            cbet_freq = 0.46 * agg_scale
             if board_features["high_card"] >= 12:  # A or K high → PF-raiser range advantage
                 cbet_freq += 0.13
             if board_features["paired"]:            # Paired board → raise range advantage

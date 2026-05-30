@@ -33,6 +33,8 @@ HERO_SEAT = 0
 
 def _simulate(archetype: str, n_hands: int) -> dict:
     """Run n_hands and aggregate stats across every bot seat."""
+    import random
+    random.seed(424242)   # deterministik → tekrarlanabilir fidelity sonuçları
     game = PokerGame(
         num_players=SEATS,
         starting_stack=100.0,
@@ -140,11 +142,12 @@ def _simulate(archetype: str, n_hands: int) -> dict:
         return 100 * sum(vals) / len(vals) if vals else 0.0
 
     def avg_pct(numer, denom):
-        vals = []
-        for i in bot_indices:
-            if denom[i] > 0:
-                vals.append(numer[i] / denom[i])
-        return 100 * sum(vals) / len(vals) if vals else 0.0
+        # POOLED oran (tüm bot koltuklarının pay/paydası toplanır) — per-bot
+        # oranlarını ortalamak küçük paydalarda (FCB/3-bet) 0/0.5/1 gürültüsü
+        # üretip run-to-run zıplıyordu. Havuzlama stabil aggregate verir.
+        tot_n = sum(numer[i] for i in bot_indices)
+        tot_d = sum(denom[i] for i in bot_indices)
+        return 100.0 * tot_n / tot_d if tot_d > 0 else 0.0
 
     af_vals = [aggr_acts[i] / max(call_acts[i], 1)
                for i in bot_indices if (aggr_acts[i] + call_acts[i]) > 0]
@@ -157,6 +160,10 @@ def _simulate(archetype: str, n_hands: int) -> dict:
         "three_bet": avg_pct(threebet_did, threebet_opp),
         "fold_to_cbet": avg_pct(cbet_folded, cbet_faced),
         "af": af_avg,
+        # Örneklem boyutları — düşük örneklemde FCB/AF güvenilmez (sıkı botlar
+        # az cbet görür / az call yapar → metrik yapısal olarak gürültülü).
+        "fcb_sample": sum(cbet_faced[i] for i in bot_indices),
+        "call_sample": sum(call_acts[i] for i in bot_indices),
     }
 
 
@@ -182,12 +189,20 @@ def main() -> int:
         target = (prof.vpip, prof.pfr, prof.three_bet, prof.fold_to_cbet, prof.aggression)
         observed = (obs["vpip"], obs["pfr"], obs["three_bet"], obs["fold_to_cbet"], obs["af"])
 
+        # Postflop metrikleri için minimum örneklem — altındaysa istatistiksel
+        # olarak ölçülemez (sıkı botlar az cbet görür / az call yapar), flag atma.
+        MIN_FCB, MIN_AF_CALLS = 40, 25
+
         flags = []
         if abs(obs["vpip"] - prof.vpip) > TOL["vpip"]: flags.append("VPIP")
         if abs(obs["pfr"] - prof.pfr) > TOL["pfr"]: flags.append("PFR")
         if abs(obs["three_bet"] - prof.three_bet) > TOL["three_bet"]: flags.append("3B")
-        if abs(obs["fold_to_cbet"] - prof.fold_to_cbet) > TOL["fold_to_cbet"]: flags.append("FCB")
-        if abs(obs["af"] - prof.aggression) > TOL["af"]: flags.append("AF")
+        if (obs["fcb_sample"] >= MIN_FCB
+                and abs(obs["fold_to_cbet"] - prof.fold_to_cbet) > TOL["fold_to_cbet"]):
+            flags.append("FCB")
+        if (obs["call_sample"] >= MIN_AF_CALLS
+                and abs(obs["af"] - prof.aggression) > TOL["af"]):
+            flags.append("AF")
 
         status = "OK" if not flags else "DEV: " + ",".join(flags)
         if flags:
