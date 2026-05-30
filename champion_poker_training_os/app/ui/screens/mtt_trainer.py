@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 from app.poker.mtt_ranges import (
     build_mtt_push_fold, build_mtt_rfi, mtt_jam_pct,
 )
+from app.ui.components.card_view import TwoCardHand
 
 
 COLOR_INK = "#FAFAFA"
@@ -168,6 +169,7 @@ class MTTTrainerScreen(QWidget):
         self.state = state
         self.stats = MTTStats()
         self._spot = None
+        self._mode = "pf"
         self._answered = False
         self._cd = 5.0
         self._cd_total = 5.0
@@ -213,7 +215,20 @@ class MTTTrainerScreen(QWidget):
         self.content.addWidget(self._ex_widget)
         self._ex_widget.hide()
 
-        self._new_pf_spot()
+        # İlk spotu hazırla ama sayacı BAŞLATMA — geri sayım yalnızca ekran
+        # gerçekten görünürken (showEvent) işler. Aksi halde sekme arkada
+        # plandayken sayaç akar ve kullanıcı hep "SÜRE DOLDU"ya gelir.
+        self._new_pf_spot(start_timer=False)
+
+    # ── VISIBILITY: sayaç yalnızca ekran görünürken çalışır ──────────────
+    def showEvent(self, ev) -> None:
+        super().showEvent(ev)
+        if self._mode == "pf":
+            self._new_pf_spot()          # her açılışta taze, canlı spot
+
+    def hideEvent(self, ev) -> None:
+        super().hideEvent(ev)
+        self._timer.stop()
 
     def _tab_style(self) -> str:
         return (
@@ -224,12 +239,16 @@ class MTTTrainerScreen(QWidget):
         )
 
     def _set_mode(self, mode: str) -> None:
+        self._mode = mode
         self.mode_pf.setChecked(mode == "pf")
         self.mode_ex.setChecked(mode == "ex")
         self._pf_widget.setVisible(mode == "pf")
         self._ex_widget.setVisible(mode == "ex")
         if mode == "ex":
+            self._timer.stop()          # explorer'da geri sayım yok
             self._refresh_explorer()
+        else:
+            self._new_pf_spot()         # drill'e dönünce taze spot + sayaç
 
     # ── PUSH/FOLD DRILL ───────────────────────────────────────────────
     def _build_push_fold(self) -> QWidget:
@@ -275,7 +294,7 @@ class MTTTrainerScreen(QWidget):
         # Cards
         hw = QHBoxLayout()
         hw.addStretch(1)
-        self.pf_cards = _Cards()
+        self.pf_cards = TwoCardHand(size="xl")
         hw.addWidget(self.pf_cards)
         hw.addStretch(1)
         v.addLayout(hw)
@@ -285,6 +304,13 @@ class MTTTrainerScreen(QWidget):
         self.pf_hand_lbl.setStyleSheet(f"color:{COLOR_INK}; font-size:26px; "
                                        f"font-weight:800; font-family:monospace;")
         v.addWidget(self.pf_hand_lbl)
+
+        # Plain-language durum cümlesi (gerçek turnuva bağlamı)
+        self.pf_situation = QLabel("")
+        self.pf_situation.setWordWrap(True)
+        self.pf_situation.setAlignment(Qt.AlignCenter)
+        self.pf_situation.setStyleSheet(f"color:{COLOR_MUTED}; font-size:13px;")
+        v.addWidget(self.pf_situation)
 
         # Timer
         self.pf_timer = QProgressBar()
@@ -468,7 +494,7 @@ class MTTTrainerScreen(QWidget):
         self.ex_note.setText(mode_note)
 
     # ── DRILL LOGIC ───────────────────────────────────────────────────
-    def _new_pf_spot(self) -> None:
+    def _new_pf_spot(self, start_timer: bool = True) -> None:
         pos = random.choice(POSITIONS)
         stack = random.choice(PF_STACKS)
         hand = random.choice(self._all_hands())
@@ -482,6 +508,10 @@ class MTTTrainerScreen(QWidget):
         self.pf_action_label._value.setText("JAM or FOLD?")
         self.pf_cards.set_hand(hand)
         self.pf_hand_lbl.setText(hand)
+        self.pf_situation.setText(
+            f"♟ Turnuva · {stack}bb efektif stack, {pos} pozisyonundasın. "
+            f"Herkes sana fold etti — jam mı, fold mu? "
+            f"(ante'li Nash push/fold)")
         self.btn_fold.setEnabled(True)
         self.btn_jam.setEnabled(True)
         self.btn_fold.setStyleSheet(self._action_style(COLOR_FOLD))
@@ -489,7 +519,8 @@ class MTTTrainerScreen(QWidget):
         self.pf_fb.setText("")
         self.pf_next.hide()
         self._update_timer()
-        self._timer.start()
+        if start_timer:
+            self._timer.start()
 
     @staticmethod
     def _all_hands() -> list:

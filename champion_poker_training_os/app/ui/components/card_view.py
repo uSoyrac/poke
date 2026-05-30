@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, QPoint
 from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPolygon, QLinearGradient
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QHBoxLayout, QWidget
 
 
 SUIT_GLYPH = {
@@ -124,6 +124,54 @@ class CardView(QWidget):
 
         # Top-left suit glyph
         painter.drawText(4, 3, w, h, Qt.AlignLeft | Qt.AlignTop, self.suit_glyph)
+
+
+def hand_key_to_cards(hand_key: str) -> tuple[str, str]:
+    """'AKs'/'QJo'/'77' → iki somut kart kodu (CardView için).
+
+    Suited → aynı suit (♠♠), offsuit → ayrı renk (♠♥), pair → ♠♥.
+    Geçersiz girdide ('') boş döner.
+    """
+    hk = (hand_key or "").strip()
+    if len(hk) < 2:
+        return ("", "")
+    r1, r2 = hk[0].upper(), hk[1].upper()
+    if len(hk) == 2 or r1 == r2:            # pair: 77 → 7s 7h
+        return (f"{r1}s", f"{r2}h")
+    if hk.endswith("s"):                    # suited: AKs → As Ks
+        return (f"{r1}s", f"{r2}s")
+    return (f"{r1}s", f"{r2}h")             # offsuit: AKo → As Kh
+
+
+class TwoCardHand(QWidget):
+    """Hero'nun iki hole-card'ını güvenilir CardView ile gösterir.
+
+    Sabit boyutlu CardView kullanır → manuel paintEvent geometri/genişlik
+    kırılganlığı yok. ``set_hand('AKs')`` ile güncellenir.
+    """
+
+    def __init__(self, size: str = "xl", parent=None):
+        super().__init__(parent)
+        self._size = size
+        self._lay = QHBoxLayout(self)
+        self._lay.setContentsMargins(0, 0, 0, 0)
+        self._lay.setSpacing(10)
+        self._lay.setAlignment(Qt.AlignCenter)
+        self._c1 = None
+        self._c2 = None
+        self.set_hand("AKs")
+
+    def set_hand(self, hand_key: str) -> None:
+        code1, code2 = hand_key_to_cards(hand_key)
+        # CardView içeriğini __init__'te parse eder → yeniden yaratırız (ucuz)
+        while self._lay.count():
+            it = self._lay.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+        self._c1 = CardView(code1, size=self._size)
+        self._c2 = CardView(code2, size=self._size)
+        self._lay.addWidget(self._c1)
+        self._lay.addWidget(self._c2)
 
 
 class CardBackView(CardView):

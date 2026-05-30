@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 from app.poker.gto_ranges import (
     POSITIONS_6MAX, STACK_DEPTHS, get_action,
 )
+from app.ui.components.card_view import TwoCardHand
 
 
 # ── COLOR PALETTE ────────────────────────────────────────────────────
@@ -287,7 +288,19 @@ class QuizTrainerScreen(QWidget):
         splitter.setStretchFactor(1, 1)
         root.addWidget(splitter, 1)
 
-        self._start_new_spot()
+        # İlk spotu hazırla ama sayacı BAŞLATMA — geri sayım yalnızca ekran
+        # görünürken işler (showEvent). Aksi halde sekme arka plandayken sayaç
+        # akar ve kullanıcı hep "SÜRE DOLDU"ya gelir.
+        self._start_new_spot(start_timer=False)
+
+    # ── VISIBILITY: sayaç yalnızca ekran görünürken çalışır ──────────────
+    def showEvent(self, ev) -> None:
+        super().showEvent(ev)
+        self._start_new_spot()           # her açılışta taze, canlı spot
+
+    def hideEvent(self, ev) -> None:
+        super().hideEvent(ev)
+        self._timer.stop()
 
     # ── KONTROLLER ────────────────────────────────────────────────────
     def _build_controls(self) -> QHBoxLayout:
@@ -476,10 +489,18 @@ class QuizTrainerScreen(QWidget):
         ctx.addStretch(1)
         v.addLayout(ctx)
 
+        # Plain-language durum cümlesi (gerçek poker bağlamı)
+        self.situation_label = QLabel("")
+        self.situation_label.setWordWrap(True)
+        self.situation_label.setAlignment(Qt.AlignCenter)
+        self.situation_label.setStyleSheet(
+            f"color:{COLOR_MUTED}; font-size:13px; padding:2px 0;")
+        v.addWidget(self.situation_label)
+
         # Hand display (ortalı)
         hand_wrap = QHBoxLayout()
         hand_wrap.addStretch(1)
-        self.hand_display = HandDisplay()
+        self.hand_display = TwoCardHand(size="xl")
         hand_wrap.addWidget(self.hand_display)
         hand_wrap.addStretch(1)
         v.addLayout(hand_wrap)
@@ -666,7 +687,7 @@ class QuizTrainerScreen(QWidget):
         return panel
 
     # ── QUIZ FLOW ─────────────────────────────────────────────────────
-    def _start_new_spot(self) -> None:
+    def _start_new_spot(self, start_timer: bool = True) -> None:
         """Yeni rastgele spot üret ve quiz'i başlat."""
         # Spaced repetition: %25 ihtimalle wrong queue'dan al
         if self.stats.wrong_queue and random.random() < 0.25:
@@ -688,6 +709,7 @@ class QuizTrainerScreen(QWidget):
         self.ctx_scenario._value_label.setText(scen_text)
         self.hand_display.set_hand(spot.hand)
         self.hand_key_label.setText(spot.hand)
+        self.situation_label.setText(self._situation_text(spot))
 
         # Aksiyon butonlarını sıfırla (text + renk) ve etkinleştir
         for btn, color, base_txt in [(self.btn_fold, COLOR_FOLD, "FOLD"),
@@ -700,7 +722,27 @@ class QuizTrainerScreen(QWidget):
         # Feedback gizle, timer başlat
         self.feedback_panel.hide()
         self._update_timer_ui()
-        self._timer.start()
+        if start_timer:
+            self._timer.start()
+
+    @staticmethod
+    def _situation_text(spot) -> str:
+        """Spotu düz Türkçe poker diliyle anlat — kullanıcı kararı anlasın."""
+        pos = spot.position
+        opener = spot.vs_position or "rakip"
+        if spot.scenario == "RFI":
+            return (f"♟ {pos} pozisyonundasın, herkes sana fold etti. "
+                    f"Açış kararı: raise mı, fold mu?")
+        if spot.scenario == "vs RFI":
+            return (f"♟ {opener} açış yaptı, sen {pos}'dasın. "
+                    f"Savunma: 3-bet / call / fold?")
+        if spot.scenario == "vs 3-bet":
+            return (f"♟ Sen {pos}'dan açtın, {opener} 3-bet yaptı. "
+                    f"4-bet / call / fold?")
+        if spot.scenario == "Push/Fold":
+            return (f"♟ {spot.stack_depth}bb kaldı, {pos}'dasın. "
+                    f"Kısa stack: jam mı, fold mu?")
+        return f"♟ {pos} · {spot.scenario}"
 
     # Pozisyon sıralaması (vs_position seçimi için — opener defender'dan önce)
     _POS_ORDER = ["UTG", "MP", "CO", "BTN", "SB", "BB"]
