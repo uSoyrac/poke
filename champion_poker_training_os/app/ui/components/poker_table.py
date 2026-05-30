@@ -176,6 +176,7 @@ class SeatState:
     hole: Optional[Sequence[str]] = None     # showdown reveal
     stack_unit: str = "bb"                   # "bb" or "chips"
     hud_stats: Optional[dict] = None         # VPIP/PFR/AF/etc. for tooltip
+    animal: str = ""                          # Hellmuth tipi rozeti: '🦁 Lion'
 
 
 class _Seat(QFrame):
@@ -327,7 +328,10 @@ class _Seat(QFrame):
         else:
             self.stack_label.setText(f"{state.stack:.1f}{unit}")
         if show_name and state.name:
-            self.name_label.setText(state.name[:12])
+            # Hellmuth hayvan-tipi rozeti (emoji) isimle birlikte
+            emoji = state.animal.split()[0] if state.animal else ""
+            label = f"{state.name[:10]} {emoji}" if emoji else state.name[:12]
+            self.name_label.setText(label)
             self.name_label.show()
         else:
             self.name_label.hide()
@@ -336,8 +340,10 @@ class _Seat(QFrame):
         if state.hud_stats and not state.is_hero:
             h = state.hud_stats
             af = h.get("af", h.get("aggression", 0))
+            animal_line = (f"<br><b style='color:#f4c842'>{state.animal}</b>"
+                           if state.animal else "")
             self.card.setToolTip(
-                f"<b style='color:#5ad17a'>{state.name or state.pos}</b><br>"
+                f"<b style='color:#5ad17a'>{state.name or state.pos}</b>{animal_line}<br>"
                 f"<table cellpadding='2'>"
                 f"<tr><td>VPIP</td><td><b>{h.get('vpip',0):.0f}%</b></td>"
                 f"    <td>&nbsp;PFR</td><td><b>{h.get('pfr',0):.0f}%</b></td>"
@@ -1010,6 +1016,15 @@ def seats_from_hand(
                     "notes":        getattr(prof, "notes", ""),
                 }
 
+            animal = ""
+            if hud:
+                try:
+                    from app.poker.opponent_typology import classify_label
+                    animal = classify_label(hud["vpip"], hud["pfr"],
+                                            hud["aggression"], hud.get("river_bluff", 0))
+                except Exception:
+                    animal = ""
+
             st = SeatState(
                 pos=getattr(p, "position", "") or "",
                 name=p.name if not p.is_hero else "",
@@ -1025,6 +1040,7 @@ def seats_from_hand(
                 hole=hole_codes,
                 stack_unit=unit,
                 hud_stats=hud,
+                animal=animal,
             )
             if villain_seat is not None and cur == villain_seat:
                 st.is_villain = True
