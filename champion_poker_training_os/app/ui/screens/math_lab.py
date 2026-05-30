@@ -326,8 +326,15 @@ class MathLabScreen(QWidget):
         self._table_ctx_lbl.setObjectName("Muted")
         self._table_ctx_lbl.setWordWrap(True)
 
+        # Board + hero kartları (somut spot + doğru cevapta board run-out)
+        cards_holder = QFrame()
+        self._table_cards_row = QHBoxLayout(cards_holder)
+        self._table_cards_row.setAlignment(Qt.AlignCenter)
+        self._table_cards_row.setSpacing(4)
+
         table_layout.addStretch(1)
         table_layout.addWidget(self._table_pot_lbl)
+        table_layout.addWidget(cards_holder)
         table_layout.addWidget(self._table_bet_lbl)
         table_layout.addWidget(self._table_ctx_lbl)
         table_layout.addStretch(1)
@@ -488,10 +495,44 @@ class MathLabScreen(QWidget):
         self._table_feedback_lbl.setStyleSheet("color: #898d80;")
         self._update_table_visual(drill)
 
+    @staticmethod
+    def _deterministic_cards(drill: dict) -> tuple[list[str], list[str]]:
+        """Drill id'den deterministik 5 board + 2 hero kartı (çakışmasız)."""
+        import random as _r
+        ranks, suits = "AKQJT98765432", "shdc"
+        deck = [rk + su for rk in ranks for su in suits]
+        rng = _r.Random(hash(drill.get("id", "")) & 0xFFFFFFFF)
+        rng.shuffle(deck)
+        return deck[:5], deck[5:7]
+
+    def _render_table_cards(self, board: list[str], hero: list[str],
+                            revealed: int) -> None:
+        """Board'un ilk `revealed` kartı açık, kalanı kapalı; hero açık."""
+        from app.ui.components.card_view import CardView
+        while self._table_cards_row.count():
+            it = self._table_cards_row.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+        for i, c in enumerate(board):
+            self._table_cards_row.addWidget(CardView(c, face_down=(i >= revealed), size="sm"))
+        spacer = QLabel("  ")
+        self._table_cards_row.addWidget(spacer)
+        for c in hero:
+            self._table_cards_row.addWidget(CardView(c, face_down=False, size="sm"))
+
     def _update_table_visual(self, drill: dict) -> None:
         """Update the poker table visual context from the drill data."""
         prompt = drill.get("prompt", "")
         cat = drill["category"]
+
+        # Somut spot kartları: facing-bet (PO/MDF/alpha) → flop göster (3),
+        # doğru cevapta turn+river run-out. Preflop kategoriler → board yok.
+        board, hero = self._deterministic_cards(drill)
+        self._table_board, self._table_hero = board, hero
+        preflop_cats = {"combos", "push_fold"}
+        revealed = 0 if cat in preflop_cats else 3
+        self._table_revealed = revealed
+        self._render_table_cards(board, hero, revealed)
 
         # Try to extract pot and bet from common drill patterns
         import re
@@ -564,6 +605,11 @@ class MathLabScreen(QWidget):
         if ok:
             self._table_feedback_lbl.setStyleSheet("color: #5ad17a; font-weight: 600;")
             self._table_feedback_lbl.setText(f"✓  Correct! Answer: {drill['answer']}")
+            # Board run-out: doğru cevapta kalan sokakları (turn/river) aç
+            if (getattr(self, "_table_board", None)
+                    and getattr(self, "_table_revealed", 0) and self._table_revealed < 5):
+                self._table_revealed = 5
+                self._render_table_cards(self._table_board, self._table_hero, 5)
         else:
             self._table_feedback_lbl.setStyleSheet("color: #ff5a5a;")
             self._table_feedback_lbl.setText(
