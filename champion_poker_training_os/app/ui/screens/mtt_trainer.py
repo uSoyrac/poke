@@ -121,43 +121,6 @@ class MiniRangeGrid(QWidget):
                 p.drawText(int(x), int(y), int(w), int(h), Qt.AlignCenter, hk)
 
 
-# ── HAND DISPLAY (büyük kart) ─────────────────────────────────────────
-class _Cards(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._c1, self._c2 = "A♠", "K♠"
-        self._col1, self._col2 = "#1F2937", "#1F2937"
-        self.setFixedSize(220, 130)
-
-    def set_hand(self, hk: str) -> None:
-        suit_col = {"s": "#1F2937", "c": "#1F2937", "h": "#DC2626", "d": "#DC2626"}
-        if len(hk) == 2:
-            self._c1, self._c2 = f"{hk[0]}♠", f"{hk[1]}♥"
-            self._col1, self._col2 = suit_col["s"], suit_col["h"]
-        elif hk.endswith("s"):
-            self._c1, self._c2 = f"{hk[0]}♠", f"{hk[1]}♠"
-            self._col1 = self._col2 = suit_col["s"]
-        else:
-            self._c1, self._c2 = f"{hk[0]}♥", f"{hk[1]}♣"
-            self._col1, self._col2 = suit_col["h"], suit_col["c"]
-        self.update()
-
-    def paintEvent(self, ev):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing, True)
-        cw = self.width() // 2 - 6
-        font = QFont("Inter, sans-serif")
-        font.setPixelSize(38)
-        font.setBold(True)
-        for i, (t, col) in enumerate([(self._c1, self._col1), (self._c2, self._col2)]):
-            x = i * (cw + 12)
-            p.setBrush(QColor("#FAFAFA"))
-            p.setPen(QColor(col))
-            p.drawRoundedRect(x, 0, cw, self.height(), 8, 8)
-            p.setFont(font)
-            p.drawText(x, 0, cw, self.height(), Qt.AlignCenter, t)
-
-
 class MTTTrainerScreen(QWidget):
     coach_message = Signal(str)
     analysis_requested = Signal(str)

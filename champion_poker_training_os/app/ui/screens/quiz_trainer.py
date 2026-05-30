@@ -18,7 +18,6 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QFont
 from PySide6.QtWidgets import (
     QButtonGroup, QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
     QProgressBar, QPushButton, QSizePolicy, QSpacerItem, QSplitter,
@@ -165,64 +164,6 @@ class QuizStats:
     @property
     def accuracy_pct(self) -> float:
         return 100 * self.correct / max(self.total, 1)
-
-
-# ── HAND CARD DISPLAY ────────────────────────────────────────────────
-class HandDisplay(QWidget):
-    """Hero'nun 2 kartını büyük format görselleştirir."""
-
-    SUIT_CHARS = {"s": "♠", "h": "♥", "d": "♦", "c": "♣"}
-    SUIT_COLORS = {"s": "#1F2937", "c": "#1F2937", "h": "#DC2626", "d": "#DC2626"}
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._card1 = "A♠"
-        self._card2 = "K♠"
-        self._color1 = "#1F2937"
-        self._color2 = "#1F2937"
-        self.setFixedSize(280, 160)
-
-    def set_hand(self, hand_key: str) -> None:
-        """hand_key = AKs, QJo, 77 vb."""
-        if not hand_key:
-            return
-        if len(hand_key) == 2:   # pair
-            r1, r2 = hand_key[0], hand_key[1]
-            self._card1 = f"{r1}♠"
-            self._card2 = f"{r2}♥"
-            self._color1 = self.SUIT_COLORS["s"]
-            self._color2 = self.SUIT_COLORS["h"]
-        elif hand_key.endswith("s"):
-            r1, r2 = hand_key[0], hand_key[1]
-            self._card1 = f"{r1}♠"
-            self._card2 = f"{r2}♠"
-            self._color1 = self.SUIT_COLORS["s"]
-            self._color2 = self.SUIT_COLORS["s"]
-        else:   # offsuit
-            r1, r2 = hand_key[0], hand_key[1]
-            self._card1 = f"{r1}♥"
-            self._card2 = f"{r2}♣"
-            self._color1 = self.SUIT_COLORS["h"]
-            self._color2 = self.SUIT_COLORS["c"]
-        self.update()
-
-    def paintEvent(self, ev) -> None:
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing, True)
-        w, h = self.width(), self.height()
-        card_w = w // 2 - 6
-        card_h = h
-        font = QFont("Inter, Helvetica, sans-serif")
-        font.setPixelSize(46)
-        font.setBold(True)
-        for i, (text, color) in enumerate([(self._card1, self._color1),
-                                            (self._card2, self._color2)]):
-            x = i * (card_w + 12)
-            p.setBrush(QColor("#FAFAFA"))
-            p.setPen(QColor(color))
-            p.drawRoundedRect(x, 0, card_w, card_h, 10, 10)
-            p.setFont(font)
-            p.drawText(x, 0, card_w, card_h, Qt.AlignCenter, text)
 
 
 # ── MAIN SCREEN ──────────────────────────────────────────────────────
