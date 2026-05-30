@@ -672,6 +672,7 @@ class TournamentSimulatorScreen(QWidget):
             self._build_report()
             return
         self._recorder.reset()
+        self._await_space = False
         if hasattr(self, "gto_reveal"):
             self.gto_reveal.hide_panel()
         self.tournament.start_hand()
@@ -928,11 +929,18 @@ class TournamentSimulatorScreen(QWidget):
                         hero_hk = hand_key(hero_p.hole_cards[0], hero_p.hole_cards[1])
                     except Exception:
                         hero_hk = None
+                _adv = None
+                try:
+                    from app.poker.gto_live_advice import live_gto_advice
+                    _adv = live_gto_advice(hand, hand.hero_idx, mode="MTT")
+                except Exception:
+                    _adv = None
                 self.gto_range.update_range(
                     pos, stack_bb,
                     game_type="tournament",
                     hero_hand=hero_hk,
                     reveal_action=False,   # eğitim modu: cevabı el sonunda göster
+                    advice=_adv,           # gerçek senaryo (RFI/vs-3bet/push…)
                 )
         # Flag the most-aggressive non-hero as villain
         villain_idx = None
@@ -1372,16 +1380,22 @@ class TournamentSimulatorScreen(QWidget):
             self._between_hands = False
             QTimer.singleShot(900, self._build_report)
         else:
-            # Brief pause so the showdown is readable, then auto-deal.
-            # Spacebar can skip the wait — _space_pressed checks the flag.
             self._between_hands = True
-            # Real Experience Mode: OTOMATİK dağıtma — kullanıcı notlandırılmış
-            # reveal'ı görsün, SPACE ile onaylayıp geçsin.
-            if not _real_xp:
+            # Hero bu eli OYNADIYSA (karar verdiyse) el-sonu GTO reveal'ı
+            # okuması için OTOMATİK dağıtma — SPACE ile geçsin (panel artık
+            # "açılıp kapanmıyor"). Sadece hero'nun karışmadığı eller oto-akar.
+            has_review = any(d.get("hero_action") for d in self._recorder.log)
+            self._await_space = _real_xp or has_review
+            if self._await_space:
+                self.feedback_label.setText(
+                    self.feedback_label.text() + "   ·   ▸ SPACE → sonraki el")
+            else:
                 QTimer.singleShot(1400, self._maybe_auto_deal_next)
 
     def _maybe_auto_deal_next(self):
-        # Real Experience Mode: sadece manuel (SPACE) ilerleme.
+        # Hero el oynadıysa / Real Experience → sadece manuel (SPACE) ilerleme.
+        if getattr(self, "_await_space", False):
+            return
         if bool(getattr(getattr(self, "state", None), "real_experience", False)):
             return
         if self._between_hands:

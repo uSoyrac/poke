@@ -1072,11 +1072,18 @@ class PlaySessionScreen(QWidget):
                     hero_hk = hand_key(hero.hole_cards[0], hero.hole_cards[1])
                 except Exception:
                     hero_hk = None
+            _adv = None
+            try:
+                from app.poker.gto_live_advice import live_gto_advice
+                _adv = live_gto_advice(hand, hand.hero_idx, mode="cash")
+            except Exception:
+                _adv = None
             self.gto_range.update_range(
                 pos, float(hero.stack),
                 game_type="cash",
                 hero_hand=hero_hk,
                 reveal_action=False,   # eğitim modu: cevabı el sonunda göster
+                advice=_adv,           # gerçek senaryo (RFI/vs-RFI/vs-3bet…)
             )
 
         villain_idx = None

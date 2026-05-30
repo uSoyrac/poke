@@ -118,6 +118,35 @@ _TOURNEY_NOTE: dict[str, str] = {
 }
 
 
+# Senaryo (RFI dışı) için panel metni: (üst satır, ipucu)
+_SCENARIO_INFO: dict[str, tuple[str, str]] = {
+    "vs RFI":   ("vs Açış — defans", "Call / 3-bet / fold (açana & pozisyona göre)"),
+    "vs 3-bet": ("vs 3-bet — 4-bet kararı",
+                 "Premium 4-bet · TT–AQ call · A5s–A3s blöf 4-bet"),
+    "vs 4-bet": ("vs 4-bet", "QQ+/AK devam · gerisi fold"),
+    "Push/Fold": ("Push/Fold — Nash", "Jam veya fold (stack ≤ ~16bb)"),
+    "Postflop": ("Postflop", "Board + equity → el sonu reveal'da kesin GTO"),
+}
+
+
+def _scenario_key(scen: str) -> str:
+    """live_gto_advice senaryo metnini kaba anahtara indir."""
+    s = (scen or "").lower()
+    if "4-bet" in s and "vs" in s:
+        return "vs 4-bet"
+    if "3-bet" in s:
+        return "vs 3-bet"
+    if "vs rfi" in s or "vs açış" in s:
+        return "vs RFI"
+    if "push" in s:
+        return "Push/Fold"
+    if "postflop" in s:
+        return "Postflop"
+    if s.startswith("rfi") or "açış" in s:
+        return "RFI"
+    return ""
+
+
 def _range_info(pos: str, stack_bb: float) -> tuple[str, str, str, str]:
     """(pct, hands, note, tourney_note) döner."""
     entries = _RANGE_DB.get(pos.upper(), _RANGE_DB.get("CO", []))
@@ -215,32 +244,49 @@ class GTORangeWidget(QFrame):
         game_type: str = "cash",       # "cash" veya "tournament"
         hero_hand: str | None = None,  # canonical key, örn "AKs", "QJo", "77"
         reveal_action: bool = True,    # False → spesifik tavsiyeyi gizle (train modu)
+        advice=None,                   # LiveAdvice — gerçek senaryo (RFI/vs-3bet…)
     ) -> None:
         """Pozisyon ve stack'e göre GTO range bilgisini güncelle.
 
-        ``hero_hand`` verilirse o spesifik el için tavsiye edilen aksiyon
-        (RAISE/CALL/FOLD frekansı) sağdaki badge'de gösterilir.
+        ``advice`` (LiveAdvice) verilirse panel GERÇEK senaryoyu yansıtır
+        (RFI / vs RFI / vs 3-bet / Push-Fold / Postflop) — sadece statik açılış
+        range'i değil. Böylece 3-bet/4-bet ve farklı pot/senaryolar net olur.
 
-        ``reveal_action=False`` ise (oyun-içi eğitim modu) spesifik aksiyon
-        tavsiyesi gizlenir — önce sen karar verirsin, el bitince doğru karar
-        GTO reveal panelinde açıklanır. Genel pozisyon/range bilgisi görünür
-        kalır (öğretici bağlam), sadece "bu el ne yap" cevabı saklanır.
+        ``reveal_action=False`` ise spesifik aksiyon cevabı gizlenir (eğitim
+        modu); senaryo + bağlam yine de doğru gösterilir.
         """
         if not position:
             return
 
         pct, hands, note, tourney_note = _range_info(position, stack_bb)
-
-        self._pos_lbl.setText(f"GTO · {position.upper()}")
-        self._pct_lbl.setText(f"Açılış: {pct}")
-        self._hands_lbl.setText(hands)
-
+        pos_text = f"GTO · {position.upper()}"
+        pct_text = f"Açılış: {pct}"
+        hands_text = hands
         display_note = tourney_note if game_type == "tournament" and tourney_note else note
+
+        # ── Senaryo-duyarlı görünüm (gerçek GTO) ──
+        scen = (getattr(advice, "scenario", "") or "") if advice else ""
+        if advice is not None and getattr(advice, "available", False) and scen:
+            key = _scenario_key(scen)
+            if key == "RFI":
+                pass    # açılış range'i doğru — statik metni koru
+            else:
+                line, hint = _SCENARIO_INFO.get(
+                    key, ("Karar spotu", "El sonu reveal'da kesin GTO"))
+                pos_text = f"GTO · {scen}"
+                pct_text = line
+                hands_text = hint
+                display_note = getattr(advice, "tier_label", "") or ""
+
+        self._pos_lbl.setText(pos_text)
+        self._pct_lbl.setText(pct_text)
+        self._hands_lbl.setText(hands_text)
         self._note_lbl.setText(display_note)
         self._note_lbl.setVisible(bool(display_note))
 
         self._stack_lbl.setText(f"{stack_bb:.0f}bb")
-        self._update_hero_badge(position, stack_bb, hero_hand, reveal=reveal_action)
+        self._update_hero_badge(position, stack_bb, hero_hand,
+                                reveal=reveal_action, advice=advice)
 
         # Renk uyarısı: çok kısa stack
         if stack_bb < 15:
@@ -267,6 +313,7 @@ class GTORangeWidget(QFrame):
         stack_bb: float,
         hero_hand: str | None,
         reveal: bool = True,
+        advice=None,
     ) -> None:
         """Hero'nun spesifik eli için GTO tavsiyesini badge olarak göster."""
         if not hero_hand:
@@ -283,26 +330,32 @@ class GTORangeWidget(QFrame):
             )
             self._hero_badge.show()
             return
-        try:
-            from app.poker.gto_ranges import get_action
-        except Exception:
-            self._hero_badge.hide()
-            return
 
-        # Stack'e göre yaklaşık depth seç (100bb data var)
-        depth = 100 if stack_bb >= 60 else (40 if stack_bb >= 30 else 20)
-        # Pozisyon normalize: "UTG+1" gibi 6max'ta yok → MP'ye fallback
-        pos = position.upper()
-        if pos in ("LJ", "UTG+1"):
-            pos = "MP"
-        if pos == "HJ":
-            pos = "CO"
-
-        action = get_action(pos, hero_hand, scenario="RFI",
-                            stack_depth=depth, mode="cash")
-        r = action.get("raise", 0)
-        c = action.get("call", 0)
-        f = action.get("fold", 0)
+        # GERÇEK senaryo frekansları (advice varsa) — yoksa RFI fallback
+        if advice is not None and getattr(advice, "available", False):
+            r = float(getattr(advice, "raise_", 0))
+            c = float(getattr(advice, "call", 0))
+            f = float(getattr(advice, "fold", 0))
+            allin = float(getattr(advice, "allin", 0))
+            if allin > max(r, c, f):       # push/fold → JAM
+                r, c = allin, 0.0
+        else:
+            try:
+                from app.poker.gto_ranges import get_action
+            except Exception:
+                self._hero_badge.hide()
+                return
+            depth = 100 if stack_bb >= 60 else (40 if stack_bb >= 30 else 20)
+            pos = position.upper()
+            if pos in ("LJ", "UTG+1"):
+                pos = "MP"
+            if pos == "HJ":
+                pos = "CO"
+            action = get_action(pos, hero_hand, scenario="RFI",
+                                stack_depth=depth, mode="cash")
+            r = action.get("raise", 0)
+            c = action.get("call", 0)
+            f = action.get("fold", 0)
 
         # En yüksek frekanslı aksiyonu primary olarak göster
         if r >= c and r >= f:
@@ -491,7 +544,8 @@ class GTODecisionReveal(QFrame):
         for d in decisions:
             self._rows.addLayout(self._build_row(d))
 
-        if graded:
+        # Hero bu eli oynadıysa SPACE ipucu (panel artık otomatik kapanmıyor)
+        if any(d.get("hero_action") for d in decisions):
             hint = QLabel("▸ SPACE ile onayla → sonraki el")
             hint.setStyleSheet(
                 f"font-family:'JetBrains Mono',monospace; font-size:10px; "
@@ -719,6 +773,27 @@ class GTODecisionReveal(QFrame):
                 f"font-weight:700; color:{mcolor}; background:transparent;"
             )
             col.addWidget(you)
+
+            # ── Boyut karşılaştırması: "sen 5bb → GTO ~12bb dene" ──
+            rec = d.get("sizing_bb")
+            if (ha.upper() in ("RAISE", "BET")
+                    and isinstance(rec, (int, float)) and rec
+                    and isinstance(amt, (int, float)) and amt):
+                ratio = amt / rec
+                if ratio < 0.7:
+                    sv, scol = (f"⚠ KÜÇÜK — GTO ~{rec:.1f}bb (daha büyük raise "
+                                f"value/fold-equity kazandırır)"), _WARN
+                elif ratio > 1.45:
+                    sv, scol = (f"⚠ BÜYÜK — GTO ~{rec:.1f}bb (overbet sadece "
+                                f"polarize range'le)"), _WARN
+                else:
+                    sv, scol = f"✓ boyut GTO'ya yakın (~{rec:.1f}bb)", _ACCENT
+                szl = QLabel(f"      boyut: sen {amt:.1f}bb  →  {sv}")
+                szl.setWordWrap(True)
+                szl.setStyleSheet(
+                    f"font-family:'JetBrains Mono',monospace; font-size:10px; "
+                    f"color:{scol}; background:transparent;")
+                col.addWidget(szl)
         return col
 
 
