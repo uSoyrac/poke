@@ -375,6 +375,38 @@ def get_gto_accuracy_trend(days: int = 14) -> list:
     return out
 
 
+def get_gto_category_accuracy() -> dict:
+    """Kategori bazında GTO doğruluk (hero_decisions'tan).
+
+    {category: {"n": int, "accuracy": float, "avg_ev_loss": float}}.
+    accuracy = frequency_error ≤ 65 olan kararların oranı (≈ A/B notu).
+    """
+    _ensure_decision_columns()
+    with get_connection() as conn:
+        try:
+            rows = conn.execute(
+                """SELECT COALESCE(category,'Preflop') AS cat,
+                          COUNT(*) AS n,
+                          SUM(CASE WHEN frequency_error <= 65 THEN 1 ELSE 0 END) AS ok,
+                          COALESCE(AVG(ev_loss),0) AS avg_ev
+                   FROM hero_decisions
+                   GROUP BY COALESCE(category,'Preflop')""",
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return {}
+    out = {}
+    for r in rows:
+        n = int(r["n"]) or 0
+        if n <= 0:
+            continue
+        out[r["cat"]] = {
+            "n": n,
+            "accuracy": round(100.0 * (r["ok"] or 0) / n, 1),
+            "avg_ev_loss": round(float(r["avg_ev"] or 0), 2),
+        }
+    return out
+
+
 def get_player_stats() -> dict:
     """Calculate player stats from played hands: VPIP, PFR, WTSD, W$SD, AF."""
     with get_connection() as conn:

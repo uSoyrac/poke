@@ -129,6 +129,24 @@ class ReportsScreen(QWidget):
         self.status.setObjectName("Green")
         layout.addWidget(self.status)
 
+        # ── GTO GELİŞİM (gerçek hero_decisions verisinden) ──
+        self.gto_frame = QFrame()
+        self.gto_frame.setObjectName("Card")
+        self._gto_layout = QVBoxLayout(self.gto_frame)
+        gto_title = QLabel("📈  GTO GELİŞİM  ·  gerçek oyun verisi")
+        gto_title.setObjectName("SectionTitle")
+        self._gto_layout.addWidget(gto_title)
+        self.gto_body = QLabel("")
+        self.gto_body.setWordWrap(True)
+        self.gto_body.setTextFormat(Qt.TextFormat.RichText)
+        self.gto_body.setStyleSheet(
+            "font-family:'JetBrains Mono',Menlo,monospace; font-size:12px;")
+        self._gto_layout.addWidget(self.gto_body)
+        self._gto_chart_holder = QVBoxLayout()
+        self._gto_layout.addLayout(self._gto_chart_holder)
+        layout.addWidget(self.gto_frame)
+        self.reload()
+
         # Summary cards
         stats = QGridLayout()
         stats.addWidget(MetricCard("Skill Score", str(metrics["skill_score"]), f"{metrics['streak']}-day streak", "Green"), 0, 0)
@@ -256,6 +274,57 @@ class ReportsScreen(QWidget):
             label.setObjectName("Cyan")
             rec_layout.addWidget(label)
         layout.addWidget(rec)
+
+    def reload(self) -> None:
+        """GTO GELİŞİM bölümünü gerçek hero_decisions verisinden tazele."""
+        try:
+            from app.db.repository import (
+                get_gto_accuracy_trend, get_gto_category_accuracy,
+            )
+            trend = get_gto_accuracy_trend(days=14)
+            cats = get_gto_category_accuracy()
+        except Exception:
+            trend, cats = [], {}
+
+        # Eski grafiği temizle
+        while self._gto_chart_holder.count():
+            it = self._gto_chart_holder.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+
+        total_dec = sum(c["n"] for c in cats.values())
+        if total_dec == 0:
+            self.gto_body.setText(
+                "<span style='color:#94A3B8'>Henüz GTO karar verisi yok. "
+                "Real Experience Mode'da el oyna veya PokerStars el geçmişini "
+                "içeri al — bu bölüm gerçek doğruluğunu gün gün gösterecek.</span>")
+            return
+
+        # Genel doğruluk (kararlarla ağırlıklı)
+        overall = round(
+            sum(c["accuracy"] * c["n"] for c in cats.values()) / total_dec, 1)
+        first = trend[0]["accuracy"] if trend else overall
+        last = trend[-1]["accuracy"] if trend else overall
+        delta = last - first
+        arrow = "↑" if delta > 3 else ("↓" if delta < -3 else "→")
+        acol = "#10B981" if delta > 3 else ("#DC2626" if delta < -3 else "#F59E0B")
+
+        # Kategori kırılımı (en zayıf en üstte)
+        rows = sorted(cats.items(), key=lambda kv: kv[1]["accuracy"])
+        cat_lines = "  ·  ".join(
+            f"{name} <b>%{d['accuracy']:.0f}</b> "
+            f"<span style='color:#94A3B8'>({d['n']})</span>"
+            for name, d in rows)
+        self.gto_body.setText(
+            f"Genel GTO doğruluk: <b style='color:#22D3EE'>%{overall:.0f}</b>  "
+            f"<span style='color:{acol}'>(14g: %{first:.0f} → %{last:.0f} {arrow})</span>"
+            f"  ·  {total_dec} karar<br>"
+            f"<span style='color:#94A3B8'>Kategori:</span> {cat_lines}"
+        )
+        if trend:
+            self._gto_chart_holder.addWidget(MiniChart(
+                [d["accuracy"] for d in trend], "GTO doğruluk (gün gün)",
+                "#22D3EE"))
 
 
 class _PercentBar(QWidget):

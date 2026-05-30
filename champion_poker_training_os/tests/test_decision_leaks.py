@@ -97,3 +97,17 @@ def test_gto_accuracy_trend(isolated_db):
 
 def test_gto_accuracy_trend_empty(isolated_db):
     assert isolated_db.get_gto_accuracy_trend() == []
+
+
+def test_gto_category_accuracy(isolated_db):
+    R = isolated_db
+    # vs 3-bet: hepsi GTO-dışı fold (freq_error yüksek → düşük accuracy)
+    R.record_decision_log(_over_fold_vs_3bet(10))
+    cats = R.get_gto_category_accuracy()
+    assert "vs 3-bet" in cats
+    assert cats["vs 3-bet"]["n"] == 10
+    assert cats["vs 3-bet"]["accuracy"] == 0.0   # tümü sapma
+
+
+def test_gto_category_accuracy_empty(isolated_db):
+    assert isolated_db.get_gto_category_accuracy() == {}
