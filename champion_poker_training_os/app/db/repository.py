@@ -224,6 +224,7 @@ def record_decision_log(log: list) -> int:
     if not log:
         return 0
     _ensure_decision_columns()
+    _ensure_mistake_table()
     written = 0
     with get_connection() as conn:
         for snap in log:
@@ -237,6 +238,9 @@ def record_decision_log(log: list) -> int:
             hero_freq = _hero_action_freq(snap, hero)
             freq_err = max(0.0, 100.0 - hero_freq)
             ev_loss = _decision_ev_loss(snap, hero)
+            # GTO'dan ciddi sapma → GERÇEK spotu "Hatalarımı Tekrar Oyna" için sakla
+            if (freq_err >= 60 or ev_loss > 1.0) and snap.get("hero_combo"):
+                _save_mistake_spot(conn, snap, best, ev_loss, freq_err, cat)
             sizing_err = ""
             if snap.get("sizing_bb") and snap.get("hero_amount"):
                 try:
@@ -258,6 +262,80 @@ def record_decision_log(log: list) -> int:
             written += 1
         conn.commit()
     return written
+
+
+def _ensure_mistake_table() -> None:
+    """Gerçek hata-spotları tablosu (oyuncunun GTO'dan saptığı eller)."""
+    with get_connection() as conn:
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS mistake_spots (
+                id INTEGER PRIMARY KEY,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                category TEXT, street TEXT, scenario TEXT,
+                board TEXT, hero_cards TEXT, hero_position TEXT,
+                n_active INTEGER, pot_bb REAL, to_call_bb REAL, eff_stack_bb REAL,
+                pot_type TEXT, hero_action TEXT, best_action TEXT,
+                ev_loss REAL, freq_err REAL )""")
+        conn.commit()
+
+
+def _save_mistake_spot(conn, snap: dict, best: str, ev: float,
+                       fe: float, cat: str) -> None:
+    conn.execute(
+        """INSERT INTO mistake_spots
+           (category, street, scenario, board, hero_cards, hero_position,
+            n_active, pot_bb, to_call_bb, eff_stack_bb, pot_type,
+            hero_action, best_action, ev_loss, freq_err, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now'))""",
+        (
+            cat, snap.get("street", ""), snap.get("scenario", ""),
+            snap.get("board", ""),
+            snap.get("hero_cards_disp") or snap.get("hero_combo", ""),
+            snap.get("hero_position", ""), int(snap.get("n_active", 2) or 2),
+            float(snap.get("pot_bb", 0) or 0), float(snap.get("to_call_bb", 0) or 0),
+            float(snap.get("eff_stack_bb", 0) or 0), snap.get("pot_type", "SRP"),
+            snap.get("hero_action", ""), best, float(ev or 0), float(fe or 0),
+        ),
+    )
+
+
+def get_mistake_spots(limit: int = 30) -> list:
+    """Oyuncunun GERÇEK hata spotlarını trainer-uyumlu dict olarak döndür.
+
+    "Hatalarımı Tekrar Oyna" için: gerçek board/kart/pozisyon ile masada
+    yeniden oynanabilir. En yüksek EV-kaybı önce. Veri yoksa [].
+    """
+    _ensure_mistake_table()
+    with get_connection() as conn:
+        try:
+            rows = [dict(r) for r in conn.execute(
+                "SELECT * FROM mistake_spots ORDER BY ev_loss DESC, id DESC LIMIT ?",
+                (limit,)).fetchall()]
+        except sqlite3.OperationalError:
+            return []
+    out = []
+    for i, r in enumerate(rows):
+        n = int(r.get("n_active") or 2)
+        out.append({
+            "id": f"MISTAKE-{r['id']:04d}",
+            "title": f"Hatan: {r.get('scenario') or r.get('category')} "
+                     f"· {r.get('hero_position')}",
+            "position": r.get("hero_position") or "BTN",
+            "stack_bb": float(r.get("eff_stack_bb") or 100),
+            "table": "HU" if n <= 2 else f"{n}-max",
+            "hero_cards": r.get("hero_cards") or "",
+            "board": r.get("board") or "",
+            "street": (r.get("street") or "preflop").lower(),
+            "pot_bb": float(r.get("pot_bb") or 0),
+            "scenario": r.get("scenario") or "",
+            "category": r.get("category") or "",
+            "options": ("fold", "call", "raise", "jam"),
+            "best_action": (r.get("best_action") or "").lower(),
+            "your_action": (r.get("hero_action") or "").lower(),
+            "ev_loss": float(r.get("ev_loss") or 0),
+            "source": "mistake",
+        })
+    return out
 
 
 def get_decision_leaks(min_sample: int = 8) -> list:

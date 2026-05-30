@@ -304,7 +304,7 @@ class SpotTrainerScreen(QWidget):
         self._cat_combo.currentTextChanged.connect(self._refresh_library)
         src_lbl = _label("SOURCE")
         self._src_combo = QComboBox()
-        self._src_combo.addItems(["All", "Seeded", "From Leaks"])
+        self._src_combo.addItems(["All", "Seeded", "From Leaks", "🔁 Hatalarım"])
         self._src_combo.currentTextChanged.connect(self._refresh_library)
 
         queue_all_btn = QPushButton("▶▶  START ALL DRILLS")
@@ -338,15 +338,27 @@ class SpotTrainerScreen(QWidget):
         cat = self._cat_combo.currentText() if hasattr(self, "_cat_combo") else "All"
         src = self._src_combo.currentText() if hasattr(self, "_src_combo") else "All"
 
-        drills = self.lib.get_drills(cat)
-        if src == "Seeded":
-            drills = [d for d in drills if d.get("source") == "seeded"]
-        elif src == "From Leaks":
-            drills = [d for d in drills if d.get("source") == "leak"]
-
-        if not drills:
-            self._cards_layout.addWidget(_mono("Henüz bu kategoride drill yok."))
-            return
+        if "Hatalar" in src:
+            # GERÇEK oynanmış hata spotları (board/kart/pozisyon ile yeniden oyna)
+            try:
+                from app.db.repository import get_mistake_spots
+                drills = get_mistake_spots()
+            except Exception:
+                drills = []
+            if not drills:
+                self._cards_layout.addWidget(_mono(
+                    "Henüz kayıtlı hata spotun yok. Real Experience modda el oyna; "
+                    "GTO'dan saptığın gerçek eller buraya düşecek."))
+                return
+        else:
+            drills = self.lib.get_drills(cat)
+            if src == "Seeded":
+                drills = [d for d in drills if d.get("source") == "seeded"]
+            elif src == "From Leaks":
+                drills = [d for d in drills if d.get("source") == "leak"]
+            if not drills:
+                self._cards_layout.addWidget(_mono("Henüz bu kategoride drill yok."))
+                return
 
         for drill in drills:
             score = self.lib.get_score(drill["id"])

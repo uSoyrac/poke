@@ -111,3 +111,43 @@ def test_gto_category_accuracy(isolated_db):
 
 def test_gto_category_accuracy_empty(isolated_db):
     assert isolated_db.get_gto_category_accuracy() == {}
+
+
+def test_mistake_spots_persist_and_retrieve(isolated_db):
+    R = isolated_db
+    # GTO raise %80, hero FOLD (büyük sapma) — gerçek board/kart ile
+    log = [{
+        "available": True, "street": "Flop", "scenario": "Postflop (Flop · dry · IP)",
+        "fold": 10, "call": 10, "raise": 80, "allin": 0,
+        "equity": 68, "pot_bb": 12, "to_call_bb": 6,
+        "hero_action": "FOLD", "hero_amount": 0,
+        "board": "Ah 7c 2d", "hero_combo": "AsKs", "hero_cards_disp": "A♠ K♠",
+        "hero_position": "BTN", "n_active": 2, "eff_stack_bb": 95, "pot_type": "SRP",
+    }]
+    R.record_decision_log(log)
+    spots = R.get_mistake_spots()
+    assert len(spots) == 1
+    s = spots[0]
+    assert s["board"] == "Ah 7c 2d"
+    assert s["best_action"] == "raise" and s["your_action"] == "fold"
+    assert s["ev_loss"] > 0
+    assert s["table"] == "HU" and s["position"] == "BTN"
+
+
+def test_mistake_spots_skips_good_decisions(isolated_db):
+    R = isolated_db
+    # GTO raise %80, hero RAISE (doğru) → hata-spotu KAYDEDİLMEZ
+    log = [{
+        "available": True, "street": "Flop", "scenario": "Postflop",
+        "fold": 10, "call": 10, "raise": 80, "allin": 0,
+        "equity": 68, "pot_bb": 12, "to_call_bb": 0,
+        "hero_action": "RAISE", "hero_amount": 4,
+        "board": "Ah 7c 2d", "hero_combo": "AsKs", "hero_position": "BTN",
+        "n_active": 2, "eff_stack_bb": 95, "pot_type": "SRP",
+    }]
+    R.record_decision_log(log)
+    assert R.get_mistake_spots() == []
+
+
+def test_mistake_spots_empty(isolated_db):
+    assert isolated_db.get_mistake_spots() == []
