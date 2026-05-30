@@ -63,12 +63,26 @@ class HandHistoryScreen(QWidget):
             f"color: {COLOR_INK}; font-size: 22px; font-weight: 800;"
         )
         root.addWidget(title)
+        sub_row = QHBoxLayout()
         subtitle = QLabel(
             "Gün gün el arşivi  ·  200M ele kadar ölçeklenir  ·  "
             "Her el için Gemini ile detaylı analiz al."
         )
         subtitle.setStyleSheet(f"color: {COLOR_MUTED}; font-size: 12px;")
-        root.addWidget(subtitle)
+        sub_row.addWidget(subtitle, 1)
+        self.import_btn = QPushButton("📥  PokerStars HH Import")
+        self.import_btn.setToolTip(
+            "Gerçek online el geçmişi dosyanı (PokerStars .txt) içeri al — "
+            "istatistik, leak ve GTO-ilerleme analizi gerçek oyununa dayansın.")
+        self.import_btn.setStyleSheet(
+            f"QPushButton {{ background: {COLOR_CARD}; color: {COLOR_ACCENT}; "
+            f"border: 1px solid {COLOR_ACCENT}; border-radius: 6px; "
+            f"font-family: 'JetBrains Mono', monospace; font-size: 11px; "
+            f"font-weight: 700; padding: 5px 12px; }} "
+            f"QPushButton:hover {{ background: #132a20; }}")
+        self.import_btn.clicked.connect(self._import_hand_history)
+        sub_row.addWidget(self.import_btn)
+        root.addLayout(sub_row)
 
         # Overall stats banner
         self.stats_banner = QLabel("")
@@ -97,6 +111,39 @@ class HandHistoryScreen(QWidget):
         root.addWidget(splitter, 1)
 
         # İlk yükle: tarihleri çek
+        self._refresh_dates()
+        self._refresh_overall_stats()
+
+    # ── HAND HISTORY IMPORT ───────────────────────────────────────────
+    def _import_hand_history(self) -> None:
+        """PokerStars .txt el geçmişi dosyası seç → parse et → DB'ye yaz."""
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        path, _ = QFileDialog.getOpenFileName(
+            self, "PokerStars el geçmişi dosyası seç", "",
+            "Hand history (*.txt);;Tüm dosyalar (*)")
+        if not path:
+            return
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+                text = fh.read()
+        except Exception as exc:
+            QMessageBox.warning(self, "Import hatası", f"Dosya okunamadı:\n{exc}")
+            return
+        try:
+            from app.db.repository import import_hands_from_text
+            n = import_hands_from_text(text)
+        except Exception as exc:
+            QMessageBox.warning(self, "Import hatası", f"Parse/kayıt hatası:\n{exc}")
+            return
+        if n == 0:
+            QMessageBox.information(
+                self, "Import", "Hiç PokerStars NLHE eli bulunamadı. "
+                "Dosya formatını kontrol et (şu an PokerStars cash destekli).")
+        else:
+            QMessageBox.information(
+                self, "Import tamam",
+                f"✓ {n} gerçek el içeri alındı. İstatistik, Leak Finder ve "
+                "GTO-ilerleme analizin artık bu elleri de içeriyor.")
         self._refresh_dates()
         self._refresh_overall_stats()
 

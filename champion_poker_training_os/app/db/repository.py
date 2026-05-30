@@ -413,6 +413,29 @@ def get_player_stats() -> dict:
         }
 
 
+def import_hands_from_text(text: str, session_id: int = 1) -> int:
+    """PokerStars el-geçmişi metnini parse edip played_hands'e yaz.
+
+    Döndürür: içeri alınan el sayısı. Aynı hand_id varsa REPLACE edilir
+    (save_played_hand INSERT OR REPLACE). Gerçek online ellerin analiz/leak/
+    GTO-ilerleme verisine katılması için.
+    """
+    try:
+        from app.poker.hand_history_import import parse_pokerstars
+    except Exception:
+        return 0
+    hands = parse_pokerstars(text)
+    n = 0
+    for h in hands:
+        try:
+            h["session_id"] = session_id
+            save_played_hand(h)
+            n += 1
+        except Exception:
+            continue
+    return n
+
+
 def get_session_history(limit: int = 50) -> list:
     """Get recent played hands."""
     with get_connection() as conn:
