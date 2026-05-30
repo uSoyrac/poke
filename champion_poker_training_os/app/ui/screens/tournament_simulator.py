@@ -1008,6 +1008,31 @@ class TournamentSimulatorScreen(QWidget):
     # (Legacy _opponent_widget / _next_actor_idx removed — LivePokerTable
     # now renders all opponent state directly.)
 
+    def _tourn_stage(self) -> str:
+        """Turnuva aşaması — kalan oyuncu oranı + bubble/FT yakınlığı.
+
+        Segment analizinde 'MTT · orta aşama · ...' etiketine girer.
+        """
+        t = getattr(self, "tournament", None)
+        if not t:
+            return ""
+        try:
+            field = max(int(getattr(t.config, "field_size", 0) or 0), 1)
+            left = int(getattr(t.state, "players_left", field) or field)
+            paid = int(getattr(t.config, "paid_places", 0) or 0)
+            if left <= max(1, min(9, paid or 9)):
+                return "final masa"
+            if paid and left <= paid + max(2, int(0.05 * field)):
+                return "bubble"
+            frac = left / field
+            if frac > 0.66:
+                return "erken aşama"
+            if frac > 0.33:
+                return "orta aşama"
+            return "geç aşama"
+        except Exception:
+            return ""
+
     def _update_action_buttons(self):
         """Show only legal actions. We HIDE-only (never setEnabled) so Qt's
         stylesheet engine can't get stuck in the disabled palette — see the
@@ -1075,7 +1100,8 @@ class TournamentSimulatorScreen(QWidget):
         _st = getattr(self, "state", None)
         _real_xp = bool(getattr(_st, "real_experience", False))
         _sz = _st.live_gto.get("sizing") if (_st and getattr(_st, "live_gto", None)) else None
-        self._recorder.capture(hand, hero_idx, gto, bb=bb, sizing=_sz)
+        self._recorder.capture(hand, hero_idx, gto, bb=bb, sizing=_sz,
+                               fmt="mtt", stage=self._tourn_stage())
 
         def lbl(base: str, atype) -> str:
             # Oyun sırasında ASLA GTO cevabı/%'si gösterme (her iki modda).

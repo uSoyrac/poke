@@ -275,7 +275,14 @@ def _ensure_mistake_table() -> None:
                 board TEXT, hero_cards TEXT, hero_position TEXT,
                 n_active INTEGER, pot_bb REAL, to_call_bb REAL, eff_stack_bb REAL,
                 pot_type TEXT, hero_action TEXT, best_action TEXT,
-                ev_loss REAL, freq_err REAL )""")
+                ev_loss REAL, freq_err REAL,
+                format TEXT, stage TEXT )""")
+        # Eski tablolar için migration (format/stage sonradan eklendi)
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(mistake_spots)")}
+        if "format" not in cols:
+            conn.execute("ALTER TABLE mistake_spots ADD COLUMN format TEXT")
+        if "stage" not in cols:
+            conn.execute("ALTER TABLE mistake_spots ADD COLUMN stage TEXT")
         conn.commit()
 
 
@@ -285,8 +292,8 @@ def _save_mistake_spot(conn, snap: dict, best: str, ev: float,
         """INSERT INTO mistake_spots
            (category, street, scenario, board, hero_cards, hero_position,
             n_active, pot_bb, to_call_bb, eff_stack_bb, pot_type,
-            hero_action, best_action, ev_loss, freq_err, created_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now'))""",
+            hero_action, best_action, ev_loss, freq_err, format, stage, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now'))""",
         (
             cat, snap.get("street", ""), snap.get("scenario", ""),
             snap.get("board", ""),
@@ -295,6 +302,7 @@ def _save_mistake_spot(conn, snap: dict, best: str, ev: float,
             float(snap.get("pot_bb", 0) or 0), float(snap.get("to_call_bb", 0) or 0),
             float(snap.get("eff_stack_bb", 0) or 0), snap.get("pot_type", "SRP"),
             snap.get("hero_action", ""), best, float(ev or 0), float(fe or 0),
+            (snap.get("format") or "").lower(), snap.get("stage") or "",
         ),
     )
 
@@ -385,29 +393,71 @@ def _stack_bucket(eff: float) -> str:
     return "derin stack (>50bb)"
 
 
-def get_segmented_insights(min_sample: int = 3) -> list:
-    """Pozisyon × stack-derinliği segmentlerinde sistematik hatalar.
+def _table_bucket(n: int) -> str:
+    """Oyuncu sayısı → masa formatı. Full-ring (7+) "default" sayılıp
+    etikette gizlenir; HU ve short-handed bilgi taşır."""
+    n = int(n or 2)
+    if n <= 2:
+        return "HU"
+    if n <= 6:
+        return "short-handed"
+    return ""          # full-ring (7+) → etikette gösterme
 
-    "MTT'de short-stack'e düşünce erken pozisyonda marjinal raise" gibi
-    içgörüler — gerçek mistake_spots verisinden. [{segment, n, ev_lost,
-    pattern, tip}] EV-kaybı yüksekten düşüğe. Veri yoksa [].
+
+def _fmt_label(fmt: str) -> str:
+    return {"mtt": "MTT", "sng": "SNG", "cash": ""}.get((fmt or "").lower(), "")
+
+
+def _segment_label(fmt: str, stage: str, table: str,
+                   pos_b: str, stk_b: str) -> str:
+    """Anlamlı boyutları sırayla birleştir: format · aşama · masa · poz · stack.
+    'cash'/full-ring/bilinmeyen-aşama gibi default'lar gizlenir."""
+    parts: list[str] = []
+    fl = _fmt_label(fmt)
+    if fl:
+        parts.append(fl)
+    st = (stage or "").strip()
+    if st and st.lower() not in ("", "unknown", "-", "none"):
+        parts.append(st)
+    if table:
+        parts.append(table)
+    parts.append(pos_b)
+    parts.append(stk_b)
+    return " · ".join(parts)
+
+
+def get_segmented_insights(min_sample: int = 3) -> list:
+    """Format × turnuva-aşaması × masa × pozisyon × stack segmentlerinde
+    sistematik hatalar.
+
+    "MTT'de orta aşamada short-stack'e düşünce erken pozisyonda marjinal
+    raise" gibi içgörüler — gerçek mistake_spots verisinden.
+    [{segment, n, ev_lost, pattern, tip}] EV-kaybı yüksekten düşüğe.
+    Veri yoksa [].
     """
     _ensure_mistake_table()
     with get_connection() as conn:
         try:
             rows = [dict(r) for r in conn.execute(
-                "SELECT hero_position, eff_stack_bb, best_action, hero_action, "
-                "ev_loss, scenario FROM mistake_spots").fetchall()]
+                "SELECT hero_position, eff_stack_bb, n_active, best_action, "
+                "hero_action, ev_loss, scenario, format, stage "
+                "FROM mistake_spots").fetchall()]
         except sqlite3.OperationalError:
             return []
     from collections import defaultdict
-    seg: dict = defaultdict(lambda: {"n": 0, "ev": 0.0, "over_raise": 0, "over_fold": 0})
+    seg: dict = defaultdict(lambda: {"n": 0, "ev": 0.0, "over_raise": 0,
+                                     "over_fold": 0, "label": ""})
     for r in rows:
-        key = (_pos_bucket(r.get("hero_position")),
-               _stack_bucket(float(r.get("eff_stack_bb") or 0)))
+        pos_b = _pos_bucket(r.get("hero_position"))
+        stk_b = _stack_bucket(float(r.get("eff_stack_bb") or 0))
+        tbl = _table_bucket(r.get("n_active"))
+        fmt = r.get("format") or ""
+        stage = r.get("stage") or ""
+        key = (fmt.lower(), stage, tbl, pos_b, stk_b)
         s = seg[key]
         s["n"] += 1
         s["ev"] += float(r.get("ev_loss") or 0)
+        s["label"] = _segment_label(fmt, stage, tbl, pos_b, stk_b)
         ha = (r.get("hero_action") or "").upper()
         ba = (r.get("best_action") or "").upper()
         if ha in ("RAISE", "BET", "ALL_IN") and ba == "FOLD":
@@ -415,7 +465,7 @@ def get_segmented_insights(min_sample: int = 3) -> list:
         elif ha == "FOLD" and ba in ("RAISE", "BET", "CALL", "ALL_IN"):
             s["over_fold"] += 1
     out = []
-    for (pos_b, stk_b), s in seg.items():
+    for key, s in seg.items():
         if s["n"] < min_sample:
             continue
         if s["over_raise"] >= s["over_fold"] and s["over_raise"] > 0:
@@ -430,7 +480,7 @@ def get_segmented_insights(min_sample: int = 3) -> list:
             pattern = "karışık sapmalar"
             tip = "El sonu reveal'da bu segment kararlarını incele."
         out.append({
-            "segment": f"{pos_b} · {stk_b}",
+            "segment": s["label"],
             "n": s["n"], "ev_lost": round(s["ev"], 1),
             "pattern": pattern, "tip": tip,
         })

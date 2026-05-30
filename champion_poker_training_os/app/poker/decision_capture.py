@@ -35,8 +35,13 @@ def preflop_pot_type(hand) -> str:
 
 
 def make_snapshot(hand, hero_idx: int, gto, bb: float = 1.0,
-                  sizing: Optional[dict] = None) -> dict:
-    """Bir karar noktasının snapshot dict'ini üret (reveal/grade/persist şeması)."""
+                  sizing: Optional[dict] = None,
+                  fmt: str = "", stage: str = "") -> dict:
+    """Bir karar noktasının snapshot dict'ini üret (reveal/grade/persist şeması).
+
+    ``fmt`` (cash/mtt/sng) ve ``stage`` (turnuva aşaması) segment analizinde
+    'MTT · orta aşama · ...' içgörüsü için saklanır.
+    """
     _bb = max(float(bb), 1e-9)
     try:
         to_call = float(hand.to_call(hero_idx))
@@ -97,6 +102,7 @@ def make_snapshot(hand, hero_idx: int, gto, bb: float = 1.0,
         "villain_position": villain_position,
         "eff_stack_bb": eff_stack_bb, "in_position": in_position,
         "pot_type": pot_type,
+        "format": fmt, "stage": stage,
         "hero_action": None, "hero_amount": None, "_bb": _bb,
     }
     if sizing:
@@ -117,7 +123,8 @@ class DecisionRecorder:
         self._keys = set()
 
     def capture(self, hand, hero_idx: int, gto, bb: float = 1.0,
-                sizing: Optional[dict] = None) -> None:
+                sizing: Optional[dict] = None,
+                fmt: str = "", stage: str = "") -> None:
         _bb = max(float(bb), 1e-9)
         try:
             to_call = float(hand.to_call(hero_idx))
@@ -127,7 +134,7 @@ class DecisionRecorder:
         if key in self._keys:
             return
         self._keys.add(key)
-        self.log.append(make_snapshot(hand, hero_idx, gto, bb, sizing))
+        self.log.append(make_snapshot(hand, hero_idx, gto, bb, sizing, fmt, stage))
 
     def attach_hero(self, action_type, amount, bb: float = 1.0) -> None:
         if not self.log:

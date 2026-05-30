@@ -1269,6 +1269,32 @@ class PlaySessionScreen(QWidget):
             pass
         return ctx
 
+    def _mtt_stage(self) -> str:
+        """Turnuva aşaması — kalan oyuncu oranı + bubble yakınlığı.
+
+        cash/sng-dışı veya turnuva yoksa "" döner. Aşamalar segment
+        analizinde 'MTT · orta aşama · ...' etiketine girer.
+        """
+        if self._format == "cash" or not getattr(self, "tournament", None):
+            return ""
+        try:
+            t = self.tournament
+            field = max(int(getattr(t.config, "field_size", 0) or 0), 1)
+            left = int(getattr(t, "players_remaining", field) or field)
+            paid = int(getattr(t.config, "paid_places", 0) or 0)
+            if left <= max(1, min(9, paid)):
+                return "final masa"
+            if paid and left <= paid + max(2, int(0.05 * field)):
+                return "bubble"
+            frac = left / field
+            if frac > 0.66:
+                return "erken aşama"
+            if frac > 0.33:
+                return "orta aşama"
+            return "geç aşama"
+        except Exception:
+            return ""
+
     def _capture_decision(self, hand, gto, to_call) -> None:
         """Hero'nun bu karar noktasındaki GTO-optimal dağılımını sakla.
 
@@ -1297,6 +1323,7 @@ class PlaySessionScreen(QWidget):
             "pot_bb": float(getattr(hand, "pot", 0) or 0),
             "to_call_bb": float(to_call or 0),
             "hero_action": None, "hero_amount": None,
+            "format": self._format, "stage": self._mtt_stage(),
             **self._spot_context(hand, hand.hero_idx, bb=1.0),
         }
         sz = (self.state.live_gto or {}).get("sizing") if (self.state and self.state.live_gto) else None
@@ -1338,6 +1365,7 @@ class PlaySessionScreen(QWidget):
             "equity": getattr(gto, "equity", 0) if gto else 0,
             "pot_bb": float(getattr(hand, "pot", 0) or 0) / max(bb, 1),
             "to_call_bb": float(to_call or 0) / max(bb, 1),
+            "format": self._format, "stage": self._mtt_stage(),
             **self._spot_context(hand, hand.hero_idx, bb=bb),
             "hero_action": None, "hero_amount": None, "_bb": bb,
         }

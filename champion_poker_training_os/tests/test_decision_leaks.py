@@ -199,3 +199,40 @@ def test_segmented_insights_early_short_overraise(isolated_db):
 
 def test_segmented_insights_empty(isolated_db):
     assert isolated_db.get_segmented_insights() == []
+
+
+def test_segmented_insights_mtt_stage_label(isolated_db):
+    """MTT · aşama · masa boyutu etiket dimensiyonları."""
+    R = isolated_db
+    for _ in range(4):
+        R.record_decision_log([{
+            "available": True, "street": "Preflop", "scenario": "RFI",
+            "fold": 85, "call": 0, "raise": 15, "allin": 0,
+            "equity": 0, "pot_bb": 3, "to_call_bb": 0,
+            "hero_action": "RAISE", "hero_amount": 2.5, "board": "",
+            "hero_combo": "Jd9c", "hero_position": "UTG", "n_active": 6,
+            "eff_stack_bb": 16, "pot_type": "SRP",
+            "format": "mtt", "stage": "orta aşama"}])
+    segs = R.get_segmented_insights()
+    assert segs
+    seg = segs[0]["segment"]
+    # format + aşama + short-handed (6) + erken poz + sığ stack hepsi etikette
+    assert "MTT" in seg and "orta aşama" in seg
+    assert "short-handed" in seg
+    assert "erken pozisyon" in seg and "sığ stack" in seg
+
+
+def test_segmented_insights_cash_hides_defaults(isolated_db):
+    """cash + full-ring (7+) → format/masa token'ları etikette gizlenir."""
+    R = isolated_db
+    for _ in range(4):
+        R.record_decision_log([{
+            "available": True, "street": "Preflop", "scenario": "RFI",
+            "fold": 85, "call": 0, "raise": 15, "allin": 0,
+            "equity": 0, "pot_bb": 3, "to_call_bb": 0,
+            "hero_action": "RAISE", "hero_amount": 2.5, "board": "",
+            "hero_combo": "Jd9c", "hero_position": "UTG", "n_active": 9,
+            "eff_stack_bb": 16, "pot_type": "SRP",
+            "format": "cash", "stage": ""}])
+    seg = R.get_segmented_insights()[0]["segment"]
+    assert seg == "erken pozisyon · sığ stack (≤20bb)"

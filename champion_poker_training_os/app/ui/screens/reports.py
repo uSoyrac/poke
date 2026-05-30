@@ -177,7 +177,7 @@ class ReportsScreen(QWidget):
         self.segment_frame = QFrame()
         self.segment_frame.setObjectName("Card")
         self._segment_layout = QVBoxLayout(self.segment_frame)
-        seg_title = QLabel("📊  SEGMENT ANALİZİ  ·  pozisyon × stack derinliği")
+        seg_title = QLabel("📊  SEGMENT ANALİZİ  ·  format × aşama × masa × pozisyon × stack")
         seg_title.setObjectName("SectionTitle")
         self._segment_layout.addWidget(seg_title)
         self.segment_body = QLabel("")
@@ -365,10 +365,13 @@ class ReportsScreen(QWidget):
         else:
             shtml = []
             for s in segments[:5]:
+                # EV-kaybı sadece anlamlıysa göster (preflop open'larda EV proxy yok)
+                meta = f"{s['n']} hata"
+                if s["ev_lost"] >= 0.5:
+                    meta += f" · ~{s['ev_lost']:.0f}bb kayıp"
                 shtml.append(
                     f"<b style='color:#22D3EE'>{s['segment']}</b> "
-                    f"<span style='color:#94A3B8'>({s['n']} hata · "
-                    f"~{s['ev_lost']:.0f}bb)</span><br>"
+                    f"<span style='color:#94A3B8'>({meta})</span><br>"
                     f"&nbsp;&nbsp;{s['pattern']}<br>"
                     f"&nbsp;&nbsp;<span style='color:#5ad17a'>→ {s['tip']}</span>")
             self.segment_body.setText("<br><br>".join(shtml))
