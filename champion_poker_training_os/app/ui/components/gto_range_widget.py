@@ -721,6 +721,56 @@ class GTODecisionReveal(QFrame):
             return ""
         return "📊  " + "  ·  ".join(parts)
 
+    @staticmethod
+    def _why_line(d: dict) -> str:
+        """Strateji NEDEN'i — sayıyı değil mantığı öğret (dünya-klası eğitim).
+
+        Board dokusu (kuru/ıslak), pozisyon (IP/OOP), inisiyatif, equity ve
+        break-even'den kavramsal bir gerekçe üretir. Veri yoksa "" döner.
+        """
+        if not d.get("available"):
+            return ""
+        eq = float(d.get("equity", 0) or 0)
+        pot = float(d.get("pot_bb", 0) or 0)
+        to_call = float(d.get("to_call_bb", 0) or 0)
+        scen = (d.get("scenario") or "").lower()
+        opts = {"fold": d.get("fold", 0) or 0, "call": d.get("call", 0) or 0,
+                "raise": d.get("raise", 0) or 0, "allin": d.get("allin", 0) or 0}
+        best = max(opts, key=lambda k: opts[k])
+        facing = to_call > 0.01 and pot > 0
+        be = 100.0 * to_call / (pot + to_call) if facing else 0.0
+        dry = "dry" in scen
+        wet = ("wet" in scen) or ("monotone" in scen)
+        msg = ""
+        if facing:
+            if eq > 0 and eq < be - 1:
+                msg = (f"Equity %{eq:.0f} < break-even %{be:.0f} → call uzun "
+                       f"vadede -EV. Çekme/blocker yoksa FOLD.")
+            elif eq > 0 and best in ("raise", "allin"):
+                msg = (f"Equity %{eq:.0f} güçlü → değer için RAISE; rakip daha "
+                       f"zayıf range'le call/fold etmek zorunda.")
+            elif eq > 0:
+                msg = (f"Equity %{eq:.0f} ≥ break-even %{be:.0f} → CALL kârlı; "
+                       f"raise gereksiz (zayıfı kovar, güçlüyü şişirir).")
+            else:
+                msg = f"{best.upper()} en yüksek-frekans GTO aksiyonu bu spotta."
+        else:
+            if best in ("raise", "allin"):
+                if dry:
+                    msg = ("Kuru board + inisiyatif → RANGE BET: küçük boyutla "
+                           "tüm range bahis, rakip ıskaladığı için fold-equity yüksek.")
+                elif wet:
+                    msg = ("Islak/dinamik board → POLARİZE bet: değer elleri + "
+                           "güçlü çekmeler büyük boyutla; orta eller check.")
+                elif eq >= 60:
+                    msg = f"Equity %{eq:.0f} (değer bölgesi) → ince değer için bahis."
+                else:
+                    msg = "Bahis: doku ve inisiyatif sende, baskı kur."
+            else:
+                msg = ("CHECK: showdown değerin var ya da board rakibe yarıyor → "
+                       "pot kontrol, blöf-yakalama hattı koru.")
+        return "💡  " + msg if msg else ""
+
     def _build_row(self, d: dict):
         col = QVBoxLayout()
         col.setSpacing(1)
@@ -756,6 +806,16 @@ class GTODecisionReveal(QFrame):
             )
             ml.setWordWrap(True)
             col.addWidget(ml)
+
+        # ── NEDEN satırı: stratejik gerekçe (mantığı öğret) ──
+        why = self._why_line(d)
+        if why:
+            wl = QLabel(why)
+            wl.setStyleSheet(
+                f"font-family:'JetBrains Mono',monospace; font-size:10px; "
+                f"color:{_WARN}; background:transparent;")
+            wl.setWordWrap(True)
+            col.addWidget(wl)
 
         if not d.get("available"):
             note = d.get("note") or "Postflop GTO için solver gerekli (Solver Sandbox)."
