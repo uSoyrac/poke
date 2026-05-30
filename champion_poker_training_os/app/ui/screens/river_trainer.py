@@ -17,6 +17,7 @@ from app.ai.coach_engine import explain_spot
 from app.core.app_state import AppState
 from app.db.seed_data import generate_spot_drills
 from app.solver.mock_solver import compare_action, solve_spot
+from app.ui.components.card_view import CardRow
 from app.ui.components.poker_table import LivePokerTable
 from app.ui.components.spot_table import render_spot_on_table
 from app.ui.components.solver_bar import EVLossBadge, SolverFrequencyBar
@@ -103,6 +104,14 @@ class RiverTrainerScreen(QWidget):
         self.spot_history = QLabel()
         self.spot_history.setObjectName("Cyan")
 
+        # Gerçek kartlar — board (5) + hero (CardView ile güvenilir)
+        board_lbl = QLabel("BOARD")
+        board_lbl.setObjectName("Muted")
+        self.board_row = CardRow(size="md")
+        hero_lbl = QLabel("ELİN")
+        hero_lbl.setObjectName("Muted")
+        self.hero_row = CardRow(size="md")
+
         # River-specific info
         self.river_info = QLabel()
         self.river_info.setWordWrap(True)
@@ -111,6 +120,10 @@ class RiverTrainerScreen(QWidget):
         self.action_layout = QHBoxLayout()
         panel_layout.addWidget(self.spot_title)
         panel_layout.addWidget(self.spot_meta)
+        panel_layout.addWidget(board_lbl)
+        panel_layout.addWidget(self.board_row)
+        panel_layout.addWidget(hero_lbl)
+        panel_layout.addWidget(self.hero_row)
         panel_layout.addWidget(self.spot_history)
         panel_layout.addWidget(self.river_info)
         panel_layout.addLayout(self.action_layout)
@@ -141,6 +154,8 @@ class RiverTrainerScreen(QWidget):
             f"{spot['stack_bb']}bb | Board: {spot['board']} | {spot['board_texture']}"
         )
         self.spot_history.setText(spot["action_history"])
+        self.board_row.set_cards(spot.get("board", ""))
+        self.hero_row.set_cards(spot.get("hero_cards", ""))
 
         # River-specific analysis hints
         hero = spot["hero_cards"]

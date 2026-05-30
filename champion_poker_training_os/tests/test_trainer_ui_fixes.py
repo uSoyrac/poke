@@ -27,6 +27,39 @@ def test_hand_key_to_cards():
     assert hand_key_to_cards("") == ("", "")             # geçersiz
 
 
+def test_cards_from_string():
+    from app.ui.components.card_view import cards_from_string
+    assert cards_from_string("KsQh8s") == ["Ks", "Qh", "8s"]
+    assert cards_from_string("Ah 7c 2d") == ["Ah", "7c", "2d"]
+    assert cards_from_string("QdQs") == ["Qd", "Qs"]
+    assert cards_from_string("Th9s") == ["Th", "9s"]
+    assert cards_from_string("") == []
+
+
+def test_card_row_renders_board_and_hero(qapp):
+    from app.ui.components.card_view import CardRow
+    row = CardRow(size="md")
+    row.set_cards("KsQh8s")
+    assert row._lay.count() == 3              # 3 board kartı
+    row.set_cards("QdQs")
+    assert row._lay.count() == 2              # hero güncellendi
+    row.set_cards("")
+    assert row._lay.count() == 0              # boş temizler
+
+
+def test_postflop_river_show_real_cards(qapp):
+    from app.core.app_state import AppState
+    from app.ui.screens.postflop_trainer import PostflopTrainerScreen
+    from app.ui.screens.river_trainer import RiverTrainerScreen
+    for S in (PostflopTrainerScreen, RiverTrainerScreen):
+        s = S(AppState())
+        s.show()
+        qapp.processEvents()
+        assert s.board_row._lay.count() >= 3   # gerçek board kartları render edildi
+        assert s.hero_row._lay.count() == 2     # hero iki kart
+        s.hide()
+
+
 def test_two_card_hand_updates(qapp):
     from app.ui.components.card_view import TwoCardHand
     w = TwoCardHand(size="xl")

@@ -143,6 +143,48 @@ def hand_key_to_cards(hand_key: str) -> tuple[str, str]:
     return (f"{r1}s", f"{r2}h")             # offsuit: AKo → As Kh
 
 
+def cards_from_string(s: str) -> list[str]:
+    """'KsQh8s' / 'Ah 7c 2d' / 'QdQs' → ['Ks','Qh','8s'] kart kodları.
+
+    Boşlukları yok sayar; 'T' ve '10' rank'lerini destekler.
+    """
+    s = (s or "").replace(" ", "")
+    out: list[str] = []
+    i = 0
+    while i < len(s) - 1:
+        if s[i] == "1" and i + 2 < len(s) and s[i + 1] == "0":
+            out.append("T" + s[i + 2])
+            i += 3
+        else:
+            out.append(s[i] + s[i + 1])
+            i += 2
+    return out
+
+
+class CardRow(QWidget):
+    """Yatay kart dizisi (board / hero) — güvenilir CardView'lerden.
+
+    ``set_cards('KsQh8s', size='md')`` ile güncellenir; boş string → boş.
+    """
+
+    def __init__(self, size: str = "md", parent=None):
+        super().__init__(parent)
+        self._size = size
+        self._lay = QHBoxLayout(self)
+        self._lay.setContentsMargins(0, 0, 0, 0)
+        self._lay.setSpacing(6)
+        self._lay.setAlignment(Qt.AlignLeft)
+
+    def set_cards(self, cards: str, size: str | None = None) -> None:
+        size = size or self._size
+        while self._lay.count():
+            it = self._lay.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+        for code in cards_from_string(cards):
+            self._lay.addWidget(CardView(code, size=size))
+
+
 class TwoCardHand(QWidget):
     """Hero'nun iki hole-card'ını güvenilir CardView ile gösterir.
 
