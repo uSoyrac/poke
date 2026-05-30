@@ -81,6 +81,36 @@ BOT_ARCHETYPES = {
     "GTO Expert":      BotProfile("GTO Expert", 24, 22, 12, 55, 3.0, 0.32, 0.32, 0.08, 0.32, 0.34,
                                    notes="High-skill solver — balanced ranges, polarized sizings, "
                                          "rarely exploitable. Tougher than Solver Bot."),
+    "ICM Expert":      BotProfile("ICM Expert", 20, 16, 8, 70, 2.6, 0.20, 0.26, 0.05, 0.20, 0.22,
+                                   notes="Turnuva ICM ustası — bubble/FT'de pay-jump baskısını "
+                                         "sömürür, risk premium'a göre sıkı call; büyük stack'le "
+                                         "max baskı. EXPLOIT: chip-leader olunca ICM korkusunu "
+                                         "kullan, marjinal spotlarda jam'le."),
+    "Exploit Expert":  BotProfile("Exploit Expert", 26, 19, 11, 48, 3.2, 0.40, 0.42, 0.10, 0.40, 0.40,
+                                   notes="Maksimum exploit — rakip leak'ine göre ayar çeker: "
+                                         "station'a value, nit'e blöf, fold'çuya baskı. "
+                                         "EXPLOIT: dengeli/okunmaz oyna, sabit pattern verme."),
+    # ── Efsane oyuncular (gerçek stil profilleri + nasıl oynanır) ──
+    "Doyle Brunson":   BotProfile("Doyle Brunson", 30, 24, 10, 45, 2.0, 0.40, 0.38, 0.10, 0.40, 0.40,
+                                   notes="Texas Dolly — loose-aggressive eski okul, durmak bilmez "
+                                         "pozisyonel baskı, any-two agresyon (10-2 efsanesi). "
+                                         "EXPLOIT: call'larına blöf yapma; acımasız value-bet, "
+                                         "steal'lerini 3-bet ile yavaşlat."),
+    "Phil Ivey":       BotProfile("Phil Ivey", 26, 21, 12, 52, 3.4, 0.38, 0.34, 0.10, 0.38, 0.36,
+                                   notes="Tüm zamanların en iyilerinden — korkusuz, cerrahi "
+                                         "okuma, dengeli + exploit kenarı. Geride olunca katlar, "
+                                         "önde olunca max baskı. EXPLOIT: leak verme, dengeli oyna, "
+                                         "ince spotlarda riske girme."),
+    "Phil Hellmuth":   BotProfile("Phil Hellmuth", 19, 14, 6, 60, 2.0, 0.12, 0.30, 0.03, 0.12, 0.20,
+                                   notes="Poker Brat — ultra-disiplinli canlı/MTT, sabırlı, "
+                                         "'white magic' okuma, büyük el bile fold eder, varyanstan "
+                                         "kaçar. EXPLOIT: blöf yapma (sezer), ince value al, "
+                                         "pozisyonla sürekli bas, küçük potlar çal."),
+    "Daniel Negreanu": BotProfile("Daniel Negreanu", 28, 19, 9, 46, 2.4, 0.30, 0.48, 0.04, 0.30, 0.40,
+                                   notes="Kid Poker — small-ball, range-okuma dehası, kontrollü "
+                                         "potlar, çok flop görür (call_down yüksek). EXPLOIT: net "
+                                         "value hattı tut, kapalı kartını ele verme (range'ini "
+                                         "daraltır), büyük overbet'lere hazır ol."),
     "Karma (Mixed)":   BotProfile("Karma (Mixed)", 28, 22, 10, 48, 2.8, 0.32, 0.40, 0.07, 0.34, 0.38,
                                    notes="Randomised — switches mood every hand, hard to read."),
     # ── GTOWizard-style exploit profilleri ──

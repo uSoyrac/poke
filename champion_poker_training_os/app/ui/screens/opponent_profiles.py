@@ -301,6 +301,130 @@ _PROFILES: list[dict] = [
         ),
         "common_mistake": "Over-folding to their jams because of stack size pressure.",
     },
+    # ── UZMAN tipler ──────────────────────────────────────────────────────────
+    {
+        "id": "gto_expert", "name": "GTO Expert", "tag": "SOLVER — DENGELİ",
+        "color": "#5ad17a",
+        "description": (
+            "Solver-yakını oynar: dengeli value/blöf oranları, polarize sizing'ler, "
+            "pozisyona ve board dokusuna göre doğru frekanslar. Neredeyse "
+            "exploit edilemez — leak vermez, sömürmeye çalışmaz, dengede kalır."
+        ),
+        "tell": "Pattern yok. Sizing'leri tutarlı ve doku-mantıklı.",
+        "exploit": [
+            "Onu exploit edemezsin — kendi oyununu dengele, leak verme.",
+            "Karşılığında SEN de GTO oyna; küçük EV farkları için riske girme.",
+            "Hata onun değil senin tarafında çıkar — disiplinli ol.",
+        ],
+        "counter": "Dengeli oyna; bu rakip seni eğitmek için en iyi referanstır.",
+        "common_mistake": "Onu 'kandırmaya' çalışıp kendini dengeden çıkarmak.",
+    },
+    {
+        "id": "icm_expert", "name": "ICM Expert", "tag": "TURNUVA — ICM USTASI",
+        "color": "#c77dff",
+        "description": (
+            "Bubble ve final-table'da pay-jump baskısını ustaca kullanır: risk "
+            "premium'a göre sıkı call eder, büyük stack'le kısa stack'lere max "
+            "baskı uygular, chipEV değil $EV oynar."
+        ),
+        "tell": "Bubble'da agresyona aşırı katlar; chip-leader'ken acımasız bask.",
+        "exploit": [
+            "Sen chip-leader'sen onun ICM korkusunu sömür — sürekli baskı.",
+            "Bubble'da marjinal jam'lerle fold-equity topla.",
+            "Kısa stack'ken ona karşı over-fold etme; o da ICM'den çekiniyor.",
+        ],
+        "counter": "ICM'i sen de hesapla; pay-jump'larda risk premium'a saygı duy.",
+        "common_mistake": "Bubble'da onun baskısına ICM'i abartıp aşırı katlamak.",
+    },
+    {
+        "id": "exploit_expert", "name": "Exploit Expert", "tag": "ADAPTİF — MAKS EXPLOIT",
+        "color": "#ff8c5a",
+        "description": (
+            "GTO'dan bilinçli sapar: rakibin leak'ine göre maksimum exploit. "
+            "Station'a value, nit'e blöf, fold'çuya baskı. Sürekli not alır ve "
+            "stratejisini sana göre ayarlar."
+        ),
+        "tell": "Sana özel ayar çeker — pattern'ini bulursan o pattern'i sömürür.",
+        "exploit": [
+            "Dengeli/okunmaz oyna — sabit pattern verme ki ayar çekemesin.",
+            "Onun sana karşı ayarını fark et ve ters-exploit et (counter-adjust).",
+            "Stilini periyodik değiştir; statik kalma.",
+        ],
+        "counter": "Dengeli kal; o sapınca (over-exploit) sen ters yönde ceza ver.",
+        "common_mistake": "Aynı hattı tekrarlayıp ona okunabilir hâle gelmek.",
+    },
+    # ── EFSANE oyuncular (gerçek stil + nasıl oynanır) ──────────────────────────
+    {
+        "id": "doyle_brunson", "name": "Doyle Brunson", "tag": "EFSANE — LOOSE AGGRESSIVE",
+        "color": "#f4c842",
+        "description": (
+            "'Texas Dolly' — modern agresif pokerin babası. Loose-aggressive, "
+            "durmak bilmez pozisyonel baskı, any-two-cards agresyon (10-2 onun "
+            "efsane eli). Pot'ları sürekli şişirir, rakibi karar vermeye zorlar."
+        ),
+        "tell": "Geniş açar, sürekli barrel'lar; zayıflık gösterince hemen basar.",
+        "exploit": [
+            "Call'larına BLÖF yapma — acımasız value-bet ile ödül al.",
+            "Steal'lerini 3-bet ile yavaşlat; pozisyon savaşını ona bırakma.",
+            "Geniş range'ine karşı güçlü ellerle pot şişir.",
+            "Bluff-catch eşiğini düşür — çok blöf yapar ama doğru spotta.",
+        ],
+        "counter": "Pozisyon + güçlü range ile karşı baskı; ince blöfleri ona bırak.",
+        "common_mistake": "Sürekli baskısına panikleyip iyi elleri fold etmek.",
+    },
+    {
+        "id": "phil_ivey", "name": "Phil Ivey", "tag": "EFSANE — KOMPLE / OKUYUCU",
+        "color": "#5ad1ce",
+        "description": (
+            "Tüm zamanların en iyilerinden. Korkusuz, cerrahi el-okuma, dengeli "
+            "ama exploit kenarı olan oyun. Geride olunca büyük el bile bırakır, "
+            "önde olunca maksimum baskı kurar. Masadaki en zor rakip."
+        ),
+        "tell": "Pattern neredeyse yok; gözünü sana diker, zayıflığını avlar.",
+        "exploit": [
+            "Onu exploit etmek çok zor — önce leak vermemeye odaklan.",
+            "Dengeli oyna; ince/marjinal spotlarda ona karşı riske girme.",
+            "Blöf-yakalama hattında disiplinli ol — sezgisi güçlü.",
+        ],
+        "counter": "Hatasız + dengeli oyna; variance'ı düşür, net spotları al.",
+        "common_mistake": "Ona 'fazla yaratıcı' oynayıp kendini zora sokmak.",
+    },
+    {
+        "id": "phil_hellmuth", "name": "Phil Hellmuth", "tag": "EFSANE — TIGHT / MTT",
+        "color": "#7abaff",
+        "description": (
+            "'Poker Brat' — 17 WSOP bilezikli canlı/turnuva uzmanı. Ultra-disiplinli, "
+            "sabırlı, 'white magic' okumalar, büyük eli bile fold edebilir, "
+            "varyanstan kaçar. Küçük-orta potlarda kontrollü, premium-ağırlıklı."
+        ),
+        "tell": "Çok katlar; bahis yaptığında genelde gerçek değeri vardır.",
+        "exploit": [
+            "Blöf yapma — sezer ve doğru fold/call'ı bulur.",
+            "İnce value al; pozisyonla sürekli bas, bloodlarını çal.",
+            "Steal frekansını artır — fold-equity yüksek.",
+            "Büyük pot riskine sokma; o varyanstan kaçtığı için baskıya katlar.",
+        ],
+        "counter": "Pozisyon + sabırlı value; blöf hattını ona karşı kapat.",
+        "common_mistake": "Onu blöfle kovmaya çalışmak (en pahalı hata).",
+    },
+    {
+        "id": "daniel_negreanu", "name": "Daniel Negreanu", "tag": "EFSANE — SMALL BALL / OKUYUCU",
+        "color": "#ff6b9d",
+        "description": (
+            "'Kid Poker' — range-okuma dehası. Small-ball: küçük potlar, çok flop "
+            "görür, kontrollü agresyon, kapalı kartını okumakla ünlü. Variance'ı "
+            "düşük tutar, bilgi toplar, doğru anda baskı kurar."
+        ),
+        "tell": "Çok flop görür, kontrollü bahisler; ani büyük overbet = polarize.",
+        "exploit": [
+            "Kapalı kartını ele verme — küçük tell'lerden range'ini daraltır.",
+            "Net value hattı tut; small-ball'una ince value ile karşılık ver.",
+            "Büyük overbet'lerine hazır ol — polarize oynar.",
+            "Çok-flop eğilimini c-bet baskısıyla cezalandır.",
+        ],
+        "counter": "Bilgi sızdırma; dengeli + net hatlarla küçük pot savaşını kazan.",
+        "common_mistake": "Konuşmasına/okumasına kapılıp range'ini ona göstermek.",
+    },
 ]
 
 # Map seed_data names to profile IDs
@@ -480,6 +604,22 @@ class OpponentProfilesScreen(QWidget):
                 if first_word in name.lower():
                     bot = b
                     break
+        if not bot:
+            # BOT_ARCHETYPES fallback — efsane/uzman profillerinin gerçek statları
+            try:
+                from app.engine.bot_brain import BOT_ARCHETYPES
+                p = BOT_ARCHETYPES.get(bot_name)
+                if p:
+                    bot = {"name": p.name, "vpip": p.vpip, "pfr": p.pfr,
+                           "three_bet": p.three_bet, "fold_to_cbet": p.fold_to_cbet,
+                           "aggression": p.aggression,
+                           "river_bluff": round(p.river_bluff * 100),
+                           "call_down": round(p.call_down * 100),
+                           "overbet_freq": round(p.overbet_freq * 100),
+                           "bluff_river": round(p.bluff_river * 100),
+                           "call_3bet": round(p.call_3bet * 100)}
+            except Exception:
+                bot = None
 
         if bot:
             stats_lbl = QLabel("STATISTICAL PROFILE")
