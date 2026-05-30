@@ -90,6 +90,21 @@ def test_pot_odds_less_than_alpha_same_spot():
         assert p["answer"] < a["answer"] + 1e-9
 
 
+def test_answer_choices_valid():
+    # Çoktan seçmeli: doğru cevap her zaman şıklarda, 4 benzersiz seçenek
+    from app.ui.screens.math_lab import MathLabScreen
+    seen = set()
+    for d in _DRILLS:
+        if d["category"] in seen:
+            continue
+        seen.add(d["category"])
+        opts = MathLabScreen._answer_choices(d)
+        assert len(opts) == 4, (d["category"], opts)
+        assert len(set(opts)) == 4, ("dup", d["category"], opts)
+        assert round(d["answer"], 3) in opts, ("eksik doğru", d["category"], opts)
+    assert len(seen) == 9          # 9 kategori
+
+
 def test_pushfold_real_equity_sane():
     # Gerçek MC equity: QQ vs tight UTG-call > %55; küçük çift vs tight < %50
     pf = {d["prompt"]: d["answer"] for d in _by_cat("push_fold")}

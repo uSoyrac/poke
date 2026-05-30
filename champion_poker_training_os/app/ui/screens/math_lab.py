@@ -33,6 +33,32 @@ CATEGORIES = [
 
 _CAT_BY_ID = {c["id"]: c for c in CATEGORIES}
 
+# Cevabı 0..1 oran olan (yüzde gösterilecek) kategoriler
+_PERCENT_CATS = {"pot_odds", "alpha", "mdf", "icm", "push_fold", "gto_freq", "bayes"}
+
+# "Nasıl düşün" — masada hesap yapmadan kestirme/sezgi ipuçları (öğretici)
+_THINK_TIPS = {
+    "pot_odds": ("Gereken equity = call / (pot + 2·call). KESTİRME eşikler: "
+                 "yarım-pot bahis → ~%25, 2/3-pot → ~%29, pot bahis → ~%33. "
+                 "Bu eşikleri ezberle, masada bölme yapma."),
+    "alpha": ("Blöfün anında kâr etmesi için gereken fold = bahis / (bahis+pot). "
+              "Yarım-pot blöf → %33, pot blöf → %50 fold yeterli."),
+    "mdf": ("MDF = pot / (pot+bahis) = 1 − alpha. Yarım-pota karşı en az %67, "
+            "pota karşı %50 savun — yoksa blöfe açık olursun."),
+    "ev": ("EV = kazanma%×kazanç − kaybetme%×risk. Önce İŞARETE bak: + ise al. "
+           "Başabaş eşiği = risk / (risk+kazanç)."),
+    "icm": ("ICM'de chip-equity yetmez: pay-jump riski 'risk premium' ekler → "
+            "call eşiğin yükselir. Bubble'da chipEV call'larını sıkılaştır."),
+    "combos": ("Çift = C(4,2)=6 · suited = 4 · offsuit = 12 · toplam = 16. "
+               "Board'da kart varsa kalanlardan C(n,2)."),
+    "push_fold": ("Kısa stack: jam equity vs call-range. Fold-equity + showdown "
+                  "equity. Nash chart eşiklerini pozisyona göre ezberle."),
+    "gto_freq": ("Value:blöf oranı bahis boyutuna bağlı: yarım-pot → 2:1, "
+                 "pot → 1:1. Dengeli ol ki rakip seni sömüremesin."),
+    "bayes": ("Yeni aksiyon geldikçe range'i güncelle: P(el|aksiyon) ∝ "
+              "P(aksiyon|el)×P(el). Agresif hat → güçlü range'e kayar."),
+}
+
 _DIFF_ACTIVE = (
     "QPushButton { background: #5ad17a; color: #0a0c0a; border: none; "
     "padding: 3px 10px; font-size: 11px; font-weight: 700; }"
@@ -211,28 +237,30 @@ class MathLabScreen(QWidget):
         prompt_layout.addWidget(self._prompt_lbl)
         layout.addWidget(prompt_frame)
 
-        # Answer input row
-        input_row = QHBoxLayout()
-        self._answer_spin = QDoubleSpinBox()
-        self._answer_spin.setDecimals(3)
-        self._answer_spin.setRange(-9999, 9999)
-        self._answer_spin.setSingleStep(0.01)
-        self._answer_spin.setFixedHeight(42)
-        self._answer_spin.setStyleSheet("font-size: 20px; padding: 4px 8px;")
-        self._submit_btn = QPushButton("Check Answer")
-        self._submit_btn.setObjectName("PrimaryButton")
-        self._submit_btn.setFixedHeight(42)
-        self._submit_btn.clicked.connect(self._check_answer)
-        input_row.addWidget(self._answer_spin, 1)
-        input_row.addWidget(self._submit_btn)
-        layout.addLayout(input_row)
+        # Çoktan seçmeli cevap şıkları (kafadan ondalık hesaplamak yerine SEÇ)
+        choices_label = QLabel("Doğru cevabı seç:")
+        choices_label.setObjectName("Muted")
+        choices_label.setStyleSheet("font-size: 12px; padding: 4px 0;")
+        layout.addWidget(choices_label)
+        self._choices_grid = QGridLayout()
+        self._choices_grid.setSpacing(8)
+        layout.addLayout(self._choices_grid)
 
         # Feedback
-        self._feedback_lbl = QLabel("Enter your answer and press Check Answer.")
+        self._feedback_lbl = QLabel("Bir şık seç — doğru/yanlış anında, neden'iyle açıklanır.")
         self._feedback_lbl.setObjectName("Muted")
         self._feedback_lbl.setWordWrap(True)
         self._feedback_lbl.setStyleSheet("font-size: 13px; padding: 8px 0;")
         layout.addWidget(self._feedback_lbl)
+
+        # "Nasıl düşün" — kategori sezgi ipucu (cevaptan sonra)
+        self._think_lbl = QLabel()
+        self._think_lbl.setWordWrap(True)
+        self._think_lbl.setStyleSheet(
+            "color: #7abaff; font-family: 'JetBrains Mono',monospace; font-size: 11px; "
+            "padding: 6px 10px; background: #131613; border-left: 2px solid #7abaff;")
+        self._think_lbl.hide()
+        layout.addWidget(self._think_lbl)
 
         # Formula hint (shown after answering)
         self._formula_lbl = QLabel()
@@ -481,11 +509,12 @@ class MathLabScreen(QWidget):
         )
         self._drill_header.setTextFormat(Qt.RichText)
         self._prompt_lbl.setText(drill["prompt"])
-        self._answer_spin.setValue(0.0)
         self._feedback_lbl.setObjectName("Muted")
         self._feedback_lbl.setStyleSheet("font-size: 13px; padding: 8px 0; color: #898d80;")
-        self._feedback_lbl.setText("Enter your answer and press Check Answer.")
+        self._feedback_lbl.setText("Doğru cevabı seç — anında geri bildirim + neden.")
         self._formula_lbl.hide()
+        self._think_lbl.hide()
+        self._render_choices(drill)
         self._rebuild_dot_grid()
 
         # Sync table page too
@@ -566,33 +595,103 @@ class MathLabScreen(QWidget):
 
     # ─── Answer checking ────────────────────────────────────────────────────────
 
-    def _check_answer(self) -> None:
-        if not self._drills:
+    # ─── Çoktan seçmeli cevap ────────────────────────────────────────────────────
+    @staticmethod
+    def _fmt_choice(val: float, cat: str) -> str:
+        if cat == "combos":
+            return f"{val:.0f}"
+        if cat == "ev":
+            return f"{val:+.1f} bb"
+        return f"%{val * 100:.0f}"          # oran → yüzde
+
+    @staticmethod
+    def _answer_choices(drill: dict) -> list:
+        """Doğru cevap + 3 makul çeldirici (deterministik, kategoriye göre)."""
+        import random as _r
+        ans = float(drill["answer"]); cat = drill["category"]
+        rng = _r.Random(hash(drill["id"]) & 0xFFFFFFFF)
+        cands: list = []
+        if cat in _PERCENT_CATS:
+            for m in (ans * 1.5, ans * 0.6, 1 - ans, ans + 0.12, ans - 0.10):
+                v = round(max(0.0, min(0.99, m)), 3)
+                if abs(v - ans) > 0.02:
+                    cands.append(v)
+        elif cat == "ev":
+            for m in (-ans, ans * 0.4, ans + 3.0, ans - 3.0, ans + 1.5):
+                v = round(m, 1)
+                if abs(v - ans) > 0.4:
+                    cands.append(v)
+        else:  # combos vb. tamsayı
+            for m in (ans * 2, ans * 0.5, ans + (4 if ans < 20 else ans * 0.3),
+                      max(0, ans - 3)):
+                v = round(m)
+                if v != round(ans) and v >= 0:
+                    cands.append(v)
+        # benzersiz çeldiriciler
+        seen, uniq = set(), []
+        for v in cands:
+            if v not in seen:
+                seen.add(v); uniq.append(v)
+        rng.shuffle(uniq)
+        opts = [round(ans, 3)] + uniq[:3]
+        i = 0
+        while len(opts) < 4:                # garanti 4 şık
+            opts.append(round(ans + (0.07 + 0.05 * i), 3)); i += 1
+        rng.shuffle(opts)
+        return opts
+
+    def _render_choices(self, drill: dict) -> None:
+        while self._choices_grid.count():
+            it = self._choices_grid.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+        self._answered = False
+        cat = drill["category"]
+        for i, val in enumerate(self._answer_choices(drill)):
+            btn = QPushButton(self._fmt_choice(val, cat))
+            btn.setObjectName("")
+            btn.setFixedHeight(48)
+            btn.setStyleSheet(
+                "QPushButton { background:#1a1e19; color:#f4f5ee; border:1px solid #2a3140; "
+                "font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700; "
+                "border-radius:6px; } QPushButton:hover { background:#23271f; }")
+            btn.clicked.connect(lambda _=False, v=val, b=btn: self._choose(v, b))
+            self._choices_grid.addWidget(btn, i // 2, i % 2)
+
+    def _choose(self, val: float, btn) -> None:
+        if getattr(self, "_answered", False):
             return
+        self._answered = True
         drill = self._drills[self._idx % len(self._drills)]
-        value = self._answer_spin.value()
-        ok = abs(value - drill["answer"]) <= drill["tolerance"]
+        ok = abs(val - float(drill["answer"])) <= float(drill.get("tolerance", 0.02))
         self._record(drill["id"], ok)
-
+        cat = drill["category"]
+        correct_txt = self._fmt_choice(float(drill["answer"]), cat)
+        # Şıkları renklendir: doğru yeşil, yanlış seçim kırmızı
+        for i in range(self._choices_grid.count()):
+            b = self._choices_grid.itemAt(i).widget()
+            if not b:
+                continue
+            b.setEnabled(False)
+            if b.text() == correct_txt:
+                b.setStyleSheet("QPushButton { background:#12331f; color:#5ad17a; "
+                                "border:2px solid #5ad17a; border-radius:6px; font-size:18px; "
+                                "font-weight:700; font-family:'JetBrains Mono',monospace; }")
+            elif b is btn:
+                b.setStyleSheet("QPushButton { background:#3a1414; color:#ff6b6b; "
+                                "border:2px solid #ff6b6b; border-radius:6px; font-size:18px; "
+                                "font-weight:700; font-family:'JetBrains Mono',monospace; }")
         if ok:
-            self._feedback_lbl.setStyleSheet("font-size: 13px; padding: 8px 0; color: #5ad17a; font-weight: 600;")
-            self._feedback_lbl.setText(f"✓  Correct!  Answer: {drill['answer']}")
+            self._feedback_lbl.setStyleSheet("font-size:14px; padding:8px 0; color:#5ad17a; font-weight:700;")
+            self._feedback_lbl.setText(f"✓  Doğru! Cevap: {correct_txt}")
         else:
-            self._feedback_lbl.setStyleSheet("font-size: 13px; padding: 8px 0; color: #ff5a5a;")
-            self._feedback_lbl.setText(
-                f"✗  Answer: {drill['answer']}  (tolerance ±{drill['tolerance']})  —  {drill['explanation']}"
-            )
-
-        # Always show formula hint
-        self._formula_lbl.setText(f"Formula: {drill.get('formula', '—')}")
+            self._feedback_lbl.setStyleSheet("font-size:14px; padding:8px 0; color:#ff6b6b; font-weight:700;")
+            self._feedback_lbl.setText(f"✗  Doğru cevap: {correct_txt}")
+        self._formula_lbl.setText(f"Formül: {drill.get('formula','—')}\n{drill.get('explanation','')}")
         self._formula_lbl.show()
-
-        self._rebuild_dot_grid()
+        self._think_lbl.setText("💡 Nasıl düşün: " + _THINK_TIPS.get(cat, ""))
+        self._think_lbl.setVisible(bool(_THINK_TIPS.get(cat)))
         self._update_cat_progress()
-        self.coach_message.emit(
-            f"Math Lab · {_CAT_BY_ID.get(drill['category'],{}).get('name','')} · "
-            f"Answer: {drill['answer']} — {drill['explanation']}"
-        )
 
     def _check_table_answer(self) -> None:
         if not self._drills:
