@@ -67,10 +67,24 @@ class _TournCard(QFrame):
     def __init__(self, record: dict, is_selected: bool = False):
         super().__init__()
         self._record = record
-        self._refresh(is_selected)
+        self._itm = (record.get("prize_won", 0.0) > 0)
+        self._build()                 # layout + widget'lar BİR KEZ kurulur
+        self._refresh(is_selected)    # yalnızca seçim kenarlığını günceller
 
     def _refresh(self, selected: bool) -> None:
-        finish  = record = self._record
+        """Seçim durumunu günceller — SADECE kenarlık/arka plan. Layout'u
+        yeniden KURMAZ (eskiden her seçimde ikinci QVBoxLayout ekliyordu →
+        'already has a layout' uyarısı)."""
+        border = "#5ad1ce" if selected else ("#2a2e26" if not self._itm else "#2a4a30")
+        self.setStyleSheet(
+            f"QFrame {{ background: {'#0d1a0f' if self._itm else '#131613'}; "
+            f"border: 1px solid {border}; }} "
+            f"QFrame:hover {{ border-color: #5a5e54; }}"
+        )
+        self.setCursor(Qt.PointingHandCursor)
+
+    def _build(self) -> None:
+        record  = self._record
         finish  = record.get("finish_position") or record.get("field_size", 0)
         field   = record.get("field_size", 0)
         buyin   = record.get("buyin", 0.0)
@@ -78,16 +92,7 @@ class _TournCard(QFrame):
         profit  = record.get("profit", prize - buyin)
         roi     = (profit / buyin * 100) if buyin > 0 else 0.0
         name    = (record.get("name") or "—")[:24]
-        itm     = prize > 0
         grade, gc = _grade(finish, field)
-
-        border = "#5ad1ce" if selected else ("#2a2e26" if not itm else "#2a4a30")
-        self.setStyleSheet(
-            f"QFrame {{ background: {'#0d1a0f' if itm else '#131613'}; "
-            f"border: 1px solid {border}; }} "
-            f"QFrame:hover {{ border-color: #5a5e54; }}"
-        )
-        self.setCursor(Qt.PointingHandCursor)
 
         v = QVBoxLayout(self)
         v.setContentsMargins(12, 9, 12, 9)
