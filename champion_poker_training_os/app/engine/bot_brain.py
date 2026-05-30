@@ -141,6 +141,42 @@ KARMA_MIX = [
 ]
 
 
+def sample_field(n_bots: int, weights: "dict[str, float] | None" = None,
+                 rng=None, random_token: "str | None" = None) -> "list[str]":
+    """Bir masaya/turnuvaya N bot arketipi dağıt.
+
+    weights: {arketip_adı: yüzde}. Örn. {"Shark": 40} → botların ~%40'ı
+    Shark, kalanı Random. weights None/boş → TAMAMI random (varsayılan
+    davranış — kullanıcı seçmediği sürece).
+
+    Oransal dağıtım (olasılıksal değil): round(n * pct/100) kadar her açıkça
+    seçilen arketip yerleştirilir, kalan koltuklar random ile doldurulur,
+    sonra karıştırılır → "%40 shark olsun" ≈ tam %40. Bilinmeyen arketip
+    adları yok sayılır.
+
+    random_token: kalan (random) koltuklar için. None → her koltuk somut
+    bir KARMA_MIX arketipiyle doldurulur (motor kullanımı). Bir token
+    verilirse (örn. UI'ın 'Random (Karma)' etiketi) kalan koltuklar o
+    token'ı taşır → UI her elde yeniden örnekler.
+    """
+    import random as _random
+    rng = rng or _random
+    n_bots = max(0, int(n_bots))
+    weights = {k: max(0.0, float(v))
+               for k, v in (weights or {}).items()
+               if v and k in BOT_ARCHETYPES}
+    out: list[str] = []
+    for arch, pct in weights.items():
+        count = int(round(n_bots * pct / 100.0))
+        out.extend([arch] * count)
+    out = out[:n_bots]                       # aşırı atamayı kırp
+    while len(out) < n_bots:                 # kalan koltuk = random
+        out.append(random_token if random_token is not None
+                   else rng.choice(KARMA_MIX))
+    rng.shuffle(out)
+    return out
+
+
 # ─── PREFLOP HAND CATEGORIES ──────────────────────────────────────
 
 PREMIUM = {"AA", "KK", "QQ", "JJ", "AKs", "AKo"}

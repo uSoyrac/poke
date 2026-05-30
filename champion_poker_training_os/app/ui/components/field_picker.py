@@ -21,10 +21,10 @@ from typing import List
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy,
-    QVBoxLayout, QWidget,
+    QSpinBox, QVBoxLayout, QWidget,
 )
 
-from app.engine.bot_brain import BOT_ARCHETYPES, KARMA_MIX
+from app.engine.bot_brain import BOT_ARCHETYPES, KARMA_MIX, sample_field
 
 
 RANDOM_LABEL = "Random (Karma)"
@@ -119,6 +119,7 @@ class FieldPicker(QFrame):
             "QFrame#FieldPicker { background: transparent; border: none; }"
         )
         self._rows: List[_SeatRow] = []
+        self._weights: dict = {}      # arketip → yüzde (havuz dağıtıcı)
 
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
@@ -171,6 +172,51 @@ class FieldPicker(QFrame):
         tip.setStyleSheet("font-size: 11px; color: #5a5e54; padding-top: 2px;")
         v.addWidget(tip)
 
+        # ── HAVUZ DAĞITICI (opsiyonel) — %'ye göre profil dağıt ──────────
+        # Varsayılan: hiçbir şey seçilmezse koltuklar Random kalır. Kullanıcı
+        # "40% Shark" gibi havuzdan profil + yüzde ekleyip "Dağıt" derse,
+        # koltuklar oransal olarak doldurulur (kalan = Random). Seçim görünür.
+        dist_title = QLabel("HAVUZ DAĞITICI  ·  opsiyonel")
+        dist_title.setObjectName("TLabel")
+        dist_title.setStyleSheet(
+            "font-family:'JetBrains Mono',monospace; font-size:10px; "
+            "letter-spacing:1.5px; color:#8a8f80; background:transparent; padding-top:6px;")
+        v.addWidget(dist_title)
+
+        dist = QHBoxLayout()
+        dist.setSpacing(6)
+        self._dist_combo = QComboBox()
+        self._dist_combo.addItems(list(BOT_ARCHETYPES.keys()))   # havuzdaki HERKES
+        self._dist_combo.setMinimumWidth(150)
+        self._dist_pct = QSpinBox()
+        self._dist_pct.setRange(5, 100)
+        self._dist_pct.setSingleStep(5)
+        self._dist_pct.setValue(40)
+        self._dist_pct.setSuffix(" %")
+        add_w = QPushButton("+ Ekle")
+        add_w.setCursor(Qt.PointingHandCursor)
+        add_w.clicked.connect(self._add_weight)
+        apply_w = QPushButton("Dağıt")
+        apply_w.setCursor(Qt.PointingHandCursor)
+        apply_w.setStyleSheet(
+            "QPushButton{background:#0f2318;color:#5ad17a;border:1px solid #5ad17a;"
+            "font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;"
+            "padding:4px 12px;} QPushButton:hover{background:#143020;}")
+        apply_w.clicked.connect(self._apply_distribution)
+        clear_w = QPushButton("Temizle")
+        clear_w.setCursor(Qt.PointingHandCursor)
+        clear_w.clicked.connect(self._clear_weights)
+        for w_ in (self._dist_combo, self._dist_pct, add_w, apply_w, clear_w):
+            dist.addWidget(w_)
+        dist.addStretch(1)
+        v.addLayout(dist)
+
+        self._dist_label = QLabel("Atanmadı — koltuklar Random (varsayılan).")
+        self._dist_label.setObjectName("Muted")
+        self._dist_label.setWordWrap(True)
+        self._dist_label.setStyleSheet("font-size:11px; color:#5a5e54;")
+        v.addWidget(self._dist_label)
+
         # Build defaults
         n = max(self.MIN_BOTS, min(default_bots, self.MAX_BOTS))
         for _ in range(n):
@@ -201,6 +247,46 @@ class FieldPicker(QFrame):
         for a in archetypes[: self.MAX_BOTS]:
             self._append_seat(a)
         self._renumber_and_emit()
+
+    # ── havuz dağıtıcı (% composition) ───────────────────────────────
+
+    def _add_weight(self) -> None:
+        """Seçili arketip + yüzdeyi ağırlık havuzuna ekle (toplam ≤ %100)."""
+        arch = self._dist_combo.currentText()
+        pct = float(self._dist_pct.value())
+        current = sum(p for a, p in self._weights.items() if a != arch)
+        # Toplam %100'ü aşmasın — kalanla sınırla
+        pct = min(pct, max(0.0, 100.0 - current))
+        if pct <= 0:
+            self._dist_label.setText("Toplam %100'e ulaştı — daha fazla eklenemez.")
+            return
+        self._weights[arch] = pct
+        self._update_weight_label()
+
+    def _clear_weights(self) -> None:
+        self._weights = {}
+        self._update_weight_label()
+
+    def _update_weight_label(self) -> None:
+        if not self._weights:
+            self._dist_label.setText("Atanmadı — koltuklar Random (varsayılan).")
+            return
+        assigned = sum(self._weights.values())
+        parts = [f"{a} %{p:.0f}" for a, p in self._weights.items()]
+        rem = max(0.0, 100.0 - assigned)
+        if rem > 0:
+            parts.append(f"kalan %{rem:.0f} Random")
+        self._dist_label.setText("  ·  ".join(parts) + "   → 'Dağıt' ile uygula")
+
+    def _apply_distribution(self) -> None:
+        """Ağırlıkları mevcut bot sayısına oransal dağıt → koltukları doldur."""
+        n = len(self._rows)
+        if n == 0:
+            return
+        # Kalan koltuklar 'Random (Karma)' kalsın → her elde yeniden örneklenir;
+        # açıkça seçilenler (örn. Shark) sabit.
+        self.set_composition(
+            sample_field(n, self._weights, random_token=RANDOM_LABEL))
 
     # ── internal ────────────────────────────────────────────────────
 
