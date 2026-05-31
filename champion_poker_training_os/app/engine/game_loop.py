@@ -17,7 +17,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from app.engine.bot_brain import BotBrain, BotProfile, BOT_ARCHETYPES, KARMA_MIX
 from app.engine.evaluator import determine_winners
 from app.engine.hand_state import (
-    Action, ActionType, Card, Deck, HandState, PlayerSeat,
+    Action, ActionType, Card, Deck, HandState, PlayerSeat, SUITS,
     Street, POSITIONS_BY_SIZE,
 )
 
@@ -157,11 +157,27 @@ class PokerGame:
         """Return {player_idx: BotProfile} — used by the UI for HUD hover tooltips."""
         return {idx: brain.profile for idx, brain in self.bots.items()}
 
+    def _range_target(self):
+        """Aktif hero range filtresinin hedef el-kümesi (set) ya da None.
+
+        None → 'tüm eller' (filtre yok). Filtre hem PRESET adı (str) hem de
+        chart picker'dan gelen ÖZEL el kümesi (set/list/frozenset) olabilir.
+        Boş küme ya da 169 elin tamamı → None (filtre yok, sonsuz döngü yok).
+        """
+        f = self.hero_range_filter
+        if not f or f in ("Tüm Eller", "Tüm Eller (GTO Default)"):
+            return None
+        if isinstance(f, (set, frozenset, list, tuple)):
+            target = {str(h) for h in f}
+            # boş ya da tam-169 → filtre yok
+            if not target or len(target) >= 169:
+                return None
+            return target
+        return self._RANGE_PRESETS.get(f)   # preset adı
+
     def _hand_in_range(self, cards: list) -> bool:
         """Return True if hero's hole cards match the active hero_range_filter."""
-        if not self.hero_range_filter or self.hero_range_filter == "Tüm Eller":
-            return True
-        target = self._RANGE_PRESETS.get(self.hero_range_filter)
+        target = self._range_target()
         if not target or len(cards) < 2:
             return True
 
@@ -179,6 +195,34 @@ class PokerGame:
             hand_key = f"{r1}{r2}{'s' if suited else 'o'}"
 
         return hand_key in target
+
+    @staticmethod
+    def _cards_for_key(key: str) -> list:
+        """'AA'/'AKs'/'AKo' → uygun suit'lerle 2 somut Card."""
+        import random as _r
+        r1, r2 = key[0], key[1]
+        suits = list(SUITS)
+        if len(key) == 2:                       # pair → iki farklı suit
+            s1, s2 = _r.sample(suits, 2)
+            return [Card(r1, s1), Card(r2, s2)]
+        if key.endswith("s"):                   # suited → aynı suit
+            s = _r.choice(suits)
+            return [Card(r1, s), Card(r2, s)]
+        s1, s2 = _r.sample(suits, 2)            # offsuit → farklı suit
+        return [Card(r1, s1), Card(r2, s2)]
+
+    def _deal_hero_from_range(self, in_game: list, target: set) -> None:
+        """Hero'ya seçili kümeden rastgele bir el ver, kalanı normal dağıt."""
+        import random as _r
+        key = _r.choice(list(target))
+        hero_cards = self._cards_for_key(key)
+        self.deck = Deck()
+        self.deck.shuffle()
+        self.deck.remove(hero_cards)            # hero kartlarını desteden çıkar
+        self.players[self.hero_seat].hole_cards = list(hero_cards)
+        for i in in_game:
+            if i != self.hero_seat:
+                self.players[i].hole_cards = self.deck.deal(2)
 
     def set_blinds(self, small_blind: float, big_blind: float, ante: float = 0.0) -> None:
         self.small_blind = small_blind
@@ -229,23 +273,15 @@ class PokerGame:
         self._post_antes()
         self._post_blinds()
 
-        # Deal hole cards
-        for i in in_game:
-            self.players[i].hole_cards = self.deck.deal(2)
-
-        # Range filter — if active, re-deal hero until hand matches.
-        # Max 60 attempts to prevent infinite loop on very tight filters.
-        if self.hero_range_filter and self.hero_range_filter != "Tüm Eller":
-            hero_cards = self.players[self.hero_seat].hole_cards
-            attempts = 0
-            while not self._hand_in_range(hero_cards) and attempts < 60:
-                # Return hero cards to deck, reshuffle, re-deal everyone
-                self.deck = Deck()
-                self.deck.shuffle()
-                for i in in_game:
-                    self.players[i].hole_cards = self.deck.deal(2)
-                hero_cards = self.players[self.hero_seat].hole_cards
-                attempts += 1
+        # Deal hole cards — hero range filtresi aktifse hero'ya DOĞRUDAN
+        # seçili kümeden bir el inşa et (eski 60-deneme re-deal yöntemi sıkı
+        # filtrelerde sık başarısız oluyordu; bu O(1) ve her zaman tutar).
+        target = self._range_target()
+        if target and self.hero_seat in in_game:
+            self._deal_hero_from_range(in_game, target)
+        else:
+            for i in in_game:
+                self.players[i].hole_cards = self.deck.deal(2)
 
         # Set up action queue for preflop
         self._build_action_queue(preflop=True)

@@ -184,26 +184,18 @@ class TournamentSimulatorScreen(QWidget):
         grid.addWidget(self._label("HANDS PER LEVEL"), 2, 1)
         grid.addWidget(self.handspl_input, 3, 1)
 
-        # Hero range filter
-        self.range_filter = QComboBox()
-        _range_tooltips = {
-            "Tüm Eller (GTO Default)": "Rastgele tüm olasılıklar — standart GTO dağılımı.",
-            "Premium Only":            "Sadece AA-JJ, AKs/o — çok az el ama hepsi güçlü.",
-            "TAG Range (~14%)":        "UTG açılış range'i — tight-aggressive çalışma.",
-            "Geniş Range (~30%)":      "BTN-CO benzeri geniş range — postflop yeteneği gerekir.",
-            "Speculative Hands":       "Suited connectors, small pairs, suited aces — implied odds drill.",
-        }
-        for label, tip in _range_tooltips.items():
-            self.range_filter.addItem(label)
-            self.range_filter.setItemData(
-                self.range_filter.count() - 1, tip, Qt.ToolTipRole
-            )
-        self.range_filter.currentTextChanged.connect(
-            lambda t: self.range_filter.setToolTip(_range_tooltips.get(t, ""))
-        )
-        self.range_filter.setToolTip(_range_tooltips["Tüm Eller (GTO Default)"])
+        # Hero range filter — 169-el CHART picker (varsayılan tüm eller)
+        from app.ui.components.hand_range_selector import all_hand_keys
+        self._hero_range_hands = all_hand_keys()        # varsayılan: hepsi
+        self.range_btn = QPushButton()
+        self.range_btn.setCursor(Qt.PointingHandCursor)
+        self.range_btn.setToolTip(
+            "Hero'nun deal edileceği elleri chart'tan seç. Varsayılan tüm "
+            "eller; 'Sıfırla' deyip belirli elleri çalışabilirsin.")
+        self.range_btn.clicked.connect(self._open_hero_range_dialog)
+        self._update_range_btn_label()
         grid.addWidget(self._label("HERO EL ARALIK"), 4, 0)
-        grid.addWidget(self.range_filter, 5, 0, 1, 2)
+        grid.addWidget(self.range_btn, 5, 0, 1, 2)
 
         # Field-strength preset — auto-populates the FieldPicker below
         self.bot_difficulty = QComboBox()
@@ -252,6 +244,21 @@ class TournamentSimulatorScreen(QWidget):
         lbl.setObjectName("TLabel")
         return lbl
 
+    def _update_range_btn_label(self) -> None:
+        n = len(getattr(self, "_hero_range_hands", []) or [])
+        if n >= 169 or n == 0:
+            self.range_btn.setText("Tüm Eller (GTO Default)  ▾")
+        else:
+            pct = 100.0 * n / 169
+            self.range_btn.setText(f"Seçili: {n}/169 el  (%{pct:.0f})  ▾")
+
+    def _open_hero_range_dialog(self) -> None:
+        from app.ui.components.hand_range_selector import HandRangeDialog
+        dlg = HandRangeDialog(initial=self._hero_range_hands, parent=self)
+        if dlg.exec():
+            self._hero_range_hands = dlg.selected_hands()
+            self._update_range_btn_label()
+
     # Field-strength preset → archetype composition for the picker.
     # User can still hand-tweak via the FieldPicker after picking a preset.
     _FIELD_PRESETS = {
@@ -277,15 +284,14 @@ class TournamentSimulatorScreen(QWidget):
         size = len(archetypes) + 1  # hero + bots
         payout_key = "Heads-Up" if size == 2 else ("6-max" if size <= 6 else "9-max")
 
-        # Map UI range filter label → game engine preset key
-        _range_map = {
-            "Tüm Eller (GTO Default)": "",
-            "Premium Only":            "Premium",
-            "TAG Range (~14%)":        "TAG Range",
-            "Geniş Range (~30%)":      "Geniş Range",
-            "Speculative Hands":       "Speculative",
-        }
-        range_filter = _range_map.get(self.range_filter.currentText(), "")
+        # Hero range — chart seçimi: tüm eller seçiliyse filtre yok (""),
+        # değilse seçili el kümesi (motor custom set'i destekliyor).
+        sel = getattr(self, "_hero_range_hands", None)
+        from app.ui.components.hand_range_selector import all_hand_keys
+        if not sel or len(sel) >= 169:
+            range_filter = ""
+        else:
+            range_filter = set(sel)
 
         config = TournamentConfig(
             name=self.name_input.currentText(),
