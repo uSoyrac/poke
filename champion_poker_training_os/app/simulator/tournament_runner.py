@@ -270,6 +270,49 @@ class Tournament:
                 self.state.prize_won = self._prize_for(1)
                 self.state.is_complete = True
 
+    def rebalance_hero_table(self, target_size: int, avg_stack: float) -> int:
+        """Masa dengeleme — kırılan masalardan hero'nun masasına oyuncu taşı.
+
+        Elenen bot koltuklarını taze oyuncularla (field bot_mix'ten) doldurur,
+        her birine ~avg_stack chip verir. Gerçek MTT'de masalar kısalınca
+        kırılıp oyuncular dağıtılır; bu, hero'nun masasını final masaya kadar
+        dolu tutar (her seferinde yeni rakipler). Döner: yeni oturan sayısı.
+
+        NOT: sadece eller arasında çağrılmalı (el ortasında değil).
+        """
+        import random as _random
+        from app.engine.bot_brain import BotBrain, BOT_ARCHETYPES, KARMA_MIX
+
+        active = [p for p in self.game.players if not p.is_eliminated]
+        target_size = min(int(target_size), len(self.game.players))
+        if len(active) >= target_size:
+            return 0
+        need = target_size - len(active)
+        mix = [a for a in (self.config.bot_mix or KARMA_MIX)
+               if a in BOT_ARCHETYPES] or list(KARMA_MIX)
+        _names = ["seat_in", "moved", "redraw", "balanced", "incoming",
+                  "newtable", "transfer", "fresh"]
+        seated = 0
+        for i, p in enumerate(self.game.players):
+            if seated >= need:
+                break
+            if p.is_eliminated:
+                arch = _random.choice(mix)
+                prof = BOT_ARCHETYPES.get(arch, BOT_ARCHETYPES["Balanced Reg"])
+                p.is_eliminated = False
+                p.stack = max(1.0, float(avg_stack))
+                p.name = f"{_random.choice(_names)}{i}"
+                p.is_all_in = False
+                p.is_folded = False
+                p.current_bet = 0.0
+                self.game.bots[i] = BotBrain(prof)
+                if i in self.state.eliminated_order:
+                    self.state.eliminated_order.remove(i)
+                seated += 1
+        if seated:
+            self.state.players_left = self.players_remaining
+        return seated
+
     def _prize_for(self, position: int) -> float:
         payouts = PAYOUT_STRUCTURES.get(self.config.payout_key, [])
         for pos, pct in payouts:

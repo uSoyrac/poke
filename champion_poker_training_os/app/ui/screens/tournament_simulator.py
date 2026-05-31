@@ -1182,50 +1182,41 @@ class TournamentSimulatorScreen(QWidget):
             return
         if self.tournament.hero_busted:
             return   # Hero is out — tournament legitimately over
+        if self.mtt_field.is_final_table:
+            return   # Final masaya inildi → artık dengeleme yok, kazanana dek oynanır
         if self.mtt_field.bg_players_remaining <= 0:
             return   # No background players left to draw from
 
         alive_at_table = self.tournament.players_remaining
-        if alive_at_table >= 5:
-            return   # Table still healthy — no action needed
-
-        # How many seats to fill (target 8–9, limited by background pool)
-        n_to_add = min(8 - alive_at_table, self.mtt_field.bg_players_remaining)
-        if n_to_add <= 0:
+        seats = len(self.tournament.game.players)
+        # Masa ≤6 oyuncuya inince yeniden doldur (gerçek MTT'de kısa masalar
+        # kırılır, oyuncular dağıtılır). Hedef: tam masa (koltuk sayısı).
+        if alive_at_table > 6:
             return
 
-        # Average stack of active players at hero's table
-        alive_players = [p for p in self.tournament.game.players if not p.is_eliminated]
-        avg_stack = (sum(p.stack for p in alive_players) / len(alive_players)
-                     if alive_players else float(self.tournament.config.starting_chips))
+        target = min(seats, self.mtt_field.players_remaining)
+        need = target - alive_at_table
+        if need <= 0:
+            return
+
+        # Gelen oyuncular gerçekten arka plandan taşınır (toplam saha sabit)
+        moved = self.mtt_field.move_into_hero_table(need)
+        if moved <= 0:
+            return
+
+        # Gelen oyuncuların stack'i ≈ saha ortalaması (başka masadan geliyorlar)
+        avg_stack = self.mtt_field.avg_stack_chips
         avg_stack = max(avg_stack, float(self.tournament.state.current_level.bb * 8))
 
-        # Pull these players from the background field
-        self.mtt_field._bg_remaining -= n_to_add
-
-        # Revive eliminated bot seats (never revive hero)
-        revived = 0
-        for seat_idx, p in enumerate(self.tournament.game.players):
-            if revived >= n_to_add:
-                break
-            if p.is_eliminated and not p.is_hero:
-                p.is_eliminated = False
-                p.stack = avg_stack
-                p.current_bet = 0.0
-                p.is_folded = False
-                p.hole_cards = []
-                p.is_all_in = False
-                # Remove from the tournament's elimination ledger so these
-                # seats don't get double-counted in the finish-position calc.
-                if seat_idx in self.tournament.state.eliminated_order:
-                    self.tournament.state.eliminated_order.remove(seat_idx)
-                revived += 1
-
+        # Engine: elenen koltukları TAZE arketip + isimle doldur (field bot_mix'ten)
+        revived = self.tournament.rebalance_hero_table(alive_at_table + moved, avg_stack)
         if revived == 0:
+            # Taşıma geri al (koltuk doldurulamadı)
+            self.mtt_field._hero_table_remaining -= moved
+            self.mtt_field._bg_remaining += moved
             return
 
-        # If the tournament engine already set is_complete because
-        # players_left ≤ 1 (but hero is NOT busted), roll it back.
+        # Engine prematüre "bitti" dediyse (hero hayatta ama masa boşaldı) geri al
         new_alive = sum(1 for p in self.tournament.game.players if not p.is_eliminated)
         if self.tournament.state.is_complete and not self.tournament.hero_busted:
             self.tournament.state.is_complete = False

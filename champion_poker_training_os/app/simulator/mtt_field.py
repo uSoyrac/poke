@@ -218,6 +218,33 @@ class MTTField:
         """Notify field when a player is eliminated at hero's table."""
         self._hero_table_remaining = max(0, n_alive)
 
+    @property
+    def is_final_table(self) -> bool:
+        """Alan tek masaya indi mi (≤ hero_table_size)? FT'de masa dengeleme
+        durur — masa kazanana kadar oynanır."""
+        return self.players_remaining <= self.hero_table_size
+
+    @property
+    def avg_stack_chips(self) -> float:
+        """Sahadaki ortalama stack (chip). Yeni oturan oyuncuların stack'i
+        için — toplam chip = field_size * starting_chips (≈100bb varsayımı yok;
+        chip değeri çağıran tarafından ölçeklenebilir)."""
+        rem = max(1, self.players_remaining)
+        # field başına 100bb başlangıç kabulü → toplam chip sabit
+        total_chips = self.field_size * 10000.0
+        return total_chips / rem
+
+    def move_into_hero_table(self, n: int) -> int:
+        """Kırılan masalardan hero'nun masasına n oyuncu taşı (table balancing).
+
+        Toplam saha sayısı DEĞİŞMEZ — arka plandan hero masasına aktarır.
+        Gerçek MTT'de kısa masalar kırılıp oyuncular dağıtılır. Döner: taşınan.
+        """
+        n = max(0, min(int(n), self._bg_remaining))
+        self._bg_remaining -= n
+        self._hero_table_remaining += n
+        return n
+
     def hero_finish(self) -> tuple[int, float]:
         """Call when hero busts.  Returns (finish_place, prize_$)."""
         place = self.players_remaining
