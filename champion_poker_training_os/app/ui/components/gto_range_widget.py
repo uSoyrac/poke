@@ -713,7 +713,13 @@ class GTODecisionReveal(QFrame):
         if eq > 0:
             parts.append(f"<span style='color:{_ACCENT}'>Equity %{eq:.0f}</span>")
 
-        if to_call > 0.01 and pot > 0:
+        # Pot-odds / break-even / MDF YALNIZCA bir bahse karşı (call kararı)
+        # anlamlıdır. RFI açış / Push-Fold jam gibi 'aç ya da fold' kararlarında
+        # 'call = BB' pot-odds DEĞİLDİR — gösterirsek kullanıcıyı yanıltır.
+        scen = (d.get("scenario") or "").lower()
+        is_open = (("rfi" in scen or "açış" in scen or "push" in scen)
+                   and "vs" not in scen)
+        if not is_open and to_call > 0.01 and pot > 0:
             pot_odds = 100.0 * to_call / (pot + to_call)   # break-even equity
             mdf = 100.0 * pot / (pot + to_call)            # min defense freq
             parts.append(
