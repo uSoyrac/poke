@@ -356,6 +356,13 @@ then bind a `QShortcut` in the relevant screen.
 ## 5 · Recent commits (read for context)
 
 ```
+# Phase F — turnuva: ante + multi-table + hero range (2026-05-31) — newest first
+#   D51 hero el chart picker (169-grid) → hero gerçekten seçili ellerden deal
+#       (game_loop özel set kabul eder; sıkı filtrede doğrudan inşa)
+#   D50 gerçek masa dengeleme — kırılan masalardan TAZE oyuncu (bot_mix'ten)
+#   D49 ante propagation fix — her el başında level blind+ante senkronu
+#   D48 Quiz+MTT trainer'ları LivePokerTable'da sun + zaman kısıtını kaldır
+#   (full-random + kompozisyon uçtan-uca test edildi — D44/D45 dağıtıcı+presetler)
 # Phase E — rakip kompozisyonu + hover HUD + perf (2026-05-31) — newest first
 #   D46 oyuncu hover HUD'u: profil adı + Hellmuth tipi + VPIP/PFR/AF/… + exploit ipucu
 #   D45 masa kompozisyonu preset'leri (Soft/Tough/Bubble/Aggro/Efsaneler/Karışık)

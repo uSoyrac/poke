@@ -115,6 +115,36 @@ def test_all_presets_valid_and_capped(qapp):
         assert len(fp.get_archetypes()) == 8      # her preset masayı doldurur
 
 
+def test_full_random_default_is_varied(qapp):
+    """Varsayılan (hiçbir şey seçilmemiş) → koltuklar full random; get_archetypes
+    her seferinde Karma havuzundan çözer (özel seçim YOK)."""
+    from app.ui.components.field_picker import FieldPicker
+    fp = FieldPicker(default_bots=8)
+    assert fp._weights == {}                          # atama yok = full random
+    seen = set()
+    for _ in range(20):
+        seen.update(fp.get_archetypes())              # her çağrı Random'ı yeniden örnekler
+    assert len(seen) >= 4, f"full random çeşitli olmalı: {seen}"
+    assert seen <= set(KARMA_MIX)                     # hepsi Karma havuzundan
+
+
+def test_specific_selection_genuinely_distributes(qapp):
+    """%30 Shark + %30 GTO Expert = %60 → ~%60 o tipler, kalan random.
+    Kullanıcının '30 shark 30 gto seçince %60'ı böyle gelsin' isteği."""
+    from app.ui.components.field_picker import FieldPicker
+    fp = FieldPicker(default_bots=8)                   # MAX_BOTS = 8
+    fp._dist_combo.setCurrentText("Shark"); fp._dist_pct.setValue(30); fp._add_weight()
+    fp._dist_combo.setCurrentText("GTO Expert"); fp._dist_pct.setValue(30); fp._add_weight()
+    fp._apply_distribution()
+    arch = fp.get_archetypes()
+    assert len(arch) == 8
+    # 30% of 8 = round(2.4)=2 sabit Shark + 2 sabit GTO Expert = 4 (kalan 4 random)
+    assert arch.count("Shark") >= 2
+    assert arch.count("GTO Expert") >= 2
+    fixed = arch.count("Shark") + arch.count("GTO Expert")
+    assert fixed >= 4                                  # %60 sabit atandı, kalan random
+
+
 def test_full_pool_selectable_in_distributor(qapp):
     """Dağıtıcı combosu havuzdaki HER profili içermeli (kullanıcı herkesten seçebilir)."""
     from app.ui.components.field_picker import FieldPicker
