@@ -14,7 +14,8 @@ import re
 
 from PySide6.QtCore import Qt, QObject, QThread, Signal
 from PySide6.QtWidgets import (
-    QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
+    QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea,
+    QVBoxLayout, QWidget,
 )
 
 
@@ -421,9 +422,22 @@ class GTODecisionReveal(QFrame):
         )
         self._root.addWidget(self._title)
 
-        self._rows = QVBoxLayout()
+        # Karar satırları KAYDIRILABILIR bir alanda — çok el (preflop→river,
+        # 5+ karar) olunca eskiden satırlar sıkışıp ÜST ÜSTE biniyordu. Scroll
+        # area ile uzun analizler taşmadan kaydırılır.
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._scroll.setStyleSheet("QScrollArea{background:transparent;border:none;}")
+        self._scroll.setMinimumHeight(220)
+        _rows_host = QWidget()
+        _rows_host.setStyleSheet("background:transparent;")
+        self._rows = QVBoxLayout(_rows_host)
         self._rows.setSpacing(3)
-        self._root.addLayout(self._rows)
+        self._rows.setContentsMargins(0, 0, 0, 0)
+        self._scroll.setWidget(_rows_host)
+        self._root.addWidget(self._scroll, 1)
 
         # ── On-demand EXACT solver (TexasSolver, arka planda) ──
         self._exact_btn = QPushButton("🎯  EXACT solver ile kesinleştir")

@@ -233,6 +233,7 @@ class MTTTrainerScreen(QWidget):
         # GERÇEK POKER MASASI — hero koltukta, kartları, pozisyon, rakipler, pot
         from app.ui.components.poker_table import LivePokerTable
         self.pf_table = LivePokerTable()
+        self.pf_table.setMinimumHeight(440)   # koltuklar üst üste binmesin
         v.addWidget(self.pf_table, 1)
 
         # Plain-language durum cümlesi (gerçek turnuva bağlamı)
@@ -268,10 +269,13 @@ class MTTTrainerScreen(QWidget):
         self.pf_next.hide()
         v.addWidget(self.pf_next)
 
-        split.addWidget(card, 3)
+        split.addWidget(card, 1)
 
-        # Right: stats
-        split.addWidget(self._build_stats(), 1)
+        # Right: stats — DAR sabit kenar çubuğu (masaya tam genişlik kalsın →
+        # koltuklar üst üste binmez, gerçek poker masası deneyimi)
+        stats = self._build_stats()
+        stats.setFixedWidth(190)
+        split.addWidget(stats, 0)
         return w
 
     def _build_stats(self) -> QWidget:

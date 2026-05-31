@@ -410,6 +410,7 @@ class QuizTrainerScreen(QWidget):
 
         # GERÇEK POKER MASASI — hero koltukta, kartları, pozisyon, rakipler, pot
         self.table_view = LivePokerTable()
+        self.table_view.setMinimumHeight(440)   # koltuklar üst üste binmesin
         v.addWidget(self.table_view, 1)
 
         # Plain-language durum cümlesi (masanın altında, ne yapman gerektiği)

@@ -204,7 +204,7 @@ class _Seat(QFrame):
         self.card = QFrame()
         self.card.setObjectName("PTSeatCard")
         c_l = QVBoxLayout(self.card)
-        c_l.setContentsMargins(10, 6, 10, 6)
+        c_l.setContentsMargins(8, 5, 8, 5)
         c_l.setSpacing(1)
 
         row = QHBoxLayout()
@@ -216,7 +216,7 @@ class _Seat(QFrame):
         )
         self.stack_label = QLabel("")
         self.stack_label.setStyleSheet(
-            f"font-family:'JetBrains Mono','Menlo',monospace; font-size:14px; "
+            f"font-family:'JetBrains Mono','Menlo',monospace; font-size:12px; "
             f"font-weight:500; color:{INK}; background:transparent;"
         )
         row.addWidget(self.pos_label)
@@ -773,8 +773,18 @@ class LivePokerTable(QWidget):
 
     def _felt_rect(self) -> QRectF:
         w, h = self.width(), self.height()
-        # 8% horizontal / 6% vertical inset for the felt oval
-        return QRectF(w * 0.08, h * 0.06, w * 0.84, h * 0.88)
+        # Felt'i GERÇEK masa gibi GENİŞ tut: yükseklik en fazla felt
+        # genişliğinin ~%62'si. Dar/kare/uzun bir alanda (örn. trainer
+        # ekranları) aksi halde elips dikleşip koltuklar ÜST ÜSTE biniyordu.
+        # Bu durumda felt'i dikeyde ortalarız → koltuklar her zaman yayılır.
+        fw = w * 0.90
+        # Gerçek masa oranı ~2:1 — koltuklar ancak GENİŞ elipste yayılır.
+        # Dar/uzun trainer alanlarında elips diklesin diye yüksekliği felt
+        # genişliğinin %50'sinde kaparız ve dikeyde ortalarız.
+        fh = min(h * 0.90, fw * 0.50)
+        x = w * 0.05
+        y = max(h * 0.05, (h - fh) / 2.0)
+        return QRectF(x, y, fw, fh)
 
     def _slot_xy(self, x_pct: int, y_pct: int) -> QPointF:
         r = self._felt_rect()
@@ -808,7 +818,10 @@ class LivePokerTable(QWidget):
             seat = self._seats[slot_idx]
             seat.adjustSize()
             sh = seat.sizeHint()
-            sw, shh = max(sh.width(), 132), sh.height()
+            # Dar masalarda (trainer) koltuk min-genişliğini küçült → üst üste
+            # binme olmaz; geniş masalarda (play/tournament) 120'de kalır.
+            min_w = 120 if self.width() >= 1000 else 96
+            sw, shh = max(sh.width(), min_w), sh.height()
             p = self._slot_xy(xp, yp)
             seat.setGeometry(int(p.x() - sw / 2), int(p.y() - shh / 2), sw, shh)
 
