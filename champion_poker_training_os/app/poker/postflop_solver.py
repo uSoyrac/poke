@@ -104,6 +104,7 @@ def solve_spot_exact(
     hero_position: str = "",
     villain_position: str = "",
     raiser_pos: str = "",
+    timeout_sec: int = 300,
 ) -> Optional[dict]:
     """Bir postflop spotunu TexasSolver ile çöz, hero elinin EXACT frekansları.
 
@@ -144,6 +145,7 @@ def solve_spot_exact(
         bet_sizes=bet_sizes or [33, 75],
         iterations=max(10, int(iterations)),
         accuracy=0.5,
+        timeout_sec=int(timeout_sec),
     )
     if not res.ok:
         return None
