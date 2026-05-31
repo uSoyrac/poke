@@ -123,3 +123,71 @@ def test_import_roundtrip_to_db(tmp_path, monkeypatch):
     hist = R.get_session_history(limit=10)
     ids = {h["hand_id"] for h in hist}
     assert "HH-100000001" in ids and "HH-100000002" in ids
+
+
+# ── Çok-site: GGPoker + CoinPoker (PokerStars-türevi format) ──────────
+HAND_GG = """\
+GGPoker Hand #HD2500000001: Hold'em No Limit ($0.50/$1.00) - 2024/01/01 12:00:00
+Table 'NLHGold01' 6-max Seat #1 is the button
+Seat 1: Hero ($100 in chips)
+Seat 2: Villain ($100 in chips)
+Hero: posts small blind $0.50
+Villain: posts big blind $1
+*** HOLE CARDS ***
+Dealt to Hero [Qd Qc]
+Hero: raises $2 to $3
+Villain: folds
+Uncalled bet ($2) returned to Hero
+Hero collected $2 from pot
+*** SUMMARY ***
+Total pot $2 | Rake $0
+"""
+
+# CoinPoker: para sembolsüz düz sayı (USDT/chip)
+HAND_COIN = """\
+CoinPoker Hand #987654321: Hold'em No Limit (0.50/1) - 2024/01/01 12:00:00
+Table 'Aurora' 6-max Seat #1 is the button
+Seat 1: Hero (100 in chips)
+Seat 2: Villain (100 in chips)
+Hero: posts small blind 0.50
+Villain: posts big blind 1
+*** HOLE CARDS ***
+Dealt to Hero [Jh Ts]
+Hero: raises 2 to 3
+Villain: calls 2
+*** FLOP *** [7c 2d 9s]
+Villain: checks
+Hero: bets 4
+Villain: folds
+Uncalled bet (4) returned to Hero
+Hero collected 5.50 from pot
+*** SUMMARY ***
+Total pot 6
+Board [7c 2d 9s]
+"""
+
+
+def test_ggpoker_parses():
+    hands = parse_pokerstars(HAND_GG)
+    assert len(hands) == 1
+    h = hands[0]
+    assert h["hero_cards"] == "Qd Qc"
+    assert h["site"] == "GGPoker"
+    assert h["hero_won"] is True
+
+
+def test_coinpoker_parses_no_currency_symbol():
+    hands = parse_pokerstars(HAND_COIN)
+    assert len(hands) == 1
+    h = hands[0]
+    assert h["hero_cards"] == "Jh Ts"
+    assert h["site"] == "CoinPoker"
+    assert h["streets_seen"] == 2          # flop görüldü
+    assert h["hero_won"] is True
+
+
+def test_mixed_file_all_sites():
+    hands = parse_pokerstars(HAND_WIN + "\n\n" + HAND_GG + "\n\n" + HAND_COIN)
+    sites = {h["site"] for h in hands}
+    assert len(hands) == 3
+    assert {"PokerStars", "GGPoker", "CoinPoker"} <= sites

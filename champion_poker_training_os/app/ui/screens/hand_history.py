@@ -70,10 +70,11 @@ class HandHistoryScreen(QWidget):
         )
         subtitle.setStyleSheet(f"color: {COLOR_MUTED}; font-size: 12px;")
         sub_row.addWidget(subtitle, 1)
-        self.import_btn = QPushButton("📥  PokerStars HH Import")
+        self.import_btn = QPushButton("📥  El Geçmişi Import")
         self.import_btn.setToolTip(
-            "Gerçek online el geçmişi dosyanı (PokerStars .txt) içeri al — "
-            "istatistik, leak ve GTO-ilerleme analizi gerçek oyununa dayansın.")
+            "Gerçek online el geçmişi dosyanı (.txt) içeri al — GGPoker · "
+            "CoinPoker · PokerStars desteklenir. İstatistik, leak ve "
+            "GTO-ilerleme analizi gerçek oyununa dayansın.")
         self.import_btn.setStyleSheet(
             f"QPushButton {{ background: {COLOR_CARD}; color: {COLOR_ACCENT}; "
             f"border: 1px solid {COLOR_ACCENT}; border-radius: 6px; "
@@ -116,10 +117,10 @@ class HandHistoryScreen(QWidget):
 
     # ── HAND HISTORY IMPORT ───────────────────────────────────────────
     def _import_hand_history(self) -> None:
-        """PokerStars .txt el geçmişi dosyası seç → parse et → DB'ye yaz."""
+        """El geçmişi .txt dosyası seç → parse et → DB'ye yaz (GG/CoinPoker/PS)."""
         from PySide6.QtWidgets import QFileDialog, QMessageBox
         path, _ = QFileDialog.getOpenFileName(
-            self, "PokerStars el geçmişi dosyası seç", "",
+            self, "El geçmişi dosyası seç (GGPoker · CoinPoker · PokerStars)", "",
             "Hand history (*.txt);;Tüm dosyalar (*)")
         if not path:
             return
@@ -137,8 +138,9 @@ class HandHistoryScreen(QWidget):
             return
         if n == 0:
             QMessageBox.information(
-                self, "Import", "Hiç PokerStars NLHE eli bulunamadı. "
-                "Dosya formatını kontrol et (şu an PokerStars cash destekli).")
+                self, "Import", "Hiç NLHE eli bulunamadı. Dosya formatını "
+                "kontrol et (GGPoker · CoinPoker · PokerStars .txt destekli — "
+                "el başlığı 'Hand #…' ve 'Dealt to …' satırı içermeli).")
         else:
             QMessageBox.information(
                 self, "Import tamam",

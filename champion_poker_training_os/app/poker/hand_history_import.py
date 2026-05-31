@@ -1,28 +1,35 @@
-"""Gerçek el geçmişi import — PokerStars metin formatı parser'ı (Phase D7).
+"""Gerçek el geçmişi import — çok-site metin formatı parser'ı (Phase D7).
 
 Online oynanan GERÇEK elleri içeri alıp `played_hands`'e yazar; böylece
-istatistik / leak / GTO-ilerleme analizi gerçek oyununa dayanır (sadece
-uygulama-içi simülasyona değil).
+istatistik / leak / GTO-ilerleme analizi gerçek oyununa dayanır.
 
-Kapsam: PokerStars NLHE cash el geçmişi (en yaygın format). Hero "Dealt to
-<isim>" satırından bulunur. Net kâr = collected + uncalled_returned − invested.
-GG/diğer formatlar gelecekte (parser modülerleştirilebilir).
+Kapsam: NLHE el geçmişi — GGPoker · CoinPoker · PokerStars (hepsi
+PokerStars-türevi metin formatı: 'Dealt to', '*** FLOP ***', 'raises … to',
+'collected', 'Total pot'). Site sadece BAŞLIK satırından değişir; parser
+site-bağımsızdır. Hero 'Dealt to <isim>' satırından bulunur. Net kâr =
+collected + uncalled_returned − invested.
 
-Saf fonksiyon (DB/Qt bağımsız) — `parse_pokerstars(text) → list[dict]`.
-Her dict `repository.save_played_hand` şemasına uygundur.
+Saf fonksiyon (DB/Qt bağımsız) — `parse_hands(text) → list[dict]`
+(`parse_pokerstars` geriye-uyumlu alias). Her dict `repository.
+save_played_hand` şemasına uygundur.
 """
 from __future__ import annotations
 
 import re
 
 _HAND_SPLIT = re.compile(r"\n\s*\n")           # eller boş satırla ayrılır
-_HID = re.compile(r"PokerStars\s+(?:Hand|Game)\s+#(\d+)")
+# Site-bağımsız başlık: "<Site> Hand #<id>" / "Poker Hand #<id>" / "Game #<id>".
+# GG/CoinPoker hand-id'leri alfanümerik olabilir (HD123, RC123…) → \w+.
+_HID = re.compile(r"(?:Hand|Game)\s+#([A-Za-z0-9]+)")
+_SITE = re.compile(r"\b(GG\s?Poker|CoinPoker|PokerStars|PartyPoker|888poker)\b",
+                   re.IGNORECASE)
 _DEALT = re.compile(r"Dealt to (.+?) \[([2-9TJQKA][cdhs] [2-9TJQKA][cdhs])\]")
 _BOARD = re.compile(r"Board \[([^\]]+)\]")
 _FLOP = re.compile(r"\*\*\* FLOP \*\*\* \[([^\]]+)\]")
 _TURN = re.compile(r"\*\*\* TURN \*\*\* \[[^\]]+\] \[([2-9TJQKA][cdhs])\]")
 _RIVER = re.compile(r"\*\*\* RIVER \*\*\* \[[^\]]+\] \[([2-9TJQKA][cdhs])\]")
-_AMOUNT = r"[$€£]?([0-9]+(?:\.[0-9]+)?)"
+# Para: $ € £ ₮ (CoinPoker USDT) veya sembolsüz düz sayı
+_AMOUNT = r"[$€£₮]?([0-9]+(?:\.[0-9]+)?)"
 
 
 def _money(s: str) -> float:
@@ -30,11 +37,13 @@ def _money(s: str) -> float:
     return float(m.group(1)) if m else 0.0
 
 
-def parse_pokerstars(text: str) -> list[dict]:
-    """PokerStars el-geçmişi metnini played_hand dict listesine çevir."""
+def parse_hands(text: str) -> list[dict]:
+    """El-geçmişi metnini (GGPoker/CoinPoker/PokerStars) played_hand dict
+    listesine çevir. Site-bağımsız: blokta bir 'Hand/Game #<id>' başlığı +
+    'Dealt to' satırı varsa parse edilir."""
     out: list[dict] = []
     for block in _HAND_SPLIT.split(text or ""):
-        if "PokerStars" not in block or "Dealt to" not in block:
+        if "Dealt to" not in block or not _HID.search(block):
             continue
         rec = _parse_one(block)
         if rec:
@@ -42,11 +51,18 @@ def parse_pokerstars(text: str) -> list[dict]:
     return out
 
 
+# Geriye-uyumlu alias (eski çağrı yerleri parse_pokerstars kullanıyor)
+def parse_pokerstars(text: str) -> list[dict]:
+    return parse_hands(text)
+
+
 def _parse_one(block: str) -> dict | None:
     hid_m = _HID.search(block)
     dealt_m = _DEALT.search(block)
     if not hid_m or not dealt_m:
         return None
+    site_m = _SITE.search(block)
+    site = site_m.group(1) if site_m else "Bilinmeyen"
     hand_id = hid_m.group(1)
     hero = dealt_m.group(1).strip()
     hero_cards = dealt_m.group(2)
@@ -144,4 +160,5 @@ def _parse_one(block: str) -> dict | None:
         "winner_hand_name": winner,
         "streets_seen": streets_seen,
         "source": "import",
+        "site": site,
     }
