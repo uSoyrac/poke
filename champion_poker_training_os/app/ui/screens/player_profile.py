@@ -348,8 +348,8 @@ class PlayerProfileScreen(QWidget):
             return
 
         vpip = stats.get("vpip", 0)
-        pfr = round(vpip * 0.72, 1)
-        three_bet = round(pfr * 0.38, 1)
+        pfr = stats.get("pfr", 0)
+        three_bet = stats.get("three_bet", 0)
         wtsd = stats.get("wtsd", 0)
         wsd = stats.get("wsd", 0)
         af = stats.get("af", 0)
@@ -455,7 +455,7 @@ class PlayerProfileScreen(QWidget):
         _clear_layout(self._leaks_layout)
 
         vpip = stats.get("vpip", 0)
-        pfr = round(vpip * 0.72, 1)
+        pfr = stats.get("pfr", 0)
         wtsd = stats.get("wtsd", 0)
         wsd = stats.get("wsd", 0)
         af = stats.get("af", 0)

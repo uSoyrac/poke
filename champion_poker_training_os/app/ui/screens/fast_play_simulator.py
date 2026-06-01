@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from app.ai.coach_engine import analyze_played_hand, session_summary
 from app.core.app_state import AppState
 from app.db.repository import save_played_hand
+from app.engine.game_loop import hero_stat_fields
 from app.engine.game_loop import PokerGame
 from app.engine.hand_state import ActionType
 from app.engine.bot_brain import BOT_ARCHETYPES
@@ -298,6 +299,7 @@ class FastPlaySimulatorScreen(QWidget):
                 "hero_won": result.hero_won,
                 "winner_hand_name": result.winner_hand_name,
                 "streets_seen": result.streets_seen,
+                **hero_stat_fields(result),
             })
         except Exception:
             pass

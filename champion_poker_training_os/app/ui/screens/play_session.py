@@ -1471,11 +1471,13 @@ class PlaySessionScreen(QWidget):
             self.live_hud.update_from_hand(self.game.current_hand)
         r = self.game.hand_history[-1]
         try:
+            from app.engine.game_loop import hero_stat_fields
             save_played_hand({
                 "hand_id": r.hand_id, "hero_cards": r.hero_cards, "community": r.community,
                 "pot": r.pot, "hero_invested": r.hero_invested, "hero_profit": r.hero_profit,
                 "hero_won": r.hero_won, "winner_hand_name": r.winner_hand_name,
                 "streets_seen": r.streets_seen,
+                **hero_stat_fields(r),
             })
         except Exception:
             pass

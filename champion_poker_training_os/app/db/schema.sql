@@ -286,6 +286,12 @@ CREATE TABLE IF NOT EXISTS played_hands (
   winner_hand_name TEXT,
   streets_seen INTEGER DEFAULT 0,
   session_id INTEGER DEFAULT 1,
+  hero_vpip INTEGER,
+  hero_pfr INTEGER,
+  hero_3bet_opp INTEGER,
+  hero_3bet INTEGER,
+  hero_postflop_aggr INTEGER,
+  hero_postflop_passive INTEGER,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

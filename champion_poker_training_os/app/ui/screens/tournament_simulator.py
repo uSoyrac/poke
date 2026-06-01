@@ -26,6 +26,7 @@ from app.core.app_state import AppState
 from app.core.logging import log_swallowed
 from app.core.live_hud import LiveHUD
 from app.db.repository import save_played_hand
+from app.engine.game_loop import hero_stat_fields
 from app.engine.hand_state import ActionType, Street
 from app.simulator.mtt_field import MTTField
 from app.simulator.tournament_runner import (
@@ -1349,6 +1350,7 @@ class TournamentSimulatorScreen(QWidget):
                 "winner_hand_name": result.winner_hand_name,
                 "streets_seen": result.streets_seen,
                 "session_id": 1,
+                **hero_stat_fields(result),
             })
         except Exception:
             pass

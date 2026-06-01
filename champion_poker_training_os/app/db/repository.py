@@ -85,14 +85,42 @@ def table_count(table: str) -> int:
 # ─── Played Hand Persistence ─────────────────────────────────────────
 
 
+def _ensure_played_hand_columns() -> None:
+    """played_hands tablosuna gerçek istatistik bayrak kolonlarını ekle
+    (idempotent). Eski şemada VPIP/PFR/3bet biriken çipten yanlış türetiliyordu;
+    artık preflop GÖNÜLLÜ aksiyondan gelen bayraklar kalıcılaşır.
+
+    Yeni kolonlar NULL bırakılır (None) → ``get_player_stats`` bayrak verisi
+    olmayan eski elleri eski (yaklaşık) yönteme düşürür, yeni elleri gerçek
+    tanımla sayar.
+    """
+    with get_connection() as conn:
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(played_hands)")}
+        for col in ("hero_vpip", "hero_pfr", "hero_3bet_opp", "hero_3bet",
+                    "hero_postflop_aggr", "hero_postflop_passive"):
+            if col not in cols:
+                conn.execute(f"ALTER TABLE played_hands ADD COLUMN {col} INTEGER")
+        conn.commit()
+
+
+def _flag(hand_data: dict, key: str):
+    """dict'te bayrak varsa 0/1, yoksa None döndür (eski el = bilinmiyor)."""
+    if key not in hand_data or hand_data[key] is None:
+        return None
+    return 1 if hand_data[key] else 0
+
+
 def save_played_hand(hand_data: dict) -> None:
     """Save a completed played hand to the database."""
+    _ensure_played_hand_columns()
     with get_connection() as conn:
         conn.execute(
             """INSERT OR REPLACE INTO played_hands
                (hand_id, hero_cards, community, pot, hero_invested, hero_profit,
-                hero_won, winner_hand_name, streets_seen, session_id, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+                hero_won, winner_hand_name, streets_seen, session_id,
+                hero_vpip, hero_pfr, hero_3bet_opp, hero_3bet,
+                hero_postflop_aggr, hero_postflop_passive, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
             (
                 hand_data["hand_id"],
                 hand_data.get("hero_cards", ""),
@@ -104,6 +132,12 @@ def save_played_hand(hand_data: dict) -> None:
                 hand_data.get("winner_hand_name", ""),
                 hand_data.get("streets_seen", 0),
                 hand_data.get("session_id", 1),
+                _flag(hand_data, "hero_vpip"),
+                _flag(hand_data, "hero_pfr"),
+                _flag(hand_data, "hero_3bet_opp"),
+                _flag(hand_data, "hero_3bet"),
+                hand_data.get("hero_postflop_aggr") if hand_data.get("hero_postflop_aggr") is not None else None,
+                hand_data.get("hero_postflop_passive") if hand_data.get("hero_postflop_passive") is not None else None,
             ),
         )
         conn.commit()
@@ -678,21 +712,63 @@ def get_gto_category_accuracy() -> dict:
 
 
 def get_player_stats() -> dict:
-    """Calculate player stats from played hands: VPIP, PFR, WTSD, W$SD, AF."""
+    """Gerçek poker tanımlarıyla hero istatistikleri: VPIP, PFR, 3bet, WTSD,
+    W$SD, AF, BB/100.
+
+    VPIP/PFR/3bet artık preflop GÖNÜLLÜ aksiyon bayraklarından (hero_vpip/
+    hero_pfr/hero_3bet) sayılır — kör/ante/postflop biriken çipten DEĞİL.
+    Bayrak verisi olmayan ESKİ eller (NULL) varsa onlar için eski yaklaşık
+    yönteme (hero_invested > 1bb) düşülür, böylece geçmiş bozulmaz.
+    """
+    _ensure_played_hand_columns()
     with get_connection() as conn:
         total = conn.execute("SELECT COUNT(*) FROM played_hands").fetchone()[0]
         if total == 0:
             return {
-                "total_hands": 0, "vpip": 0, "pfr": 0, "wtsd": 0,
-                "wsd": 0, "af": 0, "profit_bb": 0, "bb_per_100": 0,
+                "total_hands": 0, "vpip": 0, "pfr": 0, "three_bet": 0,
+                "wtsd": 0, "wsd": 0, "af": 0, "profit_bb": 0, "bb_per_100": 0,
                 "win_rate": 0, "avg_pot": 0,
             }
 
         wins = conn.execute("SELECT COUNT(*) FROM played_hands WHERE hero_won = 1").fetchone()[0]
         profit = conn.execute("SELECT COALESCE(SUM(hero_profit), 0) FROM played_hands").fetchone()[0]
         avg_pot = conn.execute("SELECT COALESCE(AVG(pot), 0) FROM played_hands").fetchone()[0]
-        invested_hands = conn.execute(
-            "SELECT COUNT(*) FROM played_hands WHERE hero_invested > 1"
+
+        # ── Gerçek bayraklı eller (yeni) ──
+        flagged = conn.execute(
+            "SELECT COUNT(*) FROM played_hands WHERE hero_vpip IS NOT NULL"
+        ).fetchone()[0]
+        vpip_real = conn.execute(
+            "SELECT COALESCE(SUM(hero_vpip), 0) FROM played_hands WHERE hero_vpip IS NOT NULL"
+        ).fetchone()[0]
+        pfr_real = conn.execute(
+            "SELECT COALESCE(SUM(hero_pfr), 0) FROM played_hands WHERE hero_pfr IS NOT NULL"
+        ).fetchone()[0]
+        tb_opp = conn.execute(
+            "SELECT COALESCE(SUM(hero_3bet_opp), 0) FROM played_hands WHERE hero_3bet_opp IS NOT NULL"
+        ).fetchone()[0]
+        tb_did = conn.execute(
+            "SELECT COALESCE(SUM(hero_3bet), 0) FROM played_hands WHERE hero_3bet IS NOT NULL"
+        ).fetchone()[0]
+
+        # ── Bayraksız eski eller — yaklaşık yöntem (geriye dönük uyum) ──
+        legacy = total - flagged
+        legacy_invested = conn.execute(
+            "SELECT COUNT(*) FROM played_hands "
+            "WHERE hero_vpip IS NULL AND hero_invested > 1"
+        ).fetchone()[0] if legacy else 0
+
+        # VPIP/PFR: gerçek bayraklı + eski-yaklaşık birleşik payda = total
+        vpip_n = vpip_real + legacy_invested
+        pfr_n = pfr_real + round(legacy_invested * 0.7)
+        vpip = round(100 * vpip_n / total, 1)
+        pfr = round(100 * pfr_n / total, 1)
+        # 3bet: yalnız gerçek fırsat verisinden (eski ellerde fırsat bilinmiyor)
+        three_bet = round(100 * tb_did / tb_opp, 1) if tb_opp else 0.0
+
+        # WTSD: flop GÖREN eller payda (streets_seen>=2), SD'ye giden pay
+        saw_flop = conn.execute(
+            "SELECT COUNT(*) FROM played_hands WHERE streets_seen >= 2"
         ).fetchone()[0]
         showdowns = conn.execute(
             "SELECT COUNT(*) FROM played_hands WHERE streets_seen >= 4"
@@ -701,13 +777,26 @@ def get_player_stats() -> dict:
             "SELECT COUNT(*) FROM played_hands WHERE streets_seen >= 4 AND hero_won = 1"
         ).fetchone()[0]
 
+        # AF (Aggression Factor) = postflop (bet+raise) / call — gerçek tanım.
+        # Veri yoksa (eski eller) nötr 1.0 göster.
+        aggr_sum = conn.execute(
+            "SELECT COALESCE(SUM(hero_postflop_aggr), 0) FROM played_hands "
+            "WHERE hero_postflop_aggr IS NOT NULL"
+        ).fetchone()[0]
+        passive_sum = conn.execute(
+            "SELECT COALESCE(SUM(hero_postflop_passive), 0) FROM played_hands "
+            "WHERE hero_postflop_passive IS NOT NULL"
+        ).fetchone()[0]
+        af = round(aggr_sum / passive_sum, 2) if passive_sum else (
+            round(float(aggr_sum), 2) if aggr_sum else 1.0)
         return {
             "total_hands": total,
-            "vpip": round(100 * invested_hands / total, 1) if total else 0,
-            "pfr": round(100 * invested_hands / total * 0.7, 1) if total else 0,
-            "wtsd": round(100 * showdowns / max(invested_hands, 1), 1),
+            "vpip": vpip,
+            "pfr": pfr,
+            "three_bet": three_bet,
+            "wtsd": round(100 * showdowns / max(saw_flop, 1), 1),
             "wsd": round(100 * won_at_sd / max(showdowns, 1), 1),
-            "af": round(max(1, invested_hands) / max(1, total - invested_hands), 2),
+            "af": af,
             "profit_bb": round(profit, 2),
             "bb_per_100": round(100 * profit / max(total, 1), 1),
             "win_rate": round(100 * wins / total, 1) if total else 0,

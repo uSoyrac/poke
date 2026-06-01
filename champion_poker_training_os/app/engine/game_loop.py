@@ -37,6 +37,70 @@ class HandResult:
     streets_seen: int = 0
     hero_position: str = ""
     final_stacks: Dict[int, float] = field(default_factory=dict)
+    # Gerçek poker istatistik bayrakları (preflop GÖNÜLLÜ aksiyondan türetilir,
+    # kör/ante/postflop biriken çipten DEĞİL) — VPIP/PFR/3bet doğruluğu için.
+    hero_vpip: bool = False
+    hero_pfr: bool = False
+    hero_3bet_opp: bool = False
+    hero_3bet: bool = False
+    hero_postflop_aggr: int = 0     # postflop bet/raise/all-in sayısı
+    hero_postflop_passive: int = 0  # postflop call sayısı (AF için)
+
+
+def hero_stat_fields(result) -> Dict[str, object]:
+    """HandResult'tan DB'ye yazılacak gerçek istatistik bayraklarını çıkar.
+    Üç kayıt yeri (play/tournament/fast) aynı doğru alanları yazsın diye ortak."""
+    return {
+        "hero_vpip": getattr(result, "hero_vpip", None),
+        "hero_pfr": getattr(result, "hero_pfr", None),
+        "hero_3bet_opp": getattr(result, "hero_3bet_opp", None),
+        "hero_3bet": getattr(result, "hero_3bet", None),
+        "hero_postflop_aggr": getattr(result, "hero_postflop_aggr", None),
+        "hero_postflop_passive": getattr(result, "hero_postflop_passive", None),
+    }
+
+
+def hero_preflop_flags(hand, hero_idx: int) -> Dict[str, bool]:
+    """Bir elin aksiyonlarından hero'nun PREFLOP istatistik bayraklarını türet.
+
+    Gerçek poker tanımları (kör yatırma ve BB bedava check SAYILMAZ):
+      • vpip          : preflop gönüllü CALL/RAISE/BET/ALL_IN
+      • pfr           : preflop RAISE/BET/ALL_IN
+      • threebet_opp  : hero aksiyonundan ÖNCE bir açılış (raise) vardı
+      • threebet      : threebet_opp iken hero yeniden raise etti
+    """
+    from app.engine.hand_state import ActionType as _AT, Street as _St
+
+    actions = getattr(hand, "actions", []) or []
+    pf = [a for a in actions
+          if a.player_idx == hero_idx and a.street == _St.PREFLOP]
+    voluntary = {_AT.CALL, _AT.RAISE, _AT.BET, _AT.ALL_IN}
+    raising = {_AT.RAISE, _AT.BET, _AT.ALL_IN}
+
+    vpip = any(a.action_type in voluntary for a in pf)
+    pfr = any(a.action_type in raising for a in pf)
+
+    # Hero'nun İLK preflop aksiyonundan önce bir açılış (raise) oldu mu?
+    first_hero = next((a for a in actions
+                       if a.player_idx == hero_idx and a.street == _St.PREFLOP), None)
+    opp = False
+    if first_hero is not None:
+        idx_first = actions.index(first_hero)
+        opp = any(
+            a.street == _St.PREFLOP and a.player_idx != hero_idx
+            and a.action_type in (_AT.RAISE, _AT.BET)
+            for a in actions[:idx_first]
+        )
+    threebet = bool(opp and pfr)
+
+    # Postflop agresyon sayıları (AF = aggr/passive için)
+    post = [a for a in actions
+            if a.player_idx == hero_idx and a.street != _St.PREFLOP]
+    aggr = sum(1 for a in post if a.action_type in raising)
+    passive = sum(1 for a in post if a.action_type == _AT.CALL)
+    return {"vpip": bool(vpip), "pfr": bool(pfr),
+            "threebet_opp": bool(opp), "threebet": threebet,
+            "postflop_aggr": aggr, "postflop_passive": passive}
 
 
 class PokerGame:
@@ -784,6 +848,7 @@ class PokerGame:
                 chips_collected += sp["amount"] / len(sp["winners"])
         hero_profit = chips_collected - hero.invested_this_hand
 
+        _flags = hero_preflop_flags(hand, hero_idx)
         result = HandResult(
             hand_id=hand.hand_id,
             hero_cards=hero.cards_display,
@@ -798,6 +863,12 @@ class PokerGame:
             streets_seen=_count_streets(hand),
             hero_position=hero.position,
             final_stacks={i: round(p.stack, 2) for i, p in enumerate(self.players)},
+            hero_vpip=_flags["vpip"],
+            hero_pfr=_flags["pfr"],
+            hero_3bet_opp=_flags["threebet_opp"],
+            hero_3bet=_flags["threebet"],
+            hero_postflop_aggr=_flags["postflop_aggr"],
+            hero_postflop_passive=_flags["postflop_passive"],
         )
         self.hand_history.append(result)
 

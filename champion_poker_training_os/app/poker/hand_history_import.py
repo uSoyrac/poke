@@ -139,6 +139,8 @@ def _parse_one(block: str) -> dict | None:
         elif "collected" in body:
             collected += _money(body)
 
+    flags = _hero_stat_flags(block, hero)
+
     net = round(collected + returned - invested, 2)
     won = collected > 0
     pot_m = re.search(r"Total pot " + _AMOUNT, block)
@@ -161,4 +163,70 @@ def _parse_one(block: str) -> dict | None:
         "streets_seen": streets_seen,
         "source": "import",
         "site": site,
+        **flags,
+    }
+
+
+def _hero_stat_flags(block: str, hero: str) -> dict:
+    """İçeri alınan elde hero'nun gerçek VPIP/PFR/3bet/AF bayraklarını metinden
+    türet. Kör 'posts' ve preflop 'checks' VPIP SAYILMAZ; VPIP yalnız preflop
+    gönüllü call/bet/raise. 3bet = preflop'ta hero'dan ÖNCE bir raise varken
+    hero'nun yeniden raise etmesi. Postflop aggr/passive AF için sayılır.
+    """
+    phase = "blinds"   # blinds → preflop (HOLE CARDS sonrası) → postflop (FLOP+)
+    vpip = pfr = threebet_opp = threebet = False
+    hero_acted_pre = False
+    pre_raises_before_hero = 0          # hero ilk gönüllü aksiyonundan önce raise
+    pf_aggr = pf_pass = 0
+    esc = hero
+
+    for raw in block.splitlines():
+        line = raw.strip()
+        if line.startswith("*** HOLE CARDS"):
+            phase = "preflop"
+            continue
+        if line.startswith(("*** FLOP", "*** TURN", "*** RIVER")):
+            phase = "postflop"
+            continue
+        if line.startswith("***") or not line:
+            continue
+
+        is_hero = line.startswith(esc)
+        body = line[len(esc):].lstrip(": ").strip() if is_hero else ""
+
+        if phase == "preflop":
+            if is_hero:
+                if body.startswith(("raises", "bets")):
+                    vpip = True
+                    pfr = True
+                    if pre_raises_before_hero > 0:
+                        threebet_opp = True
+                        threebet = True
+                    hero_acted_pre = True
+                elif body.startswith("calls"):
+                    vpip = True
+                    if pre_raises_before_hero > 0:
+                        threebet_opp = True
+                    hero_acted_pre = True
+                elif body.startswith(("checks", "folds")):
+                    if pre_raises_before_hero > 0 and not hero_acted_pre:
+                        threebet_opp = True
+                    hero_acted_pre = True
+            else:
+                # Rakip preflop raise (hero henüz aksiyon almadıysa say)
+                if not hero_acted_pre and ("raises" in line or " bets " in line):
+                    pre_raises_before_hero += 1
+        elif phase == "postflop" and is_hero:
+            if body.startswith(("bets", "raises")):
+                pf_aggr += 1
+            elif body.startswith("calls"):
+                pf_pass += 1
+
+    return {
+        "hero_vpip": 1 if vpip else 0,
+        "hero_pfr": 1 if pfr else 0,
+        "hero_3bet_opp": 1 if threebet_opp else 0,
+        "hero_3bet": 1 if threebet else 0,
+        "hero_postflop_aggr": pf_aggr,
+        "hero_postflop_passive": pf_pass,
     }
