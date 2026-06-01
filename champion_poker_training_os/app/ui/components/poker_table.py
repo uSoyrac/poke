@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Sequence, Tuple
 
 from PySide6.QtCore import Qt, QPointF, QRectF, QTimer
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QRadialGradient
+from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QRadialGradient
 from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from app.ui.components.card_view import CardBackView, CardPlaceholder, CardView

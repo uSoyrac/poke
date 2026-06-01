@@ -12,7 +12,7 @@ Fixes vs previous version:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from app.engine.bot_brain import BotBrain, BotProfile, BOT_ARCHETYPES, KARMA_MIX
 from app.engine.evaluator import determine_winners

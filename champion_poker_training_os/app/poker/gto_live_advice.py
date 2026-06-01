@@ -20,8 +20,8 @@ DÜRÜSTLÜK (aman hata olmasın):
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Dict, Optional
+from dataclasses import dataclass
+from typing import Dict
 
 from app.engine.hand_state import ActionType, HandState, Street
 from app.engine.bot_brain import hand_key
