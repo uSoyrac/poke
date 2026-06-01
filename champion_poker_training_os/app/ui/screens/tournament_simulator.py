@@ -372,6 +372,46 @@ class TournamentSimulatorScreen(QWidget):
         except Exception:
             pass
 
+    def _emit_closing_evaluation(self, *, finish, field_size, prize, profit,
+                                 roi, won, itm, pct_rank, total_hands,
+                                 stats, leaks, config) -> None:
+        """Turnuva BİTİNCE bu turnuvaya ÖZEL kapsamlı AI koç değerlendirmesi.
+
+        Açılış briefing'in karşılığı — sonuç + gerçek stats + leak'lerle
+        beslenip Gemini'den (yoksa offline koç) eğitici bir post-mortem ister.
+        """
+        def _g(k, d=0):
+            try:
+                return stats.get(k, d)
+            except Exception:
+                return d
+        leak_lines = "; ".join(
+            (l.get("name", "") if isinstance(l, dict) else str(l))
+            for l in (leaks or [])[:6]) or "belirgin leak yok"
+        outcome = ("ŞAMPİYON 🏆" if won else
+                   (f"ITM — {finish}. sıra" if itm else f"{finish}. sıra (ITM dışı)"))
+        prompt = (
+            f"[TURNUVA SONU DEĞERLENDİRME]\n"
+            f"Event: {config.name} · {config.structure} · Buy-in ${config.buyin:.0f} · "
+            f"Field {field_size} oyuncu\n"
+            f"SONUÇ: {outcome}  ·  top %{pct_rank}  ·  "
+            f"Kâr ${profit:+.0f} (ROI %{roi:.0f})  ·  Oynanan el: {total_hands}\n"
+            f"Hero stats — VPIP %{_g('vpip'):.0f} · PFR %{_g('pfr'):.0f} · "
+            f"3bet %{_g('three_bet', _g('3bet')):.0f} · AF {_g('af', _g('aggression')):.1f} · "
+            f"WTSD %{_g('wtsd'):.0f} · W$SD %{_g('wsd'):.0f}\n"
+            f"Tespit edilen leak'ler: {leak_lines}\n\n"
+            f"Bu turnuvaya ÖZEL, kapsamlı bir POST-MORTEM değerlendirme yap "
+            f"(8-10 madde): (1) genel performans + bu finish'in yorumu, "
+            f"(2) en kritik 2-3 leak ve SOMUT düzeltme, (3) stack-depth/ICM/"
+            f"bubble/final-table oynanışı, (4) pozisyonel kâr/zarar, (5) bir "
+            f"sonraki turnuva için 3 somut hedef. Türkçe, net, maddeli, eğitici."
+        )
+        try:
+            self.tournament_advice_requested.emit(prompt)
+        except Exception as e:
+            from app.core.logging import log_swallowed
+            log_swallowed("tournament.closing_eval", e)
+
     def _end_and_restart(self) -> None:
         """Abort the running tournament and return to the setup screen.
 
@@ -1610,6 +1650,13 @@ class TournamentSimulatorScreen(QWidget):
         won      = (finish == 1)
         itm      = prize > 0
         pct_rank = round((1 - finish / max(field_size, 1)) * 100, 1)  # top-X%
+
+        # ── Turnuvaya ÖZEL kapsamlı AI koç değerlendirmesi (post-mortem) ──
+        self._emit_closing_evaluation(
+            finish=finish, field_size=field_size, prize=prize, profit=profit,
+            roi=roi, won=won, itm=itm, pct_rank=pct_rank,
+            total_hands=len(self.tournament.hand_log), stats=stats,
+            leaks=report.get("leaks", []), config=config)
 
         # ── Persist to history ─────────────────────────────────────────
         try:
