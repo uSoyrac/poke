@@ -655,7 +655,15 @@ class GTODecisionReveal(QFrame):
 
     @staticmethod
     def _verdict(d: dict) -> tuple[str, str]:
-        """(işaret, renk) — hero kararı optimal frekansla uyumlu mu?"""
+        """(işaret, renk) — hero kararı optimal frekansla uyumlu mu?
+
+        ÖNEMLİ: Postflop spotları HEURİSTİK board-texture modeli (CONCEPT) —
+        equity tahmini kesin DEĞİL (örn. domine edilmiş underpair / 'board'u
+        oynayan' eller yanlış değerlenebilir). Bu yüzden postflop/heuristik
+        spotlarda kullanıcının kararı ASLA sert 'X GTO'dan sapma' (hata)
+        olarak işaretlenmez — yanıltmamak için 'heuristik tahmin, kesin değil'
+        denir. Sert ✓/✗ yalnızca yüksek-güven (curated/exact) spotlarda.
+        """
         action_to_key = {
             "FOLD": "fold", "CHECK": "call", "CALL": "call",
             "BET": "raise", "RAISE": "raise", "ALL_IN": "allin", "ALLIN": "allin",
@@ -665,10 +673,19 @@ class GTODecisionReveal(QFrame):
         if not d.get("available") or key is None:
             return "", _MUTED
         pct = float(d.get(key, 0) or 0)
+        scen = (d.get("scenario") or "").lower()
+        tier = (d.get("tier") or "").lower()
+        is_estimate = ("postflop" in scen or "concept" in tier)
+
         if pct >= 50:
-            return "✓ GTO ile uyumlu", _ACCENT
+            return (("✓ heuristik ile uyumlu" if is_estimate
+                     else "✓ GTO ile uyumlu"), _ACCENT)
         if pct >= 15:
             return "≈ kabul edilebilir (mixed)", _WARN
+        # Düşük frekanslı aksiyon: kesin spotta 'sapma', heuristik spotta YUMUŞAK
+        if is_estimate:
+            return ("ⓘ heuristik farklı — kesin değil (EXACT solver ile doğrula)",
+                    _WARN)
         return "✗ GTO'dan sapma", _DANGER
 
     @staticmethod

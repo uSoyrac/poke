@@ -104,14 +104,28 @@ def grade_decision(snap: dict) -> DecisionGrade:
     else:
         letter = "D"
 
+    # Postflop board-texture modeli (CONCEPT) HEURİSTİKtir — equity tahmini
+    # kesin değil. Bu yüzden heuristik spotlarda sert F/D verilmez (kullanıcıyı
+    # yanıltmamak için en kötü 'C'ye sınırlanır + EV-loss F-override uygulanmaz).
+    scen = (snap.get("scenario") or "").lower()
+    tier = (snap.get("tier") or "").lower()
+    is_estimate = ("postflop" in scen or "concept" in tier)
+
     ev = _ev_loss(snap, snap.get("hero_action", ""))
-    if ev > 4.0:
-        letter = "F"
-    elif ev > 1.5:
-        letter = _cap_letter(letter, "C")
+    if not is_estimate:
+        if ev > 4.0:
+            letter = "F"
+        elif ev > 1.5:
+            letter = _cap_letter(letter, "C")
+    else:
+        # heuristik: en kötü C (D/F → C)
+        if letter in ("D", "F"):
+            letter = "C"
 
     note = ""
-    if letter in ("A", "B"):
+    if is_estimate and letter == "C":
+        note = "Heuristik postflop tahmini — kesin değil (EXACT solver ile doğrula)."
+    elif letter in ("A", "B"):
         note = "GTO çizgisinde."
     elif letter == "C":
         note = "Azınlık aksiyon — savunulabilir ama optimal değil."
