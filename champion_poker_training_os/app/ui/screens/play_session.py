@@ -642,6 +642,18 @@ class PlaySessionScreen(QWidget):
         self.size_label = QLabel("0bb")
         self.size_label.setStyleSheet("font-family: 'JetBrains Mono', Menlo, monospace; font-size: 13px;")
         sizing.addWidget(self.size_label)
+
+        # Bot aksiyon HIZI — kullanıcı tempoyu ayarlasın (eli takip/hızlandır)
+        spd = QHBoxLayout(); spd.setSpacing(6)
+        spd_lbl = QLabel("BOT HIZI"); spd_lbl.setObjectName("TLabel")
+        self.speed_combo = QComboBox()
+        for label, ms in [("Yavaş", 750), ("Normal", 450), ("Hızlı", 220), ("Turbo", 90)]:
+            self.speed_combo.addItem(label, ms)
+        self.speed_combo.setCurrentIndex(1)   # Normal (450ms)
+        self.speed_combo.currentIndexChanged.connect(self._on_speed_changed)
+        spd.addWidget(spd_lbl)
+        spd.addWidget(self.speed_combo, 1)
+        sizing.addLayout(spd)
         dl.addLayout(sizing, 2)
 
         acts = QHBoxLayout()
@@ -686,6 +698,17 @@ class PlaySessionScreen(QWidget):
             QShortcut(QKeySequence("R"), self, activated=lambda: self._key_action("R")),
             QShortcut(QKeySequence("A"), self, activated=lambda: self._key_action("A")),
             QShortcut(QKeySequence("G"), self, activated=self._show_gto_popup),
+            # Numerik takma adlar (1=fold 2=check/call 3=raise 4=all-in)
+            QShortcut(QKeySequence("1"), self, activated=lambda: self._key_action("F")),
+            QShortcut(QKeySequence("2"), self, activated=lambda: self._key_action("C")),
+            QShortcut(QKeySequence("3"), self, activated=lambda: self._key_action("R")),
+            QShortcut(QKeySequence("4"), self, activated=lambda: self._key_action("A")),
+            # Bahis boyutu: +/- ve sağ/sol ok → slider ±%5
+            QShortcut(QKeySequence("+"), self, activated=lambda: self._key_action("+")),
+            QShortcut(QKeySequence("="), self, activated=lambda: self._key_action("+")),
+            QShortcut(QKeySequence("-"), self, activated=lambda: self._key_action("-")),
+            QShortcut(QKeySequence(Qt.Key_Right), self, activated=lambda: self._key_action("+")),
+            QShortcut(QKeySequence(Qt.Key_Left), self, activated=lambda: self._key_action("-")),
         ]
 
         # Start game timer (must happen after _build_play so buttons exist)
@@ -841,6 +864,18 @@ class PlaySessionScreen(QWidget):
         self.mtt_size_label = QLabel("—")
         self.mtt_size_label.setStyleSheet("font-family: 'JetBrains Mono', Menlo, monospace; font-size: 13px;")
         sizing.addWidget(self.mtt_size_label)
+
+        # Bot aksiyon HIZI (MTT)
+        spd = QHBoxLayout(); spd.setSpacing(6)
+        spd_lbl = QLabel("BOT HIZI"); spd_lbl.setObjectName("TLabel")
+        self.mtt_speed_combo = QComboBox()
+        for label, ms in [("Yavaş", 750), ("Normal", 450), ("Hızlı", 220), ("Turbo", 90)]:
+            self.mtt_speed_combo.addItem(label, ms)
+        self.mtt_speed_combo.setCurrentIndex(1)
+        self.mtt_speed_combo.currentIndexChanged.connect(self._on_mtt_speed_changed)
+        spd.addWidget(spd_lbl)
+        spd.addWidget(self.mtt_speed_combo, 1)
+        sizing.addLayout(spd)
         dl.addLayout(sizing, 2)
 
         acts = QHBoxLayout()
@@ -878,13 +913,22 @@ class PlaySessionScreen(QWidget):
 
         self.stack_layout.addWidget(page)
 
-        # MTT shortcuts
+        # MTT shortcuts (cash ile parite: numerik + bahis-boyutu tuşları)
         self._shortcuts = [
             QShortcut(QKeySequence(Qt.Key_Space), self, activated=self._space_pressed_mtt),
             QShortcut(QKeySequence("F"), self, activated=lambda: self._key_action_mtt("F")),
             QShortcut(QKeySequence("C"), self, activated=lambda: self._key_action_mtt("C")),
             QShortcut(QKeySequence("R"), self, activated=lambda: self._key_action_mtt("R")),
             QShortcut(QKeySequence("A"), self, activated=lambda: self._key_action_mtt("A")),
+            QShortcut(QKeySequence("1"), self, activated=lambda: self._key_action_mtt("F")),
+            QShortcut(QKeySequence("2"), self, activated=lambda: self._key_action_mtt("C")),
+            QShortcut(QKeySequence("3"), self, activated=lambda: self._key_action_mtt("R")),
+            QShortcut(QKeySequence("4"), self, activated=lambda: self._key_action_mtt("A")),
+            QShortcut(QKeySequence("+"), self, activated=lambda: self._key_action_mtt("+")),
+            QShortcut(QKeySequence("="), self, activated=lambda: self._key_action_mtt("+")),
+            QShortcut(QKeySequence("-"), self, activated=lambda: self._key_action_mtt("-")),
+            QShortcut(QKeySequence(Qt.Key_Right), self, activated=lambda: self._key_action_mtt("+")),
+            QShortcut(QKeySequence(Qt.Key_Left), self, activated=lambda: self._key_action_mtt("-")),
             QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self._end_mtt),
         ]
 
@@ -988,7 +1032,25 @@ class PlaySessionScreen(QWidget):
         if deal_fn is not None:
             deal_fn()
 
+    def _on_speed_changed(self, *_) -> None:
+        """Bot aksiyon temposunu değiştir (Yavaş/Normal/Hızlı/Turbo)."""
+        ms = self.speed_combo.currentData()
+        if ms and hasattr(self, "_bot_timer"):
+            self._bot_timer.setInterval(int(ms))
+
+    def _on_mtt_speed_changed(self, *_) -> None:
+        ms = self.mtt_speed_combo.currentData()
+        if ms and hasattr(self, "_mtt_bot_timer"):
+            self._mtt_bot_timer.setInterval(int(ms))
+
     def _key_action(self, key: str) -> None:
+        # Bahis boyutu tuşları sıra hero'da OLMASA da çalışır (önceden ayarla)
+        if key in ("+", "-"):
+            step = 5 if key == "+" else -5
+            self.size_slider.setValue(
+                max(self.size_slider.minimum(),
+                    min(self.size_slider.maximum(), self.size_slider.value() + step)))
+            return
         if not self.game or not self.game.is_waiting_for_hero:
             return
         if key == "F" and self.fold_btn.isVisible():
@@ -1596,6 +1658,13 @@ class PlaySessionScreen(QWidget):
                 self._deal_next_mtt()
 
     def _key_action_mtt(self, key: str) -> None:
+        if key in ("+", "-"):
+            step = 5 if key == "+" else -5
+            self.mtt_size_slider.setValue(
+                max(self.mtt_size_slider.minimum(),
+                    min(self.mtt_size_slider.maximum(),
+                        self.mtt_size_slider.value() + step)))
+            return
         if not self.tournament or not self.tournament.game.is_waiting_for_hero:
             return
         if key == "F" and self.mtt_fold_btn.isVisible():
