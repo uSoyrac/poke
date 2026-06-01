@@ -127,3 +127,45 @@ def test_every_grid_spot_returns_valid_action():
         for h in all_hand_keys():
             a = get_action(pos, h, scen, stack, mode)
             assert isinstance(a, dict) and "fold" in a, f"{pos}/{scen}/{h}: {a}"
+
+
+# ── KANONİK 'gerçek-optimal' spot kontrolleri (well-established) ──────
+def test_ako_opens_every_position():
+    """AKo her pozisyondan açılır (premium — asla fold/limp)."""
+    for pos in ("UTG", "MP", "CO", "BTN", "SB"):
+        a = get_action(pos, "AKo", "RFI", 100, "cash")
+        assert a.get("raise", 0) + a.get("call", 0) >= 95, f"{pos} AKo: {a}"
+
+
+def test_btn_rfi_is_wide_includes_speculative():
+    """BTN açılışı GENİŞ — suited connector + tüm pair'ler dahil."""
+    for h in ("76s", "65s", "54s", "22", "44", "A2s", "K9s"):
+        a = get_action("BTN", h, "RFI", 100, "cash")
+        assert a.get("raise", 0) + a.get("call", 0) >= 50, f"BTN {h} dışarıda: {a}"
+
+
+def test_utg_rfi_excludes_weak_suited_gappers():
+    """UTG açılışı SIKI — zayıf suited gapper'lar (J8s, 96s, 85s) açılmaz."""
+    for h in ("J8s", "96s", "85s", "74s"):
+        a = get_action("UTG", h, "RFI", 100, "cash")
+        assert a.get("fold", 0) >= 80, f"UTG {h} açılmamalı: {a}"
+
+
+def test_bb_defends_wide_vs_btn_open():
+    """BB, BTN açılışına KARŞI geniş savunur (call+raise yüksek)."""
+    tot = defend = 0.0
+    for h in all_hand_keys():
+        cm = 6 if len(h) == 2 else (4 if h.endswith("s") else 12)
+        a = get_action("BB", h, "vs RFI", 100, "cash", vs_position="BTN")
+        tot += cm
+        defend += cm * (a.get("call", 0) + a.get("raise", 0)) / 100
+    pct = 100 * defend / tot
+    assert pct >= 40, f"BB vs BTN savunma %{pct:.0f} — çok dar (geniş olmalı)"
+
+
+def test_premium_pairs_always_continue_vs_3bet():
+    """QQ+ 3-bet'e karşı asla %100 fold değil (devam: 4-bet veya call)."""
+    for pos in ("UTG", "MP", "CO", "BTN"):
+        for h in ("AA", "KK", "QQ"):
+            a = get_action(pos, h, "vs 3-bet", 100, "cash", vs_position="BB")
+            assert a.get("raise", 0) + a.get("call", 0) >= 70, f"{pos} {h}: {a}"
