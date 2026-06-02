@@ -34,6 +34,7 @@ NAV_GROUPS = [
     ("LIBRARY", [
         "Opponent Profiles",
         "Knowledge Base",
+        "Strategy Playbook",
         "Study Planner",
         "Settings / Compliance Guard",
     ]),

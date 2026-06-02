@@ -46,6 +46,7 @@ from app.ui.screens.settings import SettingsScreen
 from app.ui.screens.spot_trainer import SpotTrainerScreen
 from app.ui.screens.opponent_profiles import OpponentProfilesScreen
 from app.ui.screens.player_profile import PlayerProfileScreen
+from app.ui.screens.strategy_playbook import StrategyPlaybookScreen
 from app.ui.screens.study_library import StudyLibraryScreen
 from app.ui.screens.study_planner import StudyPlannerScreen
 from app.ui.screens.tournament_analysis import TournamentAnalysisScreen
@@ -101,6 +102,7 @@ NAV_ITEMS = [
     "AI Poker Coach",
     "Opponent Profiles",
     "Knowledge Base",
+    "Strategy Playbook",
     "Study Planner",
     "Reports",
     "Settings / Compliance Guard",
@@ -286,6 +288,7 @@ class MainWindow(QMainWindow):
             "AI Poker Coach": AiCoachScreen,
             "Opponent Profiles": OpponentProfilesScreen,
             "Knowledge Base": KnowledgeBaseScreen,
+            "Strategy Playbook": StrategyPlaybookScreen,
             "Study Planner": StudyPlannerScreen,
             "Reports": ReportsScreen,
             "Settings / Compliance Guard": SettingsScreen,
