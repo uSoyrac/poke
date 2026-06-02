@@ -32,6 +32,7 @@ from app.ui.screens.hand_analyzer import HandAnalyzerScreen
 from app.ui.screens.hand_history import HandHistoryScreen
 from app.ui.screens.icm_trainer import IcmTrainerScreen
 from app.ui.screens.knowledge_base import KnowledgeBaseScreen
+from app.ui.screens.growth_lab import GrowthLabScreen
 from app.ui.screens.leak_finder import LeakFinderScreen
 from app.ui.screens.math_lab import MathLabScreen
 from app.ui.screens.play_session import PlaySessionScreen
@@ -99,6 +100,7 @@ NAV_ITEMS = [
     "Math Lab",
     "Combat Trainer",
     "Leak Finder",
+    "Growth & Edge Lab",
     "AI Poker Coach",
     "Opponent Profiles",
     "Knowledge Base",
@@ -285,6 +287,7 @@ class MainWindow(QMainWindow):
             "Math Lab": MathLabScreen,
             "Combat Trainer": CombatTrainerScreen,
             "Leak Finder": LeakFinderScreen,
+            "Growth & Edge Lab": GrowthLabScreen,
             "AI Poker Coach": AiCoachScreen,
             "Opponent Profiles": OpponentProfilesScreen,
             "Knowledge Base": KnowledgeBaseScreen,

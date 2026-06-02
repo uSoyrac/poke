@@ -28,6 +28,7 @@ NAV_GROUPS = [
         "Fast Play Simulator",
         "ICM / PKO Trainer",
         "Leak Finder",
+        "Growth & Edge Lab",
         "AI Poker Coach",
         "Reports",
     ]),
