@@ -651,3 +651,33 @@ Bu kapsamlı referansı kullanarak her analizde:
 • Somut düzeltme önerileri ver (soyut değil, uygulanabilir)
 • Çelişen durumları açıkla (GTO vs exploit ne zaman ayrışıyor?)
 ══════════════════════════════════════════════════════════"""
+
+
+def _build_system_prompt() -> str:
+    """Sistem prompt'unu Strateji Playbook referansıyla zenginleştir.
+
+    Uygulamadaki 'Strategy Playbook' ekranıyla AYNI ilkeler (app.poker.playbook)
+    koça gömülür → koç verdiği tavsiyeyi 'Playbook'taki X ilkesi' diye adlandırıp
+    ekranla tutarlı, kullanıcının çalıştığı materyale bağlı konuşur.
+    """
+    try:
+        from app.poker.playbook import playbook_reference_text
+        ref = playbook_reference_text()
+    except Exception:
+        return SYSTEM_PROMPT_TR
+    return (
+        f"{SYSTEM_PROMPT_TR}\n\n"
+        "══════════════════════════════════════════════════════════\n"
+        " ▌ STRATEJİ PLAYBOOK — UYGULAMADAKİ SAHA REHBERİYLE AYNI ▐\n"
+        "══════════════════════════════════════════════════════════\n"
+        "Aşağıdaki ilkeler kullanıcının 'Strategy Playbook' ekranında gördüğü\n"
+        "uzun-vade cash + MTT çerçeveleridir. Tavsiyelerini bunlara DAYANDIR ve\n"
+        "mümkünse ilgili bölümün adını anarak ('Playbook → Postflop Sistemi')\n"
+        "kullanıcının çalıştığı materyalle bağ kur. Çelişirse açıkla.\n\n"
+        f"{ref}\n"
+        "══════════════════════════════════════════════════════════"
+    )
+
+
+# Koça verilen tam sistem prompt'u (playbook gömülü). gemini_client bunu kullanır.
+SYSTEM_PROMPT_WITH_PLAYBOOK = _build_system_prompt()

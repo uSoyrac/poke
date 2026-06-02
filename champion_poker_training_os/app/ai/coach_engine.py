@@ -225,6 +225,28 @@ def identify_patterns(hands: list) -> str:
     return "\n".join(parts) if len(parts) > 1 else "Belirgin bir pattern tespit edilmedi. Oynamaya devam et."
 
 
+# ─── Playbook highlights (offline) ──────────────────────────────────
+
+
+def _playbook_highlights(lower: str) -> str:
+    """Strateji sorularına Playbook'tan özet ver (Strategy Playbook ekranıyla
+    aynı kaynak). MTT mi cash mi sorulduğunu kelimeden anla."""
+    from app.poker.playbook import CASH_PLAYBOOK, MTT_PLAYBOOK
+
+    is_mtt = any(k in lower for k in ("turnuva", "mtt", "icm", "bubble", "final table"))
+    book = MTT_PLAYBOOK if is_mtt else CASH_PLAYBOOK
+    head = "♣ MTT" if is_mtt else "♠ CASH GAME"
+    parts = [f"{head} — uzun-vade strateji çerçeveleri (Strategy Playbook'tan):", ""]
+    for sec in book:
+        parts.append(f"▸ {sec['title']}")
+        parts.append(f"   {sec['frame']}")
+        rule, why = sec["rules"][0]
+        parts.append(f"   • {rule}")
+    parts.append("")
+    parts.append("Detay + 'neden'ler + pratik bağlantıları için: Strategy Playbook ekranı.")
+    return "\n".join(parts)
+
+
 # ─── Coach Chat (Enhanced) ──────────────────────────────────────────
 
 
@@ -244,6 +266,10 @@ def coach_chat(prompt: str, selected_spot: dict | None = None, session_stats: di
 
     if "pattern" in lower or "kalıp" in lower or "tekrar" in lower:
         return "Pattern analizi için Play Session'da en az 5 el oyna, sonra buraya gel."
+
+    if any(k in lower for k in ("strateji", "strategy", "playbook", "uzun vade",
+                                "uzun dönem", "cash game", "nakit", "turnuva", "mtt")):
+        return _playbook_highlights(lower)
 
     if any(k in lower for k in ("plan", "program", "çalış", "study")):
         return (
@@ -293,6 +319,7 @@ def coach_chat(prompt: str, selected_spot: dict | None = None, session_stats: di
 
     return (
         "Offline koç modundayım. Şunları sorabilisin:\n"
+        "  • 'Strateji' → uzun-vade cash/MTT playbook özeti\n"
         "  • 'Analiz' → session veya el review\n"
         "  • 'Plan' → günlük çalışma programı\n"
         "  • 'ICM' → turnuva stratejisi\n"

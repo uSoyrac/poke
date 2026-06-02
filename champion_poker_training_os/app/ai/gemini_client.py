@@ -6,7 +6,7 @@ from typing import Callable
 
 from PySide6.QtCore import QThread, Signal
 
-from app.ai.coach_prompts import SYSTEM_PROMPT_TR
+from app.ai.coach_prompts import SYSTEM_PROMPT_WITH_PLAYBOOK as SYSTEM_PROMPT_TR
 
 try:
     from google import genai
