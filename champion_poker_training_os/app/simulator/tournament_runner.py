@@ -107,9 +107,13 @@ class TournamentConfig:
     buyin: float = 22.0
     payout_key: str = "9-max"
     hands_per_level: int = 12  # How many hands before blinds go up
-    bot_mix: List[str] = field(default_factory=lambda: [
-        "TAG", "Reg", "Fish", "LAG", "Nit", "Aggro Fish", "Tight Passive", "Calling Station"
-    ])
+    # Varsayılan alan GERÇEKÇİ MTT dağılımı (zayıf-ağırlıklı) + her turnuvada
+    # TAZE örneklenir (aynı diziyi tekrar etmez). Kullanıcı tournament_simulator'da
+    # özel bir mix seçerse o aynen kullanılır.
+    bot_mix: List[str] = field(
+        default_factory=lambda: __import__(
+            "app.engine.bot_brain", fromlist=["realistic_mtt_mix"]
+        ).realistic_mtt_mix(12))
     hero_range_filter: str = ""   # "" = all hands; "Premium" / "TAG Range" / etc.
 
     @property

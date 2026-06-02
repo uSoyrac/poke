@@ -134,11 +134,48 @@ BOT_ARCHETYPES = {
 
 # A roster used when the user picks "Karma (Mixed)" — game_loop spreads these
 # across seats (one archetype per opponent) for a varied, realistic field.
+# Genişletildi: orta-seviye reg'ler eklendi → bimodal (sadece zayıf/güçlü)
+# değil, gerçek alandaki gibi normal-benzeri dağılım.
 KARMA_MIX = [
-    "TAG", "LAG", "Fish", "Calling Station",
-    "Reg", "Maniac", "Tight Passive", "Aggro Fish",
-    "Shark", "Nit",
+    # Zayıf / rekreasyonel
+    "Fish", "Calling Station", "Aggro Fish", "Tight Passive", "Nit",
+    "Rock", "Maniac",
+    # Orta reg
+    "TAG", "Reg", "LAG", "Balanced Reg",
+    # Güçlü
+    "Shark", "GTO Expert", "Exploit Expert", "Solver Bot",
 ]
+
+# GERÇEK online MTT alanı kompozisyonu (yaklaşık): ~%62 rekreasyonel/zayıf,
+# ~%26 orta reg, ~%12 güçlü. Uniform dağıtım gerçekçi DEĞİL — gerçek alanlar
+# zayıf-ağırlıklıdır. realistic_mtt_mix() ve sample_field'ın random dolgusu
+# bu ağırlıkları kullanır (KARMA_MIX üyeliği korunur → mevcut testler geçer).
+KARMA_WEIGHTS = {
+    # Zayıf (~%62)
+    "Fish": 16, "Calling Station": 12, "Aggro Fish": 9, "Tight Passive": 9,
+    "Nit": 6, "Rock": 5, "Maniac": 5,
+    # Orta reg (~%26)
+    "TAG": 8, "Reg": 8, "LAG": 6, "Balanced Reg": 4,
+    # Güçlü (~%12)
+    "Shark": 4, "GTO Expert": 3, "Exploit Expert": 3, "Solver Bot": 2,
+}
+
+
+def _weighted_choice(rng):
+    """KARMA_WEIGHTS'e göre tek bir arketip seç (gerçekçi alan dağılımı)."""
+    names = list(KARMA_WEIGHTS.keys())
+    wts = [KARMA_WEIGHTS[n] for n in names]
+    return rng.choices(names, weights=wts, k=1)[0]
+
+
+def realistic_mtt_mix(n: int, rng=None) -> "list[str]":
+    """N kişilik GERÇEKÇİ MTT alanı: KARMA_WEIGHTS dağılımıyla (zayıf-ağırlıklı),
+    çoğunluk rekreasyonel + azınlık reg/güçlü. Tekrar serbest (gerçek alanda
+    birden çok fish olur), ama büyük alanda dağılım gerçekçi orana yakınsar."""
+    import random as _random
+    rng = rng or _random
+    n = max(0, int(n))
+    return [_weighted_choice(rng) for _ in range(n)]
 
 
 def sample_field(n_bots: int, weights: "dict[str, float] | None" = None,
@@ -171,8 +208,10 @@ def sample_field(n_bots: int, weights: "dict[str, float] | None" = None,
         out.extend([arch] * count)
     out = out[:n_bots]                       # aşırı atamayı kırp
     while len(out) < n_bots:                 # kalan koltuk = random
+        # Motor kullanımı (token yok) → GERÇEKÇİ ağırlıklı dağılım (zayıf-ağırlıklı),
+        # uniform değil. UI token'ı verildiyse o token kalır (UI her el yeniden örnekler).
         out.append(random_token if random_token is not None
-                   else rng.choice(KARMA_MIX))
+                   else _weighted_choice(rng))
     rng.shuffle(out)
     return out
 
