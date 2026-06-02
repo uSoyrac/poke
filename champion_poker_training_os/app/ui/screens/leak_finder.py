@@ -44,16 +44,21 @@ def _infer_category(name: str) -> str:
 
 def _normalize_leak(raw: dict) -> dict:
     """get_leak_analysis() çıktısını tablo şemasına dönüştür."""
+    from app.poker.playbook import playbook_ref_for_leak
+    name = raw.get("name", "")
+    category = raw.get("category") or _infer_category(name)
     return {
-        "name": raw.get("name", ""),
+        "name": name,
         "severity": raw.get("severity", "Medium"),
-        "category": raw.get("category") or _infer_category(raw.get("name", "")),
+        "category": category,
         "sample_size": int(raw.get("sample_size", 0) or 0),
         "ev_lost": float(raw.get("ev_lost", 0) or 0),
         "frequency_deviation": raw.get("frequency_deviation", "—"),
         "why": raw.get("detail", "") or raw.get("why", ""),
         "fix": raw.get("fix", ""),
         "repair_days": int(raw.get("repair_days", 5) or 5),
+        # Hangi uzun-vade Playbook ilkesini ihlal ettiğini bağla
+        "playbook": playbook_ref_for_leak(name, category),
     }
 
 
@@ -265,6 +270,12 @@ class LeakFinderScreen(QWidget):
         self.detail_fix.setWordWrap(True)
         self.detail_fix.setObjectName("Green")
 
+        # Hangi uzun-vade Playbook ilkesini ihlal ettiğini gösterir
+        self.detail_playbook = QLabel()
+        self.detail_playbook.setWordWrap(True)
+        self.detail_playbook.setStyleSheet(
+            "color:#5ad1ce; font-size:12px; padding-top:4px;")
+
         # Repair plan visualization
         self.repair_bar = QProgressBar()
         self.repair_bar.setRange(0, 100)
@@ -283,14 +294,21 @@ class LeakFinderScreen(QWidget):
         combat_btn.clicked.connect(lambda: self.navigate_requested.emit("Combat Trainer"))
         coach_btn = QPushButton("Ask AI Coach")
         coach_btn.clicked.connect(self._ask_coach)
+        self.playbook_btn = QPushButton("📖 Playbook'u Aç")
+        self.playbook_btn.setToolTip("Bu leak'in ihlal ettiği uzun-vade ilkeyi "
+                                     "Strategy Playbook'ta aç.")
+        self.playbook_btn.clicked.connect(
+            lambda: self.navigate_requested.emit("Strategy Playbook"))
         btn_row.addWidget(repair_btn)
         btn_row.addWidget(drill_btn)
         btn_row.addWidget(combat_btn)
         btn_row.addWidget(coach_btn)
+        btn_row.addWidget(self.playbook_btn)
 
         detail_layout.addWidget(self.detail_title)
         detail_layout.addWidget(self.detail_why)
         detail_layout.addWidget(self.detail_fix)
+        detail_layout.addWidget(self.detail_playbook)
         detail_layout.addWidget(self.repair_bar)
         detail_layout.addLayout(btn_row)
         layout.addWidget(self.detail_frame)
@@ -370,7 +388,7 @@ class LeakFinderScreen(QWidget):
             )
         else:
             self.data_driven = False
-            self.all_leaks = list(EXTENDED_LEAKS)
+            self.all_leaks = [_normalize_leak(r) for r in EXTENDED_LEAKS]
             info = next((r for r in raw if r.get("severity") == "Info"), None)
             note = info["detail"] if info else "Daha fazla el oyna."
             self.banner.setText(
@@ -441,6 +459,16 @@ class LeakFinderScreen(QWidget):
                 meta += f" | EV lost: {ev:.1f}bb"
             self.detail_why.setText(f"Why: {leak['why']}\n\n{meta}")
             self.detail_fix.setText(f"Fix: {leak['fix']}")
+            pb = leak.get("playbook")
+            if pb:
+                fmt = "MTT" if pb["format"] == "mtt" else "Cash"
+                self.detail_playbook.setText(
+                    f"📖 İhlal edilen ilke — Playbook ({fmt}) → {pb['section']}\n"
+                    f"    {pb['principle']}")
+                self.playbook_btn.setEnabled(True)
+            else:
+                self.detail_playbook.setText("")
+                self.playbook_btn.setEnabled(False)
             self.repair_bar.setFormat("Combat repair plan available")
             self.repair_bar.setValue(0)
 

@@ -275,6 +275,70 @@ MTT_PLAYBOOK = [
 ]
 
 
+def section_by_title(title: str) -> dict | None:
+    """Başlığa göre playbook bölümünü bul (cash veya MTT)."""
+    for sec in CASH_PLAYBOOK + MTT_PLAYBOOK:
+        if sec["title"] == title:
+            return sec
+    return None
+
+
+# ── Leak → Playbook eşlemesi ─────────────────────────────────────────
+# Tespit edilen her leak'i ihlal ettiği uzun-vade ilkeye bağlar. Sıra
+# önemli: ilk eşleşen kazanır → daha spesifik anahtarlar önce gelir.
+# (book, section_index) — index ilgili listedeki bölüm sırasıdır.
+_LEAK_RULES: list = [
+    # MTT — kısa stack / push-fold
+    (("push/fold", "push", "short stack", "short-stack", "shove", "jam", "nash"),
+     "mtt", 0),
+    # MTT — ICM / bubble / pay jump
+    (("icm", "bubble", "call-off", "pay jump", "final table", "satellite"),
+     "mtt", 2),
+    # Cash — river / bluff / value (Postflop Sistemi)
+    (("river", "overbluff", "thin value", "bluff selection", "blocker"),
+     "cash", 2),
+    # Cash — c-bet / barrel / board / multiway (Postflop Sistemi)
+    (("cbet", "c-bet", "barrel", "turn", "board", "postflop", "multiway"),
+     "cash", 2),
+    # Cash — over-fold / pasiflik / bluff-catch (Pot Kontrol & Hat Seçimi)
+    (("over-fold", "overfold", "over-folding", "pot control", "passiv",
+      "pasif", "oop", "bluff-catch", "fold to cbet", "fold-to-cbet"),
+     "cash", 3),
+    # Cash — over-aggression / spew (Sömürü vs disiplin)
+    (("spew", "over-aggress", "over-aggression", "aggression"),
+     "cash", 4),
+    # Cash — 3bet / squeeze / 4bet (Preflop İskelet)
+    (("3bet", "3-bet", "squeeze", "4bet", "4-bet", "cold call", "cold-call"),
+     "cash", 1),
+    # Cash — preflop açılış / BB defend / steal (Preflop İskelet)
+    (("bb ", "underdefend", "defend", "vs rfi", "vs btn", "rfi", "sb ",
+      "preflop", "open", "steal", "limp"),
+     "cash", 1),
+]
+
+
+def playbook_ref_for_leak(name: str, category: str = "") -> dict | None:
+    """Bir leak'i (ad + kategori) en uygun Playbook bölümüne eşle.
+
+    Döndürür: {"format": "cash"|"mtt", "section": başlık, "principle": çerçeve,
+    "screen": "Strategy Playbook"} veya eşleşme yoksa None. Leak Finder bunu
+    "ihlal ettiğin ilke" olarak gösterir + ekrana yönlendirir.
+    """
+    hay = f"{name} {category}".lower()
+    for keys, book_name, idx in _LEAK_RULES:
+        if any(k in hay for k in keys):
+            book = CASH_PLAYBOOK if book_name == "cash" else MTT_PLAYBOOK
+            if 0 <= idx < len(book):
+                sec = book[idx]
+                return {
+                    "format": book_name,
+                    "section": sec["title"],
+                    "principle": sec["frame"],
+                    "screen": "Strategy Playbook",
+                }
+    return None
+
+
 def playbook_reference_text(max_rules: int = 2) -> str:
     """Playbook'u AI Koç sistem prompt'una gömülecek KOMPAKT metne çevir.
 
