@@ -58,3 +58,32 @@ def test_offline_coach_mtt_strategy_query():
     assert "MTT" in out
     # MTT playbook'un ilk bölümü stack derinliği
     assert "Stack" in out or "stack" in out
+
+
+# ── Growth & Edge Lab ↔ Koç bağı ─────────────────────────────────────
+def test_system_prompt_embeds_growth_concepts():
+    from app.ai.coach_prompts import SYSTEM_PROMPT_WITH_PLAYBOOK
+    for kw in ("KELLY", "RISK OF RUIN", "ERGODICITY", "ÜSTEL BÜYÜME"):
+        assert kw in SYSTEM_PROMPT_WITH_PLAYBOOK, f"'{kw}' sistem prompt'ta yok"
+
+
+def test_offline_coach_bankroll_positive_winrate():
+    from app.ai.coach_engine import coach_chat
+    stats = {"total_hands": 5000, "bb_per_100": 6.0}
+    out = coach_chat("bankroll iflas riski ne olmalı", session_stats=stats)
+    assert "Bankroll" in out
+    assert "buy-in" in out.lower()
+    assert "Kelly" in out or "kelly" in out.lower()
+
+
+def test_offline_coach_bankroll_negative_winrate_warns_edge():
+    from app.ai.coach_engine import coach_chat
+    stats = {"total_hands": 5000, "bb_per_100": -3.0}
+    out = coach_chat("kelly ve bankroll", session_stats=stats)
+    assert "EDGE YOK" in out or "edge" in out.lower()
+
+
+def test_offline_coach_bankroll_no_data():
+    from app.ai.coach_engine import coach_chat
+    out = coach_chat("bankroll", session_stats=None)
+    assert "Growth & Edge Lab" in out

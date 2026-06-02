@@ -247,6 +247,52 @@ def _playbook_highlights(lower: str) -> str:
     return "\n".join(parts)
 
 
+# ─── Bankroll / üstel büyüme koçu (offline) ─────────────────────────
+
+
+def _bankroll_coach(stats: dict | None) -> str:
+    """Gerçek winrate'ten bankroll + iflas riski + Kelly çerçevesi tavsiyesi.
+
+    Üstel büyümenin iki şartını somutlar: (1) edge var mı, (2) iflas etmeden
+    hayatta kalmak. Std bilinmiyor → cash 6-max tipik (90 bb/100) varsayılır."""
+    from app.poker.growth_lab import bankroll_for_ror
+
+    wr = float((stats or {}).get("bb_per_100", 0) or 0)
+    std = 90.0   # cash 6-max tipik; MTT için ~150 (varsayım, not düşülür)
+    parts = ["📊 Bankroll & Üstel Büyüme"]
+
+    if not stats or not stats.get("total_hands"):
+        return ("Bankroll analizi için önce birkaç yüz el oyna (winrate'in "
+                "oturması lazım). Sonra Growth & Edge Lab'da kendi winrate + "
+                "varyansınla iflas riskini (RoR) ve güvenli roll'u görürsün. "
+                "İlke: üstel büyüme = pozitif edge × iflas etmeden hayatta kalmak.")
+
+    if wr <= 0:
+        parts.append(
+            f"🔴 Winrate'in {wr:+.1f} bb/100 — şu örneklemde EDGE YOK. Bu en "
+            "kritik nokta: edge negatifken bankroll ne olursa olsun compounding "
+            "seni AŞAĞI götürür. Önce yeneceğin masa/format bul (game selection) "
+            "ve sızıntıları kapat (Leak Finder). Bankroll iflası önleyemez — "
+            "önce edge.")
+    else:
+        safe_bb = bankroll_for_ror(wr, std, 0.05)
+        safe_bi = safe_bb / 100.0
+        parts.append(
+            f"🟢 Winrate {wr:+.1f} bb/100 (pozitif edge). ~{std:.0f} bb/100 cash "
+            f"varyansı varsayımıyla, %5 iflas riski için ≈ {safe_bi:.0f} buy-in "
+            "bankroll gerekir.")
+        parts.append(
+            "• Bunun üstündeki roll = güvenli bölge → stake yükseltmeyi düşün.")
+        parts.append(
+            "• Altındaysan stake düşür ya da roll büyüt: edge gerçek olsa bile "
+            "bir downswing seni silebilir (ergodicity — tek yörüngede iflas = oyun biter).")
+    parts.append(
+        "• Sizing kuralı: Kelly/fraction. Full Kelly büyümeyi maksimize eder ama "
+        "varyansı yüksek; pratikte HALF-KELLY (büyümenin ~%75'i, varyansın yarısı).")
+    parts.append("Detaylı hesap: Growth & Edge Lab (winrate/varyans/roll → RoR).")
+    return "\n".join(parts)
+
+
 # ─── Coach Chat (Enhanced) ──────────────────────────────────────────
 
 
@@ -266,6 +312,11 @@ def coach_chat(prompt: str, selected_spot: dict | None = None, session_stats: di
 
     if "pattern" in lower or "kalıp" in lower or "tekrar" in lower:
         return "Pattern analizi için Play Session'da en az 5 el oyna, sonra buraya gel."
+
+    if any(k in lower for k in ("bankroll", "kasa", "roll", "iflas", "ruin",
+                                "kelly", "varyans", "variance", "stake",
+                                "üstel", "compound", "büyüme", "edge")):
+        return _bankroll_coach(session_stats)
 
     if any(k in lower for k in ("strateji", "strategy", "playbook", "uzun vade",
                                 "uzun dönem", "cash game", "nakit", "turnuva", "mtt")):
@@ -320,6 +371,7 @@ def coach_chat(prompt: str, selected_spot: dict | None = None, session_stats: di
     return (
         "Offline koç modundayım. Şunları sorabilisin:\n"
         "  • 'Strateji' → uzun-vade cash/MTT playbook özeti\n"
+        "  • 'Bankroll' → iflas riski + Kelly + güvenli roll\n"
         "  • 'Analiz' → session veya el review\n"
         "  • 'Plan' → günlük çalışma programı\n"
         "  • 'ICM' → turnuva stratejisi\n"

@@ -675,8 +675,42 @@ def _build_system_prompt() -> str:
         "mümkünse ilgili bölümün adını anarak ('Playbook → Postflop Sistemi')\n"
         "kullanıcının çalıştığı materyalle bağ kur. Çelişirse açıkla.\n\n"
         f"{ref}\n"
-        "══════════════════════════════════════════════════════════"
+        "══════════════════════════════════════════════════════════\n\n"
+        f"{GROWTH_CONCEPTS}"
     )
+
+
+GROWTH_CONCEPTS = """\
+══════════════════════════════════════════════════════════
+ ▌ ÜSTEL BÜYÜME, BANKROLL & KELLY (Growth & Edge Lab ile aynı) ▐
+══════════════════════════════════════════════════════════
+Kullanıcı uzun vadede sermayesini ÜSTEL büyütmeyi hedefliyor. Çerçeve:
+
+1) ÜSTEL BÜYÜME = (doğrulanmış POZİTİF EDGE) × (İFLAS ETMEDEN HAYATTA KALMA).
+   Edge yoksa compounding sermayeyi ERİTİR; edge varsa bile yanlış sizing ruin
+   getirir. Tek bir kazanç (örn. bir MTT'de 16×) EDGE DEĞİL — varyans. Edge
+   ancak büyük örneklemde (ROI/winrate) belli olur.
+
+2) KELLY KRİTERİ — bahsi bankroll'un bir KESRİ olarak boyutla:
+   • Genel: f* = (p·g − q·l) / (g·l)   [p=kazanma, g=kazanç katı, l=kayıp katı]
+   • Full Kelly log-büyümeyi maksimize eder ama varyansı yüksek.
+   • Pratik öneri: HALF-KELLY (büyümenin ~%75'i, varyansın yarısı).
+   • OVERBET (Kelly'nin üstü) edge gerçek olsa bile büyümeyi DÜŞÜRÜR, ruin'i
+     patlatır. Poker bankroll kuralları (cash 30-40 BI, MTT 100+ BI) Kelly'nin
+     sezgisel halidir.
+
+3) RISK OF RUIN (poker): RoR ≈ exp(−2·μ·B/σ²)  [μ,σ: bb/100, B: bankroll bb].
+   Winrate ≤ 0 → RoR = %100 (hiçbir roll kurtarmaz, önce game selection).
+   Güvenli roll: B = −ln(hedef)·σ²/(2·μ).
+
+4) ERGODICITY: ensemble beklenen değer pozitif olsa bile SENİN tek paran tek
+   bir yörüngede ilerler — bir kez iflas edersen oyun biter. Bu yüzden Kelly +
+   bankroll disiplini zorunlu, "ortalama kazanç" değil.
+
+Kullanıcı bankroll/iflas/Kelly/varyans/üstel büyüme sorarsa bu çerçeveyle ve
+mümkünse onun gerçek winrate'iyle (profil) somut konuş; 'Growth & Edge Lab'
+ekranına yönlendir. Bir kazancı edge sanma hatasını nazikçe düzelt.
+══════════════════════════════════════════════════════════"""
 
 
 # Koça verilen tam sistem prompt'u (playbook gömülü). gemini_client bunu kullanır.
