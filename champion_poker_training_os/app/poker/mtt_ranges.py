@@ -34,13 +34,16 @@ from app.poker.gto_generator import get_ranked_hands, _combo_count
 # Pozisyon arkasındaki oyuncu sayısına göre: SB (1 arkada) en geniş,
 # UTG (5 arkada) en sıkı. Yayınlanmış Nash chart'larına kalibre.
 JAM_PCT: Dict[int, Dict[str, float]] = {
-    6:  {"UTG": 22, "MP": 27, "CO": 34, "BTN": 50, "SB": 68},
-    8:  {"UTG": 18, "MP": 22, "CO": 28, "BTN": 42, "SB": 60},
-    10: {"UTG": 14, "MP": 17, "CO": 22, "BTN": 35, "SB": 52},
-    12: {"UTG": 12, "MP": 15, "CO": 19, "BTN": 30, "SB": 46},
-    15: {"UTG": 10, "MP": 12, "CO": 16, "BTN": 25, "SB": 40},
-    20: {"UTG": 7,  "MP": 9,  "CO": 12, "BTN": 18, "SB": 30},
-    25: {"UTG": 5,  "MP": 6,  "CO": 8,  "BTN": 13, "SB": 22},
+    # Yayınlanmış Nash open-jam (HRC/SnapShove) ile yeniden kalibre (D88):
+    # geç pozisyon kısa stack'te ~%5-8 GENİŞ (eski tablo BTN/CO/SB'de tight'tı).
+    # Değişmezler korunur: SB > BTN > CO > MP > UTG; stack↑ → range daralır.
+    6:  {"UTG": 28, "MP": 34, "CO": 42, "BTN": 58, "SB": 72},
+    8:  {"UTG": 20, "MP": 26, "CO": 34, "BTN": 50, "SB": 64},
+    10: {"UTG": 16, "MP": 21, "CO": 28, "BTN": 43, "SB": 56},
+    12: {"UTG": 13, "MP": 17, "CO": 23, "BTN": 36, "SB": 50},
+    15: {"UTG": 10, "MP": 13, "CO": 18, "BTN": 28, "SB": 42},
+    20: {"UTG": 7,  "MP": 9,  "CO": 13, "BTN": 20, "SB": 32},
+    25: {"UTG": 5,  "MP": 6,  "CO": 9,  "BTN": 14, "SB": 24},
 }
 
 

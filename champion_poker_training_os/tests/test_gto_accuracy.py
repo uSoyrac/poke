@@ -73,6 +73,16 @@ def test_pushfold_shorter_is_wider():
     assert bb10 > bb20, f"10bb ({bb10:.1f}) 20bb'den ({bb20:.1f}) geniş olmalı"
 
 
+def test_pushfold_btn_nash_wide_at_10bb():
+    """KANON (D88): BTN open-jam ~10bb GENİŞ (Nash ≥%40). Eski tablo tight'tı
+    (%33) — yayınlanmış Nash chart'larına kalibre edildi."""
+    btn10 = _range_pct("BTN", "Push/Fold", 10, "MTT")
+    assert btn10 >= 38, f"BTN 10bb jam %{btn10:.0f} — Nash'e göre çok dar"
+    sb10 = _range_pct("SB", "Push/Fold", 10, "MTT")
+    co10 = _range_pct("CO", "Push/Fold", 10, "MTT")
+    assert sb10 > btn10 > co10, f"sıra bozuk: SB{sb10:.0f} BTN{btn10:.0f} CO{co10:.0f}"
+
+
 # ── POKER-MANTIĞI DEĞİŞMEZLERİ (asla bozulmamalı) ────────────────────
 @pytest.mark.parametrize("pos", ["UTG", "MP", "CO", "BTN", "SB"])
 def test_premiums_always_raised_rfi(pos):
