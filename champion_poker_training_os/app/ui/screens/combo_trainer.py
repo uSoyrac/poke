@@ -87,7 +87,15 @@ class ComboTrainerScreen(QWidget):
         self._stats = QLabel("Bu seans: 0/0  ·  streak 0")
         self._stats.setStyleSheet(f"color:{_MUTED}; font-size:12px; font-weight:700;")
         side.addWidget(self._stats)
+        # Kalıcı leak-ledger (oturumlar arası ilerleme + spaced repetition)
+        self._ledger = QLabel("")
+        self._ledger.setWordWrap(True)
+        self._ledger.setStyleSheet(
+            f"background:{_CARD}; border:1px solid {_LINE}; border-radius:8px; "
+            f"padding:10px; color:{_MUTED}; font-size:11px;")
+        side.addWidget(self._ledger)
         side.addStretch(1)
+        self._refresh_ledger()
         rw = QWidget()
         rw.setLayout(side)
         rw.setFixedWidth(320)
@@ -136,6 +144,26 @@ class ComboTrainerScreen(QWidget):
 
         self._new_spot()
 
+    def _refresh_ledger(self) -> None:
+        """Kalıcı leak-ledger satırını güncelle (oturumlar arası ilerleme)."""
+        try:
+            from app.db.repository import get_leak_ledger
+            rows = [r for r in get_leak_ledger()
+                    if r["category"] == "River Bluff-Catch (combo)"]
+        except Exception:
+            rows = []
+        if not rows:
+            self._ledger.setText("📒 Kalıcı ledger: henüz veri yok — birkaç el oyna.")
+            return
+        r = rows[0]
+        nr = r["next_review_hours"]
+        nr_s = (f"{nr//24}g" if nr >= 24 else f"{nr}sa") if nr else "şimdi"
+        self._ledger.setText(
+            f"📒 KALICI LEDGER — River Bluff-Catch<br>"
+            f"{r['correct']}/{r['attempts']} doğru (%{r['accuracy']:.0f}) · "
+            f"streak {r['streak']}<br>Durum: {r['status']}<br>"
+            f"Sonraki re-test: ~{nr_s}")
+
     # ── akış ──
     def _new_spot(self) -> None:
         self._spot = generate_spot(rng=random)
@@ -169,6 +197,17 @@ class ComboTrainerScreen(QWidget):
         self._stats.setText(
             f"Bu seans: {self._correct}/{self._n} "
             f"(%{100*self._correct/max(self._n,1):.0f})  ·  streak {self._streak}")
+
+        # Kalıcı leak-ledger'a işle (oturumlar arası + spaced repetition)
+        try:
+            from app.db.repository import record_drill_result
+            an = self._spot.get("analysis", {})
+            ev = 0.0 if g["correct"] else abs(
+                an.get("win_pct", 0) - an.get("needed_equity", 0)) / 100.0
+            record_drill_result("River Bluff-Catch (combo)", g["correct"], ev)
+            self._refresh_ledger()
+        except Exception:
+            pass
 
         a = g["analysis"]
         head_col = _ACCENT if g["correct"] else _DANGER

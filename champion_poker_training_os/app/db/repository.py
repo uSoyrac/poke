@@ -804,6 +804,70 @@ def get_player_stats() -> dict:
         }
 
 
+# ─── Leak Ledger (kalıcı drill öz-bilgisi + spaced repetition) ───────
+
+
+def _ensure_leak_ledger() -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS leak_ledger (
+                 category TEXT PRIMARY KEY,
+                 attempts INTEGER DEFAULT 0,
+                 correct INTEGER DEFAULT 0,
+                 streak INTEGER DEFAULT 0,
+                 ev_loss REAL DEFAULT 0,
+                 first_seen REAL,
+                 last_seen REAL
+               )""")
+        conn.commit()
+
+
+def record_drill_result(category: str, correct: bool, ev_loss: float = 0.0,
+                        now: float | None = None) -> None:
+    """Bir drill tekrarını leak-ledger'a işle (upsert + streak güncelle)."""
+    import time
+    now = float(now) if now is not None else time.time()
+    _ensure_leak_ledger()
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT attempts, correct, streak, ev_loss, first_seen "
+            "FROM leak_ledger WHERE category=?", (category,)).fetchone()
+        if row:
+            attempts = row["attempts"] + 1
+            corr = row["correct"] + (1 if correct else 0)
+            streak = (row["streak"] + 1) if correct else 0
+            ev = (row["ev_loss"] or 0.0) + float(ev_loss)
+            first = row["first_seen"] or now
+            conn.execute(
+                "UPDATE leak_ledger SET attempts=?, correct=?, streak=?, "
+                "ev_loss=?, first_seen=?, last_seen=? WHERE category=?",
+                (attempts, corr, streak, ev, first, now, category))
+        else:
+            conn.execute(
+                "INSERT INTO leak_ledger (category, attempts, correct, streak, "
+                "ev_loss, first_seen, last_seen) VALUES (?,?,?,?,?,?,?)",
+                (category, 1, 1 if correct else 0, 1 if correct else 0,
+                 float(ev_loss), now, now))
+        conn.commit()
+
+
+def get_leak_ledger(now: float | None = None) -> list:
+    """Tüm leak kategorilerinin kalıcı durumu (spaced-repetition + status)."""
+    import time
+    from app.poker.leak_ledger import compute_status
+    now = float(now) if now is not None else time.time()
+    _ensure_leak_ledger()
+    with get_connection() as conn:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT * FROM leak_ledger ORDER BY attempts DESC")]
+    out = []
+    for r in rows:
+        st = compute_status(r["attempts"], r["correct"], r["streak"],
+                            r["first_seen"] or now, r["last_seen"] or now, now)
+        out.append({**r, **st})
+    return out
+
+
 def import_hands_from_text(text: str, session_id: int = 1) -> int:
     """PokerStars el-geçmişi metnini parse edip played_hands'e yaz.
 
