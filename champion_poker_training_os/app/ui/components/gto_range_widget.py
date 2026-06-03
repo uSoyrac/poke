@@ -919,6 +919,17 @@ class GTODecisionReveal(QFrame):
             ml.setWordWrap(True)
             col.addWidget(ml)
 
+        # ── COMBO satırı: river bluff-catch value/bluff combo + blocker ──
+        combo = d.get("combo_note") or ""
+        if combo:
+            cl = QLabel("🎴 " + combo)
+            cl.setTextFormat(Qt.RichText)
+            cl.setStyleSheet(
+                f"font-family:'JetBrains Mono',monospace; font-size:10px; "
+                f"color:{_INFO}; background:transparent;")
+            cl.setWordWrap(True)
+            col.addWidget(cl)
+
         # ── NEDEN satırı: stratejik gerekçe (mantığı öğret) ──
         why = self._why_line(d)
         if why:

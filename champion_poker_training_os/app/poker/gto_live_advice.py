@@ -52,6 +52,7 @@ class LiveAdvice:
     hand_key: str = ""
     stack_bb: float = 0.0
     equity: float = 0.0         # hero equity % vs modellenmiş villain range (postflop)
+    combo_note: str = ""        # river bluff-catch: value/bluff combo + blocker (elit koç)
 
     def per_action(self) -> Dict[ActionType, float]:
         """ActionType → % eşlemesi (görünür butonlara uygulamak için)."""
@@ -207,6 +208,18 @@ def _postflop_advice(hand: HandState, hero_idx: int, adv: LiveAdvice) -> LiveAdv
         adv.call = round(100 * call_f, 0)
         adv.raise_ = round(100 * raise_f, 0)
         adv.allin = 0.0
+        # RIVER bluff-catch → COMBO sayımı + blocker (elit koç: 'tek el değil,
+        # combo say'). Sadece river'da (5 kart) ve bahis karşısında anlamlı.
+        if street_name == "river" and len(hand.community) == 5:
+            try:
+                from app.poker.combinatorics import (
+                    bluff_catch_analysis, coach_combo_line)
+                ca = bluff_catch_analysis(
+                    hero_code, " ".join(c.code for c in hand.community),
+                    vr, pot, to_call)
+                adv.combo_note = coach_combo_line(ca)
+            except Exception:
+                pass
     else:
         # Bahis yok: c-bet / donk / probe (doku/inisiyatif/pozisyon/sokak/multiway)
         probe = (not init) and _prev_street_checked_through(hand)

@@ -509,6 +509,14 @@ class MainWindow(QMainWindow):
                 f"%{mdf*100:.0f} (bu kadar range'i savunmalıyım, daha fazla fold = "
                 f"exploit edilirim) · Bluff'un break-even fold oranı (alpha) = %{alpha*100:.0f}\n"
             )
+        combo = g.get("combo_note")
+        if combo:
+            block += (
+                f"[COMBO SAYIMI — river bluff-catch (elit koç: 'tek el değil combo say')]\n"
+                f"{combo}\n"
+                f"Bu combo/blocker sayımını kullanarak villain'ın YETERİNCE bluff'u "
+                f"olup olmadığını ve elinin onun value mi bluff mu blokladığını açıkla.\n"
+            )
         sz = g.get("sizing")
         if sz:
             block += (

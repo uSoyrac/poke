@@ -1295,6 +1295,7 @@ class PlaySessionScreen(QWidget):
                     "fold": adv.fold, "call": adv.call,
                     "raise": adv.raise_, "allin": adv.allin,
                     "pot_bb": pot, "to_call_bb": to_call, "street": street,
+                    "combo_note": adv.combo_note,
                 }
                 self._attach_sizing(hand, hero_idx, mode)
             elif self.state is not None:
