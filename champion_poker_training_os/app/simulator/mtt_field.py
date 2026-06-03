@@ -108,8 +108,18 @@ class MTTField:
         self.paid_places = itm_places(field_size)
         self.prizes      = build_prize_table(self.prize_pool, self.paid_places)
 
-        # State
-        self._bg_remaining          = max(0, field_size - hero_table_size)
+        # State — arka plan oyuncuları SKILL kovalarında tutulur (gerçekçi
+        # alan dağılımı: ~%62 zayıf, %26 orta, %12 güçlü). Zayıflar daha hızlı
+        # patlar (spew) → derin aşamada alan gerçekçi şekilde GÜÇLÜYE kayar
+        # (skill-korelasyonlu hayatta kalma). Toplam eleme sayısı (Poisson)
+        # değişmez; sadece HANGİ kovadan elendiği ağırlıklıdır.
+        bg = max(0, field_size - hero_table_size)
+        self._bg = {
+            "weak":   round(bg * 0.62),
+            "mid":    round(bg * 0.26),
+            "strong": 0,   # kalan → strong (yuvarlama farkını massetir)
+        }
+        self._bg["strong"] = max(0, bg - self._bg["weak"] - self._bg["mid"])
         self._hero_table_remaining  = hero_table_size
         self._hand_count            = 0
         self._total_bg_eliminated   = 0
@@ -122,7 +132,15 @@ class MTTField:
         _rates = {"regular": 0.025, "turbo": 0.048, "hyper": 0.095}
         self._base_rate = _rates.get(structure, 0.025)
 
+    # Kovaların per-capita kırılganlığı (bust olasılığı çarpanı) — sınıf sabiti.
+    _FRAGILITY = {"weak": 1.5, "mid": 1.0, "strong": 0.55}
+
     # ── properties ────────────────────────────────────────────────────
+
+    @property
+    def _bg_remaining(self) -> int:
+        """Arka plan toplam (kovaların toplamı) — tek doğru kaynak."""
+        return sum(self._bg.values())
 
     @property
     def players_remaining(self) -> int:
@@ -131,6 +149,37 @@ class MTTField:
     @property
     def bg_players_remaining(self) -> int:
         return self._bg_remaining
+
+    @property
+    def bg_composition(self) -> dict:
+        """Arka plan skill kompozisyonu: {'weak':%, 'mid':%, 'strong':%} (oran)."""
+        tot = max(1, self._bg_remaining)
+        return {k: v / tot for k, v in self._bg.items()}
+
+    @property
+    def strong_fraction(self) -> float:
+        """Hayatta kalan arka-plan alanında güçlü oyuncu oranı (derinleştikçe artar)."""
+        return self.bg_composition["strong"]
+
+    def _remove_from_buckets(self, n: int, fragility_weighted: bool) -> int:
+        """Arka plandan n oyuncu çıkar. fragility_weighted=True → eleme (zayıf
+        daha çok patlar); False → masaya taşıma (hayatta kalanlar arası rastgele).
+        Döner: gerçekten çıkarılan sayı."""
+        removed = 0
+        buckets = ("weak", "mid", "strong")
+        for _ in range(n):
+            if self._bg_remaining <= 0:
+                break
+            if fragility_weighted:
+                wts = [self._bg[b] * self._FRAGILITY[b] for b in buckets]
+            else:
+                wts = [self._bg[b] for b in buckets]
+            if sum(wts) <= 0:
+                break
+            b = random.choices(buckets, weights=wts, k=1)[0]
+            self._bg[b] -= 1
+            removed += 1
+        return removed
 
     @property
     def bubble_distance(self) -> int:
@@ -204,7 +253,9 @@ class MTTField:
             n = min(n, self._bg_remaining)
 
             if n > 0:
-                self._bg_remaining -= n
+                # Eleme kovalara KIRILGANLIK ağırlıklı dağıtılır (zayıf daha çok
+                # patlar) → toplam n aynı, ama alan derinleştikçe güçlüye kayar.
+                n = self._remove_from_buckets(n, fragility_weighted=True)
                 self._total_bg_eliminated += n
                 eliminated += n
                 self._log.append((self._hand_count, n))
@@ -241,9 +292,11 @@ class MTTField:
         Gerçek MTT'de kısa masalar kırılıp oyuncular dağıtılır. Döner: taşınan.
         """
         n = max(0, min(int(n), self._bg_remaining))
-        self._bg_remaining -= n
-        self._hero_table_remaining += n
-        return n
+        # Masaya taşınanlar hayatta kalanlar arasından RASTGELE (kompozisyona
+        # orantılı) — kırılganlık ağırlığı yok (eleme değil, dengeleme).
+        moved = self._remove_from_buckets(n, fragility_weighted=False)
+        self._hero_table_remaining += moved
+        return moved
 
     def hero_finish(self) -> tuple[int, float]:
         """Call when hero busts.  Returns (finish_place, prize_$)."""

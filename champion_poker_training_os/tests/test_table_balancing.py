@@ -28,7 +28,7 @@ def test_is_final_table():
     f = MTTField(field_size=200, hero_table_size=9)
     assert not f.is_final_table
     f.update_hero_table(9)
-    f._bg_remaining = 0                                # sadece hero masası kaldı
+    f._bg = {"weak": 0, "mid": 0, "strong": 0}         # sadece hero masası kaldı
     assert f.is_final_table
 
 
