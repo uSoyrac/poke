@@ -970,16 +970,25 @@ class TournamentSimulatorScreen(QWidget):
         self.meta_cells["NEXT_LVL"]._value_label.setText(f"{self.tournament.state.hands_until_next_level}")
         self.meta_cells["NEXT_LVL"]._sub_label.setText("hands to next level")
 
-        avg = int(sum(p.stack for p in game.players if not p.is_eliminated) / max(remaining, 1))
-        self.meta_cells["AVG"]._value_label.setText(f"{avg:,}")
+        # Ortalama stack: MTT'de = oyundaki TOPLAM çip / kalan oyuncu (çip korunur,
+        # alan küçüldükçe avg yükselir). Eskiden hero MASASININ çiplerini tüm SAHA
+        # sayısına bölüyordu → 4bb gibi saçma değer. Tek-masa modunda gerçek masa.
+        if self.mtt_field and self.mtt_field.field_size > 9:
+            avg = int(config.starting_chips * total / max(remaining, 1))
+        else:
+            avg = int(sum(p.stack for p in game.players if not p.is_eliminated)
+                      / max(remaining, 1))
+        avg_bb_val = round(avg / max(level.bb, 1), 1)
+        # Üst izlence de masa gibi BB cinsinden — çip sayısı (örn. 1.780) anlamsız,
+        # BB stack derinliği oyuncu için anlamlı tek metrik (real online konvansiyonu).
+        self.meta_cells["AVG"]._value_label.setText(f"{avg_bb_val:.0f} bb")
         hero_p2 = hand.hero
         if hero_p2:
             hero_bb_avg = round(hero_p2.stack / max(level.bb, 1), 1)
-            avg_bb_val = round(avg / max(level.bb, 1), 1)
             from app.simulator.mtt_field import stack_phase
             _pk, ph_tag, _ph_txt = stack_phase(hero_bb_avg)
             self.meta_cells["AVG"]._sub_label.setText(
-                f"hero {hero_bb_avg:.0f}bb {ph_tag} · avg {avg_bb_val:.0f}bb")
+                f"hero {hero_bb_avg:.0f}bb {ph_tag} · {avg:,} çip")
             self._maybe_stack_coach(hero_bb_avg)
 
         prize_pool = (self.mtt_field.prize_pool
@@ -1046,6 +1055,16 @@ class TournamentSimulatorScreen(QWidget):
             if obs:
                 merged["obs_hands"] = obs["obs_hands"]
             merged_profiles[idx] = type("_P", (), merged)()
+
+        # Alan oyun-stili özeti (D2): masadaki RAKİPLERİN ortalama VPIP/PFR.
+        # 'Bu masa loose mu tight mı' — field strip'te gösterilir.
+        opp = [merged_profiles[i] for i in merged_profiles
+               if i != hand.hero_idx]
+        if opp:
+            self._field_vpip = sum(getattr(p, "vpip", 0) for p in opp) / len(opp)
+            self._field_pfr = sum(getattr(p, "pfr", 0) for p in opp) / len(opp)
+        else:
+            self._field_vpip = self._field_pfr = 0.0
 
         seats, hero_slot, dealer_slot = seats_from_hand(
             hand.players, hand.hero_idx,
@@ -1405,10 +1424,18 @@ class TournamentSimulatorScreen(QWidget):
         strength_seg = f"alan: {strength}  ·  " if strength else ""
         # Birleşik ZORLUK (alan sertliği + bubble/ICM baskısı)
         _, tough_tag = f.toughness()
+        # D2: masadaki rakiplerin ortalama oyun-stili (loose/tight göstergesi)
+        vp = getattr(self, "_field_vpip", 0.0)
+        pf = getattr(self, "_field_pfr", 0.0)
+        style_seg = ""
+        if vp > 0:
+            texture = ("loose" if vp >= 30 else "tight" if vp <= 18 else "standart")
+            style_seg = f"masa oyun: VPIP %{vp:.0f} / PFR %{pf:.0f} ({texture})  ·  "
         self._fs_label.setText(
             f"FIELD:  {total_rem:,} / {total:,} players  ·  "
             f"{elim:,} eliminated  ·  {bubble_str}  ·  "
-            f"{f.tables_active} tables  ·  {strength_seg}zorluk: {tough_tag}  ·  {prizes}"
+            f"{f.tables_active} tables  ·  {strength_seg}zorluk: {tough_tag}  ·  "
+            f"{style_seg}{prizes}"
         )
         self.field_strip.show()
 
