@@ -797,6 +797,16 @@ class TournamentSimulatorScreen(QWidget):
                 "coinflip'lerde temkinli ol, ladder'a oyna; ama kısa stack'leri "
                 "ezmek için fold equity'yi kullan.")
 
+    def _maybe_stack_coach(self, hero_bb: float) -> None:
+        """Hero'nun stack fazı değişince BİR KEZ strateji hatırlatması gönder
+        (deep/mid/short/push-fold). Playbook → MTT Stack Fazları ile bağlı."""
+        from app.simulator.mtt_field import stack_phase
+        key, _tag, txt = stack_phase(hero_bb)
+        if key == getattr(self, "_stack_phase", None):
+            return
+        self._stack_phase = key
+        self.coach_message.emit(f"📚 Stack fazı: {txt}")
+
     def _hero_action(self, action_type: ActionType):
         if not self.tournament or self.tournament.is_complete:
             return
@@ -952,7 +962,11 @@ class TournamentSimulatorScreen(QWidget):
         if hero_p2:
             hero_bb_avg = round(hero_p2.stack / max(level.bb, 1), 1)
             avg_bb_val = round(avg / max(level.bb, 1), 1)
-            self.meta_cells["AVG"]._sub_label.setText(f"hero {hero_bb_avg:.0f}bb · avg {avg_bb_val:.0f}bb")
+            from app.simulator.mtt_field import stack_phase
+            _pk, ph_tag, _ph_txt = stack_phase(hero_bb_avg)
+            self.meta_cells["AVG"]._sub_label.setText(
+                f"hero {hero_bb_avg:.0f}bb {ph_tag} · avg {avg_bb_val:.0f}bb")
+            self._maybe_stack_coach(hero_bb_avg)
 
         prize_pool = (self.mtt_field.prize_pool
                       if self.mtt_field and self.mtt_field.field_size > 9

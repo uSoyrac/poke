@@ -30,6 +30,27 @@ def itm_places(field: int) -> int:
     return max(50, round(field * 0.08))
 
 
+def stack_phase(bb: float) -> tuple[str, str, str]:
+    """Efektif stack derinliğinden (bb) strateji fazı: (anahtar, kısa etiket,
+    koç metni). Playbook → MTT Stack Derinliği Fazları ile birebir."""
+    if bb >= 40:
+        return ("deep", "🟢 DERİN",
+                "Derin stack (>40bb): cash gibi oyna — postflop avantajını kullan, "
+                "suited connector / küçük pair ile set/draw avla, pozisyonu kullan. "
+                "(Playbook → MTT Stack Fazları)")
+    if bb >= 20:
+        return ("mid", "🟡 ORTA",
+                "Orta stack (20-40bb): 3-bet'ler genelde commit eder; range'i "
+                "sıkılaştır, draw'larla taşma, fold equity'yi koru. SPR farkındalığı kritik.")
+    if bb >= 10:
+        return ("short", "🟠 KISA",
+                "Kısa stack (10-20bb): re-steal jam + open-jam devrede; net preflop "
+                "kararlar, marjinal postflop manevra yok — fold equity en güçlü silahın.")
+    return ("pushfold", "🔴 PUSH/FOLD",
+            "Push/Fold (<10bb): Nash itme/yatma tablosuna göre oyna; pozisyon + "
+            "stack'e göre jam range; limp/marjinal call YOK.")
+
+
 def icm_pressure_for(alive: int, paid: int) -> float:
     """Bubble/ITM yakınlığından ICM baskısı (0..1). Bot'ların marjinal
     calloff'ları sıkılaştırması için. Erken aşama 0; bubble'da en yüksek."""
