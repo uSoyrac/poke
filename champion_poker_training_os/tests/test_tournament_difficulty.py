@@ -64,6 +64,27 @@ def test_icm_coach_fires_once_per_phase():
     assert any("ITM" in m for m in msgs)
 
 
+def test_closing_eval_includes_field_tier():
+    """Turnuva-sonu post-mortem prompt'u alan tier/zorluk bağlamını içerir."""
+    from PySide6.QtWidgets import QApplication
+    from app.core.app_state import AppState
+    from app.ui.screens.tournament_simulator import TournamentSimulatorScreen
+    from app.simulator.tournament_runner import TournamentConfig
+    app = QApplication.instance() or QApplication([])
+    scr = TournamentSimulatorScreen(AppState())
+    prompts = []
+    scr.tournament_advice_requested.connect(prompts.append)
+    cfg = TournamentConfig(field_size=500)
+    scr._emit_closing_evaluation(
+        finish=3, field_size=500, prize=400, profit=378, roi=1718,
+        won=False, itm=True, pct_rank=99.4, total_hands=120,
+        stats={"vpip": 22, "pfr": 18}, leaks=[], config=cfg,
+        field_tier="Yüksek ($530+)")
+    assert prompts, "post-mortem prompt emit edilmedi"
+    assert "Yüksek ($530+)" in prompts[0]
+    assert "Alan profili" in prompts[0]
+
+
 def test_icm_coach_silent_early():
     from PySide6.QtWidgets import QApplication
     from app.core.app_state import AppState

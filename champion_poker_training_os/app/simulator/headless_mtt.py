@@ -86,7 +86,8 @@ def _play_one_hand(table: List[_Player], sb: float, bb: float, ante: float,
         p.stack = max(0.0, gl.players[i].stack)
 
 
-def run_mtt(field_size: int, seed: int = 0, tier: "str | None" = None) -> dict:
+def run_mtt(field_size: int, seed: int = 0, tier: "str | None" = None,
+            icm_enabled: bool = True) -> dict:
     rng = random.Random(seed)
     archs = realistic_mtt_mix(field_size, rng=rng, tier=tier)
     alive = [_Player(i, archs[i], float(_START_CHIPS)) for i in range(field_size)]
@@ -106,7 +107,7 @@ def run_mtt(field_size: int, seed: int = 0, tier: "str | None" = None) -> dict:
     while len(alive) > 1 and guard_rounds < 200000:
         guard_rounds += 1
         sb, bb, ante = _LEVELS[min(level, len(_LEVELS) - 1)]
-        icm = icm_pressure_for(len(alive), paid)
+        icm = icm_pressure_for(len(alive), paid) if icm_enabled else 0.0
         tables = _rebalance()
         for ti, table in enumerate(tables):
             if len(alive) <= 1:

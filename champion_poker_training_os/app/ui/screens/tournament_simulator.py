@@ -398,7 +398,7 @@ class TournamentSimulatorScreen(QWidget):
 
     def _emit_closing_evaluation(self, *, finish, field_size, prize, profit,
                                  roi, won, itm, pct_rank, total_hands,
-                                 stats, leaks, config) -> None:
+                                 stats, leaks, config, field_tier=None) -> None:
         """Turnuva BİTİNCE bu turnuvaya ÖZEL kapsamlı AI koç değerlendirmesi.
 
         Açılış briefing'in karşılığı — sonuç + gerçek stats + leak'lerle
@@ -414,10 +414,13 @@ class TournamentSimulatorScreen(QWidget):
             for l in (leaks or [])[:6]) or "belirgin leak yok"
         outcome = ("ŞAMPİYON 🏆" if won else
                    (f"ITM — {finish}. sıra" if itm else f"{finish}. sıra (ITM dışı)"))
+        field_desc = (f"Alan profili: {field_tier} (gerçekçi stake dağılımı)"
+                      if field_tier else "Alan profili: özel/varsayılan kompozisyon")
         prompt = (
             f"[TURNUVA SONU DEĞERLENDİRME]\n"
             f"Event: {config.name} · {config.structure} · Buy-in ${config.buyin:.0f} · "
             f"Field {field_size} oyuncu\n"
+            f"{field_desc}\n"
             f"SONUÇ: {outcome}  ·  top %{pct_rank}  ·  "
             f"Kâr ${profit:+.0f} (ROI %{roi:.0f})  ·  Oynanan el: {total_hands}\n"
             f"Hero stats — VPIP %{_g('vpip'):.0f} · PFR %{_g('pfr'):.0f} · "
@@ -1727,7 +1730,8 @@ class TournamentSimulatorScreen(QWidget):
             finish=finish, field_size=field_size, prize=prize, profit=profit,
             roi=roi, won=won, itm=itm, pct_rank=pct_rank,
             total_hands=len(self.tournament.hand_log), stats=stats,
-            leaks=report.get("leaks", []), config=config)
+            leaks=report.get("leaks", []), config=config,
+            field_tier=getattr(self, "_field_tier", None))
 
         # ── Persist to history ─────────────────────────────────────────
         try:
