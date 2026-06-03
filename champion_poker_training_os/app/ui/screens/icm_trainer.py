@@ -156,11 +156,10 @@ class IcmTrainerScreen(QWidget):
         main = QHBoxLayout()
         main.setSpacing(14)
         self.table = LivePokerTable()
-        # LivePokerTable seat'leri YÜZDE ile mutlak konumlanır; alan daralınca
-        # (küçük pencere) seat'ler ve kart-arkaları pot/hero kartlarının üstüne
-        # biniyordu (SS4 'iç içe' kaosu). Min boyut çökmeyi engeller — alan
-        # darsa scroll devreye girer, layout asla bozulmaz.
-        self.table.setMinimumSize(860, 540)
+        # Çökme-koruması + responsive ölçekleme artık LivePokerTable'ın kendi
+        # içinde (kart/koltuk _scale ile küçülür, min 480×320). Instance min
+        # KOYMA — yoksa dar pencerede tablo küçülemeyip yan paneli/aksiyonu
+        # ekran dışına iter (responsive değil).
         main.addWidget(self.table, 2)
 
         panel = QFrame()

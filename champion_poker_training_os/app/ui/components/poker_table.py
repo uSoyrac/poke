@@ -609,8 +609,9 @@ class LivePokerTable(QWidget):
     or popped out into a floating resizable window.
     """
 
-    # Baseline table height the design was originally tuned for
+    # Baseline table size the design was originally tuned for
     _BASELINE_H = 420
+    _BASELINE_W = 760
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -618,8 +619,10 @@ class LivePokerTable(QWidget):
         # (ICM/Postflop/River trainer'larda 'iç içe UI' kaosu — SS4). Min
         # GENİŞLİK + yeterli yükseklik çökmeyi global olarak engeller: dar
         # ekranda scroll/clip olur ama layout asla bozulmaz. Tek kaynak →
-        # tabloyu gömen 11 ekranın hepsi otomatik korunur.
-        self.setMinimumSize(820, 520)
+        # tabloyu gömen 11 ekranın hepsi otomatik korunur. Kartlar+koltuklar
+        # _scale() ile boyuta göre ölçeklendiğinden (responsive) min KÜÇÜK
+        # tutulabilir — tablo dar pencerede küçülüp yan paneli/aksiyonu ezmez.
+        self.setMinimumSize(480, 320)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setAutoFillBackground(False)
@@ -699,6 +702,7 @@ class LivePokerTable(QWidget):
             for card in list(hero_cards)[:2]:
                 cv = CardView(card, size="md")
                 cv.setParent(self)
+                cv._base_w, cv._base_h = cv.width(), cv.height()   # responsive base
                 cv.show()
                 self._hole_widgets.append(cv)
 
@@ -713,6 +717,7 @@ class LivePokerTable(QWidget):
                     cv = CardView(code, size="sm")
                     cv.setParent(self)
                     cv._slot_idx = idx
+                    cv._base_w, cv._base_h = cv.width(), cv.height()
                     cv.show()
                     self._hole_widgets.append(cv)
             elif show_opponent_backs:
@@ -720,6 +725,7 @@ class LivePokerTable(QWidget):
                     cv = CardBackView(size="sm")
                     cv.setParent(self)
                     cv._slot_idx = idx
+                    cv._base_w, cv._base_h = cv.width(), cv.height()
                     cv.show()
                     self._hole_widgets.append(cv)
 
@@ -753,15 +759,18 @@ class LivePokerTable(QWidget):
     # ── SCALE FACTOR ───────────────────────────────────────────────
 
     def _scale(self) -> float:
-        """Ratio of current table height to the baseline design height.
+        """Responsive ölçek: tablonun mevcut boyutunun tasarım taban boyutuna
+        oranı — HEM genişlik HEM yükseklik dikkate alınır (min). Böylece dar
+        VEYA kısa alanda kartlar/koltuklar küçülüp birbirine binmez; tablo
+        verilen alana gerçekten responsive sığar.
 
-        Clamped to [0.6, 2.5] so extreme resize doesn't make things unreadable
-        or comically oversized. At the 420 px baseline the factor is 1.0.
+        Clamped to [0.5, 2.5] so extreme resize doesn't make things unreadable
+        or comically oversized. At the 760×420 baseline the factor is 1.0.
         """
-        h = self.height()
-        if h < 10:
+        w, h = self.width(), self.height()
+        if w < 10 or h < 10:
             return 1.0
-        return max(0.6, min(2.5, h / self._BASELINE_H))
+        return max(0.5, min(2.5, min(w / self._BASELINE_W, h / self._BASELINE_H)))
 
     # ── LAYOUT / PAINT ─────────────────────────────────────────────
 
@@ -816,6 +825,15 @@ class LivePokerTable(QWidget):
         cx, cy = self._center_point().x(), self._center_point().y()
         self.center.setGeometry(int(cx - cw / 2), int(cy - ch / 2), cw, ch)
 
+        # Responsive ölçek — kart/koltuk boyutları tablo boyutuna göre küçülür.
+        s = self._scale()
+        # Hole/rakip kartlarını base boyutun ölçeklisine getir (CardView kendi
+        # boyutuna göre çizdiğinden setFixedSize anında yeniden-render eder).
+        for w in self._hole_widgets:
+            bw = getattr(w, "_base_w", w.width())
+            bh = getattr(w, "_base_h", w.height())
+            w.setFixedSize(max(14, int(bw * s)), max(20, int(bh * s)))
+
         # Position seats
         for slot_idx, (xp, yp) in enumerate(self._slot_positions):
             if slot_idx >= len(self._seats):
@@ -823,9 +841,10 @@ class LivePokerTable(QWidget):
             seat = self._seats[slot_idx]
             seat.adjustSize()
             sh = seat.sizeHint()
-            # Dar masalarda (trainer) koltuk min-genişliğini küçült → üst üste
-            # binme olmaz; geniş masalarda (play/tournament) 120'de kalır.
-            min_w = 120 if self.width() >= 1000 else 96
+            # Koltuk hedef genişliği de ölçekle → dar/küçük masada üst üste
+            # binmez, geniş masada (play/tournament) tam boyutta kalır.
+            base_min = 120 if self.width() >= 1000 else 96
+            min_w = max(58, int(base_min * s))
             sw, shh = max(sh.width(), min_w), sh.height()
             p = self._slot_xy(xp, yp)
             seat.setGeometry(int(p.x() - sw / 2), int(p.y() - shh / 2), sw, shh)
