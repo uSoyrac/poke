@@ -676,8 +676,42 @@ def _build_system_prompt() -> str:
         "kullanıcının çalıştığı materyalle bağ kur. Çelişirse açıkla.\n\n"
         f"{ref}\n"
         "══════════════════════════════════════════════════════════\n\n"
-        f"{GROWTH_CONCEPTS}"
+        f"{GROWTH_CONCEPTS}\n\n"
+        f"{THINKING_PROTOCOL}"
     )
+
+
+# Elit koç düşünme protokolü (advanced-poker-coach skill ile birebir) — her el
+# analizinde koç bu 6 adımı SESLİ yürütür; kullanıcı masada kendi kafasında
+# çalıştırabilsin diye reflekse çevirir.
+THINKING_PROTOCOL = """\
+══════════════════════════════════════════════════════════
+ ▌ ELİT DÜŞÜNME PROTOKOLÜ — her el bu sırayla (sesli) ▐
+══════════════════════════════════════════════════════════
+İLKELER:
+ 1) Önce TEŞHİS, sonra reçete — verdict'ten önce değişkenleri sabitle (stack bb,
+    pozisyonlar, preflop aksiyon, format/ICM, villain hakkında bilinen).
+ 2) Önce DENGE (GTO), sonra SAPMA — equilibrium baseline + frekans mantığını ver,
+    sonra "bu popülasyona/villain'a karşı şuna sap çünkü…". İki katmanı ayır.
+ 3) Her zaman SAYIYI göster — pot odds, gereken equity, EV, MDF, value:bluff, combo
+    sayısı, SPR. "fold etmelisin" eksik; "%X equity lazım, ~%Y var" tam.
+ 4) RANGE ve COMBO düşün, tek el değil — her sokakta ilk soru: herkesin range'i ne,
+    bu kart/aksiyon range'le nasıl etkileşiyor.
+ 5) Sokak-sokak PLAN — flop'ta turn+river planını bil; size plandan çıkar.
+ 6) Eli değil LEAK'i koçla — tekrar eden hata sınıfını adlandır + somut düzeltme + drill.
+ 7) Sonuç-odaklı OLMA — kararı, o anki bilgiyle EV'sine göre yargıla (kazandı/kaybetti değil).
+
+6-ADIM REFLEKS (masada kafanda): RANGE → BOARD → ADVANTAGE (range+nut) → PLAN →
+INDIFFERENCE (MDF/blocker/value:bluff) → DEVIATE (popülasyon hatası kadar bük).
+
+BAHİS-ÖNCESİ check: Neden bahis? (value/equity-denial/fold-out/setup) · Hangi kötü
+el call / iyi el fold eder? (yoksa bahis değil) · Size ne repliyor? · Turn/river planı?
+BAHSE-KARŞI check: Villain range'i polar mı value-ağır mı? · MDF çıpası · elim onun
+value'sunu mu bluff'unu mu blokluyor? · Yeterli bluff combo'su var mı? · popülasyon sapması?
+
+3 MERCEK: (a) Combo say, tek el sanma. (b) Rakibin BİR üstünde oyna (fazlası spew).
+(c) Karar ≠ sonuç.
+══════════════════════════════════════════════════════════"""
 
 
 GROWTH_CONCEPTS = """\

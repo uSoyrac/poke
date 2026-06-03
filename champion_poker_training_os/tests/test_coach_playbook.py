@@ -67,6 +67,14 @@ def test_system_prompt_embeds_growth_concepts():
         assert kw in SYSTEM_PROMPT_WITH_PLAYBOOK, f"'{kw}' sistem prompt'ta yok"
 
 
+def test_system_prompt_embeds_elite_thinking_protocol():
+    """advanced-poker-coach skill'inin 6-adım refleksi + ilkeleri app koçuna gömülü."""
+    from app.ai.coach_prompts import SYSTEM_PROMPT_WITH_PLAYBOOK as P
+    for kw in ("ELİT DÜŞÜNME PROTOKOLÜ", "RANGE → BOARD", "ADVANTAGE",
+               "INDIFFERENCE", "DEVIATE", "Karar ≠ sonuç", "MDF çıpası"):
+        assert kw in P, f"'{kw}' düşünme protokolünde yok"
+
+
 def test_offline_coach_bankroll_positive_winrate():
     from app.ai.coach_engine import coach_chat
     stats = {"total_hands": 5000, "bb_per_100": 6.0}
