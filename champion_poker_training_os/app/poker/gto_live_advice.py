@@ -53,6 +53,7 @@ class LiveAdvice:
     stack_bb: float = 0.0
     equity: float = 0.0         # hero equity % vs modellenmiş villain range (postflop)
     combo_note: str = ""        # river bluff-catch: value/bluff combo + blocker (elit koç)
+    range_adv_note: str = ""    # flop/turn: range + nut avantajı (kim bahis atmalı)
 
     def per_action(self) -> Dict[ActionType, float]:
         """ActionType → % eşlemesi (görünür butonlara uygulamak için)."""
@@ -72,6 +73,24 @@ def _norm_pos(pos: str) -> str:
 
 # Postflop equity cache — (hand_key, board_code, to_call_bucket) → advice
 _PF_CACHE: Dict[tuple, "LiveAdvice"] = {}
+
+
+def _range_band(lo_pct: float, hi_pct: float) -> list:
+    """Sıralı el listesinden [lo_pct, hi_pct) kombinasyon-yüzdesi bandını döndür.
+    Capped caller range için: en üst %X (premium → 3-bet) çıkarılır."""
+    from app.poker.gto_generator import get_ranked_hands
+    ranked = get_ranked_hands()
+    lo = lo_pct * 1326 / 100.0
+    hi = hi_pct * 1326 / 100.0
+    out, acc = [], 0
+    for hk in ranked:
+        c = 6 if len(hk) == 2 else (4 if hk.endswith("s") else 12)
+        if acc >= lo and acc < hi:
+            out.append(hk)
+        acc += c
+        if acc >= hi:
+            break
+    return out
 
 
 def _villain_continuing_range(n_active: int, bet_frac: float = 0.0) -> list:
@@ -230,6 +249,26 @@ def _postflop_advice(hand: HandState, hero_idx: int, adv: LiveAdvice) -> LiveAdv
         adv.call = round(100 * (1.0 - bet_f), 0)  # CHECK slotu
         adv.fold = 0.0
         adv.allin = 0.0
+
+    # ── RANGE + NUT AVANTAJI (flop/turn → 'kim bahis atmalı') ──
+    # Agresörün (tighter opener) range'i vs caller'ın (wider) range'i board'da.
+    if street_name in ("flop", "turn") and len(hand.community) in (3, 4):
+        try:
+            from app.poker.range_advantage import (
+                range_vs_range, coach_range_adv_line)
+            # Agresör (opener) ~top %20 — premium'lar DAHİL (Ax/Kx broadway, AA-KK).
+            # Caller range CAPPED: en üst %6 ÇIKARILIR (onlar 3-bet eder) →
+            # caller'da set/AK yok. Bu asimetri gerçek range/nut avantajını verir;
+            # generic top-X% (premium dahil caller) YANILTICIYDI.
+            opener = _range_band(0.0, 22.0)
+            caller = _range_band(6.0, 50.0)
+            hero_rng, vill_rng = (opener, caller) if init else (caller, opener)
+            ra = range_vs_range(hero_rng, vill_rng,
+                                " ".join(c.code for c in hand.community),
+                                iterations=700)
+            adv.range_adv_note = coach_range_adv_line(ra)
+        except Exception:
+            pass
 
     pos_s = "IP" if in_pos else "OOP"
     init_s = "inisiyatif var" if init else "inisiyatif yok"

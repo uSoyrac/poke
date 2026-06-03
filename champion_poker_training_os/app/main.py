@@ -512,6 +512,13 @@ class MainWindow(QMainWindow):
                 f"%{mdf*100:.0f} (bu kadar range'i savunmalıyım, daha fazla fold = "
                 f"exploit edilirim) · Bluff'un break-even fold oranı (alpha) = %{alpha*100:.0f}\n"
             )
+        radv = g.get("range_adv_note")
+        if radv:
+            block += (
+                f"[RANGE AVANTAJI — flop/turn 'kim bahis atmalı']\n{radv}\n"
+                f"Bunu kullanarak c-bet frekansını/size'ını açıkla: range+nut "
+                f"avantajı kimdeyse o daha sık/agresif bahis atar.\n"
+            )
         combo = g.get("combo_note")
         if combo:
             block += (

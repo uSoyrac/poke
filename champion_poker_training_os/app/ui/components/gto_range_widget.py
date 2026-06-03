@@ -919,6 +919,17 @@ class GTODecisionReveal(QFrame):
             ml.setWordWrap(True)
             col.addWidget(ml)
 
+        # ── RANGE AVANTAJI satırı: flop/turn kim bahis atmalı ──
+        radv = d.get("range_adv_note") or ""
+        if radv:
+            rl = QLabel("⚖️ " + radv)
+            rl.setTextFormat(Qt.RichText)
+            rl.setStyleSheet(
+                f"font-family:'JetBrains Mono',monospace; font-size:10px; "
+                f"color:{_INFO}; background:transparent;")
+            rl.setWordWrap(True)
+            col.addWidget(rl)
+
         # ── COMBO satırı: river bluff-catch value/bluff combo + blocker ──
         combo = d.get("combo_note") or ""
         if combo:
