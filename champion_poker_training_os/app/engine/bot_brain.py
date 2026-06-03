@@ -71,6 +71,20 @@ BOT_ARCHETYPES = {
     "Tight Passive":   BotProfile("Tight Passive", 18, 8, 3, 62, 1.6, 0.04, 0.42, 0.02, 0.04, 0.35,
                                    notes="Tight but doesn't pressure — checks/calls. "
                                          "AF floor ~1.6 because all bots have minimum bet/c-bet rate."),
+    # ── GERÇEKÇİ ORTA-TİP REKREASYONEL (gerçek alanın çoğunluğu) ──
+    # Saf Station/Maniac nadir; gerçekte rekreasyonel oyuncuların çoğu
+    # 'loose-passive ama çılgın değil' (Loose Rec) ya da 'hafif kaybeden
+    # düz reg' (Weak Reg). Bu ikisi havuzu daha az karikatür, daha gerçek
+    # seviyeye çeker.
+    "Loose Rec":       BotProfile("Loose Rec", 31, 13, 4, 44, 1.6, 0.12, 0.55, 0.03, 0.10, 0.45,
+                                   notes="Tipik rekreasyonel — çok el oynar, pasif, fazla call eder "
+                                         "ama Maniac gibi spew yapmaz; el yoksa postflop pes eder. "
+                                         "Gerçek alandaki EN YAYGIN villain. EXPLOIT: ince value bas, "
+                                         "blöfü azalt, büyük size'la değer al."),
+    "Weak Reg":        BotProfile("Weak Reg", 21, 16, 6, 58, 2.2, 0.20, 0.32, 0.04, 0.18, 0.26,
+                                   notes="Hafif kaybeden ABC reg — düz oynar, agresyona makul katlar, "
+                                         "yaratıcı değil. Alanın 'sessiz çoğunluğu'. EXPLOIT: pozisyonla "
+                                         "sürekli bas, ince spotlarda baskı kur, dengesiz hatlarını sömür."),
     "Balanced Reg":    BotProfile("Balanced Reg", 25, 21, 10, 48, 2.5, 0.28, 0.35, 0.05, 0.28, 0.32,
                                    notes="Default opponent — solver-ish baseline."),
     "Solver Bot":      BotProfile("Solver Bot", 23, 21, 11, 60, 2.8, 0.32, 0.30, 0.06, 0.30, 0.30,
@@ -139,43 +153,65 @@ BOT_ARCHETYPES = {
 KARMA_MIX = [
     # Zayıf / rekreasyonel
     "Fish", "Calling Station", "Aggro Fish", "Tight Passive", "Nit",
-    "Rock", "Maniac",
+    "Rock", "Maniac", "Loose Rec",
     # Orta reg
-    "TAG", "Reg", "LAG", "Balanced Reg",
+    "TAG", "Reg", "LAG", "Balanced Reg", "Weak Reg",
     # Güçlü
     "Shark", "GTO Expert", "Exploit Expert", "Solver Bot",
 ]
 
-# GERÇEK online MTT alanı kompozisyonu (yaklaşık): ~%62 rekreasyonel/zayıf,
-# ~%26 orta reg, ~%12 güçlü. Uniform dağıtım gerçekçi DEĞİL — gerçek alanlar
-# zayıf-ağırlıklıdır. realistic_mtt_mix() ve sample_field'ın random dolgusu
-# bu ağırlıkları kullanır (KARMA_MIX üyeliği korunur → mevcut testler geçer).
-KARMA_WEIGHTS = {
-    # Zayıf (~%62)
-    "Fish": 16, "Calling Station": 12, "Aggro Fish": 9, "Tight Passive": 9,
-    "Nit": 6, "Rock": 5, "Maniac": 5,
-    # Orta reg (~%26)
-    "TAG": 8, "Reg": 8, "LAG": 6, "Balanced Reg": 4,
-    # Güçlü (~%12)
-    "Shark": 4, "GTO Expert": 3, "Exploit Expert": 3, "Solver Bot": 2,
+# STAKE-BAZLI GERÇEKÇİ ALAN DAĞILIMLARI. Gerçek online MTT alanı buy-in'e göre
+# değişir; ve rekreasyonel çoğunluk SAF station/maniac değil, 'loose-passive ama
+# çılgın değil' (Loose Rec) + 'hafif kaybeden düz reg' (Weak Reg) ağırlıklıdır
+# → havuz daha az karikatür, daha gerçek seviye. Her dağılım ~%100 toplar.
+FIELD_TIERS = {
+    "Mikro ($1-5)": {        # ~%74 zayıf — en yumuşak
+        "Loose Rec": 22, "Fish": 14, "Calling Station": 12, "Tight Passive": 9,
+        "Aggro Fish": 8, "Maniac": 5, "Nit": 2, "Rock": 2,
+        "Weak Reg": 8, "Reg": 5, "TAG": 4, "LAG": 2, "Balanced Reg": 2,
+        "Shark": 2, "GTO Expert": 2, "Exploit Expert": 1,
+    },
+    "Düşük ($11-33)": {      # ~%60 zayıf — tipik düşük-stake (VARSAYILAN)
+        "Loose Rec": 20, "Fish": 10, "Tight Passive": 9, "Calling Station": 7,
+        "Aggro Fish": 6, "Nit": 4, "Rock": 2, "Maniac": 2,
+        "Weak Reg": 10, "TAG": 7, "Reg": 6, "LAG": 4, "Balanced Reg": 3,
+        "Shark": 4, "GTO Expert": 3, "Exploit Expert": 2, "Solver Bot": 1,
+    },
+    "Orta ($55-215)": {      # ~%45 zayıf — sağlam reg ağırlıklı
+        "Loose Rec": 16, "Tight Passive": 8, "Fish": 7, "Calling Station": 4,
+        "Aggro Fish": 4, "Nit": 4, "Maniac": 2,
+        "TAG": 11, "Weak Reg": 10, "Reg": 8, "Balanced Reg": 6, "LAG": 5,
+        "Shark": 6, "GTO Expert": 5, "Exploit Expert": 2, "Solver Bot": 2,
+    },
+    "Yüksek ($530+)": {      # ~%25 zayıf — reg/elit havuz
+        "Loose Rec": 10, "Tight Passive": 6, "Fish": 4, "Nit": 3, "Aggro Fish": 2,
+        "TAG": 14, "Balanced Reg": 14, "Reg": 10, "LAG": 5, "Weak Reg": 5,
+        "GTO Expert": 9, "Shark": 8, "Exploit Expert": 6, "Solver Bot": 4,
+    },
 }
 
+# Varsayılan ağırlıklar = düşük-stake (en yaygın senaryo). Eski karikatür
+# dağılım (Fish 16 / Station 12) yerine modal rakip artık 'Loose Rec'.
+KARMA_WEIGHTS = dict(FIELD_TIERS["Düşük ($11-33)"])
 
-def _weighted_choice(rng):
-    """KARMA_WEIGHTS'e göre tek bir arketip seç (gerçekçi alan dağılımı)."""
-    names = list(KARMA_WEIGHTS.keys())
-    wts = [KARMA_WEIGHTS[n] for n in names]
+
+def _weighted_choice(rng, weights: "dict[str, float] | None" = None):
+    """Ağırlık dağılımına göre tek arketip seç (varsayılan KARMA_WEIGHTS)."""
+    w = weights or KARMA_WEIGHTS
+    names = [n for n in w if n in BOT_ARCHETYPES]
+    wts = [w[n] for n in names]
     return rng.choices(names, weights=wts, k=1)[0]
 
 
-def realistic_mtt_mix(n: int, rng=None) -> "list[str]":
-    """N kişilik GERÇEKÇİ MTT alanı: KARMA_WEIGHTS dağılımıyla (zayıf-ağırlıklı),
-    çoğunluk rekreasyonel + azınlık reg/güçlü. Tekrar serbest (gerçek alanda
-    birden çok fish olur), ama büyük alanda dağılım gerçekçi orana yakınsar."""
+def realistic_mtt_mix(n: int, rng=None, tier: "str | None" = None) -> "list[str]":
+    """N kişilik GERÇEKÇİ MTT alanı (zayıf-ağırlıklı). ``tier`` verilirse
+    FIELD_TIERS'ten o stake dağılımı, yoksa varsayılan (düşük-stake). Tekrar
+    serbest — gerçek alanda birden çok aynı tip olur; büyük alanda orana yakınsar."""
     import random as _random
     rng = rng or _random
     n = max(0, int(n))
-    return [_weighted_choice(rng) for _ in range(n)]
+    w = FIELD_TIERS.get(tier) if tier else None
+    return [_weighted_choice(rng, w) for _ in range(n)]
 
 
 def sample_field(n_bots: int, weights: "dict[str, float] | None" = None,
