@@ -25,63 +25,84 @@ class BlindLevel:
     duration_min: int = 10  # purely informational
 
 
+# ── Big Blind Ante (BBA) — modern online MTT standardı ───────────────────
+# Gerçek online turnuvalarda (PokerStars/GGPoker, ~2018 sonrası) ante artık
+# "Big Blind Ante": BB oyuncusu masanın tüm ante'sini (≈1× BB) postalar ve
+# bu ELE 1 BÜYÜK KÖR kadar ÖLÜ PARA ekler. Antesiz erken seviye YOKTUR.
+#
+# Bizim motor PER-PLAYER ante modeli (toplam = n·ante). BBA'yı (toplam ≈ 1 BB)
+# bu modele çevirmek için per-player ante ≈ BB/n ≈ %12.5 BB (9-max). Böylece
+# pot preflop ~1 BB büyür → açış range'leri gerçekçi şekilde genişler.
+def _bb_ante(bb: int) -> int:
+    """BBA-eşdeğeri per-player ante ≈ %12.5 BB (temiz çipe yuvarlı, min 1)."""
+    return max(1, int(bb * 0.125 + 0.5))
+
+
+def _with_bba(levels: List["BlindLevel"]) -> List["BlindLevel"]:
+    """Her seviyenin ante'sini BBA-eşdeğeriyle (≈%12.5 BB) doldur — L1 dahil."""
+    for lv in levels:
+        lv.ante = _bb_ante(lv.bb)
+    return levels
+
+
 def regular_structure(starting_bb: int = 100) -> List[BlindLevel]:
-    """Standard MTT — slow rise."""
-    return [
+    """Standard MTT — slow rise. Ante L1'den itibaren (BBA konvansiyonu)."""
+    return _with_bba([
         BlindLevel(1, 10, 20, 0, 12),
         BlindLevel(2, 15, 30, 0, 12),
         BlindLevel(3, 25, 50, 0, 12),
         BlindLevel(4, 50, 100, 0, 12),
         BlindLevel(5, 75, 150, 0, 12),
-        BlindLevel(6, 100, 200, 25, 12),
-        BlindLevel(7, 150, 300, 35, 12),
-        BlindLevel(8, 200, 400, 50, 12),
-        BlindLevel(9, 300, 600, 75, 10),
-        BlindLevel(10, 400, 800, 100, 10),
-        BlindLevel(11, 500, 1000, 125, 10),
-        BlindLevel(12, 750, 1500, 175, 10),
-        BlindLevel(13, 1000, 2000, 250, 10),
-        BlindLevel(14, 1500, 3000, 350, 10),
-        BlindLevel(15, 2000, 4000, 500, 8),
-        BlindLevel(16, 3000, 6000, 750, 8),
-        BlindLevel(17, 4000, 8000, 1000, 8),
-        BlindLevel(18, 5000, 10000, 1250, 8),
-        BlindLevel(19, 7500, 15000, 1750, 8),
-        BlindLevel(20, 10000, 20000, 2500, 8),
-    ]
+        BlindLevel(6, 100, 200, 0, 12),
+        BlindLevel(7, 150, 300, 0, 12),
+        BlindLevel(8, 200, 400, 0, 12),
+        BlindLevel(9, 300, 600, 0, 10),
+        BlindLevel(10, 400, 800, 0, 10),
+        BlindLevel(11, 500, 1000, 0, 10),
+        BlindLevel(12, 750, 1500, 0, 10),
+        BlindLevel(13, 1000, 2000, 0, 10),
+        BlindLevel(14, 1500, 3000, 0, 10),
+        BlindLevel(15, 2000, 4000, 0, 8),
+        BlindLevel(16, 3000, 6000, 0, 8),
+        BlindLevel(17, 4000, 8000, 0, 8),
+        BlindLevel(18, 5000, 10000, 0, 8),
+        BlindLevel(19, 7500, 15000, 0, 8),
+        BlindLevel(20, 10000, 20000, 0, 8),
+    ])
 
 
 def turbo_structure() -> List[BlindLevel]:
-    """Turbo — faster blind levels, hands per level lower."""
-    return [
+    """Turbo — faster blind levels. Ante L1'den itibaren (BBA)."""
+    return _with_bba([
         BlindLevel(1, 10, 20, 0, 5),
         BlindLevel(2, 25, 50, 0, 5),
         BlindLevel(3, 50, 100, 0, 5),
-        BlindLevel(4, 100, 200, 25, 5),
-        BlindLevel(5, 150, 300, 50, 5),
-        BlindLevel(6, 250, 500, 75, 5),
-        BlindLevel(7, 400, 800, 100, 5),
-        BlindLevel(8, 600, 1200, 150, 5),
-        BlindLevel(9, 1000, 2000, 250, 5),
-        BlindLevel(10, 1500, 3000, 400, 5),
-        BlindLevel(11, 2500, 5000, 650, 5),
-        BlindLevel(12, 4000, 8000, 1000, 5),
-        BlindLevel(13, 6000, 12000, 1500, 4),
-        BlindLevel(14, 10000, 20000, 2500, 4),
-    ]
+        BlindLevel(4, 100, 200, 0, 5),
+        BlindLevel(5, 150, 300, 0, 5),
+        BlindLevel(6, 250, 500, 0, 5),
+        BlindLevel(7, 400, 800, 0, 5),
+        BlindLevel(8, 600, 1200, 0, 5),
+        BlindLevel(9, 1000, 2000, 0, 5),
+        BlindLevel(10, 1500, 3000, 0, 5),
+        BlindLevel(11, 2500, 5000, 0, 5),
+        BlindLevel(12, 4000, 8000, 0, 5),
+        BlindLevel(13, 6000, 12000, 0, 4),
+        BlindLevel(14, 10000, 20000, 0, 4),
+    ])
 
 
 def hyper_structure() -> List[BlindLevel]:
-    return [
+    """Hyper — ante L1'den itibaren (BBA)."""
+    return _with_bba([
         BlindLevel(1, 25, 50, 0, 3),
-        BlindLevel(2, 75, 150, 25, 3),
-        BlindLevel(3, 150, 300, 50, 3),
-        BlindLevel(4, 300, 600, 75, 3),
-        BlindLevel(5, 600, 1200, 150, 3),
-        BlindLevel(6, 1200, 2400, 300, 3),
-        BlindLevel(7, 2500, 5000, 600, 3),
-        BlindLevel(8, 5000, 10000, 1200, 3),
-    ]
+        BlindLevel(2, 75, 150, 0, 3),
+        BlindLevel(3, 150, 300, 0, 3),
+        BlindLevel(4, 300, 600, 0, 3),
+        BlindLevel(5, 600, 1200, 0, 3),
+        BlindLevel(6, 1200, 2400, 0, 3),
+        BlindLevel(7, 2500, 5000, 0, 3),
+        BlindLevel(8, 5000, 10000, 0, 3),
+    ])
 
 
 # Default payout structures (% of prize pool)

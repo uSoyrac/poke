@@ -62,19 +62,19 @@ def test_ante_capped_at_short_stack():
 
 
 def test_tournament_levels_have_scaling_antes():
-    """Turnuva blind şeması: erken level'de ante 0, sonra artan ante."""
+    """Turnuva blind şeması: Big Blind Ante — L1'den itibaren ante var, BB ile
+    ölçeklenir (modern online MTT standardı; antesiz erken seviye yok)."""
     from app.simulator.tournament_runner import regular_structure
     levels = regular_structure()
     antes = [lvl.ante for lvl in levels]
-    assert antes[0] == 0, "ilk level ante 0 olmalı"
-    assert any(a > 0 for a in antes), "geç level'lerde ante > 0 olmalı"
+    assert antes[0] > 0, "L1'den itibaren ante olmalı (BBA — antesiz poker yok)"
+    assert all(a > 0 for a in antes), "her seviyede ante > 0 olmalı"
     # Monoton artan (azalmayan) ante
-    nonzero = [a for a in antes if a > 0]
-    assert nonzero == sorted(nonzero), "ante level'le artmalı (azalmamalı)"
-    # Ante ≈ bb/8 mantığı (BB-ante konvansiyonu): ante < bb her zaman
+    assert antes == sorted(antes), "ante level'le artmalı (azalmamalı)"
+    # BBA-eşdeğeri: ante ≈ %12.5 BB, her zaman bb'den küçük (ölü para, canlı bahis değil)
     for lvl in levels:
-        if lvl.ante > 0:
-            assert lvl.ante < lvl.bb, f"ante ({lvl.ante}) bb'den ({lvl.bb}) küçük olmalı"
+        assert 0 < lvl.ante < lvl.bb, f"ante ({lvl.ante}) 0<·<bb ({lvl.bb}) olmalı"
+        assert abs(lvl.ante - lvl.bb * 0.125) <= 1, f"ante ≈ %12.5 bb olmalı (L{lvl.level})"
 
 
 def test_tournament_syncs_ante_each_hand():
