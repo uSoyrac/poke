@@ -169,3 +169,15 @@ def test_premium_pairs_always_continue_vs_3bet():
         for h in ("AA", "KK", "QQ"):
             a = get_action(pos, h, "vs 3-bet", 100, "cash", vs_position="BB")
             assert a.get("raise", 0) + a.get("call", 0) >= 70, f"{pos} {h}: {a}"
+
+
+def test_bb_defends_widest_vs_btn_and_sb():
+    """BB en GENİŞ BTN/SB açılışına karşı savunur (geç poz = geniş açılış).
+    Ölçülen tight'lık düzeltildi (D72): vs BTN ≥%52, vs SB ≥%58 (blind-vs-blind)."""
+    btn = _range_pct("BB", "vs RFI", 100, "cash", vs_position="BTN")
+    sb = _range_pct("BB", "vs RFI", 100, "cash", vs_position="SB")
+    utg = _range_pct("BB", "vs RFI", 100, "cash", vs_position="UTG")
+    assert btn >= 52, f"BB vs BTN savunma %{btn:.0f} — çok dar"
+    assert sb >= 58, f"BB vs SB savunma %{sb:.0f} — blind-vs-blind çok dar"
+    # Defend monotonluğu: SB (blind-vs-blind) > BTN > UTG (sıkı açan)
+    assert sb > btn > utg, f"monotonluk bozuk: SB{sb:.0f} BTN{btn:.0f} UTG{utg:.0f}"

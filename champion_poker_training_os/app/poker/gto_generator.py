@@ -61,8 +61,11 @@ DEFEND_PCT_VS_OPENER = {
     "UTG":   {"BB": 42, "SB": 32, "BTN": 34, "CO": 32, "MP": 28},
     "MP":    {"BB": 47, "SB": 34, "BTN": 36, "CO": 34},
     "CO":    {"BB": 54, "SB": 37, "BTN": 39},
-    "BTN":   {"BB": 58, "SB": 40},
-    "SB":    {"BB": 65},
+    # BTN/SB açılışına karşı BB en GENİŞ savunur (geç pozisyon = geniş açılış,
+    # indirimli giriş + pot odds). Ölçümle output ~4-5pp tight çıkıyordu →
+    # boundary mixed band'ı telafi için hedefler yükseltildi (output ~%55/62).
+    "BTN":   {"BB": 64, "SB": 40},
+    "SB":    {"BB": 72},
 }
 
 # 3-bet target % vs each opener position
