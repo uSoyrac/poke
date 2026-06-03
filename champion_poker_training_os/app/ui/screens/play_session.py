@@ -1497,6 +1497,10 @@ class PlaySessionScreen(QWidget):
                 "pot": r.pot, "hero_invested": r.hero_invested, "hero_profit": r.hero_profit,
                 "hero_won": r.hero_won, "winner_hand_name": r.winner_hand_name,
                 "streets_seen": r.streets_seen,
+                # Cash oyun bb=1.0 ile koşar (stack'ler bb cinsinden) → değerler
+                # zaten bb-ölçekli; big_blind=1.0 normalize'ı no-op yapar.
+                "big_blind": float(getattr(self.game, "big_blind", 1.0) or 1.0),
+                "game_type": "cash",
                 **hero_stat_fields(r),
             })
         except Exception:

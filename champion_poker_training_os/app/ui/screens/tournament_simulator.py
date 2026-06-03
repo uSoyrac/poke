@@ -1477,6 +1477,10 @@ class TournamentSimulatorScreen(QWidget):
                 "winner_hand_name": result.winner_hand_name,
                 "streets_seen": result.streets_seen,
                 "session_id": 1,
+                # Turnuva çip-ölçekli oynar (bloklar 10/20...); big_blind ile
+                # okurken bb'ye çevrilir. game_type cash profilinden dışlar.
+                "big_blind": float(getattr(self.tournament.game, "big_blind", 1.0) or 1.0),
+                "game_type": "tournament",
                 **hero_stat_fields(result),
             })
         except Exception:

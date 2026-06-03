@@ -184,12 +184,13 @@ class HandAnalyzerScreen(QWidget):
 
         for row, hand in enumerate(hands):
             if is_played:
+                _bb_div = max(float(hand.get("big_blind") or 1.0), 1e-9)
                 items = [
                     str(hand.get("hand_id", row + 1)),
                     hand.get("hero_cards", "??"),
                     hand.get("community", ""),
-                    f"{hand.get('pot', 0):.1f}",
-                    f"{hand.get('hero_profit', 0):+.1f}",
+                    f"{(hand.get('pot', 0) or 0) / _bb_div:.1f}",
+                    f"{(hand.get('hero_profit', 0) or 0) / _bb_div:+.1f}",
                     hand.get("winner_hand_name", ""),
                     str(hand.get("streets_seen", 0)),
                 ]
@@ -221,10 +222,12 @@ class HandAnalyzerScreen(QWidget):
     def _show_played_hand(self, hand: dict) -> None:
         hero_cards = hand.get("hero_cards", "??")
         community = hand.get("community", "")
-        profit = hand.get("hero_profit", 0)
+        _bb_div = max(float(hand.get("big_blind") or 1.0), 1e-9)
+        profit = (hand.get("hero_profit", 0) or 0) / _bb_div   # bb'ye çevir
+        pot_bb = (hand.get("pot", 0) or 0) / _bb_div
         won = hand.get("hero_won", False)
 
-        render_hand_on_table(self.table_view, hero_cards, community, hand.get("pot", 0))
+        render_hand_on_table(self.table_view, hero_cards, community, pot_bb)
 
         _clear_layout(self.hero_cards_row)
         for part in hero_cards.split():
@@ -234,7 +237,7 @@ class HandAnalyzerScreen(QWidget):
         color = "Green" if won else "Red"
         self.summary.setText(
             f"Hand #{hand.get('hand_id', '?')} | {hero_cards} | Board: {community} | "
-            f"{'WON' if won else 'LOST'} {profit:+.1f}bb | Pot: {hand.get('pot', 0):.1f}bb | "
+            f"{'WON' if won else 'LOST'} {profit:+.1f}bb | Pot: {pot_bb:.1f}bb | "
             f"Winner: {hand.get('winner_hand_name', '?')}"
         )
         self.summary.setObjectName(color)
@@ -302,13 +305,21 @@ class HandAnalyzerScreen(QWidget):
 
         if is_played and hands:
             total = len(hands)
-            profit = sum(h.get("hero_profit", 0) for h in hands)
-            wins = sum(1 for h in hands if h.get("hero_won"))
-            biggest = max((abs(h.get("pot", 0)) for h in hands), default=0)
-            _update_card(self.stat_hands, str(total), "from DB")
-            _update_card(self.stat_profit, f"{profit:+.1f}bb", "total")
-            _update_card(self.stat_winrate, f"{100*wins/total:.0f}%" if total else "—", "win rate")
-            _update_card(self.stat_biggest, f"{biggest:.1f}bb", "biggest pot")
+            # Toplam profit/pot bb-NORMALİZE + YALNIZ cash elleri. Turnuva elleri
+            # çip-ölçekli + eski kayıtlarda per-hand bb kurtarılamadığı için
+            # (big_blind=1.0 default) bb'ye çevrilemez → cash istatistiğine
+            # katılmaz. Eskiden hepsi karışıp 'PROFIT 1385167bb' saçmalığı çıkıyordu.
+            def _bb(h, field):
+                return float(h.get(field, 0) or 0) / max(float(h.get("big_blind") or 1.0), 1e-9)
+            cash = [h for h in hands if (h.get("game_type") or "cash") == "cash"]
+            cn = len(cash)
+            profit = sum(_bb(h, "hero_profit") for h in cash)
+            wins = sum(1 for h in cash if h.get("hero_won"))
+            biggest = max((abs(_bb(h, "pot")) for h in cash), default=0)
+            _update_card(self.stat_hands, str(total), f"{cn} cash · {total-cn} turnuva")
+            _update_card(self.stat_profit, f"{profit:+.1f}bb", f"{cn} cash eli")
+            _update_card(self.stat_winrate, f"{100*wins/cn:.0f}%" if cn else "—", "cash win rate")
+            _update_card(self.stat_biggest, f"{biggest:.1f}bb", "biggest cash pot")
         else:
             _update_card(self.stat_hands, str(len(hands)), "demo hands")
             _update_card(self.stat_profit, "—", "demo mode")

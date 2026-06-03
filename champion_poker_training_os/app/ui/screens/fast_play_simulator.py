@@ -299,6 +299,9 @@ class FastPlaySimulatorScreen(QWidget):
                 "hero_won": result.hero_won,
                 "winner_hand_name": result.winner_hand_name,
                 "streets_seen": result.streets_seen,
+                # Fast-play cash sim bb=1.0 → değerler zaten bb-ölçekli.
+                "big_blind": float(getattr(self.game, "big_blind", 1.0) or 1.0),
+                "game_type": "cash",
                 **hero_stat_fields(result),
             })
         except Exception:

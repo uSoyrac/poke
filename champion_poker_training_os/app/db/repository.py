@@ -100,6 +100,22 @@ def _ensure_played_hand_columns() -> None:
                     "hero_postflop_aggr", "hero_postflop_passive"):
             if col not in cols:
                 conn.execute(f"ALTER TABLE played_hands ADD COLUMN {col} INTEGER")
+        # Birim tutarlılığı: pot/hero_profit/hero_invested ÇİP cinsinden saklanır
+        # (cash oyunda bb=1 olduğu için zaten bb-ölçekli). big_blind ile okurken
+        # bb'ye çevrilir; game_type cash/tournament/fast ayrımı yapar. Eskiden
+        # turnuva elleri çip-ölçekli, cash elleri bb-ölçekli karışıyordu →
+        # 'BB/100 +16898' gibi saçma istatistikler. Cash profili artık yalnız
+        # cash ellerini bb-normalize ederek sayar.
+        if "big_blind" not in cols:
+            conn.execute("ALTER TABLE played_hands ADD COLUMN big_blind REAL DEFAULT 1.0")
+        if "game_type" not in cols:
+            conn.execute("ALTER TABLE played_hands ADD COLUMN game_type TEXT DEFAULT 'cash'")
+            # Legacy backfill (idempotent): bb-ölçekli kaydedilemeyen, çip-ölçekli
+            # eski turnuva elleri pot>1000 ile ayrışır (cash bb-pot'ları ≪1000).
+            # Bu eller cash istatistiklerden dışlanır (per-hand bb kurtarılamaz).
+            conn.execute(
+                "UPDATE played_hands SET game_type='tournament' "
+                "WHERE pot > 1000 AND (game_type='cash' OR game_type IS NULL)")
         conn.commit()
 
 
@@ -119,8 +135,9 @@ def save_played_hand(hand_data: dict) -> None:
                (hand_id, hero_cards, community, pot, hero_invested, hero_profit,
                 hero_won, winner_hand_name, streets_seen, session_id,
                 hero_vpip, hero_pfr, hero_3bet_opp, hero_3bet,
-                hero_postflop_aggr, hero_postflop_passive, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+                hero_postflop_aggr, hero_postflop_passive, big_blind, game_type,
+                created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
             (
                 hand_data["hand_id"],
                 hand_data.get("hero_cards", ""),
@@ -138,6 +155,8 @@ def save_played_hand(hand_data: dict) -> None:
                 _flag(hand_data, "hero_3bet"),
                 hand_data.get("hero_postflop_aggr") if hand_data.get("hero_postflop_aggr") is not None else None,
                 hand_data.get("hero_postflop_passive") if hand_data.get("hero_postflop_passive") is not None else None,
+                float(hand_data.get("big_blind", 1.0) or 1.0),
+                hand_data.get("game_type", "cash") or "cash",
             ),
         )
         conn.commit()
@@ -731,8 +750,17 @@ def get_player_stats() -> dict:
             }
 
         wins = conn.execute("SELECT COUNT(*) FROM played_hands WHERE hero_won = 1").fetchone()[0]
-        profit = conn.execute("SELECT COALESCE(SUM(hero_profit), 0) FROM played_hands").fetchone()[0]
-        avg_pot = conn.execute("SELECT COALESCE(AVG(pot), 0) FROM played_hands").fetchone()[0]
+        # Profit/pot YALNIZ cash ellerinden ve bb-NORMALİZE (hero_profit/big_blind).
+        # Turnuva elleri çip-ölçekli + farklı format → cash bb/100'ü kirletir;
+        # dışlanır. Eski karışık-birim 'BB/100 +16898' saçmalığının kökü buydu.
+        cash_n = conn.execute(
+            "SELECT COUNT(*) FROM played_hands WHERE game_type='cash'").fetchone()[0]
+        profit = conn.execute(
+            "SELECT COALESCE(SUM(hero_profit / NULLIF(big_blind,0)), 0) "
+            "FROM played_hands WHERE game_type='cash'").fetchone()[0]
+        avg_pot = conn.execute(
+            "SELECT COALESCE(AVG(pot / NULLIF(big_blind,0)), 0) "
+            "FROM played_hands WHERE game_type='cash'").fetchone()[0]
 
         # ── Gerçek bayraklı eller (yeni) ──
         flagged = conn.execute(
@@ -798,7 +826,7 @@ def get_player_stats() -> dict:
             "wsd": round(100 * won_at_sd / max(showdowns, 1), 1),
             "af": af,
             "profit_bb": round(profit, 2),
-            "bb_per_100": round(100 * profit / max(total, 1), 1),
+            "bb_per_100": round(100 * profit / max(cash_n, 1), 1),
             "win_rate": round(100 * wins / total, 1) if total else 0,
             "avg_pot": round(avg_pot, 1),
         }
