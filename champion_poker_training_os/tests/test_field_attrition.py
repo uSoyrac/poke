@@ -78,6 +78,21 @@ def test_move_into_hero_table_still_works():
     assert f.players_remaining == 200
 
 
+def test_field_strength_label():
+    """Etiket: başlangıç 'soft', alan drenajından sonra daha sert; bg boşsa ''."""
+    f = MTTField(field_size=300, hero_table_size=9)
+    start = f.field_strength_label()
+    assert start and "güçlü" in start
+    random.seed(5)
+    _drain(f, target_remaining=60)
+    late = f.field_strength_label()
+    # Geç aşamada güçlü oranı arttığı için etiket boş değil ve sayı yüksek
+    assert late and "güçlü" in late
+    # Arka plan tamamen bitince etiket boş
+    f._bg = {"weak": 0, "mid": 0, "strong": 0}
+    assert f.field_strength_label() == ""
+
+
 def test_buckets_never_go_negative():
     random.seed(99)
     f = MTTField(field_size=120, hero_table_size=9)

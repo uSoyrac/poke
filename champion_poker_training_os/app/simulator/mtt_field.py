@@ -161,6 +161,19 @@ class MTTField:
         """Hayatta kalan arka-plan alanında güçlü oyuncu oranı (derinleştikçe artar)."""
         return self.bg_composition["strong"]
 
+    def field_strength_label(self) -> str:
+        """Alan sertliği için kısa etiket (UI/koç). Arka plan boşsa '' döner."""
+        if self._bg_remaining <= 0:
+            return ""
+        s = self.strong_fraction
+        if s < 0.14:
+            tag = "soft"
+        elif s < 0.24:
+            tag = "sertleşiyor"
+        else:
+            tag = "reg-ağır"
+        return f"{tag} (%{s * 100:.0f} güçlü)"
+
     def _remove_from_buckets(self, n: int, fragility_weighted: bool) -> int:
         """Arka plandan n oyuncu çıkar. fragility_weighted=True → eleme (zayıf
         daha çok patlar); False → masaya taşıma (hayatta kalanlar arası rastgele).

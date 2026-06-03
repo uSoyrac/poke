@@ -1305,10 +1305,13 @@ class TournamentSimulatorScreen(QWidget):
             bubble_str = f"{bd} to bubble"
 
         prizes = f.prize_summary(n=3)
+        # Alan sertliği: zayıflar hızlı patlar → derinleştikçe reg-ağır olur
+        strength = f.field_strength_label()
+        strength_seg = f"alan: {strength}  ·  " if strength else ""
         self._fs_label.setText(
             f"FIELD:  {total_rem:,} / {total:,} players  ·  "
             f"{elim:,} eliminated  ·  {bubble_str}  ·  "
-            f"{f.tables_active} tables  ·  {prizes}"
+            f"{f.tables_active} tables  ·  {strength_seg}{prizes}"
         )
         self.field_strip.show()
 
