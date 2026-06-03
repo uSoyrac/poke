@@ -135,12 +135,28 @@ class MTTField:
         structure: str = "regular",   # "regular" | "turbo" | "hyper"
         hero_table_size: int = 9,
         tier: "str | None" = None,    # stake tier → gerçekçi skill kompozisyonu
+        hero_archetypes: "list[str] | None" = None,  # hero masasındaki gerçek botlar
     ) -> None:
         self.field_size      = field_size
         self.buyin           = buyin
         self.structure       = structure
         self.hero_table_size = hero_table_size
         self.tier            = tier
+
+        # Hero masasındaki gerçek arketiplerin 'strong' (elit) oranı. Kullanıcı
+        # GTO/ICM expert, Negreanu gibi oyuncular eklediğinde zorluk bunu
+        # yansıtmalı — yoksa alan-geneli soft olduğu için 'KOLAY' diyordu (C bug).
+        self._hero_strong_frac = 0.0
+        if hero_archetypes:
+            try:
+                from app.engine.bot_brain import archetype_skill
+                n = len(hero_archetypes)
+                if n:
+                    strong = sum(1 for a in hero_archetypes
+                                 if archetype_skill(a) == "strong")
+                    self._hero_strong_frac = strong / n
+            except Exception:
+                self._hero_strong_frac = 0.0
 
         # Economics
         self.prize_pool  = round(buyin * field_size, 2)
@@ -206,10 +222,19 @@ class MTTField:
         """Hayatta kalan arka-plan alanında güçlü oyuncu oranı (derinleştikçe artar)."""
         return self.bg_composition["strong"]
 
+    @property
+    def hero_strong_fraction(self) -> float:
+        """Hero masasındaki elit oyuncu oranı (sabit — masa kompozisyonu)."""
+        return self._hero_strong_frac
+
     def toughness(self) -> tuple[float, str]:
         """Turnuva 'zorluk' skoru (0..1) + etiket: alan sertliği (strong oranı)
-        + ICM/bubble baskısı birleşik. Hero'ya 'bu turnuva ne kadar zor' der."""
-        strong = self.strong_fraction
+        + ICM/bubble baskısı birleşik. Hero'ya 'bu turnuva ne kadar zor' der.
+
+        Strong oranı = max(alan-geneli, hero-masası) — hero kendi masasındaki
+        elit oyuncuları HER EL hisseder; masası shark doluysa alan soft olsa
+        bile turnuva zordur."""
+        strong = max(self.strong_fraction, self.hero_strong_fraction)
         d = self.bubble_distance
         # Bubble yakınlığı baskısı (0..1)
         if d <= 0:

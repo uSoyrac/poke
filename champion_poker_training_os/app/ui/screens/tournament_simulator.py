@@ -354,19 +354,13 @@ class TournamentSimulatorScreen(QWidget):
             structure=self.structure_combo.currentText(),
             hero_table_size=size,
             tier=getattr(self, "_field_tier", None),
+            hero_archetypes=archetypes,   # eklenen elit oyuncular zorluğa yansısın
         )
         self.mtt_field.update_hero_table(size)  # hero table starts full
 
         self._bg_timer.start()
         self._build_play()
-        # Spacebar = skip waiting period / advance to next hand
-        QShortcut(QKeySequence(Qt.Key_Space), self, activated=self._space_pressed)
-        # Style Guide § 8 — F/C/R/A action keys (mirror of play_session)
-        QShortcut(QKeySequence("F"), self, activated=lambda: self._key_action("F"))
-        QShortcut(QKeySequence("C"), self, activated=lambda: self._key_action("C"))
-        QShortcut(QKeySequence("R"), self, activated=lambda: self._key_action("R"))
-        QShortcut(QKeySequence("A"), self, activated=lambda: self._key_action("A"))
-        QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self._end_and_restart)
+        self._install_shortcuts()
         self._deal_next_hand()
         # Turnuva başında bir kerelik açılış briefing'i (strateji + ICM landmark).
         self._emit_opening_briefing(config)
@@ -438,6 +432,26 @@ class TournamentSimulatorScreen(QWidget):
         except Exception as e:
             from app.core.logging import log_swallowed
             log_swallowed("tournament.closing_eval", e)
+
+    def _install_shortcuts(self) -> None:
+        """Tuş kısayollarını kalıcı `self`'e BİR KEZ bağla.
+
+        Eskiden _start_tournament her çağrıldığında (turnuva yeniden başlatma)
+        QShortcut'lar tekrar oluşturuluyordu; parent kalıcı `self` olduğundan
+        ikinci turnuvada aynı tuş için iki shortcut oluşuyor → Qt 'ambiguous
+        shortcut' durumuna düşüp 'activated'ı HİÇ tetiklemiyor → SPACE ölü,
+        el ilerlemiyordu (B bug). Bir kez kur, turnuvalar arası yeniden kullan.
+        """
+        if getattr(self, "_shortcuts_installed", False):
+            return
+        QShortcut(QKeySequence(Qt.Key_Space), self, activated=self._space_pressed)
+        # Style Guide § 8 — F/C/R/A action keys (mirror of play_session)
+        QShortcut(QKeySequence("F"), self, activated=lambda: self._key_action("F"))
+        QShortcut(QKeySequence("C"), self, activated=lambda: self._key_action("C"))
+        QShortcut(QKeySequence("R"), self, activated=lambda: self._key_action("R"))
+        QShortcut(QKeySequence("A"), self, activated=lambda: self._key_action("A"))
+        QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self._end_and_restart)
+        self._shortcuts_installed = True
 
     def _end_and_restart(self) -> None:
         """Abort the running tournament and return to the setup screen.
