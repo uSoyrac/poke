@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -154,14 +154,23 @@ class IcmTrainerScreen(QWidget):
 
         # Main area: table + spot info
         main = QHBoxLayout()
+        main.setSpacing(14)
         self.table = LivePokerTable()
+        # LivePokerTable seat'leri YÜZDE ile mutlak konumlanır; alan daralınca
+        # (küçük pencere) seat'ler ve kart-arkaları pot/hero kartlarının üstüne
+        # biniyordu (SS4 'iç içe' kaosu). Min boyut çökmeyi engeller — alan
+        # darsa scroll devreye girer, layout asla bozulmaz.
+        self.table.setMinimumSize(860, 540)
         main.addWidget(self.table, 2)
 
         panel = QFrame()
         panel.setObjectName("DataPanel")
         panel_layout = QVBoxLayout(panel)
+        panel_layout.setSpacing(12)
+        panel_layout.setAlignment(Qt.AlignTop)
         self.spot_title = QLabel()
         self.spot_title.setObjectName("SectionTitle")
+        self.spot_title.setWordWrap(True)
         self.spot_info = QLabel()
         self.spot_info.setWordWrap(True)
         self.spot_info.setObjectName("Muted")
@@ -172,6 +181,7 @@ class IcmTrainerScreen(QWidget):
         panel_layout.addWidget(self.spot_title)
         panel_layout.addWidget(self.spot_info)
         panel_layout.addWidget(self.icm_detail)
+        panel_layout.addStretch(1)        # bilgi yukarıda grupla, butonlar altta
         panel_layout.addLayout(self.action_layout)
         main.addWidget(panel, 1)
         layout.addLayout(main)
