@@ -54,6 +54,7 @@ class LiveAdvice:
     equity: float = 0.0         # hero equity % vs modellenmiş villain range (postflop)
     combo_note: str = ""        # river bluff-catch: value/bluff combo + blocker (elit koç)
     range_adv_note: str = ""    # flop/turn: range + nut avantajı (kim bahis atmalı)
+    plan_note: str = ""         # flop/turn: çok-sokaklı plan (kaç sokak value, scare)
 
     def per_action(self) -> Dict[ActionType, float]:
         """ActionType → % eşlemesi (görünür butonlara uygulamak için)."""
@@ -267,6 +268,14 @@ def _postflop_advice(hand: HandState, hero_idx: int, adv: LiveAdvice) -> LiveAdv
                                 " ".join(c.code for c in hand.community),
                                 iterations=700)
             adv.range_adv_note = coach_range_adv_line(ra)
+        except Exception:
+            pass
+        # Çok-sokaklı plan (el sınıfı → kaç sokak value/barrel, scare kartları)
+        try:
+            from app.poker.street_plan import street_plan, coach_plan_line
+            sp = street_plan(hero_code, " ".join(c.code for c in hand.community),
+                             in_position=in_pos, has_initiative=init)
+            adv.plan_note = coach_plan_line(sp)
         except Exception:
             pass
 

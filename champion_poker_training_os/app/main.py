@@ -512,6 +512,13 @@ class MainWindow(QMainWindow):
                 f"%{mdf*100:.0f} (bu kadar range'i savunmalıyım, daha fazla fold = "
                 f"exploit edilirim) · Bluff'un break-even fold oranı (alpha) = %{alpha*100:.0f}\n"
             )
+        plan = g.get("plan_note")
+        if plan:
+            block += (
+                f"[ÇOK-SOKAKLI PLAN — 'izole karar değil, plan']\n{plan}\n"
+                f"Bu planı kullanarak size/aksiyon gerekçesini açıkla: kaç sokak "
+                f"value, hangi kartlar devam/scare.\n"
+            )
         radv = g.get("range_adv_note")
         if radv:
             block += (

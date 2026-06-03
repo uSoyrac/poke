@@ -919,6 +919,17 @@ class GTODecisionReveal(QFrame):
             ml.setWordWrap(True)
             col.addWidget(ml)
 
+        # ── PLAN satırı: çok-sokaklı plan (kaç sokak value, scare) ──
+        plan = d.get("plan_note") or ""
+        if plan:
+            pl = QLabel("📋 " + plan)
+            pl.setTextFormat(Qt.RichText)
+            pl.setStyleSheet(
+                f"font-family:'JetBrains Mono',monospace; font-size:10px; "
+                f"color:{_WARN}; background:transparent;")
+            pl.setWordWrap(True)
+            col.addWidget(pl)
+
         # ── RANGE AVANTAJI satırı: flop/turn kim bahis atmalı ──
         radv = d.get("range_adv_note") or ""
         if radv:
