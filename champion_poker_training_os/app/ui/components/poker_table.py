@@ -614,7 +614,12 @@ class LivePokerTable(QWidget):
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
-        self.setMinimumHeight(330)
+        # Seat'ler YÜZDE ile mutlak konumlanır; alan daralınca üst üste biner
+        # (ICM/Postflop/River trainer'larda 'iç içe UI' kaosu — SS4). Min
+        # GENİŞLİK + yeterli yükseklik çökmeyi global olarak engeller: dar
+        # ekranda scroll/clip olur ama layout asla bozulmaz. Tek kaynak →
+        # tabloyu gömen 11 ekranın hepsi otomatik korunur.
+        self.setMinimumSize(820, 520)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setAutoFillBackground(False)
