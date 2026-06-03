@@ -159,6 +159,16 @@ def cbet_strategy(equity: float, tex: BoardTexture, in_position: bool,
     elif (street or "").lower() == "river":
         size = min(1.0, size + 0.20)
 
+    # EQUITY-DUYARLI POLARİZASYON (ıslak board'da): nut'a yakın value + saf blöf
+    # BÜYÜK basar (polar size — rakibin değerini maksimize/fold equity'yi yükselt);
+    # orta-güç showdown elleri ise KÜÇÜK tutar (ince koruma) ya da check'ler.
+    # Kuru board'da tek küçük "range bet" doğru olduğu için dokunmayız.
+    if wet >= 0.5:
+        if equity >= 0.62 or equity <= 0.28:          # polar: value veya saf blöf
+            size = max(size, 0.80)
+        elif 0.35 <= equity < 0.52:                   # zayıf-orta: küçük/koruma
+            size = min(size, 0.55)
+
     # Equity modülasyonu (value hafif, bluff/orta tam decay)
     if equity >= 0.62:
         bet_freq = min(0.92, base * (0.85 + 0.15 * decay) + 0.18)   # value
