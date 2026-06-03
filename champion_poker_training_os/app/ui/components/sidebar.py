@@ -20,6 +20,7 @@ NAV_GROUPS = [
         "Preflop Range Trainer",
         "Postflop Trainer",
         "River Decision Trainer",
+        "Combo Trainer",
         "Combat Trainer",
         "Math Lab",
     ]),

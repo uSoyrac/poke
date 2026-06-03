@@ -26,6 +26,7 @@ from app.ui.components.sidebar import SidebarNav
 from app.ui.components.topbar import TopStatusBar
 from app.ui.screens.ai_coach import AiCoachScreen
 from app.ui.screens.combat_trainer import CombatTrainerScreen
+from app.ui.screens.combo_trainer import ComboTrainerScreen
 from app.ui.screens.dashboard import DashboardScreen
 from app.ui.screens.fast_play_simulator import FastPlaySimulatorScreen
 from app.ui.screens.hand_analyzer import HandAnalyzerScreen
@@ -97,6 +98,7 @@ NAV_ITEMS = [
     "MTT Trainer",
     "Postflop Trainer",
     "River Decision Trainer",
+    "Combo Trainer",
     "Math Lab",
     "Combat Trainer",
     "Leak Finder",
@@ -284,6 +286,7 @@ class MainWindow(QMainWindow):
             "MTT Trainer": MTTTrainerScreen,
             "Postflop Trainer": PostflopTrainerScreen,
             "River Decision Trainer": RiverTrainerScreen,
+            "Combo Trainer": ComboTrainerScreen,
             "Math Lab": MathLabScreen,
             "Combat Trainer": CombatTrainerScreen,
             "Leak Finder": LeakFinderScreen,
