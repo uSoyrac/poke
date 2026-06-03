@@ -97,11 +97,13 @@ class MTTField:
         buyin: float = 22.0,
         structure: str = "regular",   # "regular" | "turbo" | "hyper"
         hero_table_size: int = 9,
+        tier: "str | None" = None,    # stake tier → gerçekçi skill kompozisyonu
     ) -> None:
         self.field_size      = field_size
         self.buyin           = buyin
         self.structure       = structure
         self.hero_table_size = hero_table_size
+        self.tier            = tier
 
         # Economics
         self.prize_pool  = round(buyin * field_size, 2)
@@ -114,9 +116,15 @@ class MTTField:
         # (skill-korelasyonlu hayatta kalma). Toplam eleme sayısı (Poisson)
         # değişmez; sadece HANGİ kovadan elendiği ağırlıklıdır.
         bg = max(0, field_size - hero_table_size)
+        # Skill kompozisyonu seçili stake tier'ından (yoksa varsayılan düşük-stake)
+        try:
+            from app.engine.bot_brain import tier_skill_fractions
+            fr = tier_skill_fractions(tier)
+        except Exception:
+            fr = {"weak": 0.62, "mid": 0.26, "strong": 0.12}
         self._bg = {
-            "weak":   round(bg * 0.62),
-            "mid":    round(bg * 0.26),
+            "weak":   round(bg * fr["weak"]),
+            "mid":    round(bg * fr["mid"]),
             "strong": 0,   # kalan → strong (yuvarlama farkını massetir)
         }
         self._bg["strong"] = max(0, bg - self._bg["weak"] - self._bg["mid"])

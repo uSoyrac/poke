@@ -212,6 +212,18 @@ class TournamentSimulatorScreen(QWidget):
             self.bot_difficulty.addItem(label)
             self.bot_difficulty.setItemData(self.bot_difficulty.count() - 1,
                                             note, Qt.ToolTipRole)
+        # GERÇEKÇİ STAKE ALANLARI — buy-in'e göre gerçek online MTT kompozisyonu.
+        # Seçilince hem hero masası hem arka-plan alanı o tier'dan örneklenir.
+        from app.engine.bot_brain import FIELD_TIERS
+        self._field_tier = None
+        for tname in FIELD_TIERS:
+            label = f"🌍 Gerçek: {tname}"
+            self.bot_difficulty.addItem(label)
+            self.bot_difficulty.setItemData(
+                self.bot_difficulty.count() - 1,
+                f"Gerçek {tname} MTT alanı — bu stake'te karşılaşacağın "
+                "gerçekçi profil dağılımı (zayıf-ağırlıklı, karikatür değil).",
+                Qt.ToolTipRole)
         self.bot_difficulty.currentTextChanged.connect(self._apply_field_preset)
         self.bot_difficulty.setToolTip(diff_tooltips["Recreational Mix"])
         grid.addWidget(self._label("FIELD STRENGTH"), 2, 2)
@@ -275,6 +287,16 @@ class TournamentSimulatorScreen(QWidget):
     }
 
     def _apply_field_preset(self, name: str) -> None:
+        # Gerçek stake tier → o dağılımdan 8 bot örnekle (hero masası snapshot'ı)
+        if name.startswith("🌍 Gerçek: "):
+            from app.engine.bot_brain import realistic_mtt_mix
+            tier = name.replace("🌍 Gerçek: ", "")
+            self._field_tier = tier
+            import random as _r
+            comp = realistic_mtt_mix(8, rng=_r.Random(), tier=tier)
+            self.field_picker.set_composition(comp)
+            return
+        self._field_tier = None
         comp = self._FIELD_PRESETS.get(name)
         if comp:
             self.field_picker.set_composition(comp)
@@ -331,6 +353,7 @@ class TournamentSimulatorScreen(QWidget):
             buyin=float(self.buyin_input.value()),
             structure=self.structure_combo.currentText(),
             hero_table_size=size,
+            tier=getattr(self, "_field_tier", None),
         )
         self.mtt_field.update_hero_table(size)  # hero table starts full
 

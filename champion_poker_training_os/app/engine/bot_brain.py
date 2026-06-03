@@ -195,6 +195,43 @@ FIELD_TIERS = {
 KARMA_WEIGHTS = dict(FIELD_TIERS["Düşük ($11-33)"])
 
 
+# Arketip → skill kovası (tek doğru kaynak; UI/field-sim/test paylaşır).
+_SKILL_TIER = {
+    # Zayıf / rekreasyonel
+    "Fish": "weak", "Calling Station": "weak", "Aggro Fish": "weak",
+    "Tight Passive": "weak", "Nit": "weak", "Rock": "weak", "Maniac": "weak",
+    "Loose Rec": "weak", "Bubble Nit": "weak",
+    # Orta reg
+    "TAG": "mid", "Reg": "mid", "LAG": "mid", "Balanced Reg": "mid",
+    "Weak Reg": "mid", "Karma (Mixed)": "mid", "Overbluffer": "mid",
+    "Big Stack Bully": "mid", "Short Stack Jam": "mid", "Overfolder": "mid",
+    # Güçlü / elit
+    "Shark": "strong", "GTO Expert": "strong", "Exploit Expert": "strong",
+    "Solver Bot": "strong", "ICM Expert": "strong",
+    "Phil Ivey": "strong", "Phil Hellmuth": "strong", "Daniel Negreanu": "strong",
+    "Doyle Brunson": "strong",
+}
+
+
+def archetype_skill(arch: str) -> str:
+    """Bir arketipin skill kovası: 'weak' | 'mid' | 'strong'."""
+    return _SKILL_TIER.get(arch, "mid")
+
+
+def tier_skill_fractions(tier: "str | None" = None) -> "dict[str, float]":
+    """Bir stake tier'ının (yoksa varsayılan) weak/mid/strong oran dağılımı.
+    MTTField arka-plan kovalarını gerçekçi başlatmak için kullanır."""
+    w = FIELD_TIERS.get(tier) if tier else None
+    w = w or KARMA_WEIGHTS
+    agg = {"weak": 0.0, "mid": 0.0, "strong": 0.0}
+    tot = 0.0
+    for a, wt in w.items():
+        agg[archetype_skill(a)] += wt
+        tot += wt
+    tot = tot or 1.0
+    return {k: v / tot for k, v in agg.items()}
+
+
 def _weighted_choice(rng, weights: "dict[str, float] | None" = None):
     """Ağırlık dağılımına göre tek arketip seç (varsayılan KARMA_WEIGHTS)."""
     w = weights or KARMA_WEIGHTS
