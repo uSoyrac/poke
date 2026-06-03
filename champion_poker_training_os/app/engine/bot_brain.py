@@ -681,6 +681,11 @@ class BotBrain:
                 cbet_freq -= 0.18
             if board_features["wet"] and adj_strength < 0.5:
                 cbet_freq -= 0.10
+            # POZİSYON: IP agressor daha sık c-bet'ler (range bet, ucuz baskı);
+            # OOP daha çok check'ler (checking range'ini korur). Çarpan ~1.0
+            # merkezli → toplam c-bet frekansı/AF ortalamada KORUNUR, ama IP/OOP
+            # farkı gerçekçi olur (GTO temel ilkesi).
+            cbet_freq *= 1.12 if in_position else 0.88
             # Passive archetypes (agg ≤ 1.5): almost never c-bet bluff —
             # they need a real hand to fire, protecting their checking range.
             if agg <= 1.5 and adj_strength < 0.55:
