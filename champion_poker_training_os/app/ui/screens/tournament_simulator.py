@@ -768,8 +768,31 @@ class TournamentSimulatorScreen(QWidget):
             icm = icm_pressure_for(alive, paid)
             for brain in self.tournament.game.bots.values():
                 brain.icm_pressure = icm
+            self._cur_icm = icm
+            self._maybe_icm_coach(icm, alive, paid)
         except Exception:
             pass
+
+    def _maybe_icm_coach(self, icm: float, alive: int, paid: int) -> None:
+        """Faz değişiminde (bubble/ITM) hero'ya BİR KEZ ICM uyarısı gönder —
+        spam yok; sadece eşik geçişinde. WSOP-seviye derin oyun disiplini."""
+        phase = ("bubble" if icm >= 0.85 else
+                 "itm" if (0.3 <= icm < 0.85) else "none")
+        if phase == getattr(self, "_icm_phase", None):
+            return
+        self._icm_phase = phase
+        if phase == "bubble":
+            self.coach_message.emit(
+                f"🫧 BUBBLE — para'ya {max(0, alive - paid)} kişi kaldı. ICM "
+                "risk premium ZİRVEDE: marjinal büyük-riskli calloff'lardan KAÇIN "
+                "(KQo/A9o/küçük çiftle yığını riske atma). Premium (QQ+/AK) ya da "
+                "fold equity'si yüksek jam dışında stack'ini koru. Büyük stacksen "
+                "orta stack'lere baskı kur — onlar çıkmaktan korkuyor.")
+        elif phase == "itm":
+            self.coach_message.emit(
+                "💰 ITM — para'dasın. ICM hâlâ etkin (ödül sıçramaları): "
+                "coinflip'lerde temkinli ol, ladder'a oyna; ama kısa stack'leri "
+                "ezmek için fold equity'yi kullan.")
 
     def _hero_action(self, action_type: ActionType):
         if not self.tournament or self.tournament.is_complete:
@@ -1349,10 +1372,12 @@ class TournamentSimulatorScreen(QWidget):
         # Alan sertliği: zayıflar hızlı patlar → derinleştikçe reg-ağır olur
         strength = f.field_strength_label()
         strength_seg = f"alan: {strength}  ·  " if strength else ""
+        # Birleşik ZORLUK (alan sertliği + bubble/ICM baskısı)
+        _, tough_tag = f.toughness()
         self._fs_label.setText(
             f"FIELD:  {total_rem:,} / {total:,} players  ·  "
             f"{elim:,} eliminated  ·  {bubble_str}  ·  "
-            f"{f.tables_active} tables  ·  {strength_seg}{prizes}"
+            f"{f.tables_active} tables  ·  {strength_seg}zorluk: {tough_tag}  ·  {prizes}"
         )
         self.field_strip.show()
 

@@ -185,6 +185,31 @@ class MTTField:
         """Hayatta kalan arka-plan alanında güçlü oyuncu oranı (derinleştikçe artar)."""
         return self.bg_composition["strong"]
 
+    def toughness(self) -> tuple[float, str]:
+        """Turnuva 'zorluk' skoru (0..1) + etiket: alan sertliği (strong oranı)
+        + ICM/bubble baskısı birleşik. Hero'ya 'bu turnuva ne kadar zor' der."""
+        strong = self.strong_fraction
+        d = self.bubble_distance
+        # Bubble yakınlığı baskısı (0..1)
+        if d <= 0:
+            bub = 0.5
+        elif d <= max(2, round(self.paid_places * 0.10)):
+            bub = 0.9
+        elif d <= self.paid_places:
+            bub = 0.5
+        else:
+            bub = 0.1
+        score = min(1.0, 0.6 * min(1.0, strong / 0.30) + 0.4 * bub)
+        if score < 0.33:
+            tag = "🟢 KOLAY"
+        elif score < 0.6:
+            tag = "🟡 ORTA"
+        elif score < 0.8:
+            tag = "🟠 ZOR"
+        else:
+            tag = "🔴 ÇOK ZOR"
+        return score, tag
+
     def field_strength_label(self) -> str:
         """Alan sertliği için kısa etiket (UI/koç). Arka plan boşsa '' döner."""
         if self._bg_remaining <= 0:
