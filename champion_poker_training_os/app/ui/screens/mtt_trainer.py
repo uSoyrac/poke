@@ -207,7 +207,12 @@ class MTTTrainerScreen(QWidget):
 
         # Left: spot card
         card = QFrame()
-        card.setStyleSheet(f"QFrame{{background:{COLOR_CARD}; border:1px solid "
+        # ÖNEMLİ: selektör objectName ile sınırlanmalı. Çıplak 'QFrame{...}'
+        # yazılırsa stil TÜM torun QFrame'lere (gömülü LivePokerTable'ın
+        # _Seat'lerine) sızar → seat'ler kartın bg/border/padding'ini alıp dev
+        # kutular olur ve üst üste biner (push/fold masası kaosu).
+        card.setObjectName("PfCard")
+        card.setStyleSheet(f"QFrame#PfCard{{background:{COLOR_CARD}; border:1px solid "
                            f"{COLOR_LINE}; border-radius:12px; padding:20px;}}")
         v = QVBoxLayout(card)
         v.setSpacing(16)
@@ -280,7 +285,8 @@ class MTTTrainerScreen(QWidget):
 
     def _build_stats(self) -> QWidget:
         panel = QFrame()
-        panel.setStyleSheet(f"QFrame{{background:{COLOR_CARD};border:1px solid "
+        panel.setObjectName("PfStats")
+        panel.setStyleSheet(f"QFrame#PfStats{{background:{COLOR_CARD};border:1px solid "
                            f"{COLOR_LINE};border-radius:12px;padding:16px;}}")
         v = QVBoxLayout(panel)
         v.setSpacing(10)
