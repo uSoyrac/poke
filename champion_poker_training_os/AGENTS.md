@@ -356,6 +356,49 @@ then bind a `QShortcut` in the relevant screen.
 ## 5 · Recent commits (read for context)
 
 ```
+# Phase H — elit-koç skill entegrasyonu + combo/range/plan + leak-ledger (2026-06-03) — newest first
+#   D88 Agent ile GTO range denetimi → push/fold Nash kalibrasyonu (JAM_PCT
+#       geç-poz kısa stack +%5-8; BTN 10bb %33→%41). Agent 3 sapma raporladı,
+#       elle doğrulandı: UTG 55 ve CO %30.4 KABUL (modern GTO/band içi), sadece
+#       BTN push/fold düzeltildi. Koç ilkesi: doğrulanmamış iddiayla kod değiştirme.
+#   D87 Kalıcı leak-ledger + spaced repetition (leak_ledger.py + repository
+#       leak_ledger tablosu). Leak 'çözüldü' OLMAZ ta ki acc≥%78 + streak≥5 +
+#       ≥1 gün gecikmeli re-test. Combo Trainer her cevabı işler + 📒 panel.
+#   D86 Çok-sokaklı plan ipucu (street_plan.py): el sınıfı→kaç sokak value/barrel,
+#       scare kartları. reveal '📋' satırı + koç context. (flop/turn)
+#   D85 Range vs Range avantajı (range_advantage.py): equity (river EXACT,
+#       flop/turn MC) + nut avantajı. CAPPED caller range (premium çıkarılır →
+#       yanıltıcı değil). reveal '⚖️' satırı + koç. (flop/turn)
+#   D84 Combo Counting Trainer ekranı (combo_drill.py): random river bluff-catch,
+#       gerçek masa, zaman kısıtı yok, CALL/FOLD → combo+blocker analizi. Villain
+#       stili random (value-ağır/dengeli/blöf-ağır) → CALL/FOLD dengeli karışır.
+#   D83 Combo + blocker sayacı (combinatorics.py): el-sınıfı→combo (dead-card),
+#       value:bluff split + blocker. River bluff-catch'te reveal '🎴' + koç.
+#   D82 advanced-poker-coach skill metodolojisi app koçuna gömüldü (THINKING_
+#       PROTOCOL: 6-adım refleks + 7 ilke + check-list'ler).
+# Phase G — istatistik doğruluğu + gerçekçi alan + ICM + Growth Lab + Playbook (2026-06-03) — newest first
+#   D81 Canlı stack-derinliği faz koçu (deep/mid/short/push-fold, Playbook bağlı)
+#   D80 ICM aç/kapa karşılaştırma + turnuva-sonu rapora alan-zorluk bağlamı
+#   D79 Turnuva zorluk göstergesi (toughness) + hero ICM-koç uyarısı (bubble/ITM)
+#   D78 Stake-tier headless sim + cash tier seçici + ICM-duyarlı bot (icm_pressure
+#       gated → cash/fidelity ETKİSİZ; bubble'da marjinal calloff sıkışır)
+#   D77 Stake-tier alanı Tournament Simulator'a bağla (Mikro/Düşük/Orta/Yüksek)
+#   D76 Gerçek seviye: Loose Rec + Weak Reg arketipleri + FIELD_TIERS (stake-bazlı)
+#       + headless all-bot multi-table MTT motoru (headless_mtt.py)
+#   D75 Alan sertliği göstergesi (field-strip skill-skew)
+#   D74 GTO postflop equity-duyarlı polarize sizing (ıslak board)
+#   D73 Multi-table skill-korelasyonlu eleme (weak/mid/strong kovaları)
+#   D72 GTO BB defend (vs BTN/SB) genişliği düzeltildi (ölçümle)
+#   D71 Bot postflop pozisyon farkındalığı (IP daha sık c-bet, mean-preserving)
+#   D70 Ante DOĞRULANDI (düzeltme gerekmedi) + alan dağılımı zayıf-ağırlıklı gerçekçi
+#   D69 Growth&Edge Lab ↔ AI Koç bağı (bankroll/Kelly/RoR somut tavsiye)
+#   D68 Growth & Edge Lab ekranı (Kelly + risk-of-ruin + compounding, poker & bot)
+#   D67 Leak Finder ↔ Playbook ilkesi eşlemesi (hangi ilkeyi ihlal ettin)
+#   D66 AI Koç ↔ Strateji Playbook bağı (app.poker.playbook tek kaynak)
+#   D65 Strateji Planı (Playbook) ekranı — uzun-vade cash + MTT
+#   D64 Hero istatistik DOĞRULUĞU — gerçek VPIP/PFR/3bet/AF (kör+ante+postflop
+#       şişmesi giderildi; preflop gönüllü-aksiyon bayrakları kalıcılaştırıldı)
+#   D63 Postflop bot gerçekçiliği (sim) + kanonik GTO-optimal kontrolleri
 # Phase F — turnuva: ante + multi-table + hero range (2026-05-31) — newest first
 #   D51 hero el chart picker (169-grid) → hero gerçekten seçili ellerden deal
 #       (game_loop özel set kabul eder; sıkı filtrede doğrudan inşa)
