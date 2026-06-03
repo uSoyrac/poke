@@ -746,12 +746,30 @@ class TournamentSimulatorScreen(QWidget):
         self._await_space = False
         if hasattr(self, "gto_reveal"):
             self.gto_reveal.hide_panel()
+        self._apply_icm_pressure()
         self.tournament.start_hand()
         self._refresh_table()
         # Begin paced bot processing
         if (not self.tournament.game.is_waiting_for_hero
                 and not self.tournament.game.current_hand.is_complete):
             self._bot_timer.start()
+
+    def _apply_icm_pressure(self) -> None:
+        """Bubble/FT yakınlığına göre masadaki botlara ICM baskısı uygula —
+        marjinal büyük-riskli calloff'ları sıkılaştırır (gerçekçi derin oyun)."""
+        try:
+            from app.simulator.mtt_field import icm_pressure_for
+            if self.mtt_field:
+                alive = self.mtt_field.players_remaining
+                paid = self.mtt_field.paid_places
+            else:
+                alive = self.tournament.players_remaining
+                paid = int(getattr(self.tournament.config, "paid_places", 0) or 0)
+            icm = icm_pressure_for(alive, paid)
+            for brain in self.tournament.game.bots.values():
+                brain.icm_pressure = icm
+        except Exception:
+            pass
 
     def _hero_action(self, action_type: ActionType):
         if not self.tournament or self.tournament.is_complete:

@@ -429,6 +429,10 @@ class BotBrain:
 
     def __init__(self, profile: BotProfile):
         self.profile = profile
+        # ICM baskısı (0..1). 0 = cash/ICM yok → davranış değişmez (fidelity
+        # korunur). >0 (turnuva bubble/FT) → büyük stack-riskli marjinal
+        # call/jam'ları SIKILAŞTIRIR (risk premium). Turnuva motoru her el ayarlar.
+        self.icm_pressure: float = 0.0
         # Precomputed per-position open ranges sized to hit profile.vpip.
         # Cached at construction so per-hand decisions are O(1) lookups.
         self._pos_open_ranges: dict = {}
@@ -480,9 +484,42 @@ class BotBrain:
                 if allin_pot_frac < 0.35:
                     return ActionType.ALL_IN, player.stack
 
+        # ── ICM RİSK PREMIUM (yalnız icm_pressure>0 → cash/fidelity'de ETKİSİZ) ──
+        # Bubble/FT'de büyük stack-riskli marjinal call/jam'ları sıkılaştır.
+        if (self.icm_pressure > 0 and to_call > 0
+                and ActionType.FOLD in valid_types
+                and player.hole_cards and len(player.hole_cards) >= 2):
+            stack0 = player.stack + player.current_bet
+            if self._icm_should_fold(player.hole_cards, state.community,
+                                     to_call, stack0):
+                return ActionType.FOLD, 0.0
+
         if state.street == Street.PREFLOP:
             return self._preflop(state, player_idx, player, valid)
         return self._postflop(state, player_idx, player, valid)
+
+    def _icm_should_fold(self, hole, community, to_call: float,
+                         stack0: float) -> bool:
+        """ICM risk premium: stack'in ≥%50'sini riske atan marjinal el calloff'u
+        FOLD edilmeli mi? Yalnız icm_pressure>0'da çağrılır. Premium eller
+        (AA/KK/AKs… ve gerçek güçlü el/draw) her zaman devam eder."""
+        risk = to_call / max(stack0, 1e-9)
+        if risk < 0.5:                          # küçük risk → ICM tetiklenmez
+            return False
+        if community:                           # postflop: gerçek el gücü/draw
+            q, dq, _ = self._hand_strength(hole, community)
+            q = max(q, dq)
+        else:                                   # preflop: el oynanabilirlik skoru
+            try:
+                from app.poker.gto_generator import hand_playability_score
+                q = hand_playability_score(hand_key(hole[0], hole[1]))
+            except Exception:
+                q = 0.6
+        # Devam barı TAMAMEN baskıyla ölçeklenir → icm=0'da bar=0 (asla foldlamaz).
+        # Baskı + risk arttıkça yükselir; ~0.95 baskıda bar~0.77 → AKs/QQ+ devam,
+        # TT/A9s ve altı fold (gerçekçi bubble calloff sıkılaşması).
+        bar = 0.85 * self.icm_pressure * min(1.0, risk)
+        return q < bar
 
     # ── PREFLOP ────────────────────────────────────────────────────
 

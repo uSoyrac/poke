@@ -183,11 +183,19 @@ class PlaySessionScreen(QWidget):
         cash_g.addWidget(self.stack_combo, 1, 0)
 
         self.cash_preset_combo = QComboBox()
-        self.cash_preset_combo.addItems(list(self._CASH_PRESETS.keys()) + ["Custom"])
+        from app.engine.bot_brain import FIELD_TIERS
+        _tier_items = [f"🌍 Gerçek: {t}" for t in FIELD_TIERS]
+        self.cash_preset_combo.addItems(
+            list(self._CASH_PRESETS.keys()) + _tier_items + ["Custom"])
         for key, tip in self._CASH_PRESET_TIPS.items():
             idx = self.cash_preset_combo.findText(key)
             if idx >= 0:
                 self.cash_preset_combo.setItemData(idx, tip, Qt.ToolTipRole)
+        for t in _tier_items:
+            idx = self.cash_preset_combo.findText(t)
+            self.cash_preset_combo.setItemData(
+                idx, "Gerçek bu stake'te karşılaşacağın cash masası kompozisyonu.",
+                Qt.ToolTipRole)
         self.cash_preset_combo.currentTextChanged.connect(self._apply_preset)
         cash_g.addWidget(self._label("QUICK PRESET"), 0, 1)
         cash_g.addWidget(self.cash_preset_combo, 1, 1)
@@ -376,6 +384,15 @@ class PlaySessionScreen(QWidget):
             self.field_picker.set_composition(["Random (Karma)"] * n)
 
     def _apply_preset(self, name: str) -> None:
+        # Gerçek stake tier → o dağılımdan masadaki koltuk sayısı kadar örnekle
+        if name.startswith("🌍 Gerçek: ") and hasattr(self, "field_picker"):
+            from app.engine.bot_brain import realistic_mtt_mix
+            import random as _r
+            tier = name.replace("🌍 Gerçek: ", "")
+            n_seats = max(1, len(self.field_picker.get_archetypes()))
+            comp = realistic_mtt_mix(n_seats, rng=_r.Random(), tier=tier)
+            self.field_picker.set_composition(comp)
+            return
         if self._format == "cash":
             comp = self._CASH_PRESETS.get(name)
         elif self._format == "mtt":

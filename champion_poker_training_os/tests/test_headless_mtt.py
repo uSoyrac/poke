@@ -34,9 +34,10 @@ def test_tiered_field_runs():
     from app.engine.bot_brain import realistic_mtt_mix
     import random
     rng = random.Random(4)
-    # tier örneklemesi çalışıyor + run_mtt herhangi alanı çözer
+    # tier örneklemesi çalışıyor + run_mtt tier param'ı kabul eder + çözer
     assert len(realistic_mtt_mix(50, rng=rng, tier="Yüksek ($530+)")) == 50
-    r = run_mtt(18, seed=3)
+    r = run_mtt(18, seed=3, tier="Yüksek ($530+)")
+    assert r["tier"] == "Yüksek ($530+)"
     assert len(r["finish_1st_to_last"]) == 18
 
 

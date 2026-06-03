@@ -30,6 +30,22 @@ def itm_places(field: int) -> int:
     return max(50, round(field * 0.08))
 
 
+def icm_pressure_for(alive: int, paid: int) -> float:
+    """Bubble/ITM yakınlığından ICM baskısı (0..1). Bot'ların marjinal
+    calloff'ları sıkılaştırması için. Erken aşama 0; bubble'da en yüksek."""
+    if paid <= 0 or alive <= 0:
+        return 0.0
+    d = alive - paid                      # para'ya uzaklık (>0 = henüz dışında)
+    if d <= 0:
+        return 0.45                       # ITM — FT ladder baskısı (orta)
+    near = max(2, round(paid * 0.10))
+    if d <= near:
+        return 0.9                        # MONEY BUBBLE — en yüksek
+    if d <= paid:
+        return 0.5                        # bubble yakını
+    return 0.0                            # erken — ICM yok
+
+
 # ── Prize table builder ────────────────────────────────────────────────
 
 def build_prize_table(prize_pool: float, num_paid: int) -> list[tuple[int, float]]:

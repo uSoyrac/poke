@@ -17,6 +17,7 @@ from typing import List
 from app.engine.bot_brain import BOT_ARCHETYPES, BotBrain, realistic_mtt_mix
 from app.engine.game_loop import PokerGame
 from app.engine.hand_state import ActionType
+from app.simulator.mtt_field import icm_pressure_for, itm_places
 
 
 # Sıkıştırılmış ama gerçek blind şeması (chip). Hızlı çözülsün diye level'ler
@@ -42,7 +43,7 @@ class _Player:
 
 
 def _play_one_hand(table: List[_Player], sb: float, bb: float, ante: float,
-                   button: int) -> None:
+                   button: int, icm: float = 0.0) -> None:
     """Bir masada GERÇEK bir el oynat; stack'leri günceller (yerinde)."""
     n = len(table)
     if n < 2:
@@ -60,6 +61,11 @@ def _play_one_hand(table: List[_Player], sb: float, bb: float, ante: float,
         gl.players[i].stack = p.stack
     gl.dealer_idx = button % n
     hero_brain = BotBrain(BOT_ARCHETYPES.get(archs[0], BOT_ARCHETYPES["Balanced Reg"]))
+    # ICM baskısını tüm koltuklara uygula (bubble/FT'de marjinal calloff sıkılaşır)
+    if icm > 0:
+        hero_brain.icm_pressure = icm
+        for b in gl.bots.values():
+            b.icm_pressure = icm
 
     gl.start_hand()
     guard = 0
@@ -80,9 +86,9 @@ def _play_one_hand(table: List[_Player], sb: float, bb: float, ante: float,
         p.stack = max(0.0, gl.players[i].stack)
 
 
-def run_mtt(field_size: int, seed: int = 0) -> dict:
+def run_mtt(field_size: int, seed: int = 0, tier: "str | None" = None) -> dict:
     rng = random.Random(seed)
-    archs = realistic_mtt_mix(field_size, rng=rng)
+    archs = realistic_mtt_mix(field_size, rng=rng, tier=tier)
     alive = [_Player(i, archs[i], float(_START_CHIPS)) for i in range(field_size)]
     finish: List[str] = []          # finish[0] = SON elenen (kazanan en sonda eklenir)
     hands = 0
@@ -95,10 +101,12 @@ def run_mtt(field_size: int, seed: int = 0) -> dict:
         tables = [alive[i::n_tables] for i in range(n_tables)]  # ~eşit dağıt
         return [t for t in tables if t]
 
+    paid = itm_places(field_size)
     guard_rounds = 0
     while len(alive) > 1 and guard_rounds < 200000:
         guard_rounds += 1
         sb, bb, ante = _LEVELS[min(level, len(_LEVELS) - 1)]
+        icm = icm_pressure_for(len(alive), paid)
         tables = _rebalance()
         for ti, table in enumerate(tables):
             if len(alive) <= 1:
@@ -106,7 +114,7 @@ def run_mtt(field_size: int, seed: int = 0) -> dict:
             if len(table) < 2:
                 continue
             btn = buttons.get(ti, 0)
-            _play_one_hand(table, sb, bb, ante, btn)
+            _play_one_hand(table, sb, bb, ante, btn, icm=icm)
             buttons[ti] = (btn + 1) % len(table)
             hands += 1
             # Bu masadaki bust'ları işle (place = mevcut alive sayısı)
@@ -126,6 +134,7 @@ def run_mtt(field_size: int, seed: int = 0) -> dict:
     top3 = order_1st_to_last[:3]
     return {
         "field_size": field_size,
+        "tier": tier,
         "hands": hands,
         "finish_1st_to_last": order_1st_to_last,
         "final_table": final_table,
