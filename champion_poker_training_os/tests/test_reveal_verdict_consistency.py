@@ -32,6 +32,24 @@ _CURATED_PRE = {
     "available": True, "scenario": "RFI", "tier": "Curated",
     "hero_action": "FOLD", "fold": 0, "call": 0, "raise": 100,
 }
+# SS1: GTO raise %100, hero efektif stack'i aştığı için ALL_IN gitti. All-in
+# bir raise'dir → 'sapma' DEĞİL, aksiyon doğru (boyut ayrı puanlanır).
+_CURATED_ALLIN = {
+    "available": True, "scenario": "vs 3-bet — 4-bet kararı", "tier": "Curated",
+    "hero_action": "ALL_IN", "fold": 0, "call": 0, "raise": 100, "allin": 0,
+}
+
+
+def test_allin_credited_as_raise_when_gto_raises():
+    _qapp()
+    from app.ui.components.gto_range_widget import GTODecisionReveal
+    mark, _ = GTODecisionReveal._verdict(_CURATED_ALLIN)
+    assert "uyumlu" in mark and "sapma" not in mark
+
+
+def test_allin_grade_high_when_gto_raises():
+    g = grade_decision(_CURATED_ALLIN)
+    assert g.letter == "A"
 
 
 def test_postflop_concept_fold_is_soft_not_mistake():

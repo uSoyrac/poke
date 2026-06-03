@@ -55,6 +55,23 @@ def _hero_slot(action_name: str) -> Optional[str]:
     return None
 
 
+def hero_action_freq(freqs: dict, hero_action: str) -> Optional[float]:
+    """Hero'nun aldığı aksiyona GTO'nun verdiği % — agresif aksiyonlar
+    (RAISE/BET/ALL_IN) BİRLEŞTİRİLİR.
+
+    All-in bir raise'dir: efektif stack küçükken GTO 'raise %100' dese de
+    doğru aksiyon jam olabilir; aksiyon kategorisi (agresyon) doğruysa bunu
+    'sapma' saymak yanlış. Boyutun doğruluğu ayrı (sizing) satırında puanlanır.
+    Tanınmayan aksiyon → None.
+    """
+    slot = _hero_slot(hero_action)
+    if slot is None:
+        return None
+    if slot in ("raise", "allin"):
+        return float(freqs.get("raise", 0) or 0) + float(freqs.get("allin", 0) or 0)
+    return float(freqs.get(slot, 0) or 0)
+
+
 def _ev_loss(snap: dict, hero_action: str) -> float:
     """Kaba EV kaybı (bb): +EV fold veya -EV call. Diğer durumda 0."""
     eq = float(snap.get("equity", 0) or 0) / 100.0
@@ -92,8 +109,11 @@ def grade_decision(snap: dict) -> DecisionGrade:
         "raise": float(snap.get("raise", 0) or 0),
         "allin": float(snap.get("allin", 0) or 0),
     }
-    hero_freq = freqs[slot]
-    is_top = hero_freq >= max(freqs.values())
+    hero_freq = hero_action_freq(freqs, snap.get("hero_action", "")) or 0.0
+    # Agresif aksiyonlar birleşik kovada — 'en yüksek frekans' karşılaştırması da
+    # raise+allin'i tek agresyon olarak görmeli (yoksa jam, raise'e karşı kaybeder).
+    agg = freqs["raise"] + freqs["allin"]
+    is_top = hero_freq >= max(freqs["fold"], freqs["call"], agg)
 
     if is_top or hero_freq >= 60:
         letter = "A"

@@ -117,13 +117,21 @@ def sizing_advice(hand: HandState, hero_idx: int,
             adv.note = (f"Modern GTO açış {sz}bb civarı"
                         + (" (ante ile küçük)" if ante else "") + ".")
         else:
-            # Bir raise'e karşı 3-bet
+            # Bir raise'e karşı 3-bet / 4-bet
             open_to = hand.current_bet / bb
             ip = (hero.position or "").upper() in ("BTN", "CO", "BU")
             sz = round(open_to * (3.0 if ip else 4.0), 1)
-            adv.recommended_bb = sz
-            adv.label = f"3-bet {sz:.1f}bb ({'IP 3x' if ip else 'OOP ~4x'} open)"
-            adv.note = "3-bet: açışın IP 3x / OOP ~4x'i."
+            if sz >= eff_stack:
+                # Önerilen raise efektif stack'i aşıyor (örn. derin 4-bet pot,
+                # kısalmış stack) → standart 'raise to' imkansız, doğru aksiyon
+                # JAM. Öneriyi stack ile cap'le ki all-in 'sapma' sayılmasın.
+                adv.recommended_bb = round(eff_stack, 1)
+                adv.label = f"JAM ({eff_stack:.0f}bb) — raise stack'i aşıyor, all-in"
+                adv.note = "Önerilen 3-bet/4-bet boyutu efektif stack'ten büyük → jam."
+            else:
+                adv.recommended_bb = sz
+                adv.label = f"3-bet {sz:.1f}bb ({'IP 3x' if ip else 'OOP ~4x'} open)"
+                adv.note = "3-bet: açışın IP 3x / OOP ~4x'i."
         adv.available = True
         return adv
 

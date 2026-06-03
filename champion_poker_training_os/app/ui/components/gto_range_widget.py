@@ -664,15 +664,11 @@ class GTODecisionReveal(QFrame):
         olarak işaretlenmez — yanıltmamak için 'heuristik tahmin, kesin değil'
         denir. Sert ✓/✗ yalnızca yüksek-güven (curated/exact) spotlarda.
         """
-        action_to_key = {
-            "FOLD": "fold", "CHECK": "call", "CALL": "call",
-            "BET": "raise", "RAISE": "raise", "ALL_IN": "allin", "ALLIN": "allin",
-        }
+        from app.poker.decision_grade import hero_action_freq
         ha = (d.get("hero_action") or "").upper().replace("-", "_")
-        key = action_to_key.get(ha)
-        if not d.get("available") or key is None:
+        pct = hero_action_freq(d, ha)
+        if not d.get("available") or pct is None:
             return "", _MUTED
-        pct = float(d.get(key, 0) or 0)
         scen = (d.get("scenario") or "").lower()
         tier = (d.get("tier") or "").lower()
         is_estimate = ("postflop" in scen or "concept" in tier)
