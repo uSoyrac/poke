@@ -34,6 +34,7 @@ from app.core.live_hud import LiveHUD
 from app.engine.game_loop import PokerGame, HandResult
 from app.engine.hand_state import ActionType, Street
 from app.engine.bot_brain import BOT_ARCHETYPES
+from app.engine.bot_brain import CLASS_PRESETS as _BOT_CLASS_PRESETS
 from app.simulator.tournament_runner import Tournament, TournamentConfig
 from app.ui.components.card_view import CardView, CardBackView, CardPlaceholder
 from app.ui.components.field_picker import FieldPicker
@@ -321,6 +322,10 @@ class PlaySessionScreen(QWidget):
         "HU (1v1)":             ["LAG"],
         "6-max Balanced":       ["TAG", "Reg", "LAG", "Fish", "Tight Passive"],
         "9-max Deep":           ["TAG", "Reg", "LAG", "Fish", "Tight Passive", "Reg", "TAG", "Fish"],
+        # Klasman (oyuncu sınıfı) — 5-bot cash masası (bot_brain.CLASS_PRESETS)
+        "🎓 Pro Klasmanı":      list(_BOT_CLASS_PRESETS["pro"][:5]),
+        "🎓 Mid Klasmanı":      list(_BOT_CLASS_PRESETS["mid"][:5]),
+        "🎓 Hobi Klasmanı":     list(_BOT_CLASS_PRESETS["hobby"][:5]),
     }
     _CASH_PRESET_TIPS = {
         "Karma 5-bot (Random)": "5 oyuncu, hepsi her elde KARMA havuzundan random tarz",
@@ -332,6 +337,10 @@ class PlaySessionScreen(QWidget):
         "HU (1v1)":             "Heads-up: sadece 1 rakip (LAG)",
         "6-max Balanced":       "6-max dengeli alan — gerçekçi mid-stakes hissi",
         "9-max Deep":           "9-max 200bb derin stack — postflop yeteneği şart",
+        "🎓 Pro Klasmanı":      "Shark/GTO/ICM/Solver/Exploit — elit masada antren ol "
+                               "(pro'lar bile %100 oynamaz; okuma+exploit kazandırır)",
+        "🎓 Mid Klasmanı":      "TAG/Reg/Balanced/LAG — senin seviyenin sağlam reg'leri",
+        "🎓 Hobi Klasmanı":     "Fish/Station/Loose Rec — rekreasyonel yumuşak alan",
     }
 
     _MTT_PRESETS = {

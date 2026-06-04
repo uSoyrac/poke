@@ -26,6 +26,7 @@ from app.core.app_state import AppState
 from app.core.logging import log_swallowed
 from app.core.live_hud import LiveHUD
 from app.db.repository import save_played_hand
+from app.engine.bot_brain import CLASS_PRESETS as _BOT_CLASS_PRESETS
 from app.engine.game_loop import hero_stat_fields
 from app.engine.hand_state import ActionType, Street
 from app.simulator.mtt_field import MTTField
@@ -212,6 +213,21 @@ class TournamentSimulatorScreen(QWidget):
             self.bot_difficulty.addItem(label)
             self.bot_difficulty.setItemData(self.bot_difficulty.count() - 1,
                                             note, Qt.ToolTipRole)
+        # KLASMAN (oyuncu sınıfı) — odaklı antrenman: Pro'ya karşı geliş, Mid'de
+        # gerçek seviyeni yaşa, Hobi'de yumuşak alan. (Pro'lar bile %100 oynamaz.)
+        klasman_tips = {
+            "🎓 Pro Klasmanı": "Shark + GTO/ICM/Solver/Exploit Expert + Ivey/Negreanu — "
+                              "elit masa. Onlara karşı antren ol; ama %100 oynamazlar, "
+                              "okuma+exploit hâlâ kazandırır.",
+            "🎓 Mid Klasmanı": "TAG/Reg/LAG/Balanced — sağlam reg'ler. Senin mevcut "
+                              "seviyenin gerçekçi rakipleri.",
+            "🎓 Hobi Klasmanı": "Fish/Station/Loose Rec/Maniac — rekreasyonel yumuşak alan. "
+                               "Value bas, blöf azalt.",
+        }
+        for label, note in klasman_tips.items():
+            self.bot_difficulty.addItem(label)
+            self.bot_difficulty.setItemData(self.bot_difficulty.count() - 1,
+                                            note, Qt.ToolTipRole)
         # GERÇEKÇİ STAKE ALANLARI — buy-in'e göre gerçek online MTT kompozisyonu.
         # Seçilince hem hero masası hem arka-plan alanı o tier'dan örneklenir.
         from app.engine.bot_brain import FIELD_TIERS
@@ -284,6 +300,10 @@ class TournamentSimulatorScreen(QWidget):
         "Solver Field":     ["Shark", "Solver Bot", "TAG", "Shark", "Solver Bot",
                              "TAG", "Shark", "Solver Bot"],
         "Karma (Random)":   ["Random (Karma)"] * 8,
+        # Klasman (oyuncu sınıfı) — bot_brain.CLASS_PRESETS tek kaynak
+        "🎓 Pro Klasmanı":  list(_BOT_CLASS_PRESETS["pro"]),
+        "🎓 Mid Klasmanı":  list(_BOT_CLASS_PRESETS["mid"]),
+        "🎓 Hobi Klasmanı": list(_BOT_CLASS_PRESETS["hobby"]),
     }
 
     def _apply_field_preset(self, name: str) -> None:

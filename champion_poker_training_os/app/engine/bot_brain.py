@@ -218,6 +218,31 @@ def archetype_skill(arch: str) -> str:
     return _SKILL_TIER.get(arch, "mid")
 
 
+# ── KLASMAN (oyuncu sınıfı) — _SKILL_TIER üstüne kurulu, TEK KAYNAK ──────
+# Eğitim felsefesi: gerçek hayattaki gibi 3 klasman. Hero kendini Pro'ya karşı
+# antren ederek geliştirir, Mid'de gerçek seviyesini yaşar, Hobi'de yumuşak alan.
+# NOT: Pro'lar bile %100 doğru oynamaz (gözlem stat'larında leak/sapma var —
+# fidelity); kazanç hero'nun OKUMA + EXPLOIT becerisine bağlı. 'Doğru' rakibe
+# ve okumaya göre değişir → app bu yönü geliştirir.
+_CLASS_OF_SKILL = {"strong": "pro", "mid": "mid", "weak": "hobby"}
+
+
+def archetype_class(arch: str) -> str:
+    """Arketibin klasmanı: 'pro' | 'mid' | 'hobby' (skill kovasından türer)."""
+    return _CLASS_OF_SKILL.get(archetype_skill(arch), "mid")
+
+
+# Klasman → temsili 8-bot masa kompozisyonu (FieldPicker preset'i).
+CLASS_PRESETS = {
+    "pro":   ["Shark", "GTO Expert", "ICM Expert", "Solver Bot",
+              "Exploit Expert", "Phil Ivey", "Daniel Negreanu", "Shark"],
+    "mid":   ["TAG", "Reg", "Balanced Reg", "LAG",
+              "Weak Reg", "Reg", "TAG", "Balanced Reg"],
+    "hobby": ["Fish", "Calling Station", "Loose Rec", "Aggro Fish",
+              "Tight Passive", "Maniac", "Fish", "Loose Rec"],
+}
+
+
 def tier_skill_fractions(tier: "str | None" = None) -> "dict[str, float]":
     """Bir stake tier'ının (yoksa varsayılan) weak/mid/strong oran dağılımı.
     MTTField arka-plan kovalarını gerçekçi başlatmak için kullanır."""
