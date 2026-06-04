@@ -284,6 +284,16 @@ def build_vs_rfi_range(
     return result
 
 
+def _dominated_offsuit_vs_3bet(hk: str) -> bool:
+    """vs 3-bet'te call edilmemesi gereken dominated offsuit el mi?
+
+    Offsuit broadway/ace'ler (ATo, KTo, QJo, KJo, JTo, AJo…) bir 3-bet'e karşı
+    dominated + kötü reverse-implied odds → fold. Premium offsuit (AKo, AQo)
+    yeterince güçlü → devam. Suited/çift eller hiçbir zaman buraya girmez.
+    """
+    return hk.endswith("o") and hk not in ("AKo", "AQo")
+
+
 def build_vs_3bet_range(
     opener_position: str,
     threebettor_position: str,
@@ -314,8 +324,16 @@ def build_vs_3bet_range(
             # Mixed 4-bet (QQ, AK)
             result[hk] = mixed(70, 25)
         elif acc < total_continue_combos:
-            # Pure call (JJ-TT, AQ, suited broadways)
-            result[hk] = mixed_call(95)
+            # Pure call — AMA vs 3-bet POLARİZE/value-ağırlıklı bir domain:
+            # dominated offsuit broadway'ler (ATo, KTo, QJo, KJo, JTo…) reverse-
+            # implied odds yüzünden FOLD edilir; raw equity'leri iyi olsa da
+            # 3-bettor'ın AK/AQ/JJ+ value range'ine ezilirler. Sadece çift,
+            # suited (oynanabilir) ve premium offsuit (AKo/AQo) devam eder.
+            # (ATo'yu %95 call etmek bug'ıydı — curated tablo da ATo'yu fold'lar.)
+            if _dominated_offsuit_vs_3bet(hk):
+                result[hk] = pure_fold()
+            else:
+                result[hk] = mixed_call(95)
         else:
             # Polarized bluff 4-bet from low hands
             if hk in ("A5s", "A4s", "A3s"):

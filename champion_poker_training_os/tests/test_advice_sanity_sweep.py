@@ -68,6 +68,19 @@ def _sweep_engine():
                 v.append(f"NON_MONOTONIC RFI {stack}bb {mode}: UTG({ru})>CO({rc})")
             if rc > rb + 8:
                 v.append(f"NON_MONOTONIC RFI {stack}bb {mode}: CO({rc})>BTN({rb})")
+            # vs 3-bet: dominated offsuit (ATo/KTo/QJo…) DEFEND etmemeli (D121),
+            # AA 4-bet etmeli. vs-3bet polarize/value-ağırlıklı domain.
+            if stack >= 40:
+                for pos in ["BTN", "CO", "MP", "UTG"]:
+                    g = _grid(pos, "vs 3-bet", stack, mode, "BB")
+                    spot = f"{pos} vs3bet {stack}bb {mode}"
+                    if g["AA"].get("raise", 0) < 50:
+                        v.append(f"PREMIUM_NO_4BET {spot}: AA raise={g['AA']['raise']}")
+                    for dom in ("ATo", "KTo", "QJo", "KJo", "JTo"):
+                        d = g[dom]
+                        if d.get("call", 0) + d.get("raise", 0) >= 50:
+                            v.append(f"DOMINATED_DEFEND {spot}: {dom} "
+                                     f"defend (c={d.get('call',0)} r={d.get('raise',0)})")
             # vs RFI defans
             for pos in ["BB", "SB", "BTN", "CO", "HJ", "MP"]:
                 vs = VS_OPENER.get(pos)
