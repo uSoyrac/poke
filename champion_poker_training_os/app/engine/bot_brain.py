@@ -480,6 +480,22 @@ class BotBrain:
         # Solver-anchored postflop (Faz 1): GTO arketipleri postflop'u solver-
         # prensipli oynar (cbet/defend_strategy). Preflop heuristik kalır.
         self.gto_postflop: bool = profile.name in _GTO_BOT_ARCHETYPES
+        # Adaptif rakip (geliştirme #3): Exploit Expert hero'nun leak'lerini okur
+        # ve postflop frekanslarını ona göre ayarlar. opponent_read CANLI oyunda
+        # ekran tarafından beslenir; boşsa identity → fidelity/bot-vs-bot korunur.
+        self.adaptive: bool = profile.name == "Exploit Expert"
+        self.opponent_read: dict = {}
+
+    def set_opponent_read(self, hero_stats: dict) -> None:
+        """Canlı: hero'nun gözlem stat'ları (vpip/fold_to_cbet/af/hands) → adapte."""
+        self.opponent_read = hero_stats or {}
+
+    def _exploit_mult(self) -> dict:
+        """Adaptif bot için frekans çarpanları (değilse/okuma yoksa identity)."""
+        if not self.adaptive or not self.opponent_read:
+            return {"bluff_mult": 1.0, "value_mult": 1.0, "calldown_mult": 1.0}
+        from app.poker.exploit_advice import hero_exploit_adjustments
+        return hero_exploit_adjustments(self.opponent_read)
 
     # ── PUBLIC API ─────────────────────────────────────────────────
 
@@ -767,6 +783,9 @@ class BotBrain:
         agg = self.profile.aggression
         random_noise = random.gauss(0, 0.05)
         adj_strength = max(0.0, min(1.0, strength + random_noise))
+        # Adaptif (Exploit Expert): hero leak'lerine göre frekans çarpanları
+        # (okuma yoksa identity → davranış değişmez). bluff↑/value↑/calldown↑.
+        _em = self._exploit_mult()
 
         # ── FACING A BET ──
         if to_call > 0:
@@ -856,6 +875,8 @@ class BotBrain:
             marginal_fold = (fold_freq * 1.50
                              - adj_strength * 0.20
                              - self.profile.call_down * 0.12)
+            # Adaptif: hero aşırı-agresifse light call-down (daha az fold)
+            marginal_fold /= max(0.5, _em["calldown_mult"])
             marginal_fold = max(0.04, min(0.97, marginal_fold))
             if random.random() < marginal_fold:
                 if ActionType.FOLD in valid_types:
@@ -906,6 +927,9 @@ class BotBrain:
             # they need a real hand to fire, protecting their checking range.
             if agg <= 1.5 and adj_strength < 0.55:
                 cbet_freq *= 0.28
+            # Adaptif: zayıf elde (blöf c-bet) hero over-folder ise daha çok,
+            # station ise daha az ateşle; değerli elde value_mult.
+            cbet_freq *= _em["bluff_mult"] if adj_strength < 0.5 else _em["value_mult"]
             cbet_freq = max(0.08, min(0.95, cbet_freq))
 
             if random.random() < cbet_freq:
@@ -926,7 +950,7 @@ class BotBrain:
         # Removed the 0.20 floor: Rock (agg=1.0) → 15%, Maniac (4.6) → 70%.
         # Previously the floor caused Rock/Nit to bet 43%+ even as passive bots.
         if adj_strength >= 0.72:
-            value_bet_freq = min(0.95, max(0.05, agg / 5.0 * 0.76))
+            value_bet_freq = min(0.95, max(0.05, agg / 5.0 * 0.76) * _em["value_mult"])
             if ActionType.BET in valid_types and random.random() < value_bet_freq:
                 size_pct = 0.66 if adj_strength < 0.85 else 0.85
                 if random.random() < self.profile.overbet_freq:
@@ -950,14 +974,17 @@ class BotBrain:
         # Weak — bluff: river uses profile.bluff_river; flop/turn uses
         # aggression-scaled freq so Maniacs barrel and Nits give up.
         if state.street == Street.RIVER:
-            if ActionType.BET in valid_types and random.random() < self.profile.bluff_river:
+            if (ActionType.BET in valid_types
+                    and random.random() < self.profile.bluff_river * _em["bluff_mult"]):
                 amt = self._bet_amount(pot, 0.66, valid, player, adj_strength, draws)
                 if amt:
                     return ActionType.BET, amt
         else:
             # Pure-bluff frequency scales steeply with aggression so high-AF
             # archetypes (Maniac 4.6, Aggro Fish 3.9, LAG 3.6) barrel a lot.
-            bluff_freq = max(0.0, (agg - 1.5) * 0.18) + (draws * 0.30 if draws else 0)
+            # Adaptif: hero over-folder→blöf artır, station→azalt (bluff_mult).
+            bluff_freq = (max(0.0, (agg - 1.5) * 0.18) * _em["bluff_mult"]
+                          + (draws * 0.30 if draws else 0))
             if ActionType.BET in valid_types and bluff_freq > 0 and random.random() < bluff_freq:
                 amt = self._bet_amount(pot, 0.55, valid, player, adj_strength, draws)
                 if amt:

@@ -1370,6 +1370,21 @@ class TournamentSimulatorScreen(QWidget):
             risk_premium=risk_premium,
         )
 
+    def _feed_adaptive_bots(self, game) -> None:
+        """Adaptif (Exploit Expert) botlara hero'nun gözlem-stat'ını besle →
+        botlar hero leak'lerini sömürür (over-folder'a blöf, station'a value).
+        Canlı; bot-vs-bot/fidelity'de hero okuması olmaz → identity (güvenli)."""
+        try:
+            hero_obs = self.live_hud.get(0)   # hero koltuk 0
+            bots = getattr(game, "bots", None)
+            if not hero_obs or not bots:
+                return
+            for b in bots.values():
+                if getattr(b, "adaptive", False):
+                    b.set_opponent_read(hero_obs)
+        except Exception:
+            pass
+
     @staticmethod
     def _aggressor_stats(hand, profiles: dict):
         """Hero karşısındaki agresör (en yüksek bahis koyan non-hero) villain'in
@@ -1549,6 +1564,7 @@ class TournamentSimulatorScreen(QWidget):
         # Live HUD güncelle
         if self.tournament.game.current_hand:
             self.live_hud.update_from_hand(self.tournament.game.current_hand)
+        self._feed_adaptive_bots(self.tournament.game)
 
         # Persist
         try:

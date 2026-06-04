@@ -1500,6 +1500,7 @@ class PlaySessionScreen(QWidget):
             return
         if self.game.current_hand:
             self.live_hud.update_from_hand(self.game.current_hand)
+        self._feed_adaptive_bots(self.game)
         r = self.game.hand_history[-1]
         try:
             from app.engine.game_loop import hero_stat_fields
@@ -1573,6 +1574,20 @@ class PlaySessionScreen(QWidget):
             "session": self.game.get_session_stats(), "source": "review_request",
         }
         self.hand_completed.emit(hand_data)
+
+    def _feed_adaptive_bots(self, game) -> None:
+        """Adaptif (Exploit Expert) botlara hero gözlem-stat'ını besle → hero
+        leak'lerini sömürür. Canlı; bot-vs-bot'ta okuma yok → identity (güvenli)."""
+        try:
+            hero_obs = self.live_hud.get(0)
+            bots = getattr(game, "bots", None)
+            if not hero_obs or not bots:
+                return
+            for b in bots.values():
+                if getattr(b, "adaptive", False):
+                    b.set_opponent_read(hero_obs)
+        except Exception:
+            pass
 
     @staticmethod
     def _aggressor_stats(hand, profiles: dict):
@@ -1916,6 +1931,7 @@ class PlaySessionScreen(QWidget):
         # Update live HUD
         if game.current_hand:
             self.live_hud.update_from_hand(game.current_hand)
+        self._feed_adaptive_bots(game)
 
         r = game.hand_history[-1]
         color = "#5ad17a" if r.hero_won else "#e87474" if r.hero_invested > 0 else "#898d80"
