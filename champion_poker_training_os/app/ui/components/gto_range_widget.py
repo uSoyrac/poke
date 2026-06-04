@@ -1309,7 +1309,10 @@ class _HandMatrixWidget(QWidget):
         if pos == "HJ":
             pos = "CO"
         depth = 100 if stack_bb >= 60 else (40 if stack_bb >= 30 else 20)
-        eng_mode = "MTT" if mode == "tournament" else "cash"
+        # live_gto_advice ile AYNI mod mantığı: <=40bb tournament gibi oynanır
+        # (push/fold/kısa dinamik) → MTT range. Aksi halde header (live) MTT,
+        # matris cash gösterip ÇELİŞİRDİ (cash short-stack tutarsızlığı).
+        eng_mode = "MTT" if (mode == "tournament" or stack_bb <= 40) else "cash"
 
         self._in_range = set()
         for i in range(13):
