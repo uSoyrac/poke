@@ -18,6 +18,8 @@ def test_gto_archetype_uses_solver_postflop_gated():
     reg = BotBrain(BOT_ARCHETYPES["Reg"])
     fish = BotBrain(BOT_ARCHETYPES["Fish"])
     assert gto.gto_postflop is True
+    assert BotBrain(BOT_ARCHETYPES["Solver Bot"]).gto_postflop is True
+    assert BotBrain(BOT_ARCHETYPES["ICM Expert"]).gto_postflop is True
     assert reg.gto_postflop is False        # diğerleri heuristik → fidelity korunur
     assert fish.gto_postflop is False
 

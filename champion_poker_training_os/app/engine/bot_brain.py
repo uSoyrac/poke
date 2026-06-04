@@ -246,7 +246,7 @@ CLASS_PRESETS = {
 # Postflop kararı postflop_gto.cbet_strategy/defend_strategy ile solver-prensipli
 # (polarizasyon/MDF/board-texture). Preflop sıkı heuristik kalır. Gated → yalnız
 # bunlar değişir, diğer fidelity bozulmaz. Sim ile doğrulanır.
-_GTO_BOT_ARCHETYPES = {"GTO Expert"}
+_GTO_BOT_ARCHETYPES = {"GTO Expert", "Solver Bot", "ICM Expert"}
 
 
 def tier_skill_fractions(tier: "str | None" = None) -> "dict[str, float]":
