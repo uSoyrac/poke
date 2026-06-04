@@ -563,10 +563,19 @@ class BotBrain:
                         return ActionType.CHECK, 0.0
 
             if in_range:
-                # PFR vs limp/call split — passive archetypes call more, raise less
+                # PFR vs limp/call split — passive archetypes call more, raise less.
                 pfr_share = (self.profile.pfr / max(self.profile.vpip, 1e-6))
                 pfr_share = max(0.0, min(1.0, pfr_share))
-                if random.random() < pfr_share and ActionType.RAISE in valid_types:
+                # TELAFİ: gönüllü ellerin bir kısmı 'facing-raise CALL' (VPIP++,
+                # PFR aynı) olduğundan blended PFR/VPIP oranı pfr_share'in ALTINA
+                # düşüyordu (sistematik düşük-PFR). Açış (unopened) raise oranını
+                # 1.0'a doğru çekerek telafi et. YALNIZ agresif/dengeli arketiplerde
+                # (pfr_share≥0.5); pasif tipler (Calling Station/Fish) BİLEREK az
+                # raise eder — onları boost'lama. Katsayı fidelity ile kalibre.
+                open_raise_prob = pfr_share
+                if pfr_share >= 0.5:
+                    open_raise_prob = min(1.0, pfr_share + (1.0 - pfr_share) * 0.38)
+                if random.random() < open_raise_prob and ActionType.RAISE in valid_types:
                     if pos in ("UTG", "UTG+1"):
                         open_to = 3.0 * bb
                     elif pos in ("SB", "SB/BTN"):
@@ -576,7 +585,7 @@ class BotBrain:
                     amount = max(open_to - player.current_bet, bb)
                     amount = min(amount, player.stack)
                     return ActionType.RAISE, amount
-                if random.random() < pfr_share and ActionType.BET in valid_types:
+                if random.random() < open_raise_prob and ActionType.BET in valid_types:
                     return ActionType.BET, max(bb * 3, bb)
                 # Else — limp / call
                 if ActionType.CALL in valid_types:
