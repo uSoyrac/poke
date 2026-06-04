@@ -1284,6 +1284,7 @@ class _HandMatrixWidget(QWidget):
         mode: str = "cash",
         scenario: str = "RFI",
         vs_position: str | None = None,
+        risk_premium: float = 0.0,     # >0 → ICM: marjinal call'lar fold'a kayar
     ) -> None:
         """Colour every cell by its GTO action frequency (RAISE/CALL/FOLD).
 
@@ -1315,6 +1316,10 @@ class _HandMatrixWidget(QWidget):
                                         vs_position=vs_position)
                 except Exception:
                     action = {"raise": 0, "call": 0, "fold": 100}
+                # ICM katmanı (gated): bubble/FT'de marjinal call → fold
+                if risk_premium and risk_premium > 0:
+                    from app.poker.icm import icm_tighten
+                    action = icm_tighten(action, risk_premium)
                 bg = _action_cell_bg(action)
                 fg = _action_text_color(action)
                 # Treat any non-fold action as "in range" for hero weighting

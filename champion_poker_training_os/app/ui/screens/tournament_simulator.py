@@ -1314,10 +1314,15 @@ class TournamentSimulatorScreen(QWidget):
                           and not getattr(p, "is_folded", False))
             lvl = self.tournament.state.current_level
             level_str = f"L{self.tournament.state.level_idx + 1} · {int(lvl.sb)}/{int(lvl.bb)}"
+            # ICM bağlamı (Parça 2): turnuva aşaması + risk premium hesapla.
+            # Yalnız bubble/FT'de >0 → matris/advice call-off range'i daraltır;
+            # early/chipEV'de 0 → saf chip-EV (gto_accuracy korunur).
+            risk_premium = self._icm_risk_premium(stack_bb)
             # Gerçek node: hero hangi aksiyona karşı konuşuyor (vs-3bet/vs-RFI/jam)
             try:
                 from app.poker.gto_live_advice import live_gto_advice
-                _adv = live_gto_advice(hand, hand.hero_idx, mode="MTT")
+                _adv = live_gto_advice(hand, hand.hero_idx, mode="MTT",
+                                       risk_premium=risk_premium)
                 if getattr(_adv, "scenario_key", ""):
                     scenario = _adv.scenario_key
                     vs_position = getattr(_adv, "vs_position", "") or ""
@@ -1340,7 +1345,35 @@ class TournamentSimulatorScreen(QWidget):
             level=level_str,
             scenario=scenario,
             vs_position=vs_position,
+            risk_premium=risk_premium,
         )
+
+    def _icm_risk_premium(self, hero_bb: float) -> float:
+        """Turnuva aşamasına göre ICM risk premium (0 = chipEV/early).
+
+        Bubble veya final table'da >0 döner → GTO matris/advice marjinal call'ları
+        sıkar. Kalan oyuncu & ödenen yer (mtt_field) ile aşamayı belirler."""
+        f = getattr(self, "mtt_field", None)
+        ctx = getattr(getattr(self, "state", None), "tournament_context", None) or {}
+        if not f:
+            return 0.0
+        try:
+            rem = f.players_remaining
+            paid = f.paid_places
+            bd = f.bubble_distance        # işaretli: negatif = ITM
+            if rem <= 9:
+                stage = "final table"
+            elif 0 <= bd <= max(2, round(paid * 0.10)):
+                stage = "bubble"
+            else:
+                return 0.0                # early/mid → ICM etkisi yok (chip-EV)
+            avg_bb = float(ctx.get("avg_bb", 0) or 0)
+            if avg_bb <= 0:
+                avg_bb = hero_bb
+            from app.poker.icm import risk_premium as _rp
+            return _rp(float(hero_bb), avg_bb, stage)
+        except Exception:
+            return 0.0
 
     def _maybe_refill_table(self) -> None:
         """Reseat opponents from the background field when hero's table runs low.

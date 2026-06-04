@@ -48,6 +48,7 @@ class LiveAdvice:
     scenario: str = ""          # "RFI" / "vs RFI (UTG)" / "vs 3-bet" / "Push/Fold" (görüntü)
     scenario_key: str = ""      # temiz anahtar: "RFI"/"vs RFI"/"vs 3-bet"/"Push/Fold"
     vs_position: str = ""       # karşı aksiyonun (açan/3-bet'çi) pozisyonu (normalize)
+    icm_note: str = ""          # ICM tightening uygulandıysa açıklama (turnuva)
     tier_icon: str = ""         # ✅ / 🟡 / 🟠 / ❌
     tier_label: str = ""
     note: str = ""
@@ -324,8 +325,12 @@ def _count_preflop_raises_before_hero(hand: HandState, hero_idx: int):
 
 
 def live_gto_advice(hand: HandState, hero_idx: int,
-                    mode: str = "cash") -> LiveAdvice:
-    """O anki hero spotu için GTO advice döndür."""
+                    mode: str = "cash", risk_premium: float = 0.0) -> LiveAdvice:
+    """O anki hero spotu için GTO advice döndür.
+
+    ``risk_premium`` > 0 (turnuva bubble/FT/satellite) ise marjinal call'lar
+    ICM baskısıyla fold'a kayar (call-off range daralır). 0 (cash/early) →
+    saf chip-EV GTO (gto_accuracy korunur)."""
     adv = LiveAdvice()
     if not hand or hand.is_complete:
         return adv
@@ -389,6 +394,14 @@ def live_gto_advice(hand: HandState, hero_idx: int,
         adv.call = 0.0
         adv.raise_ = 0.0
     else:
+        # ICM katmanı (gated): risk_premium>0 ise marjinal call → fold
+        if risk_premium and risk_premium > 0:
+            from app.poker.icm import icm_tighten
+            t = icm_tighten({"raise": r, "call": c, "fold": f}, risk_premium)
+            if t["call"] < c - 0.5:
+                adv.icm_note = (f"ICM: risk premium %{risk_premium*100:.0f} — "
+                                f"marjinal call'lar fold'a kaydı (call-off daralt)")
+            r, c, f = t["raise"], t["call"], t["fold"]
         adv.raise_ = r
         adv.call = c
         adv.fold = f

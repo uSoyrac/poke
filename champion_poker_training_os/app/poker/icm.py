@@ -147,3 +147,32 @@ def push_fold_range_width(stack_bb: float, stage: str = "chipEV") -> float:
         "satellite": 0.50, "PKO": 1.10,
     }.get(stage, 0.80)
     return round(min(1.0, width * icm_multiplier), 3)
+
+
+def icm_tighten(freqs: dict, risk_premium: float) -> dict:
+    """ICM baskısı altında MARJİNAL call'ları fold'a kaydır (call-off / devam
+    range'ini daralt) — ICM teorisinin en net etkisi: bubble/FT'de daha çok
+    equity gerektiği için sınırdaki call'lar fold olur.
+
+    AYRI KATMAN: base chip-EV frekanslarını DEĞİŞTİRMEZ; yalnız ``risk_premium``
+    > 0 ise (turnuva bubble/FT/satellite veya kısa görece stack) uygulanır.
+    risk_premium=0 (cash/chipEV/early) → kimliktir → gto_accuracy korunur.
+
+    Ölçülü kalibrasyon: shift = min(0.5, rp*2.5). Örn. bubble rp≈0.09 → %22 call
+    fold'a; FT rp≈0.13 → %32. Value-raise ve push/fold (allin) frekanslarına
+    DOKUNMAZ — onlar zaten mtt_ranges'te ICM-ayarlı.
+    """
+    rp = max(0.0, float(risk_premium or 0.0))
+    out = {
+        "raise": float(freqs.get("raise", 0) or 0),
+        "call": float(freqs.get("call", 0) or 0),
+        "fold": float(freqs.get("fold", 0) or 0),
+        "allin": float(freqs.get("allin", 0) or 0),
+    }
+    if rp <= 0.0 or out["call"] <= 0.0:
+        return out
+    shift = min(0.5, rp * 2.5)
+    moved = out["call"] * shift
+    out["call"] -= moved
+    out["fold"] += moved
+    return out

@@ -83,12 +83,14 @@ class GTORangeDialog(QDialog):
         level: str = "",
         scenario: str = "RFI",          # "RFI"/"vs RFI"/"vs 3-bet"/"Push/Fold"
         vs_position: str = "",          # açan/3-bet'çi pozisyonu (vs RFI / vs 3-bet)
+        risk_premium: float = 0.0,      # >0 → ICM: matris call-off range daralır
     ):
         super().__init__(parent)
         # PySide6: instance attribute'ları super().__init__'ten SONRA ata (önce
         # atamak C++ QObject hazır olmadığından crash'e yol açar).
         self._scenario = scenario or "RFI"
         self._vs_position = vs_position or None
+        self._risk_premium = max(0.0, float(risk_premium or 0.0))
         self.setWindowTitle("GTO Range Analizi")
         # Wide enough to show the 13×13 matrix (13*44 + 12*2 gap + 40 padding = ~640)
         self.setMinimumWidth(660)
@@ -126,6 +128,8 @@ class GTORangeDialog(QDialog):
         if stack_bb:    ctx_parts.append(f"{stack_bb:.0f}bb")
         if players_active: ctx_parts.append(f"{players_active}P")
         if level:       ctx_parts.append(level)
+        if self._risk_premium > 0:
+            ctx_parts.append(f"⚠ ICM rp %{self._risk_premium*100:.0f}")
         t2 = QLabel("  ·  ".join(ctx_parts) if ctx_parts else "Genel Analiz")
         t2.setStyleSheet(
             f"font-family:'JetBrains Mono',monospace; font-size:13px; "
@@ -277,7 +281,8 @@ class GTORangeDialog(QDialog):
             # 'RFI' hardcoded'tı, hero 3-bet'e karşıyken bile açış range'i çiziyordu.
             matrix.set_action_range(position, stack_bb, mode=game_type,
                                     scenario=self._scenario,
-                                    vs_position=self._vs_position)
+                                    vs_position=self._vs_position,
+                                    risk_premium=self._risk_premium)
             # Highlight hero's hand if we can parse it (e.g. "9♣J♥" → "J9o")
             if hero_cards:
                 _try_highlight_hero(matrix, hero_cards)
@@ -395,6 +400,7 @@ def show_gto_dialog(
     level: str = "",
     scenario: str = "RFI",
     vs_position: str = "",
+    risk_premium: float = 0.0,
 ) -> None:
     """Convenience wrapper — oluştur, göster, işi bitince temizle."""
     dlg = GTORangeDialog(
@@ -410,5 +416,6 @@ def show_gto_dialog(
         level=level,
         scenario=scenario,
         vs_position=vs_position,
+        risk_premium=risk_premium,
     )
     dlg.exec()
