@@ -40,6 +40,7 @@ from app.ui.screens.play_session import PlaySessionScreen
 from app.ui.screens.postflop_trainer import PostflopTrainerScreen
 from app.ui.screens.range_trainer import RangeTrainerScreen
 from app.ui.screens.read_trainer import ReadTrainerScreen
+from app.ui.screens.sizing_trainer import SizingTrainerScreen
 from app.ui.screens.quiz_trainer import QuizTrainerScreen
 from app.ui.screens.solver_sandbox import SolverSandboxScreen
 from app.ui.screens.mtt_trainer import MTTTrainerScreen
@@ -100,6 +101,7 @@ NAV_ITEMS = [
     "Postflop Trainer",
     "River Decision Trainer",
     "Combo Trainer",
+    "Bet-Sizing Trainer",
     "Math Lab",
     "Combat Trainer",
     "Leak Finder",
@@ -289,6 +291,7 @@ class MainWindow(QMainWindow):
             "Postflop Trainer": PostflopTrainerScreen,
             "River Decision Trainer": RiverTrainerScreen,
             "Combo Trainer": ComboTrainerScreen,
+            "Bet-Sizing Trainer": SizingTrainerScreen,
             "Math Lab": MathLabScreen,
             "Combat Trainer": CombatTrainerScreen,
             "Leak Finder": LeakFinderScreen,
