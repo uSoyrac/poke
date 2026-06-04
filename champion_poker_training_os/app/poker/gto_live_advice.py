@@ -302,26 +302,32 @@ def _postflop_advice(hand: HandState, hero_idx: int, adv: LiveAdvice) -> LiveAdv
 
 
 def _count_preflop_raises_before_hero(hand: HandState, hero_idx: int):
-    """O ANKİ hero kararında masadaki toplam preflop raise sayısı + hero'nun
-    karşılaştığı son (hero-olmayan) raiser'ın pozisyonu.
+    """Hero'nun KARŞILAŞTIĞI preflop raise sayısı + son (hero-olmayan) raiser pozisyonu.
 
     Senaryo: 0 → RFI (açış), 1 → vs RFI, 2+ → vs 3-bet/4-bet.
 
-    ÖNEMLİ: Eskiden hero'nun İLK aksiyonunda durup sonraki raise'leri (örn.
-    hero açtıktan sonra gelen 3-bet) saymıyordu → hero 3-bet'e karşı
-    konuşurken spot YANLIŞLIKLA 'RFI (açış)' etiketlenip açılış range'i
-    (JTs RAISE %100 gibi) gösteriliyordu. Artık preflop'taki TÜM raise'ler
-    (hero'nun kendi açışı dahil) sayılır → 3-bet potu doğru tanınır.
+    KURAL — 'hero neye karşı konuşuyor':
+      • Son preflop raise BAŞKASININ ise → hero ona karşı → TÜM raise'ler sayılır
+        (hero açtı + biri 3-bet etti → 2 → vs 3-bet; doğru).
+      • Son raise HERO'nunsa → hero standing aggressor, bir şeye karşı KONUŞMUYOR →
+        senaryo, hero'nun o raise'inden ÖNCE karşılaştığıdır (UTG açışına karşı
+        raise ettiyse → vs RFI, vs 3-bet DEĞİL). Eskiden hero'nun kendi raise'i de
+        sayılıp spot yanlışlıkla 'vs 3-bet' görünüyordu (header≠reveal çelişkisi).
     """
-    raises = 0
-    last_raiser_pos = None
+    seq = []   # (player_idx, position) — preflop raise sırası
     for a in hand.actions:
         if a.street != Street.PREFLOP:
             continue
         if a.action_type in (ActionType.RAISE, ActionType.BET, ActionType.ALL_IN):
-            raises += 1
-            if a.player_idx != hero_idx:   # hero kendi raise'ine karşı oynamaz
-                last_raiser_pos = hand.players[a.player_idx].position
+            seq.append((a.player_idx, hand.players[a.player_idx].position))
+    if not seq:
+        return 0, None
+    # Son raise hero'nunsa → hero'nun SON raise'inden öncesini dikkate al
+    if seq[-1][0] == hero_idx:
+        last_hero = max(i for i, (pid, _) in enumerate(seq) if pid == hero_idx)
+        seq = seq[:last_hero]          # hero'nun kapanış raise'ini düş
+    raises = len(seq)
+    last_raiser_pos = next((pos for pid, pos in reversed(seq) if pid != hero_idx), None)
     return raises, last_raiser_pos
 
 

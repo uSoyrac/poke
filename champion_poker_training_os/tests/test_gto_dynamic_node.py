@@ -45,6 +45,30 @@ def test_live_advice_exposes_vs_3bet_node_and_aggressor():
     assert "3-bet" in adv.scenario and "SB" in adv.scenario
 
 
+def test_hero_raise_facing_open_is_vs_rfi_not_3bet():
+    """REGRESYON (header≠reveal): UTG açtı, hero (MP) raise etti. Hero'nun KENDİ
+    raise'i spotu 'vs 3-bet' yapmamalı — hero açışa karşı konuştu → vs RFI."""
+    h = HandState()
+    h.big_blind = 1.0
+    h.street = Street.PREFLOP
+    h.current_bet = 8.0
+    h.players = [
+        PlayerSeat(name="hero", stack=92.0, position="MP", is_hero=True,
+                   current_bet=8.0, hole_cards=[Card("K", "d"), Card("Q", "h")]),
+        PlayerSeat(name="utg", stack=97.0, position="UTG", current_bet=3.0),
+    ]
+    h.pot = 12.5
+    h.actions = [
+        Action(player_idx=1, action_type=ActionType.RAISE, amount=3.0,
+               street=Street.PREFLOP),   # UTG açış
+        Action(player_idx=0, action_type=ActionType.RAISE, amount=8.0,
+               street=Street.PREFLOP),   # hero raise (kapanış)
+    ]
+    adv = live_gto_advice(h, 0, mode="cash")
+    assert adv.scenario_key == "vs RFI", adv.scenario_key   # vs 3-bet DEĞİL
+    assert adv.vs_position == "UTG", adv.vs_position
+
+
 def test_rfi_node_when_first_to_act():
     h = _vs_3bet_hand()
     h.actions = []            # kimse açmadı → hero ilk konuşan
