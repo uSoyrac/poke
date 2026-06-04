@@ -690,7 +690,12 @@ class BotBrain:
             #   - Nit (1.5) raises ~27% of strong hands → mostly calls
             #   - Maniac (4.6) raises ~84% → almost always raises
             if adj_strength >= 0.78:
-                raise_freq = max(0.05, min(0.92, agg / 5.5))
+                # Pasif arketipler (Rock/Nit, agg≤1.6) güçlü eli SLOW-PLAY'ler
+                # (raise yerine call/trap) — gerçek OMC davranışı. Bu hem
+                # numerator'ı (raise) düşürür hem call paydasını büyütür →
+                # şişmiş AF (Rock 2.9, Nit 3.4) profile (1.0-1.5) yaklaşır.
+                rf_div = 9.0 if agg <= 1.6 else 5.5
+                raise_freq = max(0.05, min(0.92, agg / rf_div))
                 if ActionType.RAISE in valid_types and random.random() < raise_freq:
                     return self._raise_size(state, valid, polarized=adj_strength > 0.85,
                                             strength=adj_strength, draws=draws, player=player)
