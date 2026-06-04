@@ -1565,6 +1565,7 @@ class PlaySessionScreen(QWidget):
 
     def _show_gto_popup(self) -> None:
         pos, stack_bb, hero_cards, street, pot, players = "", 100.0, "", "preflop", 0.0, 6
+        scenario, vs_position = "RFI", ""
         if self.game and self.game.current_hand:
             hand = self.game.current_hand
             hero = hand.hero
@@ -1578,6 +1579,17 @@ class PlaySessionScreen(QWidget):
             players = sum(1 for p in hand.players
                           if not getattr(p, "is_eliminated", False)
                           and not getattr(p, "is_folded", False))
+            # Gerçek node (vs-3bet/vs-RFI/jam) — statik RFI değil
+            try:
+                from app.poker.gto_live_advice import live_gto_advice
+                _adv = live_gto_advice(hand, hand.hero_idx, mode="cash")
+                if getattr(_adv, "scenario_key", ""):
+                    scenario = _adv.scenario_key
+                    vs_position = getattr(_adv, "vs_position", "") or ""
+                    if _adv.stack_bb:
+                        stack_bb = _adv.stack_bb
+            except Exception:
+                pass
         elif self.game:
             players = self.game.active_players_count
 
@@ -1585,6 +1597,7 @@ class PlaySessionScreen(QWidget):
             parent=self, position=pos, stack_bb=stack_bb,
             players_active=players, game_type="cash",
             hero_cards=hero_cards, street=street, pot_bb=pot,
+            scenario=scenario, vs_position=vs_position,
         )
 
     def _end_session(self):

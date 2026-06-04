@@ -45,7 +45,9 @@ class LiveAdvice:
     call: float = 0.0
     raise_: float = 0.0
     allin: float = 0.0
-    scenario: str = ""          # "RFI" / "vs RFI (UTG)" / "vs 3-bet" / "Push/Fold"
+    scenario: str = ""          # "RFI" / "vs RFI (UTG)" / "vs 3-bet" / "Push/Fold" (görüntü)
+    scenario_key: str = ""      # temiz anahtar: "RFI"/"vs RFI"/"vs 3-bet"/"Push/Fold"
+    vs_position: str = ""       # karşı aksiyonun (açan/3-bet'çi) pozisyonu (normalize)
     tier_icon: str = ""         # ✅ / 🟡 / 🟠 / ❌
     tier_label: str = ""
     note: str = ""
@@ -359,7 +361,11 @@ def live_gto_advice(hand: HandState, hero_idx: int,
         adv.scenario = f"vs RFI ({vs_pos})" if vs_pos else "vs RFI"
     else:
         scenario = "vs 3-bet"
-        adv.scenario = "vs 3-bet"
+        adv.scenario = f"vs 3-bet ({vs_pos})" if vs_pos else "vs 3-bet"
+
+    # Dialog/matris dinamik node için temiz anahtar + karşı pozisyonu dışa aç
+    adv.scenario_key = scenario
+    adv.vs_position = vs_pos or ""
 
     # MTT modu kısa stack'te otomatik
     use_mode = "MTT" if (mode == "MTT" or eff_stack <= 40) else "cash"

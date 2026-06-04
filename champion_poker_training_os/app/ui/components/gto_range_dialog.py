@@ -81,8 +81,14 @@ class GTORangeDialog(QDialog):
         pot_bb: float = 0.0,
         big_blind_bb: float = 1.0,
         level: str = "",
+        scenario: str = "RFI",          # "RFI"/"vs RFI"/"vs 3-bet"/"Push/Fold"
+        vs_position: str = "",          # açan/3-bet'çi pozisyonu (vs RFI / vs 3-bet)
     ):
         super().__init__(parent)
+        # PySide6: instance attribute'ları super().__init__'ten SONRA ata (önce
+        # atamak C++ QObject hazır olmadığından crash'e yol açar).
+        self._scenario = scenario or "RFI"
+        self._vs_position = vs_position or None
         self.setWindowTitle("GTO Range Analizi")
         # Wide enough to show the 13×13 matrix (13*44 + 12*2 gap + 40 padding = ~640)
         self.setMinimumWidth(660)
@@ -111,6 +117,12 @@ class GTORangeDialog(QDialog):
         )
         ctx_parts = []
         if position:    ctx_parts.append(position.upper())
+        # Karşılaşılan aksiyon (gerçek node) — statik 'RFI' değil
+        if self._scenario and self._scenario != "RFI":
+            if self._vs_position and self._scenario in ("vs RFI", "vs 3-bet"):
+                ctx_parts.append(f"{self._scenario} ({self._vs_position})")
+            else:
+                ctx_parts.append(self._scenario)
         if stack_bb:    ctx_parts.append(f"{stack_bb:.0f}bb")
         if players_active: ctx_parts.append(f"{players_active}P")
         if level:       ctx_parts.append(level)
@@ -261,7 +273,11 @@ class GTORangeDialog(QDialog):
 
             matrix = _HandMatrixWidget()
             # Aksiyon-frekans renklendirmesi: her hücre = o el için optimal karar
-            matrix.set_action_range(position, stack_bb, mode=game_type, scenario="RFI")
+            # Gerçek node: vs-3bet/vs-RFI/push-fold + 3-bet'çi pozisyonu — eskiden
+            # 'RFI' hardcoded'tı, hero 3-bet'e karşıyken bile açış range'i çiziyordu.
+            matrix.set_action_range(position, stack_bb, mode=game_type,
+                                    scenario=self._scenario,
+                                    vs_position=self._vs_position)
             # Highlight hero's hand if we can parse it (e.g. "9♣J♥" → "J9o")
             if hero_cards:
                 _try_highlight_hero(matrix, hero_cards)
@@ -377,6 +393,8 @@ def show_gto_dialog(
     pot_bb: float = 0.0,
     big_blind_bb: float = 1.0,
     level: str = "",
+    scenario: str = "RFI",
+    vs_position: str = "",
 ) -> None:
     """Convenience wrapper — oluştur, göster, işi bitince temizle."""
     dlg = GTORangeDialog(
@@ -390,5 +408,7 @@ def show_gto_dialog(
         pot_bb=pot_bb,
         big_blind_bb=big_blind_bb,
         level=level,
+        scenario=scenario,
+        vs_position=vs_position,
     )
     dlg.exec()

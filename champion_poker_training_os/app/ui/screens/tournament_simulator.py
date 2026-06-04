@@ -1296,6 +1296,7 @@ class TournamentSimulatorScreen(QWidget):
         """GTO butonu — mevcut turnuva el state'ini okuyup popup aç."""
         pos, stack_bb, hero_cards, street, pot, players = "", 100.0, "", "preflop", 0.0, 6
         level_str = ""
+        scenario, vs_position = "RFI", ""
         if self.tournament and self.tournament.game.current_hand:
             hand = self.tournament.game.current_hand
             game = self.tournament.game
@@ -1313,6 +1314,17 @@ class TournamentSimulatorScreen(QWidget):
                           and not getattr(p, "is_folded", False))
             lvl = self.tournament.state.current_level
             level_str = f"L{self.tournament.state.level_idx + 1} · {int(lvl.sb)}/{int(lvl.bb)}"
+            # Gerçek node: hero hangi aksiyona karşı konuşuyor (vs-3bet/vs-RFI/jam)
+            try:
+                from app.poker.gto_live_advice import live_gto_advice
+                _adv = live_gto_advice(hand, hand.hero_idx, mode="MTT")
+                if getattr(_adv, "scenario_key", ""):
+                    scenario = _adv.scenario_key
+                    vs_position = getattr(_adv, "vs_position", "") or ""
+                    if _adv.stack_bb:
+                        stack_bb = _adv.stack_bb   # efektif stack (3-bet potu doğru)
+            except Exception:
+                pass
         elif self.tournament:
             players = self.tournament.players_remaining
 
@@ -1326,6 +1338,8 @@ class TournamentSimulatorScreen(QWidget):
             street=street,
             pot_bb=pot,
             level=level_str,
+            scenario=scenario,
+            vs_position=vs_position,
         )
 
     def _maybe_refill_table(self) -> None:
