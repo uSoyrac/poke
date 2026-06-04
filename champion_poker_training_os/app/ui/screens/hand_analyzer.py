@@ -3,10 +3,15 @@ from __future__ import annotations
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QTableWidget,
@@ -17,7 +22,9 @@ from PySide6.QtWidgets import (
 
 from app.ai.coach_engine import analyze_played_hand, explain_spot
 from app.core.app_state import AppState
-from app.db.repository import get_session_history, get_player_stats, get_leak_analysis
+from app.db.repository import (get_session_history, get_player_stats,
+                               get_leak_analysis, save_played_hand)
+from app.parsers.pokerstars_parser import parse_pokerstars
 from app.db.seed_data import generate_hands
 from app.ui.components.card_view import CardView
 from app.ui.components.hand_timeline import HandTimeline
@@ -66,6 +73,12 @@ class HandAnalyzerScreen(QWidget):
         refresh_btn = QPushButton("🔄 Refresh from DB")
         refresh_btn.clicked.connect(self._load_played_hands)
         header.addWidget(refresh_btn)
+
+        import_btn = QPushButton("📥 Import HH")
+        import_btn.setToolTip("Gerçek PokerStars el-geçmişini yapıştır/yükle → "
+                              "DB'ye kaydet → leak analizi + drill")
+        import_btn.clicked.connect(self._open_import_dialog)
+        header.addWidget(import_btn)
         layout.addLayout(header)
 
         # Stats row
@@ -154,6 +167,83 @@ class HandAnalyzerScreen(QWidget):
         self._populate_table()
         self._update_stats()
         self._update_leaks()
+
+    def _import_raw(self, raw: str, hero: "str | None") -> int:
+        """PokerStars metnini parse et → played_hands DB'ye kaydet. Kayıt sayısı.
+        Değerler dolar-ölçekli + big_blind saklanır → okuma /bb ile bb verir (D97)."""
+        if not raw or not raw.strip():
+            return 0
+        n = 0
+        for h in parse_pokerstars(raw, hero_name=hero):
+            try:
+                save_played_hand({
+                    "hand_id": f"PS-{h['hand_id']}",
+                    "hero_cards": h.get("hero_cards", ""),
+                    "community": h.get("community", ""),
+                    "pot": h.get("pot", 0),
+                    "hero_invested": h.get("hero_invested", 0),
+                    "hero_profit": h.get("hero_profit", 0),
+                    "hero_won": h.get("hero_won", False),
+                    "winner_hand_name": "",
+                    "streets_seen": h.get("streets_seen", 0),
+                    "big_blind": h.get("big_blind", 1.0),
+                    "game_type": h.get("game_type", "cash"),
+                    "hero_vpip": h.get("hero_vpip"),
+                    "hero_pfr": h.get("hero_pfr"),
+                    "hero_3bet_opp": h.get("hero_3bet_opp"),
+                    "hero_3bet": h.get("hero_3bet"),
+                    "hero_postflop_aggr": h.get("hero_postflop_aggr"),
+                    "hero_postflop_passive": h.get("hero_postflop_passive"),
+                })
+                n += 1
+            except Exception:
+                pass
+        return n
+
+    def _open_import_dialog(self) -> None:
+        """Gerçek el-geçmişi import: yapıştır/dosya → parse → DB → analiz."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("El-Geçmişi Import — PokerStars")
+        dlg.setMinimumWidth(580)
+        v = QVBoxLayout(dlg)
+        v.addWidget(QLabel("PokerStars el-geçmişini yapıştır (veya dosyadan yükle):"))
+        name_row = QHBoxLayout()
+        name_row.addWidget(QLabel("Hero adı (boş = otomatik):"))
+        name_edit = QLineEdit()
+        name_edit.setPlaceholderText("örn. HeroGuy")
+        name_row.addWidget(name_edit)
+        v.addLayout(name_row)
+        txt = QPlainTextEdit()
+        txt.setPlaceholderText("PokerStars Hand #... metnini buraya yapıştır")
+        txt.setMinimumHeight(260)
+        v.addWidget(txt)
+
+        def _load_file():
+            path, _ = QFileDialog.getOpenFileName(
+                dlg, "El-geçmişi dosyası", "", "Text (*.txt);;All files (*)")
+            if path:
+                try:
+                    with open(path, encoding="utf-8", errors="ignore") as f:
+                        txt.setPlainText(f.read())
+                except Exception:
+                    pass
+
+        load_btn = QPushButton("📂 Dosyadan yükle")
+        load_btn.clicked.connect(_load_file)
+        v.addWidget(load_btn)
+        bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        bb.accepted.connect(dlg.accept)
+        bb.rejected.connect(dlg.reject)
+        v.addWidget(bb)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        n = self._import_raw(txt.toPlainText(), name_edit.text().strip() or None)
+        self.summary.setText(
+            f"✓ {n} el import edildi (PokerStars) → DB. Leak analizi hazır."
+            if n else "⚠ Geçerli PokerStars eli bulunamadı.")
+        if n:
+            self.source_combo.setCurrentText("Played Hands (DB)")
+            self._load_played_hands()
 
     def _source_changed(self) -> None:
         self._populate_table()

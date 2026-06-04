@@ -81,3 +81,27 @@ def test_hero_result_in_bb():
 def test_game_type_cash():
     h = _hand()
     assert h["game_type"] == "cash"
+
+
+def test_import_roundtrip_bb_normalized(tmp_path, monkeypatch):
+    """parse → played_hands DB → okuma: dolar-ölçek + big_blind → /bb ile bb (D97).
+    Cash stats saçma değil (import edilen gerçek eller leak analizine hazır)."""
+    from app.db import repository as R
+    monkeypatch.setattr(R, "DB_PATH", tmp_path / "imp.db")
+    R.initialize_database()
+    h = parse_pokerstars(_HAND, hero_name="HeroGuy")[0]
+    R.save_played_hand({
+        "hand_id": f"PS-{h['hand_id']}", "hero_cards": h["hero_cards"],
+        "community": h["community"], "pot": h["pot"],
+        "hero_invested": h["hero_invested"], "hero_profit": h["hero_profit"],
+        "hero_won": h["hero_won"], "streets_seen": h["streets_seen"],
+        "big_blind": h["big_blind"], "game_type": h["game_type"],
+        "hero_vpip": h["hero_vpip"], "hero_pfr": h["hero_pfr"],
+    })
+    rows = {r["hand_id"]: r for r in R.get_session_history(50)}
+    assert "PS-240000000001" in rows
+    row = rows["PS-240000000001"]
+    assert row["big_blind"] == 1.0 and row["game_type"] == "cash"
+    assert abs(row["hero_profit"] / row["big_blind"] - 7.0) < 0.5   # bb-normalize
+    s = R.get_player_stats()
+    assert s["bb_per_100"] < 5000          # çip-sızıntısı/saçma DEĞİL
