@@ -268,6 +268,11 @@ class HandAnalyzerScreen(QWidget):
                 hands = [h for h in hands if abs(h.get("pot", 0)) > 20]
             elif "Showdown" in filt:
                 hands = [h for h in hands if h.get("streets_seen", 0) >= 4]
+            # Legacy kurtarılamaz çip-ölçekli satırları gizle (big_blind bilinmiyor,
+            # pot/bb absürt). bb-normalize edilebilen cash + yeni turnuva eller kalır.
+            hands = [h for h in hands
+                     if (float(h.get("pot", 0) or 0)
+                         / max(float(h.get("big_blind") or 1.0), 1e-9)) <= 2000]
 
         self.table.setRowCount(len(hands))
         self.table.setProperty("rows", hands)

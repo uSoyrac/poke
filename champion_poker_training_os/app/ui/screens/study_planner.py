@@ -17,6 +17,28 @@ from PySide6.QtWidgets import (
 from app.core.app_state import AppState
 from app.ui.components.metric_card import MetricCard
 
+# Haftanın odak alanı → GTO kategori (gerçek ilerleme sinyali için)
+_FOCUS_CAT = [
+    ("preflop", "Preflop"), ("rfi", "Preflop"), ("range", "Preflop"),
+    ("bb defense", "Preflop"), ("icm", "Preflop"), ("push", "Preflop"),
+    ("flop", "Flop"), ("cbet", "Flop"), ("sizing", "Flop"),
+    ("turn", "Turn"), ("river", "River"), ("bluff", "River"),
+    ("thin value", "River"),
+]
+
+
+def _week_progress_pct(focus: str, cats: dict) -> int:
+    """Haftanın GERÇEK ilerlemesi = o odak alanındaki GTO doğruluk (≥3 karar).
+    Veri yoksa 0 (just started). Demo değer DEĞİL."""
+    f = (focus or "").lower()
+    for key, cat in _FOCUS_CAT:
+        if key in f:
+            c = cats.get(cat)
+            if c and c.get("n", 0) >= 3:
+                return int(round(c.get("accuracy", 0)))
+            return 0
+    return 0
+
 
 PLAN_TEMPLATES = {
     "90-day world-class training plan": {
@@ -157,7 +179,12 @@ class StudyPlannerScreen(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
-        # Render weeks
+        # Render weeks — ilerleme barları GERÇEK kategori-doğruluğundan (demo değil)
+        try:
+            from app.db.repository import get_gto_category_accuracy
+            _cats = get_gto_category_accuracy()
+        except Exception:
+            _cats = {}
         for idx, week in enumerate(template["weeks"]):
             card = QFrame()
             card.setObjectName("Card")
@@ -170,8 +197,9 @@ class StudyPlannerScreen(QWidget):
             week_title.setObjectName("SectionTitle")
             progress = QProgressBar()
             progress.setRange(0, 100)
-            progress.setValue(max(0, 100 - idx * 20))  # Demo progress
-            progress.setFormat(f"{max(0, 100 - idx * 20)}%")
+            _pct = _week_progress_pct(week["focus"], _cats)   # GERÇEK ilerleme
+            progress.setValue(_pct)
+            progress.setFormat(f"{_pct}%")
             progress.setMaximumWidth(150)
             week_header.addWidget(week_title, 1)
             week_header.addWidget(progress)
