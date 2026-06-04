@@ -601,6 +601,14 @@ def get_action(position: str, hand_key: str, scenario: str = "RFI",
     # ── CURATED LOOKUP (varsa) ─────────────────────────────────────────
     if _is_curated(scenario, position, stack_depth, vs_position):
         if scenario == "RFI":
+            if position == "BB":
+                # BB'nin curated açış range'i YOK (RFI_100BB_6MAX'te yok) → eski
+                # davranış her eli pure_fold yapardı (AA bile fold!). BB preflop
+                # son oynayan: folded-to kazanır, limp'lenen pot ise iso-raise
+                # opsiyonu. Heuristic'e düş → premium iso (~top %16), MTT ile uyumlu.
+                from app.poker.gto_generator import heuristic_get_action
+                return heuristic_get_action(position, hand_key, scenario,
+                                            stack_depth, mode, vs_position)
             return RFI_100BB_6MAX.get(position, {}).get(hand_key, pure_fold())
         if scenario == "vs RFI":
             if position == "BB":
