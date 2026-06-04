@@ -39,6 +39,7 @@ from app.ui.screens.math_lab import MathLabScreen
 from app.ui.screens.play_session import PlaySessionScreen
 from app.ui.screens.postflop_trainer import PostflopTrainerScreen
 from app.ui.screens.range_trainer import RangeTrainerScreen
+from app.ui.screens.read_trainer import ReadTrainerScreen
 from app.ui.screens.quiz_trainer import QuizTrainerScreen
 from app.ui.screens.solver_sandbox import SolverSandboxScreen
 from app.ui.screens.mtt_trainer import MTTTrainerScreen
@@ -105,6 +106,7 @@ NAV_ITEMS = [
     "Growth & Edge Lab",
     "AI Poker Coach",
     "Opponent Profiles",
+    "Opponent Read Trainer",
     "Knowledge Base",
     "Strategy Playbook",
     "Study Planner",
@@ -293,6 +295,7 @@ class MainWindow(QMainWindow):
             "Growth & Edge Lab": GrowthLabScreen,
             "AI Poker Coach": AiCoachScreen,
             "Opponent Profiles": OpponentProfilesScreen,
+            "Opponent Read Trainer": ReadTrainerScreen,
             "Knowledge Base": KnowledgeBaseScreen,
             "Strategy Playbook": StrategyPlaybookScreen,
             "Study Planner": StudyPlannerScreen,
