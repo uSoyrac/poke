@@ -1651,7 +1651,17 @@ class PlaySessionScreen(QWidget):
             {"hero_profit": h.hero_profit, "hero_won": h.hero_won, "streets_seen": h.streets_seen}
             for h in self.game.hand_history
         ]
-        self.coach_message.emit(session_summary(stats, data))
+        msg = session_summary(stats, data)
+        # #5 CTA: oturumun GTO-karne review'i + Leak Finder'da drill yönlendirmesi
+        try:
+            from app.ai.coach_engine import session_review
+            review = session_review(self._session_score.summary()) \
+                if getattr(self, "_session_score", None) else ""
+            if review:
+                msg = f"{msg}\n\n{review}"
+        except Exception:
+            pass
+        self.coach_message.emit(msg)
         self.game = None
         self._build_setup()
 

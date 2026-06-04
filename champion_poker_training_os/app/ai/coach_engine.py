@@ -379,3 +379,26 @@ def coach_chat(prompt: str, selected_spot: dict | None = None, session_stats: di
         "  • 'Leak' → zayıf yön tespiti\n"
         "  • Bir spot seç → GTO baseline + matematik + exploit önerisi"
     )
+
+
+def session_review(score: dict) -> str:
+    """Oturum-sonu review (geliştirme #5 CTA): GTO doğruluk + EV kaybı + en zayıf
+    alanlar + 'Leak Finder'da drill üret' yönlendirmesi. score = SessionScore.summary().
+    Karar yoksa '' döner."""
+    if not score or not score.get("n_decisions"):
+        return ""
+    n = score.get("n_decisions", 0)
+    acc = score.get("accuracy", 0.0)
+    ev = score.get("ev_lost", 0.0)
+    parts = [f"📊 OTURUM REVIEW — {n} karar · GTO doğruluk %{acc:.0f} · "
+             f"EV kaybı ~{ev:.1f}bb"]
+    by_cat = score.get("by_cat") or {}
+    if by_cat:
+        worst = sorted(by_cat.items(), key=lambda kv: kv[1])[:3]
+        parts.append("En zayıf alanların: " +
+                     ", ".join(f"{c} (%{s:.0f})" for c, s in worst))
+    weakest = score.get("weakest")
+    if weakest:
+        parts.append(f"🎯 Öncelik: {weakest}. → Leak Finder'da "
+                     f"'Hatalarımdan Drill Üret' ile bu spotları hemen çalış.")
+    return "\n".join(parts)
