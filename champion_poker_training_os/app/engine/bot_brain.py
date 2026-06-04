@@ -242,6 +242,12 @@ CLASS_PRESETS = {
               "Tight Passive", "Maniac", "Fish", "Loose Rec"],
 }
 
+# Solver-ANCHORED postflop oynayan arketipler (Faz 1: GTO Expert).
+# Postflop kararı postflop_gto.cbet_strategy/defend_strategy ile solver-prensipli
+# (polarizasyon/MDF/board-texture). Preflop sıkı heuristik kalır. Gated → yalnız
+# bunlar değişir, diğer fidelity bozulmaz. Sim ile doğrulanır.
+_GTO_BOT_ARCHETYPES = {"GTO Expert"}
+
 
 def tier_skill_fractions(tier: "str | None" = None) -> "dict[str, float]":
     """Bir stake tier'ının (yoksa varsayılan) weak/mid/strong oran dağılımı.
@@ -471,6 +477,9 @@ class BotBrain:
         self._3bet_pool_oop = hands_in_top_pct(min(35.0, profile.three_bet * 0.95))
         # Defensive call pool — what we call (not 3-bet) facing a single open
         self._call_pool = hands_in_top_pct(min(50.0, profile.vpip * 1.05))
+        # Solver-anchored postflop (Faz 1): GTO arketipleri postflop'u solver-
+        # prensipli oynar (cbet/defend_strategy). Preflop heuristik kalır.
+        self.gto_postflop: bool = profile.name in _GTO_BOT_ARCHETYPES
 
     # ── PUBLIC API ─────────────────────────────────────────────────
 
@@ -681,6 +690,55 @@ class BotBrain:
 
     # ── POSTFLOP ───────────────────────────────────────────────────
 
+    def _gto_postflop_action(self, state, idx, player, valid, strength, draws,
+                             to_call, pot, in_position):
+        """Solver-prensipli postflop (postflop_gto): equity≈strength(+draw).
+        Bahis karşısında defend_strategy (MDF/equity); bahis yokken cbet_strategy
+        (polarizasyon/board-texture). Lookup yoksa None → heuristik fallback."""
+        if not state.community:
+            return None
+        try:
+            from app.poker.postflop_gto import (classify_board, cbet_strategy,
+                                                 defend_strategy)
+        except Exception:
+            return None
+        vt = {v[0] for v in valid}
+        tex = classify_board(state.community)
+        eq = max(0.0, min(1.0, strength + 0.45 * draws))   # draw equity ekle
+        street = (state.street_name or "flop").lower()
+        n_active = max(2, state.active_count)
+
+        if to_call > 0.01:
+            # KALİBRASYON: strength proxy'si true range-equity'den ŞİŞİK → defend
+            # break-even'i geçip over-call ediyordu (F-CB çöküyor). Haircut ile
+            # GTO-doğru fold disiplinine çek (range vs range gerçeği yaklaşımı).
+            eq_def = max(0.0, eq - 0.16)
+            fold_f, call_f, raise_f = defend_strategy(eq_def, tex, pot, to_call, n_active)
+            roll = random.random()
+            if roll < raise_f and ActionType.RAISE in vt:
+                return self._raise_size(state, valid, polarized=eq > 0.7,
+                                        strength=eq, draws=draws, player=player)
+            if roll < raise_f + call_f:
+                if ActionType.CALL in vt:
+                    return ActionType.CALL, to_call
+                if ActionType.CHECK in vt:
+                    return ActionType.CHECK, 0.0
+            if ActionType.FOLD in vt:
+                return ActionType.FOLD, 0.0
+            return (ActionType.CHECK, 0.0) if ActionType.CHECK in vt else None
+
+        # Bahis yok — cbet/check
+        bet_freq, size_frac = cbet_strategy(eq, tex, in_position,
+                                            has_initiative=True, street=street,
+                                            n_active=n_active)
+        if random.random() < bet_freq and ActionType.BET in vt:
+            size = self._bet_amount(pot, size_frac, valid, player, eq, draws)
+            if size:
+                return ActionType.BET, size
+        if ActionType.CHECK in vt:
+            return ActionType.CHECK, 0.0
+        return None
+
     def _postflop(self, state: HandState, idx: int, player: PlayerSeat,
                   valid: List[Tuple[ActionType, float, float]]) -> Tuple[ActionType, float]:
         valid_types = {v[0] for v in valid}
@@ -696,6 +754,15 @@ class BotBrain:
         board_features = self._board_features(state.community)
         # In-position?
         in_position = self._in_position(state, idx)
+
+        # Solver-anchored postflop (Faz 1): GTO arketibi → cbet/defend_strategy
+        if self.gto_postflop:
+            g = self._gto_postflop_action(state, idx, player, valid,
+                                          strength, draws, to_call, pot,
+                                          in_position)
+            if g is not None:
+                return g
+            # solver-lookup başarısız → heuristik'e düş
 
         agg = self.profile.aggression
         random_noise = random.gauss(0, 0.05)

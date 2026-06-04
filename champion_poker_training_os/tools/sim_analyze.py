@@ -62,9 +62,10 @@ def skill_rollup(rows):
             for k, v in by.items()}
 
 
+N_SEEDS = int(sys.argv[1]) if len(sys.argv) > 1 else 5
 out = {}
 for fs in (200, 1000):
-    res = aggregate(fs, seeds=[1, 2, 3, 4, 5])
+    res = aggregate(fs, seeds=list(range(1, N_SEEDS + 1)))
     res["skill_rollup"] = skill_rollup(res["rows"])
     out[str(fs)] = res
     print(f"=== {fs}p × 5 ({res['elapsed']}s, {res['hands']} hands) "
