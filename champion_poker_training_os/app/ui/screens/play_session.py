@@ -1155,7 +1155,9 @@ class PlaySessionScreen(QWidget):
             _adv = None
             try:
                 from app.poker.gto_live_advice import live_gto_advice
-                _adv = live_gto_advice(hand, hand.hero_idx, mode="cash")
+                _vstats = self._aggressor_stats(hand, merged_profiles)
+                _adv = live_gto_advice(hand, hand.hero_idx, mode="cash",
+                                       villain_stats=_vstats)
             except Exception:
                 _adv = None
             self.gto_range.update_range(
@@ -1562,6 +1564,23 @@ class PlaySessionScreen(QWidget):
             "session": self.game.get_session_stats(), "source": "review_request",
         }
         self.hand_completed.emit(hand_data)
+
+    @staticmethod
+    def _aggressor_stats(hand, profiles: dict):
+        """Hero'nun karşısındaki AGRESÖR (en yüksek bahis koyan non-hero) villain'in
+        merged profil stats'ı — rakip-profili exploit önerisi için. Yoksa None."""
+        if not profiles:
+            return None
+        try:
+            cands = [(i, p) for i, p in enumerate(hand.players)
+                     if not p.is_hero and not p.is_folded
+                     and getattr(p, "current_bet", 0) > 0]
+            if not cands:
+                return None
+            vidx = max(cands, key=lambda ip: ip[1].current_bet)[0]
+            return profiles.get(vidx)
+        except Exception:
+            return None
 
     def _show_gto_popup(self) -> None:
         pos, stack_bb, hero_cards, street, pot, players = "", 100.0, "", "preflop", 0.0, 6

@@ -283,6 +283,11 @@ class GTORangeWidget(QFrame):
                 hands_text = hint
                 display_note = getattr(advice, "tier_label", "") or ""
 
+        # Rakip-profili exploit önerisi (varsa) en bağlamsal nottur → göster
+        expl = (getattr(advice, "exploit_note", "") or "") if advice else ""
+        if expl:
+            display_note = expl
+
         self._pos_lbl.setText(pos_text)
         self._pct_lbl.setText(pct_text)
         self._hands_lbl.setText(hands_text)

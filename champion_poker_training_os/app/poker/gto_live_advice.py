@@ -49,6 +49,7 @@ class LiveAdvice:
     scenario_key: str = ""      # temiz anahtar: "RFI"/"vs RFI"/"vs 3-bet"/"Push/Fold"
     vs_position: str = ""       # karşı aksiyonun (açan/3-bet'çi) pozisyonu (normalize)
     icm_note: str = ""          # ICM tightening uygulandıysa açıklama (turnuva)
+    exploit_note: str = ""      # rakip-profili sömürü önerisi (GTO'dan sapma)
     tier_icon: str = ""         # ✅ / 🟡 / 🟠 / ❌
     tier_label: str = ""
     note: str = ""
@@ -325,12 +326,16 @@ def _count_preflop_raises_before_hero(hand: HandState, hero_idx: int):
 
 
 def live_gto_advice(hand: HandState, hero_idx: int,
-                    mode: str = "cash", risk_premium: float = 0.0) -> LiveAdvice:
+                    mode: str = "cash", risk_premium: float = 0.0,
+                    villain_stats=None) -> LiveAdvice:
     """O anki hero spotu için GTO advice döndür.
 
     ``risk_premium`` > 0 (turnuva bubble/FT/satellite) ise marjinal call'lar
     ICM baskısıyla fold'a kayar (call-off range daralır). 0 (cash/early) →
-    saf chip-EV GTO (gto_accuracy korunur)."""
+    saf chip-EV GTO (gto_accuracy korunur).
+
+    ``villain_stats`` (dict/obj) verilirse rakip-profili exploit önerisi
+    (``exploit_note``) üretilir — GTO baseline'a EK, onu değiştirmez."""
     adv = LiveAdvice()
     if not hand or hand.is_complete:
         return adv
@@ -371,6 +376,14 @@ def live_gto_advice(hand: HandState, hero_idx: int,
     # Dialog/matris dinamik node için temiz anahtar + karşı pozisyonu dışa aç
     adv.scenario_key = scenario
     adv.vs_position = vs_pos or ""
+
+    # Rakip-profili exploit (Parça 3) — GTO'ya EK öneri
+    if villain_stats is not None:
+        try:
+            from app.poker.exploit_advice import exploit_line
+            adv.exploit_note = exploit_line(villain_stats, scenario)
+        except Exception:
+            adv.exploit_note = ""
 
     # MTT modu kısa stack'te otomatik
     use_mode = "MTT" if (mode == "MTT" or eff_stack <= 40) else "cash"

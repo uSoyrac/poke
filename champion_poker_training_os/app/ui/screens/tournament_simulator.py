@@ -1094,7 +1094,9 @@ class TournamentSimulatorScreen(QWidget):
                 _adv = None
                 try:
                     from app.poker.gto_live_advice import live_gto_advice
-                    _adv = live_gto_advice(hand, hand.hero_idx, mode="MTT")
+                    _vstats = self._aggressor_stats(hand, merged_profiles)
+                    _adv = live_gto_advice(hand, hand.hero_idx, mode="MTT",
+                                           villain_stats=_vstats)
                 except Exception:
                     _adv = None
                 self.gto_range.update_range(
@@ -1347,6 +1349,23 @@ class TournamentSimulatorScreen(QWidget):
             vs_position=vs_position,
             risk_premium=risk_premium,
         )
+
+    @staticmethod
+    def _aggressor_stats(hand, profiles: dict):
+        """Hero karşısındaki agresör (en yüksek bahis koyan non-hero) villain'in
+        merged profil stats'ı — rakip-profili exploit önerisi için. Yoksa None."""
+        if not profiles:
+            return None
+        try:
+            cands = [(i, p) for i, p in enumerate(hand.players)
+                     if not p.is_hero and not p.is_folded
+                     and getattr(p, "current_bet", 0) > 0]
+            if not cands:
+                return None
+            vidx = max(cands, key=lambda ip: ip[1].current_bet)[0]
+            return profiles.get(vidx)
+        except Exception:
+            return None
 
     def _icm_risk_premium(self, hero_bb: float) -> float:
         """Turnuva aşamasına göre ICM risk premium (0 = chipEV/early).
