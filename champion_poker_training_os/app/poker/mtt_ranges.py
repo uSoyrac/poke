@@ -191,6 +191,14 @@ def build_mtt_rfi(position: str, stack_bb: float) -> Dict[str, ActionFreq]:
     if stack_bb <= 15:
         return build_mtt_push_fold(position, stack_bb)
 
+    # BB'nin "first-in OPEN" range'i YOKTUR — preflop son oynayan odur. Folded-to
+    # BB pot'u kazanır (karar yok); limp'lenen pot ise bir OPSİYON spotudur:
+    # limper'lara karşı polarize iso-raise (~top %16), gerisi CHECK. ASLA %100
+    # raise değil. POS_RFI_TARGET_PCT['BB']=100 bir "geniş DEFEND" işareti, açış
+    # genişliği değil — build_mtt_rfi onu yanlış okuyup tüm gridi kırmızı yapardı.
+    if _normalize_pos_rfi(position) == "BB":
+        return _fill_top_pct(16.0)
+
     # Cash baseline RFI %'sini al, MTT ayarı uygula
     from app.poker.gto_generator import POS_RFI_TARGET_PCT
     base_pct = POS_RFI_TARGET_PCT.get(_normalize_pos_rfi(position), 25)

@@ -184,7 +184,10 @@ def _combo_count(hk: str) -> int:
 
 def build_rfi_range(position: str, stack_bb: int = 100) -> Dict[str, ActionFreq]:
     """RFI range for opening from `position` at `stack_bb` depth."""
-    base_pct = POS_RFI_TARGET_PCT.get(position, 25)
+    # BB'nin first-in OPEN range'i yoktur (preflop son oynayan). POS_RFI_TARGET_PCT
+    # ['BB']=100 bir "geniş DEFEND" işareti — açış genişliği değil. Limp'lenen
+    # pottaki iso-raise opsiyonu ~top %16 (polarize); ASLA %100 açış.
+    base_pct = 16 if position.upper() == "BB" else POS_RFI_TARGET_PCT.get(position, 25)
     mult = stack_depth_multiplier(stack_bb)
     target_pct = base_pct * mult["range"]
 
