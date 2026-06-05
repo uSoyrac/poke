@@ -75,8 +75,12 @@ def _seats_from_spot(spot: dict) -> tuple[list[SeatState], int, int]:
     # Hero pozisyonu bu masa-boyutunun setinde yoksa (örn. 6-max "MP" → 9-max
     # setinde yok) geçerli bir pozisyona eşle → tüm koltuk etiketleri tutarlı.
     hero_pos = _canonical_pos(hero_pos, positions)
-    hero_stack = float(spot.get("stack_bb", 100))
+    hero_stack = float(spot.get("hero_stack_bb", spot.get("stack_bb", 100)))
     action_hist = spot.get("action_history", "").lower()
+    # Koltuk-bazlı stack'ler (ICM spotları): stacks[0]=hero, [1:]=villain'lar.
+    # Yoksa herkes hero_stack (eski davranış). Bu olmadan masa 'avg 25bb' derken
+    # tüm koltukları 10bb gösterip çelişiyordu.
+    seat_stacks = spot.get("stacks") or []
 
     # Villain positions (hero hariç) — toplam koltuk num_players'ı aşmasın
     # (hero pozisyonu set'te yoksa bile taşma olmaz).
@@ -91,10 +95,11 @@ def _seats_from_spot(spot: dict) -> tuple[list[SeatState], int, int]:
         folded = p_lo in action_hist and (
             f"{p_lo} fold" in action_hist or f"{p_lo} folds" in action_hist
         )
+        v_stack = float(seat_stacks[i + 1]) if len(seat_stacks) > i + 1 else hero_stack
         seats.append(SeatState(
             pos=pos,
             name="Bot",
-            stack=hero_stack,
+            stack=v_stack,
             is_folded=folded,
             is_villain=(i == 0 and not folded),
         ))

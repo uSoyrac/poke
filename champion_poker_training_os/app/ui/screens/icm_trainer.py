@@ -45,6 +45,51 @@ ICM_SPOT_TYPES = [
 ]
 
 
+def _cards_to_key(cards: str) -> str:
+    """'AsKh' → 'AKo', 'JhTh' → 'JTs', '8s8c' → '88'."""
+    if not cards or len(cards) < 4:
+        return "AKo"
+    order = "AKQJT98765432"
+    r1, s1, r2, s2 = cards[0], cards[1], cards[2], cards[3]
+    if order.index(r1) > order.index(r2):
+        r1, s1, r2, s2 = r2, s2, r1, s1
+    if r1 == r2:
+        return r1 + r2
+    return r1 + r2 + ("s" if s1 == s2 else "o")
+
+
+def _icm_correct_action(hero_cards: str, position: str, stack_bb: float,
+                        stage: str, spot_type: str, bubble_factor: float) -> str:
+    """GERÇEK ICM push/fold motorundan doğru aksiyon (mock/idx%4 DEĞİL).
+
+    push/fold spot → jam veya fold; call/fold spot (facing jam) → call veya fold.
+    Stage'e göre chipEV / ICM-adjusted / PKO range kullanır.
+    """
+    from app.poker.mtt_ranges import (
+        build_icm_push_fold, build_mtt_push_fold, build_pko_jam,
+        build_icm_call_vs_jam, build_call_vs_jam,
+    )
+    hk = _cards_to_key(hero_cards)
+    st = (spot_type or "").lower()
+    facing_jam = "call" in st  # "Bubble call/fold", "Final table call-off", "PKO bounty call"
+    try:
+        if facing_jam:
+            if stage in ("chipEV", "PKO"):   # PKO: bounty call'ları genişletir → chipEV proxy
+                rng = build_call_vs_jam(stack_bb)
+            else:
+                rng = build_icm_call_vs_jam(stack_bb, stage, bubble_factor)
+            return "call" if rng.get(hk, {}).get("call", 0) >= 50 else "fold"
+        if stage == "PKO":
+            rng = build_pko_jam(position, stack_bb, 0.5)
+        elif stage == "chipEV":
+            rng = build_mtt_push_fold(position, stack_bb)
+        else:                                # bubble / final table / satellite
+            rng = build_icm_push_fold(position, stack_bb, stage)
+        return "jam" if rng.get(hk, {}).get("raise", 0) >= 50 else "fold"
+    except Exception:
+        return "fold"
+
+
 def _generate_icm_drills(count: int = 40) -> list[dict]:
     """Generate ICM-specific drills with proper payouts and stack distributions."""
     base = generate_spot_drills(count)
@@ -95,7 +140,11 @@ def _generate_icm_drills(count: int = 40) -> list[dict]:
             "payouts": payouts,
             "push_range_width": range_width,
             "options": ("fold", "call", "raise", "jam"),
-            "best_action": ["fold", "jam", "call", "raise"][idx % 4],
+            # GERÇEK ICM motoru — eskiden [idx%4] rotasyonuydu (AKo 10bb'ye
+            # 'fold' diyordu). Artık ele/stack/stage'e göre doğru aksiyon.
+            "best_action": _icm_correct_action(
+                spot.get("hero_cards", "AsKh"), spot["position"], hero_stack,
+                stage, spot_type, bf),
         })
     return drills
 
