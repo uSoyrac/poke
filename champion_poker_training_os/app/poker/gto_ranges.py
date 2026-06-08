@@ -631,9 +631,11 @@ def get_action(position: str, hand_key: str, scenario: str = "RFI",
             if position == "BTN":
                 return PUSH_FOLD_15BB_BTN.get(hand_key, pure_fold())
             if position == "SB":
-                base = PUSH_FOLD_15BB_BTN.get(hand_key, pure_fold())
-                r = max(0, base["raise"] - 15)
-                return {"raise": r, "call": 0, "fold": 100 - r}
+                # ESKİ (bug): BTN-15bb range'inden her elin raise'ından 15 düş →
+                # AA raise 100-15=85 → premium elleri %15 FOLD ediyordu (nuts'ı
+                # pas geçmek imkânsız-yanlış). GERÇEK Nash SB push motoruna bağla.
+                from app.poker.gto_generator import build_push_fold
+                return build_push_fold("SB", stack_depth).get(hand_key, pure_fold())
 
     # ── HEURISTIC FALLBACK (kapsanmayan tüm spotlar) ───────────────────
     try:

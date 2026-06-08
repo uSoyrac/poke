@@ -81,6 +81,17 @@ def _sweep_engine():
                         if d.get("call", 0) + d.get("raise", 0) >= 50:
                             v.append(f"DOMINATED_DEFEND {spot}: {dom} "
                                      f"defend (c={d.get('call',0)} r={d.get('raise',0)})")
+            # Push/Fold: premium (AA/KK/QQ) JAM etmeli, çöp fold (D124 SB bug:
+            # AA %15 fold ediyordu). 12-18bb push/fold zone, tüm pozisyonlar.
+            if 12 <= stack <= 18:
+                for pos in ["BTN", "SB"]:
+                    g = _grid(pos, "Push/Fold", stack, mode)
+                    spot = f"{pos} push/fold {stack}bb {mode}"
+                    for prem in ("AA", "KK", "QQ"):
+                        if g[prem].get("raise", 0) < 90:
+                            v.append(f"PREMIUM_NO_JAM {spot}: {prem} jam={g[prem].get('raise',0)}")
+                    if g["72o"].get("raise", 0) >= 50:
+                        v.append(f"TRASH_JAM {spot}: 72o jam={g['72o'].get('raise',0)}")
             # vs RFI defans
             for pos in ["BB", "SB", "BTN", "CO", "HJ", "MP"]:
                 vs = VS_OPENER.get(pos)
