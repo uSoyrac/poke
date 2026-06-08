@@ -473,13 +473,33 @@ class TournamentSimulatorScreen(QWidget):
         QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self._end_and_restart)
         self._shortcuts_installed = True
 
+    def _confirm_abort(self) -> bool:
+        """Canlı turnuvayı yıkmadan önce onay. Test'te monkeypatch'lenebilir."""
+        from PySide6.QtWidgets import QMessageBox
+        r = QMessageBox.question(
+            self, "Turnuvayı bitir?",
+            "Devam eden turnuva sonlanacak — sıralama, stack ve field kaybolur "
+            "(oynanan eller DB'de kalır). Emin misin?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return r == QMessageBox.StandardButton.Yes
+
     def _end_and_restart(self) -> None:
         """Abort the running tournament and return to the setup screen.
 
         Stops the bot pacing timer, drops the in-memory Tournament, and
         re-builds the setup stage so the user can configure & launch a
         new one. Hands already played are preserved in the DB.
+
+        ESC buna bağlı (D123): CANLI (tamamlanmamış) turnuva varken önce onay
+        sor — kazara ESC çalışan turnuvayı geri-dönülmez silmesin. Tamamlanmış
+        veya yokken onaysız geçer (frictionless 'setup'a dön').
         """
+        t = getattr(self, "tournament", None)
+        if (t is not None and not getattr(t, "is_complete", False)
+                and not self._confirm_abort()):
+            return
         # Stop any pending bot ticks
         timer = getattr(self, "_bot_timer", None)
         if timer is not None:

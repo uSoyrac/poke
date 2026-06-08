@@ -2016,8 +2016,25 @@ class PlaySessionScreen(QWidget):
             "Yeni bir turnuva için ESC ile setup'a dön."
         )
 
+    def _confirm_abort(self) -> bool:
+        """Canlı turnuvayı yıkmadan önce onay. Test'te monkeypatch'lenebilir."""
+        from PySide6.QtWidgets import QMessageBox
+        r = QMessageBox.question(
+            self, "Turnuvayı bitir?",
+            "Devam eden turnuva sonlanacak — sıralama, stack ve field kaybolur "
+            "(oynanan eller DB'de kalır). Emin misin?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return r == QMessageBox.StandardButton.Yes
+
     def _end_mtt(self):
         if not self.tournament and not self._in_mtt:
+            return
+        # ESC buna bağlı (D123): canlı (tamamlanmamış) turnuvayı kazara silmesin.
+        t = getattr(self, "tournament", None)
+        if (t is not None and not getattr(t, "is_complete", False)
+                and not self._confirm_abort()):
             return
         timer = getattr(self, "_mtt_bot_timer", None)
         if timer is not None:
