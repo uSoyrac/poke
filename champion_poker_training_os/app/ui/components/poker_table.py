@@ -697,10 +697,15 @@ class LivePokerTable(QWidget):
             w.deleteLater()
         self._hole_widgets = []
 
-        # Hero hole
+        # Hero hole — D137: hero FOLD ettiyse kartlar KAPALI (yüz aşağı) ama
+        # peekable (mouse ile üzerine gelince yüzü yarı-saydam görünür → ne fold
+        # ettiğini gör). Fold etmediyse normal yüz-yukarı.
         if hero_cards and len(hero_cards) >= 2:
+            _hero_folded = (0 <= hero_slot_idx < len(seats)
+                            and getattr(seats[hero_slot_idx], "is_folded", False))
             for card in list(hero_cards)[:2]:
-                cv = CardView(card, size="md")
+                cv = CardView(card, size="md", face_down=_hero_folded,
+                              peekable=_hero_folded)
                 cv.setParent(self)
                 cv._base_w, cv._base_h = cv.width(), cv.height()   # responsive base
                 cv.show()

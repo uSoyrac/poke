@@ -37,11 +37,16 @@ RED_SUITS = {"♥", "h", "♦", "d"}
 class CardView(QWidget):
     """Brutalist poker card — sharp corners, mono rank, suit glyph."""
 
-    def __init__(self, text: str, face_down: bool = False, size: str = "md"):
+    def __init__(self, text: str, face_down: bool = False, size: str = "md",
+                 peekable: bool = False):
         super().__init__()
         self.card_text = (text or "").strip()
         self.face_down = face_down
         self.size_key = size
+        # D137: fold sonrası kapalı kart — mouse ile üzerine gelince yüzü
+        # yarı-saydam görünsün (ne fold ettiğini gör). peekable=True olunca aktif.
+        self.peekable = peekable
+        self._peek = False
 
         sizes = {
             "xs": (22, 30),
@@ -58,7 +63,8 @@ class CardView(QWidget):
         self.suit_glyph = ""
         self.is_red = False
         self.suit_color = "#0a0c0a"   # fallback ink — overridden per suit
-        if len(self.card_text) >= 2 and not face_down:
+        # Veriyi HER ZAMAN ayrıştır (face_down olsa da) → peek için yüz çizilebilir
+        if len(self.card_text) >= 2:
             self.rank = self.card_text[0].upper()
             if self.rank == "1" and self.card_text[1] == "0":
                 self.rank = "T"
@@ -70,12 +76,32 @@ class CardView(QWidget):
             self.suit_color = SUIT_COLORS.get(suit_raw, "#0a0c0a")
             self.is_red = suit_raw in RED_SUITS
 
+    def enterEvent(self, event) -> None:
+        if self.peekable and self.face_down and self.rank:
+            self._peek = True
+            self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        if self._peek:
+            self._peek = False
+            self.update()
+        super().leaveEvent(event)
+
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, False)
         painter.setRenderHint(QPainter.TextAntialiasing, True)
         w, h = self.width(), self.height()
-        if self.face_down:
+        if self.face_down and self._peek and self.rank:
+            # D137: peek — kapalı kartın yüzünü YARI-SAYDAM ama OKUNUR göster.
+            # Önce arkalığı karart (her suit rengi okunsun), sonra yüzü %82 çiz.
+            self._paint_back(painter, w, h)
+            painter.fillRect(0, 0, w, h, QColor(8, 10, 8, 165))
+            painter.setOpacity(0.82)
+            self._paint_front(painter, w, h)
+            painter.setOpacity(1.0)
+        elif self.face_down:
             self._paint_back(painter, w, h)
         else:
             self._paint_front(painter, w, h)
