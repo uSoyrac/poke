@@ -40,3 +40,37 @@ def test_generated_drills_have_verified_flag_and_no_premium_fold():
             assert d["best_action"] != "fold", (d["id"], d["hero_cards"])
     # demo (verified değil) drill'lerde de flag tutarlı
     assert all("solver_verified" in d for d in drills)
+
+
+# ── D132: postflop gerçek-motor grading (MC equity + cbet/defend) ──
+
+from app.db.seed_data import _real_postflop_best_action
+
+
+def test_postflop_clear_spots():
+    """Net postflop spotlar: çöp facing-bet → fold; üst-el hero-act → bet."""
+    assert _real_postflop_best_action(
+        "flop", "AhKsQd", "MP", "7h2c", 10.0, ("fold", "call", "raise")) == "fold"
+    bet = _real_postflop_best_action(
+        "flop", "Ah7c2d", "BTN", "AsKh", 8.0,
+        ("check", "bet small", "bet medium", "bet large"))
+    assert bet in ("bet small", "bet medium", "bet large"), bet
+
+
+def test_postflop_unsupported_returns_none():
+    assert _real_postflop_best_action("preflop", "", "BTN", "AsKh", 5.0, ("fold", "raise")) is None
+    assert _real_postflop_best_action("flop", "", "BTN", "AsKh", 5.0, ("fold", "call")) is None
+
+
+def test_flags_postflop_engine_not_persisted():
+    """Postflop gerçek-motor verdict'leri engine_graded=True ama solver_verified=False
+    (yaklaşık equity → kalıcı mastery'ye yazılmaz)."""
+    drills = generate_spot_drills(120)
+    post_engine = [d for d in drills
+                   if d["street"] in ("flop", "turn", "river") and d.get("engine_graded")]
+    assert len(post_engine) >= 5, "postflop gerçek-motor verdict üretilmeli"
+    for d in post_engine:
+        assert d.get("solver_verified") is False, "postflop persist edilmemeli (yaklaşık)"
+    # preflop gerçek olanlar HEM engine_graded HEM solver_verified
+    pre_v = [d for d in drills if d["street"] == "preflop" and d.get("solver_verified")]
+    assert all(d.get("engine_graded") for d in pre_v)

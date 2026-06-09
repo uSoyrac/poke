@@ -850,7 +850,11 @@ class SpotTrainerScreen(QWidget):
         # kirletiyordu → yalnız solver-doğrulanmış drill'lerde persist et.
         # (Şu an hiçbiri solver-verified değil → kalıcı kayıt kapalı; anlık
         # feedback + DEMO uyarısı gösterilir. Gerçek-motor rewire ayrı iş.)
-        _verified = bool(drill.get("solver_verified"))
+        # D132: üç durum — (1) preflop gerçek+sağlam → persist, uyarı yok;
+        # (2) postflop gerçek-motor ama YAKLAŞIK (MC equity MVP) → verdict göster,
+        # persist etme, 'yaklaşık' notu; (3) demo (rotasyon fallback) → DEMO uyarısı.
+        _verified = bool(drill.get("solver_verified"))      # persist (preflop)
+        _engine = bool(drill.get("engine_graded"))           # gerçek-motor verdict
         if _verified:
             self.lib.record_score(drill["id"], score)
             self.state.record_decision(
@@ -858,12 +862,17 @@ class SpotTrainerScreen(QWidget):
                 f"{drill['id']} {hero_action_str}: -{result['ev_loss']:.2f}bb"
             )
         else:
-            demo = QLabel("⚠️ DEMO spot — gerçek solver değil; skor kalıcı "
-                          "kaydedilmez (mastery/leak'i kirletmemek için)")
-            demo.setWordWrap(True)
-            demo.setStyleSheet("font-family:'JetBrains Mono',monospace; "
+            if _engine:
+                _msg = ("ℹ️ Postflop yaklaşık motor (MC equity) — verdict gerçek "
+                        "ama kalıcı mastery'ye yazılmaz (kesinlik preflop kadar değil)")
+            else:
+                _msg = ("⚠️ DEMO spot — gerçek solver değil; skor kalıcı "
+                        "kaydedilmez (mastery/leak'i kirletmemek için)")
+            note = QLabel(_msg)
+            note.setWordWrap(True)
+            note.setStyleSheet("font-family:'JetBrains Mono',monospace; "
                                "font-size:9px; color:#E0A33E;")
-            self._feedback_layout.addWidget(demo)
+            self._feedback_layout.addWidget(note)
 
         # Score chip
         col = _GREEN if result["is_correct"] else _RED

@@ -81,6 +81,75 @@ def _real_preflop_best_action(street, pot_type, position, hero_cards, stack, opt
     return None
 
 
+_POSTFLOP_BA_CACHE: dict = {}
+
+
+def _real_postflop_best_action(street, board, position, hero_cards, pot, options):
+    """GERÇEK postflop aksiyon (D132): MC equity + board texture + cbet/defend.
+
+    Performans: sonuç (hero,board,street,options,pos) ile module-cache'lenir →
+    generate_spot_drills tekrar çağrılınca yeniden hesaplanmaz. Doğruluk: bahis
+    KARŞISINDA villain range'i daraltılır (rastgele değil, bahis yapan range);
+    AMBİGÜ spotlarda None döner (demo kalır — yalnız NET verdict persist edilir).
+    """
+    if street not in ("flop", "turn", "river") or not board or len(hero_cards) < 4:
+        return None
+    key = (hero_cards, board, street, tuple(options), position)
+    if key in _POSTFLOP_BA_CACHE:
+        return _POSTFLOP_BA_CACHE[key]
+    res = None
+    try:
+        from app.poker.equity import monte_carlo_equity
+        from app.poker.postflop_gto import (classify_board, cbet_strategy,
+                                            defend_strategy)
+        from app.engine.hand_state import cards_from_str
+        hero_list = [hero_cards[0:2], hero_cards[2:4]]
+        board_list = [board[i:i + 2] for i in range(0, len(board), 2)]
+        tex = classify_board(cards_from_str(board))
+        ip = position in ("BTN", "CO")
+        facing_bet = ("call" in options and "check" not in options)
+        if facing_bet:
+            # Bahis yapan range rastgele değil → daha dar (eq daha gerçekçi)
+            eq = monte_carlo_equity(hero_list, board_list,
+                                    villain_range_width=0.55, simulations=1200)
+            to_call = max(pot * 0.5, 0.5)
+            fold, call, raise_ = defend_strategy(eq, tex, pot, to_call, 2)
+            top = max(fold, call, raise_)
+            if top - sorted((fold, call, raise_))[1] < 0.12:
+                res = None                      # ambigü → demo
+            elif raise_ == top and ("raise" in options or "jam" in options):
+                res = "raise" if "raise" in options else "jam"
+            elif call == top and "call" in options:
+                res = "call"
+            elif fold == top and "fold" in options:
+                res = "fold"
+        else:
+            eq = monte_carlo_equity(hero_list, board_list,
+                                    villain_range_width=1.0, simulations=1200)
+            bet_freq, size = cbet_strategy(eq, tex, ip, True, street, 2)
+            if abs(bet_freq - 0.5) < 0.12:
+                res = None                      # ambigü → demo
+            elif bet_freq >= 0.5:
+                if "bet small" in options and size < 0.45:
+                    res = "bet small"
+                elif "bet medium" in options and size < 0.7:
+                    res = "bet medium"
+                elif "bet large" in options:
+                    res = "bet large"
+                elif "bet medium" in options:
+                    res = "bet medium"
+                elif "bet small" in options:
+                    res = "bet small"
+                elif "raise" in options:
+                    res = "raise"
+            elif "check" in options:
+                res = "check"
+    except Exception:
+        res = None
+    _POSTFLOP_BA_CACHE[key] = res
+    return res
+
+
 def generate_spot_drills(count: int = 120) -> list[dict]:
     drills: list[dict] = []
     option_cycle = cycle(OPTIONS)
@@ -95,7 +164,14 @@ def generate_spot_drills(count: int = 120) -> list[dict]:
         # GERÇEK best_action (D131): preflop'u gerçek GTO motoruyla hesapla →
         # verdict gerçek + solver_verified=True (kalıcı kayda uygun). Çözülemeyen
         # (postflop/4BP/multiway) → demo fallback (idx rotasyonu), solver_verified=False.
-        real_ba = _real_preflop_best_action(street, pot_type, position, hero_cards, stack, options)
+        board = "" if street == "preflop" else BOARDS[idx % len(BOARDS)]
+        # Preflop: get_action (sağlam) → persist. Postflop: MC-equity yaklaşık
+        # (evaluator MVP) → verdict GÖSTERİLİR ama persist EDİLMEZ (yaklaşık veriyi
+        # kalıcı mastery'ye yazıp tekrar kirletmemek için). Hiçbiri yoksa demo.
+        pre_ba = _real_preflop_best_action(street, pot_type, position, hero_cards, stack, options)
+        post_ba = (None if pre_ba is not None
+                   else _real_postflop_best_action(street, board, position, hero_cards, pot, options))
+        real_ba = pre_ba if pre_ba is not None else post_ba
         best_action = real_ba if real_ba is not None else options[(idx * 2 + 1) % len(options)]
         drills.append(
             {
@@ -108,13 +184,14 @@ def generate_spot_drills(count: int = 120) -> list[dict]:
                 "stack_bb": stack,
                 "pot_bb": pot,
                 "hero_cards": hero_cards,
-                "board": "" if street == "preflop" else BOARDS[idx % len(BOARDS)],
+                "board": board,
                 "board_texture": BOARD_TEXTURES[idx % len(BOARD_TEXTURES)],
                 "pot_type": pot_type,
                 "action_history": _action_history(idx, street),
                 "options": options,
                 "best_action": best_action,
-                "solver_verified": real_ba is not None,
+                "solver_verified": pre_ba is not None,   # persist: yalnız sağlam preflop
+                "engine_graded": real_ba is not None,     # verdict gerçek-motor mu (postflop dahil)
                 "base_ev": round(0.85 + (idx % 6) * 0.18, 2),
                 "range_advantage": ["Hero + range", "Villain + range", "Neutral ranges"][idx % 3],
                 "nut_advantage": ["Hero nut advantage", "Villain nut advantage", "Shared nut density"][idx % 3],
