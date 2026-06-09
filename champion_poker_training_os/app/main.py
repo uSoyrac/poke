@@ -45,6 +45,7 @@ from app.ui.screens.quiz_trainer import QuizTrainerScreen
 from app.ui.screens.solver_sandbox import SolverSandboxScreen
 from app.ui.screens.mtt_trainer import MTTTrainerScreen
 from app.ui.screens.reports import ReportsScreen
+from app.ui.screens.test_results import TestResultsScreen
 from app.ui.screens.river_trainer import RiverTrainerScreen
 from app.ui.screens.settings import SettingsScreen
 from app.ui.screens.spot_trainer import SpotTrainerScreen
@@ -113,6 +114,7 @@ NAV_ITEMS = [
     "Strategy Playbook",
     "Study Planner",
     "Reports",
+    "Bot Test Sonuçları",
     "Settings / Compliance Guard",
 ]
 
@@ -303,6 +305,7 @@ class MainWindow(QMainWindow):
             "Strategy Playbook": StrategyPlaybookScreen,
             "Study Planner": StudyPlannerScreen,
             "Reports": ReportsScreen,
+            "Bot Test Sonuçları": TestResultsScreen,
             "Settings / Compliance Guard": SettingsScreen,
         }
         # LAZY: ekranları sıfır-argümanlı factory'lerde tut; gerçekten

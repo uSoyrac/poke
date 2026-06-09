@@ -1,0 +1,2853 @@
+{
+ "mtt": {
+  "1000p_50bb": {
+   "field": 1000,
+   "seeds": 10,
+   "depth_bb": 50,
+   "paid": 80,
+   "hands": 358778,
+   "rows": {
+    "Overfolder": {
+     "ent": 370,
+     "itm_pct": 13.5,
+     "win": 1,
+     "top3": 4,
+     "avg_fin_pct": 40.2,
+     "skill": "mid"
+    },
+    "Phil Hellmuth": {
+     "ent": 370,
+     "itm_pct": 8.4,
+     "win": 0,
+     "top3": 4,
+     "avg_fin_pct": 43.3,
+     "skill": "strong"
+    },
+    "ICM Expert": {
+     "ent": 370,
+     "itm_pct": 14.9,
+     "win": 2,
+     "top3": 4,
+     "avg_fin_pct": 43.2,
+     "skill": "strong"
+    },
+    "Overbluffer": {
+     "ent": 370,
+     "itm_pct": 7.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 50.2,
+     "skill": "mid"
+    },
+    "Bubble Nit": {
+     "ent": 370,
+     "itm_pct": 14.1,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 31.6,
+     "skill": "weak"
+    },
+    "TAG": {
+     "ent": 380,
+     "itm_pct": 9.7,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 45.8,
+     "skill": "mid"
+    },
+    "Phil Ivey": {
+     "ent": 370,
+     "itm_pct": 11.1,
+     "win": 0,
+     "top3": 3,
+     "avg_fin_pct": 49.6,
+     "skill": "strong"
+    },
+    "Doyle Brunson": {
+     "ent": 370,
+     "itm_pct": 6.5,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 51.0,
+     "skill": "strong"
+    },
+    "Shark": {
+     "ent": 370,
+     "itm_pct": 13.0,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 44.5,
+     "skill": "strong"
+    },
+    "Short Stack Jam": {
+     "ent": 370,
+     "itm_pct": 15.7,
+     "win": 1,
+     "top3": 3,
+     "avg_fin_pct": 40.1,
+     "skill": "mid"
+    },
+    "Solver Bot": {
+     "ent": 370,
+     "itm_pct": 13.5,
+     "win": 2,
+     "top3": 2,
+     "avg_fin_pct": 46.2,
+     "skill": "strong"
+    },
+    "Nit": {
+     "ent": 370,
+     "itm_pct": 10.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 36.0,
+     "skill": "weak"
+    },
+    "Daniel Negreanu": {
+     "ent": 370,
+     "itm_pct": 4.6,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 51.8,
+     "skill": "strong"
+    },
+    "Rock": {
+     "ent": 370,
+     "itm_pct": 7.8,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 35.8,
+     "skill": "weak"
+    },
+    "Weak Reg": {
+     "ent": 370,
+     "itm_pct": 8.9,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 44.9,
+     "skill": "mid"
+    },
+    "LAG": {
+     "ent": 370,
+     "itm_pct": 3.8,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 57.2,
+     "skill": "mid"
+    },
+    "GTO Expert": {
+     "ent": 370,
+     "itm_pct": 11.9,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 48.9,
+     "skill": "strong"
+    },
+    "Big Stack Bully": {
+     "ent": 370,
+     "itm_pct": 5.1,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 55.4,
+     "skill": "mid"
+    },
+    "Tight Passive": {
+     "ent": 370,
+     "itm_pct": 8.1,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 41.7,
+     "skill": "weak"
+    },
+    "Reg": {
+     "ent": 370,
+     "itm_pct": 8.4,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 50.3,
+     "skill": "mid"
+    },
+    "Exploit Expert": {
+     "ent": 370,
+     "itm_pct": 10.0,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 51.5,
+     "skill": "strong"
+    },
+    "Balanced Reg": {
+     "ent": 370,
+     "itm_pct": 5.4,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 49.4,
+     "skill": "mid"
+    },
+    "Loose Rec": {
+     "ent": 370,
+     "itm_pct": 2.7,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 56.3,
+     "skill": "weak"
+    },
+    "Calling Station": {
+     "ent": 370,
+     "itm_pct": 0.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 74.5,
+     "skill": "weak"
+    },
+    "Aggro Fish": {
+     "ent": 370,
+     "itm_pct": 0.3,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 72.0,
+     "skill": "weak"
+    },
+    "Fish": {
+     "ent": 370,
+     "itm_pct": 0.5,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 70.2,
+     "skill": "weak"
+    },
+    "Maniac": {
+     "ent": 370,
+     "itm_pct": 1.1,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 68.5,
+     "skill": "weak"
+    }
+   }
+  },
+  "500p_50bb": {
+   "field": 500,
+   "seeds": 10,
+   "depth_bb": 50,
+   "paid": 50,
+   "hands": 148925,
+   "rows": {
+    "Short Stack Jam": {
+     "ent": 180,
+     "itm_pct": 18.9,
+     "win": 1,
+     "top3": 5,
+     "avg_fin_pct": 40.5,
+     "skill": "mid"
+    },
+    "Overbluffer": {
+     "ent": 180,
+     "itm_pct": 8.9,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 51.8,
+     "skill": "mid"
+    },
+    "Nit": {
+     "ent": 190,
+     "itm_pct": 13.7,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 37.4,
+     "skill": "weak"
+    },
+    "Tight Passive": {
+     "ent": 190,
+     "itm_pct": 8.9,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 41.8,
+     "skill": "weak"
+    },
+    "Balanced Reg": {
+     "ent": 190,
+     "itm_pct": 13.7,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 46.8,
+     "skill": "mid"
+    },
+    "Bubble Nit": {
+     "ent": 180,
+     "itm_pct": 10.6,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 36.6,
+     "skill": "weak"
+    },
+    "Phil Ivey": {
+     "ent": 180,
+     "itm_pct": 12.2,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 50.7,
+     "skill": "strong"
+    },
+    "ICM Expert": {
+     "ent": 180,
+     "itm_pct": 17.8,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 42.3,
+     "skill": "strong"
+    },
+    "Weak Reg": {
+     "ent": 190,
+     "itm_pct": 10.0,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 46.2,
+     "skill": "mid"
+    },
+    "Phil Hellmuth": {
+     "ent": 180,
+     "itm_pct": 10.6,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 41.7,
+     "skill": "strong"
+    },
+    "Overfolder": {
+     "ent": 180,
+     "itm_pct": 15.0,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 42.0,
+     "skill": "mid"
+    },
+    "Shark": {
+     "ent": 190,
+     "itm_pct": 17.4,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 40.9,
+     "skill": "strong"
+    },
+    "Aggro Fish": {
+     "ent": 190,
+     "itm_pct": 0.5,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 71.5,
+     "skill": "weak"
+    },
+    "Reg": {
+     "ent": 190,
+     "itm_pct": 12.6,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 48.1,
+     "skill": "mid"
+    },
+    "TAG": {
+     "ent": 190,
+     "itm_pct": 15.3,
+     "win": 2,
+     "top3": 3,
+     "avg_fin_pct": 43.4,
+     "skill": "mid"
+    },
+    "LAG": {
+     "ent": 190,
+     "itm_pct": 9.5,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 58.7,
+     "skill": "mid"
+    },
+    "GTO Expert": {
+     "ent": 180,
+     "itm_pct": 15.6,
+     "win": 2,
+     "top3": 3,
+     "avg_fin_pct": 46.8,
+     "skill": "strong"
+    },
+    "Daniel Negreanu": {
+     "ent": 180,
+     "itm_pct": 6.1,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 57.7,
+     "skill": "strong"
+    },
+    "Rock": {
+     "ent": 190,
+     "itm_pct": 12.6,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 35.2,
+     "skill": "weak"
+    },
+    "Fish": {
+     "ent": 190,
+     "itm_pct": 0.5,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 67.5,
+     "skill": "weak"
+    },
+    "Exploit Expert": {
+     "ent": 180,
+     "itm_pct": 7.8,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 52.2,
+     "skill": "strong"
+    },
+    "Solver Bot": {
+     "ent": 180,
+     "itm_pct": 15.6,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 44.3,
+     "skill": "strong"
+    },
+    "Doyle Brunson": {
+     "ent": 180,
+     "itm_pct": 3.9,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 54.7,
+     "skill": "strong"
+    },
+    "Maniac": {
+     "ent": 190,
+     "itm_pct": 1.6,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 68.1,
+     "skill": "weak"
+    },
+    "Loose Rec": {
+     "ent": 190,
+     "itm_pct": 3.7,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 58.5,
+     "skill": "weak"
+    },
+    "Big Stack Bully": {
+     "ent": 180,
+     "itm_pct": 8.3,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 53.5,
+     "skill": "mid"
+    },
+    "Calling Station": {
+     "ent": 190,
+     "itm_pct": 0.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 69.4,
+     "skill": "weak"
+    }
+   }
+  },
+  "200p_50bb": {
+   "field": 200,
+   "seeds": 15,
+   "depth_bb": 50,
+   "paid": 24,
+   "hands": 102567,
+   "rows": {
+    "Overbluffer": {
+     "ent": 105,
+     "itm_pct": 7.6,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 55.9,
+     "skill": "mid"
+    },
+    "Doyle Brunson": {
+     "ent": 105,
+     "itm_pct": 14.3,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 48.8,
+     "skill": "strong"
+    },
+    "Calling Station": {
+     "ent": 120,
+     "itm_pct": 1.7,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 70.1,
+     "skill": "weak"
+    },
+    "Reg": {
+     "ent": 120,
+     "itm_pct": 15.0,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 46.5,
+     "skill": "mid"
+    },
+    "Weak Reg": {
+     "ent": 105,
+     "itm_pct": 19.0,
+     "win": 2,
+     "top3": 3,
+     "avg_fin_pct": 40.5,
+     "skill": "mid"
+    },
+    "Bubble Nit": {
+     "ent": 105,
+     "itm_pct": 20.0,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 32.1,
+     "skill": "weak"
+    },
+    "GTO Expert": {
+     "ent": 105,
+     "itm_pct": 17.1,
+     "win": 3,
+     "top3": 4,
+     "avg_fin_pct": 48.5,
+     "skill": "strong"
+    },
+    "Rock": {
+     "ent": 120,
+     "itm_pct": 17.5,
+     "win": 1,
+     "top3": 4,
+     "avg_fin_pct": 35.8,
+     "skill": "weak"
+    },
+    "Short Stack Jam": {
+     "ent": 105,
+     "itm_pct": 23.8,
+     "win": 1,
+     "top3": 4,
+     "avg_fin_pct": 39.5,
+     "skill": "mid"
+    },
+    "Exploit Expert": {
+     "ent": 105,
+     "itm_pct": 13.3,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 50.9,
+     "skill": "strong"
+    },
+    "Phil Hellmuth": {
+     "ent": 105,
+     "itm_pct": 16.2,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 41.4,
+     "skill": "strong"
+    },
+    "Balanced Reg": {
+     "ent": 105,
+     "itm_pct": 14.3,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 47.8,
+     "skill": "mid"
+    },
+    "Loose Rec": {
+     "ent": 105,
+     "itm_pct": 7.6,
+     "win": 1,
+     "top3": 3,
+     "avg_fin_pct": 55.5,
+     "skill": "weak"
+    },
+    "Solver Bot": {
+     "ent": 105,
+     "itm_pct": 20.0,
+     "win": 4,
+     "top3": 6,
+     "avg_fin_pct": 39.6,
+     "skill": "strong"
+    },
+    "Nit": {
+     "ent": 120,
+     "itm_pct": 16.7,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 37.1,
+     "skill": "weak"
+    },
+    "Maniac": {
+     "ent": 120,
+     "itm_pct": 2.5,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 70.0,
+     "skill": "weak"
+    },
+    "Overfolder": {
+     "ent": 105,
+     "itm_pct": 18.1,
+     "win": 1,
+     "top3": 3,
+     "avg_fin_pct": 43.2,
+     "skill": "mid"
+    },
+    "ICM Expert": {
+     "ent": 105,
+     "itm_pct": 12.4,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 44.4,
+     "skill": "strong"
+    },
+    "Big Stack Bully": {
+     "ent": 105,
+     "itm_pct": 5.7,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 51.5,
+     "skill": "mid"
+    },
+    "Shark": {
+     "ent": 120,
+     "itm_pct": 8.3,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 52.0,
+     "skill": "strong"
+    },
+    "TAG": {
+     "ent": 120,
+     "itm_pct": 11.7,
+     "win": 0,
+     "top3": 4,
+     "avg_fin_pct": 45.8,
+     "skill": "mid"
+    },
+    "Tight Passive": {
+     "ent": 120,
+     "itm_pct": 10.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 43.6,
+     "skill": "weak"
+    },
+    "LAG": {
+     "ent": 120,
+     "itm_pct": 5.8,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 57.6,
+     "skill": "mid"
+    },
+    "Fish": {
+     "ent": 120,
+     "itm_pct": 2.5,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 69.2,
+     "skill": "weak"
+    },
+    "Phil Ivey": {
+     "ent": 105,
+     "itm_pct": 17.1,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 48.9,
+     "skill": "strong"
+    },
+    "Daniel Negreanu": {
+     "ent": 105,
+     "itm_pct": 10.5,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 53.4,
+     "skill": "strong"
+    },
+    "Aggro Fish": {
+     "ent": 120,
+     "itm_pct": 0.8,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 73.3,
+     "skill": "weak"
+    }
+   }
+  },
+  "100p_50bb": {
+   "field": 100,
+   "seeds": 25,
+   "depth_bb": 50,
+   "paid": 15,
+   "hands": 63503,
+   "rows": {
+    "Short Stack Jam": {
+     "ent": 75,
+     "itm_pct": 26.7,
+     "win": 4,
+     "top3": 8,
+     "avg_fin_pct": 40.9,
+     "skill": "mid"
+    },
+    "Phil Ivey": {
+     "ent": 75,
+     "itm_pct": 21.3,
+     "win": 1,
+     "top3": 4,
+     "avg_fin_pct": 49.1,
+     "skill": "strong"
+    },
+    "ICM Expert": {
+     "ent": 100,
+     "itm_pct": 28.0,
+     "win": 0,
+     "top3": 4,
+     "avg_fin_pct": 43.0,
+     "skill": "strong"
+    },
+    "Balanced Reg": {
+     "ent": 100,
+     "itm_pct": 11.0,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 46.9,
+     "skill": "mid"
+    },
+    "Bubble Nit": {
+     "ent": 100,
+     "itm_pct": 24.0,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 33.2,
+     "skill": "weak"
+    },
+    "Aggro Fish": {
+     "ent": 100,
+     "itm_pct": 3.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 72.7,
+     "skill": "weak"
+    },
+    "Shark": {
+     "ent": 100,
+     "itm_pct": 19.0,
+     "win": 0,
+     "top3": 5,
+     "avg_fin_pct": 46.3,
+     "skill": "strong"
+    },
+    "GTO Expert": {
+     "ent": 100,
+     "itm_pct": 19.0,
+     "win": 4,
+     "top3": 7,
+     "avg_fin_pct": 49.6,
+     "skill": "strong"
+    },
+    "Overfolder": {
+     "ent": 75,
+     "itm_pct": 21.3,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 44.7,
+     "skill": "mid"
+    },
+    "Rock": {
+     "ent": 100,
+     "itm_pct": 20.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 36.4,
+     "skill": "weak"
+    },
+    "LAG": {
+     "ent": 100,
+     "itm_pct": 8.0,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 58.6,
+     "skill": "mid"
+    },
+    "Tight Passive": {
+     "ent": 100,
+     "itm_pct": 24.0,
+     "win": 1,
+     "top3": 7,
+     "avg_fin_pct": 39.3,
+     "skill": "weak"
+    },
+    "Reg": {
+     "ent": 100,
+     "itm_pct": 19.0,
+     "win": 1,
+     "top3": 6,
+     "avg_fin_pct": 43.1,
+     "skill": "mid"
+    },
+    "Weak Reg": {
+     "ent": 100,
+     "itm_pct": 11.0,
+     "win": 2,
+     "top3": 2,
+     "avg_fin_pct": 43.6,
+     "skill": "mid"
+    },
+    "Calling Station": {
+     "ent": 100,
+     "itm_pct": 1.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 72.1,
+     "skill": "weak"
+    },
+    "Big Stack Bully": {
+     "ent": 75,
+     "itm_pct": 9.3,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 56.0,
+     "skill": "mid"
+    },
+    "Exploit Expert": {
+     "ent": 100,
+     "itm_pct": 16.0,
+     "win": 1,
+     "top3": 3,
+     "avg_fin_pct": 49.2,
+     "skill": "strong"
+    },
+    "Nit": {
+     "ent": 100,
+     "itm_pct": 20.0,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 36.4,
+     "skill": "weak"
+    },
+    "TAG": {
+     "ent": 100,
+     "itm_pct": 23.0,
+     "win": 2,
+     "top3": 5,
+     "avg_fin_pct": 41.7,
+     "skill": "mid"
+    },
+    "Maniac": {
+     "ent": 100,
+     "itm_pct": 1.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 72.7,
+     "skill": "weak"
+    },
+    "Fish": {
+     "ent": 100,
+     "itm_pct": 4.0,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 67.1,
+     "skill": "weak"
+    },
+    "Overbluffer": {
+     "ent": 75,
+     "itm_pct": 9.3,
+     "win": 1,
+     "top3": 4,
+     "avg_fin_pct": 56.6,
+     "skill": "mid"
+    },
+    "Phil Hellmuth": {
+     "ent": 75,
+     "itm_pct": 17.3,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 45.1,
+     "skill": "strong"
+    },
+    "Solver Bot": {
+     "ent": 100,
+     "itm_pct": 18.0,
+     "win": 0,
+     "top3": 5,
+     "avg_fin_pct": 47.3,
+     "skill": "strong"
+    },
+    "Doyle Brunson": {
+     "ent": 75,
+     "itm_pct": 10.7,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 48.7,
+     "skill": "strong"
+    },
+    "Loose Rec": {
+     "ent": 100,
+     "itm_pct": 11.0,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 57.2,
+     "skill": "weak"
+    },
+    "Daniel Negreanu": {
+     "ent": 75,
+     "itm_pct": 10.7,
+     "win": 2,
+     "top3": 3,
+     "avg_fin_pct": 50.1,
+     "skill": "strong"
+    }
+   }
+  },
+  "1000p_100bb": {
+   "field": 1000,
+   "seeds": 10,
+   "depth_bb": 100,
+   "paid": 80,
+   "hands": 732230,
+   "rows": {
+    "Phil Ivey": {
+     "ent": 370,
+     "itm_pct": 13.0,
+     "win": 3,
+     "top3": 4,
+     "avg_fin_pct": 49.0,
+     "skill": "strong"
+    },
+    "Daniel Negreanu": {
+     "ent": 370,
+     "itm_pct": 5.9,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 52.4,
+     "skill": "strong"
+    },
+    "Solver Bot": {
+     "ent": 370,
+     "itm_pct": 15.4,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 44.7,
+     "skill": "strong"
+    },
+    "Reg": {
+     "ent": 370,
+     "itm_pct": 6.5,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 49.9,
+     "skill": "mid"
+    },
+    "Overfolder": {
+     "ent": 370,
+     "itm_pct": 11.9,
+     "win": 1,
+     "top3": 4,
+     "avg_fin_pct": 40.7,
+     "skill": "mid"
+    },
+    "Doyle Brunson": {
+     "ent": 370,
+     "itm_pct": 5.9,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 52.2,
+     "skill": "strong"
+    },
+    "Shark": {
+     "ent": 370,
+     "itm_pct": 11.1,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 47.1,
+     "skill": "strong"
+    },
+    "Weak Reg": {
+     "ent": 370,
+     "itm_pct": 10.8,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 41.9,
+     "skill": "mid"
+    },
+    "Tight Passive": {
+     "ent": 370,
+     "itm_pct": 9.7,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 40.3,
+     "skill": "weak"
+    },
+    "ICM Expert": {
+     "ent": 370,
+     "itm_pct": 13.2,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 42.7,
+     "skill": "strong"
+    },
+    "Short Stack Jam": {
+     "ent": 370,
+     "itm_pct": 15.4,
+     "win": 2,
+     "top3": 3,
+     "avg_fin_pct": 40.8,
+     "skill": "mid"
+    },
+    "TAG": {
+     "ent": 380,
+     "itm_pct": 10.8,
+     "win": 2,
+     "top3": 2,
+     "avg_fin_pct": 43.4,
+     "skill": "mid"
+    },
+    "Big Stack Bully": {
+     "ent": 370,
+     "itm_pct": 5.4,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 53.8,
+     "skill": "mid"
+    },
+    "Nit": {
+     "ent": 370,
+     "itm_pct": 11.4,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 35.0,
+     "skill": "weak"
+    },
+    "Bubble Nit": {
+     "ent": 370,
+     "itm_pct": 8.6,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 34.7,
+     "skill": "weak"
+    },
+    "Rock": {
+     "ent": 370,
+     "itm_pct": 8.4,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 36.4,
+     "skill": "weak"
+    },
+    "Phil Hellmuth": {
+     "ent": 370,
+     "itm_pct": 10.5,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 38.3,
+     "skill": "strong"
+    },
+    "Loose Rec": {
+     "ent": 370,
+     "itm_pct": 3.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 57.1,
+     "skill": "weak"
+    },
+    "Overbluffer": {
+     "ent": 370,
+     "itm_pct": 4.1,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 50.5,
+     "skill": "mid"
+    },
+    "Balanced Reg": {
+     "ent": 370,
+     "itm_pct": 9.5,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 46.6,
+     "skill": "mid"
+    },
+    "Exploit Expert": {
+     "ent": 370,
+     "itm_pct": 6.2,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 54.3,
+     "skill": "strong"
+    },
+    "GTO Expert": {
+     "ent": 370,
+     "itm_pct": 14.6,
+     "win": 0,
+     "top3": 3,
+     "avg_fin_pct": 46.8,
+     "skill": "strong"
+    },
+    "Fish": {
+     "ent": 370,
+     "itm_pct": 0.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 71.8,
+     "skill": "weak"
+    },
+    "LAG": {
+     "ent": 370,
+     "itm_pct": 3.5,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 56.2,
+     "skill": "mid"
+    },
+    "Aggro Fish": {
+     "ent": 370,
+     "itm_pct": 0.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 75.4,
+     "skill": "weak"
+    },
+    "Calling Station": {
+     "ent": 370,
+     "itm_pct": 0.3,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 76.9,
+     "skill": "weak"
+    },
+    "Maniac": {
+     "ent": 370,
+     "itm_pct": 0.8,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 71.4,
+     "skill": "weak"
+    }
+   }
+  },
+  "500p_100bb": {
+   "field": 500,
+   "seeds": 10,
+   "depth_bb": 100,
+   "paid": 50,
+   "hands": 260178,
+   "rows": {
+    "Daniel Negreanu": {
+     "ent": 180,
+     "itm_pct": 8.9,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 51.7,
+     "skill": "strong"
+    },
+    "LAG": {
+     "ent": 190,
+     "itm_pct": 4.2,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 53.5,
+     "skill": "mid"
+    },
+    "TAG": {
+     "ent": 190,
+     "itm_pct": 12.6,
+     "win": 0,
+     "top3": 3,
+     "avg_fin_pct": 42.4,
+     "skill": "mid"
+    },
+    "ICM Expert": {
+     "ent": 180,
+     "itm_pct": 17.8,
+     "win": 2,
+     "top3": 2,
+     "avg_fin_pct": 42.9,
+     "skill": "strong"
+    },
+    "Short Stack Jam": {
+     "ent": 180,
+     "itm_pct": 19.4,
+     "win": 1,
+     "top3": 4,
+     "avg_fin_pct": 39.0,
+     "skill": "mid"
+    },
+    "Reg": {
+     "ent": 190,
+     "itm_pct": 9.5,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 50.2,
+     "skill": "mid"
+    },
+    "Phil Ivey": {
+     "ent": 180,
+     "itm_pct": 20.6,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 46.1,
+     "skill": "strong"
+    },
+    "Exploit Expert": {
+     "ent": 180,
+     "itm_pct": 11.1,
+     "win": 1,
+     "top3": 3,
+     "avg_fin_pct": 53.7,
+     "skill": "strong"
+    },
+    "Shark": {
+     "ent": 190,
+     "itm_pct": 14.7,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 46.6,
+     "skill": "strong"
+    },
+    "Overbluffer": {
+     "ent": 180,
+     "itm_pct": 6.7,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 51.3,
+     "skill": "mid"
+    },
+    "Phil Hellmuth": {
+     "ent": 180,
+     "itm_pct": 11.1,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 44.0,
+     "skill": "strong"
+    },
+    "Rock": {
+     "ent": 190,
+     "itm_pct": 13.2,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 33.5,
+     "skill": "weak"
+    },
+    "Calling Station": {
+     "ent": 190,
+     "itm_pct": 0.5,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 72.9,
+     "skill": "weak"
+    },
+    "Balanced Reg": {
+     "ent": 190,
+     "itm_pct": 8.9,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 48.0,
+     "skill": "mid"
+    },
+    "Solver Bot": {
+     "ent": 180,
+     "itm_pct": 11.7,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 50.9,
+     "skill": "strong"
+    },
+    "Big Stack Bully": {
+     "ent": 180,
+     "itm_pct": 6.7,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 57.6,
+     "skill": "mid"
+    },
+    "Tight Passive": {
+     "ent": 190,
+     "itm_pct": 13.2,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 42.8,
+     "skill": "weak"
+    },
+    "Bubble Nit": {
+     "ent": 180,
+     "itm_pct": 11.7,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 35.2,
+     "skill": "weak"
+    },
+    "GTO Expert": {
+     "ent": 180,
+     "itm_pct": 17.8,
+     "win": 2,
+     "top3": 3,
+     "avg_fin_pct": 44.7,
+     "skill": "strong"
+    },
+    "Nit": {
+     "ent": 190,
+     "itm_pct": 15.8,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 35.5,
+     "skill": "weak"
+    },
+    "Weak Reg": {
+     "ent": 190,
+     "itm_pct": 12.1,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 42.3,
+     "skill": "mid"
+    },
+    "Overfolder": {
+     "ent": 180,
+     "itm_pct": 13.9,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 40.3,
+     "skill": "mid"
+    },
+    "Doyle Brunson": {
+     "ent": 180,
+     "itm_pct": 7.8,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 49.5,
+     "skill": "strong"
+    },
+    "Loose Rec": {
+     "ent": 190,
+     "itm_pct": 1.1,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 57.5,
+     "skill": "weak"
+    },
+    "Maniac": {
+     "ent": 190,
+     "itm_pct": 0.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 71.2,
+     "skill": "weak"
+    },
+    "Aggro Fish": {
+     "ent": 190,
+     "itm_pct": 1.1,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 72.2,
+     "skill": "weak"
+    },
+    "Fish": {
+     "ent": 190,
+     "itm_pct": 0.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 72.1,
+     "skill": "weak"
+    }
+   }
+  },
+  "200p_100bb": {
+   "field": 200,
+   "seeds": 15,
+   "depth_bb": 100,
+   "paid": 24,
+   "hands": 150484,
+   "rows": {
+    "TAG": {
+     "ent": 120,
+     "itm_pct": 17.5,
+     "win": 2,
+     "top3": 5,
+     "avg_fin_pct": 45.1,
+     "skill": "mid"
+    },
+    "Weak Reg": {
+     "ent": 105,
+     "itm_pct": 18.1,
+     "win": 0,
+     "top3": 3,
+     "avg_fin_pct": 44.3,
+     "skill": "mid"
+    },
+    "Doyle Brunson": {
+     "ent": 105,
+     "itm_pct": 8.6,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 54.3,
+     "skill": "strong"
+    },
+    "Shark": {
+     "ent": 120,
+     "itm_pct": 26.7,
+     "win": 2,
+     "top3": 2,
+     "avg_fin_pct": 39.5,
+     "skill": "strong"
+    },
+    "Daniel Negreanu": {
+     "ent": 105,
+     "itm_pct": 8.6,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 54.2,
+     "skill": "strong"
+    },
+    "Phil Ivey": {
+     "ent": 105,
+     "itm_pct": 20.0,
+     "win": 2,
+     "top3": 5,
+     "avg_fin_pct": 47.9,
+     "skill": "strong"
+    },
+    "Nit": {
+     "ent": 120,
+     "itm_pct": 19.2,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 37.0,
+     "skill": "weak"
+    },
+    "ICM Expert": {
+     "ent": 105,
+     "itm_pct": 21.9,
+     "win": 3,
+     "top3": 4,
+     "avg_fin_pct": 36.7,
+     "skill": "strong"
+    },
+    "Loose Rec": {
+     "ent": 105,
+     "itm_pct": 2.9,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 54.8,
+     "skill": "weak"
+    },
+    "Exploit Expert": {
+     "ent": 105,
+     "itm_pct": 10.5,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 51.1,
+     "skill": "strong"
+    },
+    "Phil Hellmuth": {
+     "ent": 105,
+     "itm_pct": 7.6,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 45.0,
+     "skill": "strong"
+    },
+    "Short Stack Jam": {
+     "ent": 105,
+     "itm_pct": 22.9,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 41.7,
+     "skill": "mid"
+    },
+    "GTO Expert": {
+     "ent": 105,
+     "itm_pct": 21.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 47.9,
+     "skill": "strong"
+    },
+    "Big Stack Bully": {
+     "ent": 105,
+     "itm_pct": 10.5,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 50.7,
+     "skill": "mid"
+    },
+    "Reg": {
+     "ent": 120,
+     "itm_pct": 11.7,
+     "win": 1,
+     "top3": 3,
+     "avg_fin_pct": 47.8,
+     "skill": "mid"
+    },
+    "Rock": {
+     "ent": 120,
+     "itm_pct": 16.7,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 33.1,
+     "skill": "weak"
+    },
+    "Tight Passive": {
+     "ent": 120,
+     "itm_pct": 10.8,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 41.4,
+     "skill": "weak"
+    },
+    "Overbluffer": {
+     "ent": 105,
+     "itm_pct": 9.5,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 48.9,
+     "skill": "mid"
+    },
+    "Overfolder": {
+     "ent": 105,
+     "itm_pct": 11.4,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 41.0,
+     "skill": "mid"
+    },
+    "Solver Bot": {
+     "ent": 105,
+     "itm_pct": 15.2,
+     "win": 2,
+     "top3": 6,
+     "avg_fin_pct": 45.5,
+     "skill": "strong"
+    },
+    "Maniac": {
+     "ent": 120,
+     "itm_pct": 1.7,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 73.6,
+     "skill": "weak"
+    },
+    "Bubble Nit": {
+     "ent": 105,
+     "itm_pct": 15.2,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 38.5,
+     "skill": "weak"
+    },
+    "LAG": {
+     "ent": 120,
+     "itm_pct": 3.3,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 58.9,
+     "skill": "mid"
+    },
+    "Aggro Fish": {
+     "ent": 120,
+     "itm_pct": 0.8,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 71.1,
+     "skill": "weak"
+    },
+    "Calling Station": {
+     "ent": 120,
+     "itm_pct": 0.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 77.7,
+     "skill": "weak"
+    },
+    "Balanced Reg": {
+     "ent": 105,
+     "itm_pct": 15.2,
+     "win": 1,
+     "top3": 4,
+     "avg_fin_pct": 44.3,
+     "skill": "mid"
+    },
+    "Fish": {
+     "ent": 120,
+     "itm_pct": 0.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 71.2,
+     "skill": "weak"
+    }
+   }
+  },
+  "100p_100bb": {
+   "field": 100,
+   "seeds": 25,
+   "depth_bb": 100,
+   "paid": 15,
+   "hands": 95898,
+   "rows": {
+    "Exploit Expert": {
+     "ent": 100,
+     "itm_pct": 9.0,
+     "win": 3,
+     "top3": 5,
+     "avg_fin_pct": 52.9,
+     "skill": "strong"
+    },
+    "Tight Passive": {
+     "ent": 100,
+     "itm_pct": 9.0,
+     "win": 2,
+     "top3": 3,
+     "avg_fin_pct": 47.2,
+     "skill": "weak"
+    },
+    "Phil Ivey": {
+     "ent": 75,
+     "itm_pct": 22.7,
+     "win": 2,
+     "top3": 6,
+     "avg_fin_pct": 42.1,
+     "skill": "strong"
+    },
+    "GTO Expert": {
+     "ent": 100,
+     "itm_pct": 26.0,
+     "win": 1,
+     "top3": 5,
+     "avg_fin_pct": 45.3,
+     "skill": "strong"
+    },
+    "Solver Bot": {
+     "ent": 100,
+     "itm_pct": 23.0,
+     "win": 3,
+     "top3": 7,
+     "avg_fin_pct": 45.6,
+     "skill": "strong"
+    },
+    "Shark": {
+     "ent": 100,
+     "itm_pct": 18.0,
+     "win": 2,
+     "top3": 3,
+     "avg_fin_pct": 44.9,
+     "skill": "strong"
+    },
+    "Short Stack Jam": {
+     "ent": 75,
+     "itm_pct": 17.3,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 44.7,
+     "skill": "mid"
+    },
+    "Overfolder": {
+     "ent": 75,
+     "itm_pct": 14.7,
+     "win": 1,
+     "top3": 3,
+     "avg_fin_pct": 45.0,
+     "skill": "mid"
+    },
+    "Phil Hellmuth": {
+     "ent": 75,
+     "itm_pct": 18.7,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 40.6,
+     "skill": "strong"
+    },
+    "Aggro Fish": {
+     "ent": 100,
+     "itm_pct": 5.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 70.7,
+     "skill": "weak"
+    },
+    "Rock": {
+     "ent": 100,
+     "itm_pct": 13.0,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 36.4,
+     "skill": "weak"
+    },
+    "LAG": {
+     "ent": 100,
+     "itm_pct": 13.0,
+     "win": 2,
+     "top3": 3,
+     "avg_fin_pct": 53.2,
+     "skill": "mid"
+    },
+    "Bubble Nit": {
+     "ent": 100,
+     "itm_pct": 17.0,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 37.4,
+     "skill": "weak"
+    },
+    "Daniel Negreanu": {
+     "ent": 75,
+     "itm_pct": 8.0,
+     "win": 2,
+     "top3": 3,
+     "avg_fin_pct": 51.8,
+     "skill": "strong"
+    },
+    "Nit": {
+     "ent": 100,
+     "itm_pct": 25.0,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 34.9,
+     "skill": "weak"
+    },
+    "TAG": {
+     "ent": 100,
+     "itm_pct": 19.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 47.3,
+     "skill": "mid"
+    },
+    "Overbluffer": {
+     "ent": 75,
+     "itm_pct": 12.0,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 52.3,
+     "skill": "mid"
+    },
+    "ICM Expert": {
+     "ent": 100,
+     "itm_pct": 33.0,
+     "win": 0,
+     "top3": 4,
+     "avg_fin_pct": 36.2,
+     "skill": "strong"
+    },
+    "Calling Station": {
+     "ent": 100,
+     "itm_pct": 1.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 72.3,
+     "skill": "weak"
+    },
+    "Maniac": {
+     "ent": 100,
+     "itm_pct": 2.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 71.3,
+     "skill": "weak"
+    },
+    "Loose Rec": {
+     "ent": 100,
+     "itm_pct": 6.0,
+     "win": 1,
+     "top3": 3,
+     "avg_fin_pct": 59.2,
+     "skill": "weak"
+    },
+    "Reg": {
+     "ent": 100,
+     "itm_pct": 20.0,
+     "win": 2,
+     "top3": 4,
+     "avg_fin_pct": 46.7,
+     "skill": "mid"
+    },
+    "Balanced Reg": {
+     "ent": 100,
+     "itm_pct": 28.0,
+     "win": 1,
+     "top3": 8,
+     "avg_fin_pct": 41.8,
+     "skill": "mid"
+    },
+    "Fish": {
+     "ent": 100,
+     "itm_pct": 6.0,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 67.9,
+     "skill": "weak"
+    },
+    "Doyle Brunson": {
+     "ent": 75,
+     "itm_pct": 16.0,
+     "win": 0,
+     "top3": 3,
+     "avg_fin_pct": 52.5,
+     "skill": "strong"
+    },
+    "Weak Reg": {
+     "ent": 100,
+     "itm_pct": 12.0,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 48.8,
+     "skill": "mid"
+    },
+    "Big Stack Bully": {
+     "ent": 75,
+     "itm_pct": 10.7,
+     "win": 0,
+     "top3": 3,
+     "avg_fin_pct": 57.6,
+     "skill": "mid"
+    }
+   }
+  },
+  "1000p_200bb": {
+   "field": 1000,
+   "seeds": 10,
+   "depth_bb": 200,
+   "paid": 80,
+   "hands": 952242,
+   "rows": {
+    "Solver Bot": {
+     "ent": 370,
+     "itm_pct": 13.5,
+     "win": 4,
+     "top3": 6,
+     "avg_fin_pct": 45.0,
+     "skill": "strong"
+    },
+    "Daniel Negreanu": {
+     "ent": 370,
+     "itm_pct": 5.9,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 55.6,
+     "skill": "strong"
+    },
+    "Exploit Expert": {
+     "ent": 370,
+     "itm_pct": 10.5,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 52.8,
+     "skill": "strong"
+    },
+    "Short Stack Jam": {
+     "ent": 370,
+     "itm_pct": 15.7,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 40.9,
+     "skill": "mid"
+    },
+    "GTO Expert": {
+     "ent": 370,
+     "itm_pct": 12.2,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 46.8,
+     "skill": "strong"
+    },
+    "Shark": {
+     "ent": 370,
+     "itm_pct": 13.8,
+     "win": 2,
+     "top3": 4,
+     "avg_fin_pct": 45.1,
+     "skill": "strong"
+    },
+    "Overbluffer": {
+     "ent": 370,
+     "itm_pct": 5.4,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 48.9,
+     "skill": "mid"
+    },
+    "Rock": {
+     "ent": 370,
+     "itm_pct": 8.9,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 33.3,
+     "skill": "weak"
+    },
+    "Nit": {
+     "ent": 370,
+     "itm_pct": 11.6,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 35.9,
+     "skill": "weak"
+    },
+    "ICM Expert": {
+     "ent": 370,
+     "itm_pct": 15.4,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 40.1,
+     "skill": "strong"
+    },
+    "TAG": {
+     "ent": 380,
+     "itm_pct": 11.3,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 44.0,
+     "skill": "mid"
+    },
+    "Tight Passive": {
+     "ent": 370,
+     "itm_pct": 6.8,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 42.8,
+     "skill": "weak"
+    },
+    "Doyle Brunson": {
+     "ent": 370,
+     "itm_pct": 5.1,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 49.8,
+     "skill": "strong"
+    },
+    "Reg": {
+     "ent": 370,
+     "itm_pct": 8.6,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 50.4,
+     "skill": "mid"
+    },
+    "Weak Reg": {
+     "ent": 370,
+     "itm_pct": 12.2,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 43.8,
+     "skill": "mid"
+    },
+    "LAG": {
+     "ent": 370,
+     "itm_pct": 3.2,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 56.2,
+     "skill": "mid"
+    },
+    "Bubble Nit": {
+     "ent": 370,
+     "itm_pct": 8.9,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 33.6,
+     "skill": "weak"
+    },
+    "Overfolder": {
+     "ent": 370,
+     "itm_pct": 13.2,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 41.7,
+     "skill": "mid"
+    },
+    "Loose Rec": {
+     "ent": 370,
+     "itm_pct": 1.6,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 54.2,
+     "skill": "weak"
+    },
+    "Balanced Reg": {
+     "ent": 370,
+     "itm_pct": 5.7,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 45.4,
+     "skill": "mid"
+    },
+    "Phil Ivey": {
+     "ent": 370,
+     "itm_pct": 10.5,
+     "win": 2,
+     "top3": 6,
+     "avg_fin_pct": 49.0,
+     "skill": "strong"
+    },
+    "Phil Hellmuth": {
+     "ent": 370,
+     "itm_pct": 12.4,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 39.5,
+     "skill": "strong"
+    },
+    "Big Stack Bully": {
+     "ent": 370,
+     "itm_pct": 3.2,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 57.8,
+     "skill": "mid"
+    },
+    "Aggro Fish": {
+     "ent": 370,
+     "itm_pct": 0.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 74.5,
+     "skill": "weak"
+    },
+    "Fish": {
+     "ent": 370,
+     "itm_pct": 0.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 72.1,
+     "skill": "weak"
+    },
+    "Maniac": {
+     "ent": 370,
+     "itm_pct": 0.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 74.8,
+     "skill": "weak"
+    },
+    "Calling Station": {
+     "ent": 370,
+     "itm_pct": 0.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 76.2,
+     "skill": "weak"
+    }
+   }
+  },
+  "500p_200bb": {
+   "field": 500,
+   "seeds": 10,
+   "depth_bb": 200,
+   "paid": 50,
+   "hands": 559692,
+   "rows": {
+    "Weak Reg": {
+     "ent": 190,
+     "itm_pct": 15.3,
+     "win": 2,
+     "top3": 5,
+     "avg_fin_pct": 43.0,
+     "skill": "mid"
+    },
+    "Solver Bot": {
+     "ent": 180,
+     "itm_pct": 16.1,
+     "win": 1,
+     "top3": 3,
+     "avg_fin_pct": 43.5,
+     "skill": "strong"
+    },
+    "Tight Passive": {
+     "ent": 190,
+     "itm_pct": 12.1,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 42.5,
+     "skill": "weak"
+    },
+    "Overbluffer": {
+     "ent": 180,
+     "itm_pct": 11.7,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 47.4,
+     "skill": "mid"
+    },
+    "Balanced Reg": {
+     "ent": 190,
+     "itm_pct": 10.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 45.8,
+     "skill": "mid"
+    },
+    "Shark": {
+     "ent": 190,
+     "itm_pct": 15.8,
+     "win": 1,
+     "top3": 4,
+     "avg_fin_pct": 40.8,
+     "skill": "strong"
+    },
+    "Reg": {
+     "ent": 190,
+     "itm_pct": 8.9,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 53.1,
+     "skill": "mid"
+    },
+    "Doyle Brunson": {
+     "ent": 180,
+     "itm_pct": 8.3,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 50.2,
+     "skill": "strong"
+    },
+    "Daniel Negreanu": {
+     "ent": 180,
+     "itm_pct": 7.2,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 54.3,
+     "skill": "strong"
+    },
+    "GTO Expert": {
+     "ent": 180,
+     "itm_pct": 12.2,
+     "win": 3,
+     "top3": 4,
+     "avg_fin_pct": 49.9,
+     "skill": "strong"
+    },
+    "Overfolder": {
+     "ent": 180,
+     "itm_pct": 17.8,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 41.5,
+     "skill": "mid"
+    },
+    "Phil Ivey": {
+     "ent": 180,
+     "itm_pct": 13.9,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 47.6,
+     "skill": "strong"
+    },
+    "Nit": {
+     "ent": 190,
+     "itm_pct": 10.0,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 34.1,
+     "skill": "weak"
+    },
+    "Rock": {
+     "ent": 190,
+     "itm_pct": 17.4,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 34.3,
+     "skill": "weak"
+    },
+    "Bubble Nit": {
+     "ent": 180,
+     "itm_pct": 16.1,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 31.8,
+     "skill": "weak"
+    },
+    "TAG": {
+     "ent": 190,
+     "itm_pct": 8.4,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 46.7,
+     "skill": "mid"
+    },
+    "Exploit Expert": {
+     "ent": 180,
+     "itm_pct": 8.3,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 53.1,
+     "skill": "strong"
+    },
+    "Phil Hellmuth": {
+     "ent": 180,
+     "itm_pct": 12.2,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 39.4,
+     "skill": "strong"
+    },
+    "Big Stack Bully": {
+     "ent": 180,
+     "itm_pct": 6.7,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 53.9,
+     "skill": "mid"
+    },
+    "Loose Rec": {
+     "ent": 190,
+     "itm_pct": 5.3,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 55.0,
+     "skill": "weak"
+    },
+    "ICM Expert": {
+     "ent": 180,
+     "itm_pct": 16.7,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 43.6,
+     "skill": "strong"
+    },
+    "Short Stack Jam": {
+     "ent": 180,
+     "itm_pct": 13.3,
+     "win": 1,
+     "top3": 3,
+     "avg_fin_pct": 44.5,
+     "skill": "mid"
+    },
+    "Aggro Fish": {
+     "ent": 190,
+     "itm_pct": 0.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 74.5,
+     "skill": "weak"
+    },
+    "LAG": {
+     "ent": 190,
+     "itm_pct": 6.3,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 57.8,
+     "skill": "mid"
+    },
+    "Maniac": {
+     "ent": 190,
+     "itm_pct": 0.5,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 73.5,
+     "skill": "weak"
+    },
+    "Calling Station": {
+     "ent": 190,
+     "itm_pct": 0.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 73.8,
+     "skill": "weak"
+    },
+    "Fish": {
+     "ent": 190,
+     "itm_pct": 1.1,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 71.8,
+     "skill": "weak"
+    }
+   }
+  },
+  "200p_200bb": {
+   "field": 200,
+   "seeds": 15,
+   "depth_bb": 200,
+   "paid": 24,
+   "hands": 145875,
+   "rows": {
+    "Solver Bot": {
+     "ent": 105,
+     "itm_pct": 22.9,
+     "win": 3,
+     "top3": 3,
+     "avg_fin_pct": 43.9,
+     "skill": "strong"
+    },
+    "Shark": {
+     "ent": 120,
+     "itm_pct": 16.7,
+     "win": 0,
+     "top3": 3,
+     "avg_fin_pct": 45.2,
+     "skill": "strong"
+    },
+    "GTO Expert": {
+     "ent": 105,
+     "itm_pct": 21.9,
+     "win": 3,
+     "top3": 5,
+     "avg_fin_pct": 47.8,
+     "skill": "strong"
+    },
+    "Reg": {
+     "ent": 120,
+     "itm_pct": 17.5,
+     "win": 1,
+     "top3": 4,
+     "avg_fin_pct": 47.8,
+     "skill": "mid"
+    },
+    "Overbluffer": {
+     "ent": 105,
+     "itm_pct": 10.5,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 52.4,
+     "skill": "mid"
+    },
+    "Overfolder": {
+     "ent": 105,
+     "itm_pct": 18.1,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 42.3,
+     "skill": "mid"
+    },
+    "Weak Reg": {
+     "ent": 105,
+     "itm_pct": 12.4,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 43.0,
+     "skill": "mid"
+    },
+    "TAG": {
+     "ent": 120,
+     "itm_pct": 15.0,
+     "win": 3,
+     "top3": 5,
+     "avg_fin_pct": 43.9,
+     "skill": "mid"
+    },
+    "Phil Hellmuth": {
+     "ent": 105,
+     "itm_pct": 8.6,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 40.8,
+     "skill": "strong"
+    },
+    "Short Stack Jam": {
+     "ent": 105,
+     "itm_pct": 19.0,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 42.8,
+     "skill": "mid"
+    },
+    "Big Stack Bully": {
+     "ent": 105,
+     "itm_pct": 5.7,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 53.9,
+     "skill": "mid"
+    },
+    "LAG": {
+     "ent": 120,
+     "itm_pct": 10.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 57.8,
+     "skill": "mid"
+    },
+    "Rock": {
+     "ent": 120,
+     "itm_pct": 13.3,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 33.1,
+     "skill": "weak"
+    },
+    "ICM Expert": {
+     "ent": 105,
+     "itm_pct": 20.0,
+     "win": 2,
+     "top3": 5,
+     "avg_fin_pct": 45.6,
+     "skill": "strong"
+    },
+    "Phil Ivey": {
+     "ent": 105,
+     "itm_pct": 15.2,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 47.7,
+     "skill": "strong"
+    },
+    "Tight Passive": {
+     "ent": 120,
+     "itm_pct": 15.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 43.4,
+     "skill": "weak"
+    },
+    "Nit": {
+     "ent": 120,
+     "itm_pct": 15.0,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 38.6,
+     "skill": "weak"
+    },
+    "Balanced Reg": {
+     "ent": 105,
+     "itm_pct": 16.2,
+     "win": 2,
+     "top3": 4,
+     "avg_fin_pct": 44.9,
+     "skill": "mid"
+    },
+    "Loose Rec": {
+     "ent": 105,
+     "itm_pct": 6.7,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 55.6,
+     "skill": "weak"
+    },
+    "Bubble Nit": {
+     "ent": 105,
+     "itm_pct": 13.3,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 35.6,
+     "skill": "weak"
+    },
+    "Daniel Negreanu": {
+     "ent": 105,
+     "itm_pct": 8.6,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 51.1,
+     "skill": "strong"
+    },
+    "Fish": {
+     "ent": 120,
+     "itm_pct": 1.7,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 68.3,
+     "skill": "weak"
+    },
+    "Maniac": {
+     "ent": 120,
+     "itm_pct": 1.7,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 68.7,
+     "skill": "weak"
+    },
+    "Aggro Fish": {
+     "ent": 120,
+     "itm_pct": 0.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 73.3,
+     "skill": "weak"
+    },
+    "Calling Station": {
+     "ent": 120,
+     "itm_pct": 0.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 74.5,
+     "skill": "weak"
+    },
+    "Doyle Brunson": {
+     "ent": 105,
+     "itm_pct": 8.6,
+     "win": 0,
+     "top3": 3,
+     "avg_fin_pct": 51.3,
+     "skill": "strong"
+    },
+    "Exploit Expert": {
+     "ent": 105,
+     "itm_pct": 14.3,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 50.4,
+     "skill": "strong"
+    }
+   }
+  },
+  "100p_200bb": {
+   "field": 100,
+   "seeds": 25,
+   "depth_bb": 200,
+   "paid": 15,
+   "hands": 144736,
+   "rows": {
+    "Aggro Fish": {
+     "ent": 100,
+     "itm_pct": 4.0,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 72.5,
+     "skill": "weak"
+    },
+    "Rock": {
+     "ent": 100,
+     "itm_pct": 25.0,
+     "win": 0,
+     "top3": 4,
+     "avg_fin_pct": 33.4,
+     "skill": "weak"
+    },
+    "ICM Expert": {
+     "ent": 100,
+     "itm_pct": 25.0,
+     "win": 1,
+     "top3": 7,
+     "avg_fin_pct": 41.9,
+     "skill": "strong"
+    },
+    "Shark": {
+     "ent": 100,
+     "itm_pct": 19.0,
+     "win": 1,
+     "top3": 3,
+     "avg_fin_pct": 43.5,
+     "skill": "strong"
+    },
+    "Tight Passive": {
+     "ent": 100,
+     "itm_pct": 16.0,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 41.0,
+     "skill": "weak"
+    },
+    "Exploit Expert": {
+     "ent": 100,
+     "itm_pct": 15.0,
+     "win": 4,
+     "top3": 8,
+     "avg_fin_pct": 52.7,
+     "skill": "strong"
+    },
+    "Phil Ivey": {
+     "ent": 75,
+     "itm_pct": 21.3,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 45.1,
+     "skill": "strong"
+    },
+    "Solver Bot": {
+     "ent": 100,
+     "itm_pct": 23.0,
+     "win": 4,
+     "top3": 7,
+     "avg_fin_pct": 43.3,
+     "skill": "strong"
+    },
+    "Big Stack Bully": {
+     "ent": 75,
+     "itm_pct": 9.3,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 57.0,
+     "skill": "mid"
+    },
+    "Balanced Reg": {
+     "ent": 100,
+     "itm_pct": 9.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 52.8,
+     "skill": "mid"
+    },
+    "Phil Hellmuth": {
+     "ent": 75,
+     "itm_pct": 26.7,
+     "win": 3,
+     "top3": 4,
+     "avg_fin_pct": 37.8,
+     "skill": "strong"
+    },
+    "Weak Reg": {
+     "ent": 100,
+     "itm_pct": 19.0,
+     "win": 1,
+     "top3": 6,
+     "avg_fin_pct": 41.6,
+     "skill": "mid"
+    },
+    "Nit": {
+     "ent": 100,
+     "itm_pct": 23.0,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 38.0,
+     "skill": "weak"
+    },
+    "Daniel Negreanu": {
+     "ent": 75,
+     "itm_pct": 12.0,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 54.0,
+     "skill": "strong"
+    },
+    "Doyle Brunson": {
+     "ent": 75,
+     "itm_pct": 8.0,
+     "win": 1,
+     "top3": 2,
+     "avg_fin_pct": 54.8,
+     "skill": "strong"
+    },
+    "TAG": {
+     "ent": 100,
+     "itm_pct": 20.0,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 44.5,
+     "skill": "mid"
+    },
+    "GTO Expert": {
+     "ent": 100,
+     "itm_pct": 19.0,
+     "win": 2,
+     "top3": 6,
+     "avg_fin_pct": 42.5,
+     "skill": "strong"
+    },
+    "Short Stack Jam": {
+     "ent": 75,
+     "itm_pct": 20.0,
+     "win": 2,
+     "top3": 3,
+     "avg_fin_pct": 41.1,
+     "skill": "mid"
+    },
+    "Reg": {
+     "ent": 100,
+     "itm_pct": 12.0,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 49.9,
+     "skill": "mid"
+    },
+    "Overbluffer": {
+     "ent": 75,
+     "itm_pct": 16.0,
+     "win": 0,
+     "top3": 4,
+     "avg_fin_pct": 52.6,
+     "skill": "mid"
+    },
+    "Overfolder": {
+     "ent": 75,
+     "itm_pct": 18.7,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 44.8,
+     "skill": "mid"
+    },
+    "Fish": {
+     "ent": 100,
+     "itm_pct": 3.0,
+     "win": 0,
+     "top3": 1,
+     "avg_fin_pct": 71.6,
+     "skill": "weak"
+    },
+    "Loose Rec": {
+     "ent": 100,
+     "itm_pct": 11.0,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 53.5,
+     "skill": "weak"
+    },
+    "Bubble Nit": {
+     "ent": 100,
+     "itm_pct": 21.0,
+     "win": 0,
+     "top3": 3,
+     "avg_fin_pct": 36.8,
+     "skill": "weak"
+    },
+    "Calling Station": {
+     "ent": 100,
+     "itm_pct": 1.0,
+     "win": 0,
+     "top3": 0,
+     "avg_fin_pct": 75.3,
+     "skill": "weak"
+    },
+    "Maniac": {
+     "ent": 100,
+     "itm_pct": 1.0,
+     "win": 1,
+     "top3": 1,
+     "avg_fin_pct": 70.3,
+     "skill": "weak"
+    },
+    "LAG": {
+     "ent": 100,
+     "itm_pct": 10.0,
+     "win": 0,
+     "top3": 2,
+     "avg_fin_pct": 54.5,
+     "skill": "mid"
+    }
+   }
+  }
+ },
+ "cash": {
+  "100bb": {
+   "tables": 360,
+   "hands_per": 250,
+   "depth_bb": 100,
+   "rows": {
+    "TAG": {
+     "hands": 20000,
+     "bb_per_100": 10.47,
+     "skill": "mid"
+    },
+    "LAG": {
+     "hands": 20000,
+     "bb_per_100": 5.31,
+     "skill": "mid"
+    },
+    "Nit": {
+     "hands": 20000,
+     "bb_per_100": 2.62,
+     "skill": "weak"
+    },
+    "Calling Station": {
+     "hands": 20000,
+     "bb_per_100": -43.94,
+     "skill": "weak"
+    },
+    "Maniac": {
+     "hands": 20000,
+     "bb_per_100": -24.81,
+     "skill": "weak"
+    },
+    "Reg": {
+     "hands": 20000,
+     "bb_per_100": -0.05,
+     "skill": "mid"
+    },
+    "Fish": {
+     "hands": 20000,
+     "bb_per_100": -44.47,
+     "skill": "weak"
+    },
+    "Shark": {
+     "hands": 20000,
+     "bb_per_100": 7.48,
+     "skill": "strong"
+    },
+    "Rock": {
+     "hands": 20000,
+     "bb_per_100": -6.25,
+     "skill": "weak"
+    },
+    "Aggro Fish": {
+     "hands": 20000,
+     "bb_per_100": -37.83,
+     "skill": "weak"
+    },
+    "Tight Passive": {
+     "hands": 20000,
+     "bb_per_100": -3.25,
+     "skill": "weak"
+    },
+    "Loose Rec": {
+     "hands": 20000,
+     "bb_per_100": -9.54,
+     "skill": "weak"
+    },
+    "Weak Reg": {
+     "hands": 20000,
+     "bb_per_100": 10.52,
+     "skill": "mid"
+    },
+    "Balanced Reg": {
+     "hands": 20000,
+     "bb_per_100": 3.47,
+     "skill": "mid"
+    },
+    "Solver Bot": {
+     "hands": 20000,
+     "bb_per_100": 35.75,
+     "skill": "strong"
+    },
+    "Bubble Nit": {
+     "hands": 20000,
+     "bb_per_100": -3.57,
+     "skill": "weak"
+    },
+    "GTO Expert": {
+     "hands": 20000,
+     "bb_per_100": 34.47,
+     "skill": "strong"
+    },
+    "ICM Expert": {
+     "hands": 20000,
+     "bb_per_100": 16.33,
+     "skill": "strong"
+    },
+    "Exploit Expert": {
+     "hands": 20000,
+     "bb_per_100": 9.1,
+     "skill": "strong"
+    },
+    "Doyle Brunson": {
+     "hands": 20000,
+     "bb_per_100": -11.74,
+     "skill": "strong"
+    },
+    "Phil Ivey": {
+     "hands": 20000,
+     "bb_per_100": 20.38,
+     "skill": "strong"
+    },
+    "Phil Hellmuth": {
+     "hands": 20000,
+     "bb_per_100": 8.88,
+     "skill": "strong"
+    },
+    "Daniel Negreanu": {
+     "hands": 20000,
+     "bb_per_100": 5.6,
+     "skill": "strong"
+    },
+    "Overfolder": {
+     "hands": 20000,
+     "bb_per_100": 9.22,
+     "skill": "mid"
+    },
+    "Overbluffer": {
+     "hands": 20000,
+     "bb_per_100": -0.37,
+     "skill": "mid"
+    },
+    "Big Stack Bully": {
+     "hands": 20000,
+     "bb_per_100": 0.72,
+     "skill": "mid"
+    },
+    "Short Stack Jam": {
+     "hands": 20000,
+     "bb_per_100": 5.5,
+     "skill": "mid"
+    }
+   }
+  }
+ },
+ "meta": {
+  "elapsed": 2373.0,
+  "cash_progress": "300/360",
+  "done": true
+ }
+}

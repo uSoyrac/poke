@@ -85,8 +85,17 @@ def run_cash(n_tables=360, hands_per=250, depth_bb=100):
     seen = defaultdict(int)       # arch → toplam el (koltuk-el)
     SB, BB = 0.5, 1.0
     stack = float(depth_bb)
+    # FIX: 6<27 olduğu için equal_field(6) yalnız ilk 6 arketibi alıyordu →
+    # 27'nin TAMAMI masaya otursun diye dönen (shuffle'lı) bir havuzdan 6'şar çek.
+    _pool = []
+    def _draw6():
+        nonlocal _pool
+        while len(_pool) < 6:
+            extra = ARCHS[:]; rng.shuffle(extra); _pool += extra
+        s, _pool = _pool[:6], _pool[6:]
+        return s
     for t in range(n_tables):
-        seats = equal_field(6, rng)          # 6 arketip (dengeli rotasyon)
+        seats = _draw6()                     # 6 arketip (27 arasından dönen)
         game = PokerGame(num_players=6, starting_stack=stack, small_blind=SB,
                          big_blind=BB, hero_seat=0, bot_archetypes=seats[1:],
                          paced_bots=False)
