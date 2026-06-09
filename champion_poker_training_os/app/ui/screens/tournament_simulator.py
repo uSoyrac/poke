@@ -825,6 +825,7 @@ class TournamentSimulatorScreen(QWidget):
             icm = icm_pressure_for(alive, paid)
             for brain in self.tournament.game.bots.values():
                 brain.icm_pressure = icm
+                brain.tournament_mode = True   # D125: derin premium open-jam'i kıs
             self._cur_icm = icm
             self._maybe_icm_coach(icm, alive, paid)
         except Exception:

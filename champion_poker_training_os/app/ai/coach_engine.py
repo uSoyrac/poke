@@ -55,15 +55,21 @@ def analyze_played_hand(result: dict) -> str:
     """Analyze a completed hand and provide street-by-street coaching."""
     hero_cards = result.get("hero_cards", "??")
     community = result.get("community", "")
-    profit = result.get("hero_profit", 0)
+    # S2 fix (D126): değerler dolar/çip-ölçekli saklanır (big_blind ile) — tablo
+    # /bb böler ama burası bölmüyordu → turnuva çip-pot'u (örn. 500 çip) '500bb'
+    # gibi görünüyordu. bb-normalize et (tabloyla tutarlı). Ayrıca bu pot EL SONU
+    # (showdown) pot'u; karar-anı değil → etiketi netleştir.
+    _bb = max(float(result.get("big_blind") or 1.0), 1e-9)
+    profit = (result.get("hero_profit", 0) or 0) / _bb
     won = result.get("hero_won", False)
-    invested = result.get("hero_invested", 0)
-    pot = result.get("pot", 0)
+    invested = (result.get("hero_invested", 0) or 0) / _bb
+    pot = (result.get("pot", 0) or 0) / _bb
     winner_hand = result.get("winner_hand_name", "")
 
     parts = [f"📋 El Analizi: Hero {hero_cards} | Board: {community}"]
     parts.append(f"💰 Sonuç: {'Kazandın' if won else 'Kaybettin'} ({profit:+.1f}bb)")
-    parts.append(f"📊 Pot: {pot:.1f}bb | Yatırımın: {invested:.1f}bb | Kazanan el: {winner_hand}")
+    parts.append(f"📊 El sonu pot (showdown): {pot:.1f}bb | Yatırımın: {invested:.1f}bb "
+                 f"| Kazanan el: {winner_hand}")
     parts.append("")
 
     # Preflop analysis

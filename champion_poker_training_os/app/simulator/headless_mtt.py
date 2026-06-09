@@ -61,6 +61,10 @@ def _play_one_hand(table: List[_Player], sb: float, bb: float, ante: float,
         gl.players[i].stack = p.stack
     gl.dealer_idx = button % n
     hero_brain = BotBrain(BOT_ARCHETYPES.get(archs[0], BOT_ARCHETYPES["Balanced Reg"]))
+    # D125: turnuva bağlamı → derin premium open-jam yerine 5-bet (spew önleme).
+    hero_brain.tournament_mode = True
+    for b in gl.bots.values():
+        b.tournament_mode = True
     # ICM baskısını tüm koltuklara uygula (bubble/FT'de marjinal calloff sıkılaşır)
     if icm > 0:
         hero_brain.icm_pressure = icm

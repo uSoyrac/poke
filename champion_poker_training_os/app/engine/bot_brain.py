@@ -464,6 +464,10 @@ class BotBrain:
         # korunur). >0 (turnuva bubble/FT) → büyük stack-riskli marjinal
         # call/jam'ları SIKILAŞTIRIR (risk premium). Turnuva motoru her el ayarlar.
         self.icm_pressure: float = 0.0
+        # Turnuva bağlamı mı? (D125) False = cash → bot davranışı orijinal kalır
+        # (fidelity sim cash olduğu için 0-sapma korunur). True = turnuva → derin
+        # premium open-jam yerine 5-bet (spew önleme). Turnuva motoru set eder.
+        self.tournament_mode: bool = False
         # Precomputed per-position open ranges sized to hit profile.vpip.
         # Cached at construction so per-hand decisions are O(1) lookups.
         self._pos_open_ranges: dict = {}
@@ -654,9 +658,19 @@ class BotBrain:
             three_bet_pool = THREE_BET_RANGES["vs_early"]
             premium_only = {"AA", "KK", "QQ", "AKs", "AKo"}
             if hk in premium_only:
-                # 5-bet shove or call
+                # D125: DERİN open-jam spew'i. Bu bot'un sizing'inde bir 3-bet
+                # (~9-10bb) zaten bb*8'i aşıyor → premium eller (AA/KK/AK) 90bb'yi
+                # bir 3-bet üstüne jam'lıyordu = kullanıcının TURNUVADA gördüğü
+                # 'pair yok ama hepsi all-in'. Fix YALNIZ turnuvada (tournament_mode)
+                # + DERİN (>25bb): jam yerine 5-bet to ~2.3x. Cash'te
+                # (tournament_mode=False) dal HİÇ çalışmaz → orijinal jam path
+                # byte-identical → RNG stream + fidelity (AF) korunur.
                 if random.random() < 0.6 and ActionType.RAISE in valid_types:
-                    # Jam
+                    eff_bb = (player.stack + player.current_bet) / max(bb, 0.01)
+                    if self.tournament_mode and eff_bb > 25:
+                        five_bet_to = min(2.3 * state.current_bet,
+                                          player.stack + player.current_bet)
+                        return ActionType.RAISE, max(five_bet_to, state.min_raise)
                     return ActionType.ALL_IN, player.stack
                 if ActionType.CALL in valid_types:
                     return ActionType.CALL, to_call

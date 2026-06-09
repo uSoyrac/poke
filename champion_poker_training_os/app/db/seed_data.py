@@ -56,7 +56,9 @@ def generate_spot_drills(count: int = 120) -> list[dict]:
                 "range_advantage": ["Hero + range", "Villain + range", "Neutral ranges"][idx % 3],
                 "nut_advantage": ["Hero nut advantage", "Villain nut advantage", "Shared nut density"][idx % 3],
                 "icm": ["off", "bubble", "final table", "satellite", "PKO"][idx % 5],
-                "source_confidence": ["Mock/demo solver", "Pre-solved library", "Rule-based heuristic"][idx % 3],
+                # DÜRÜSTLÜK (D127): bu spotlar GERÇEK solver değil — demo/heuristic.
+                # 'Pre-solved library' yanıltıcıydı (gerçek precomputed GTO izlenimi).
+                "source_confidence": ["Demo solver (eğitim)", "Demo solver (eğitim)", "Kural-tabanlı (heuristic)"][idx % 3],
             }
         )
     return drills
