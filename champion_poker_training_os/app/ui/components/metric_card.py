@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
+from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QSizePolicy,
+                               QVBoxLayout)
 
 
 class MetricCard(QFrame):
@@ -9,6 +10,11 @@ class MetricCard(QFrame):
     def __init__(self, title: str, value: str, detail: str = "", accent: str = "Mono"):
         super().__init__()
         self.setObjectName("MetricCard")
+        # D134 RESPONSIVE: kart küçülebilsin — yoksa metin genişliği onu içeren
+        # meta/stat bar'ı geniş bir min'e zorlayıp dar pencerede taşırıyordu.
+        # Ignored-genişlik etiketler → dar alanda metin kart İÇİNDE kırpılır,
+        # tüm ekran taşmaz. (play_session, dashboard, icm, reports hepsi faydalanır.)
+        self.setMinimumWidth(56)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(4)
@@ -24,6 +30,10 @@ class MetricCard(QFrame):
         self.detail_label.setStyleSheet(
             "font-family: 'JetBrains Mono', Menlo, monospace; font-size: 10px;"
         )
+
+        for _w in (self.title_label, self.value_label, self.detail_label):
+            _w.setMinimumWidth(0)
+            _w.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
 
         layout.addWidget(self.title_label)
         layout.addWidget(self.value_label)
