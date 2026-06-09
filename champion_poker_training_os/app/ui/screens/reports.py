@@ -226,9 +226,13 @@ class ReportsScreen(QWidget):
         sk_title = QLabel("Skill Score Progression")
         sk_title.setObjectName("SectionTitle")
         sk_layout.addWidget(sk_title)
+        # D130: eskiden uydurma yükseliş rampası [680..735, real] vardı (sahte
+        # 'Rising ↑'). Skill-history tracker yok → gerçek tek noktayı dürüstçe
+        # göster (uydurma trend değil).
+        _sk = float(metrics["skill_score"])
         sk_layout.addWidget(MiniChart(
-            [680, 695, 710, 718, 725, 735, float(metrics["skill_score"])],
-            "Rising ↑",
+            [_sk] if _sk else [0],
+            "Mevcut skor (geçmiş takibi yok)",
             "#8B5CF6",
         ))
         charts.addWidget(skill_chart)
@@ -270,15 +274,20 @@ class ReportsScreen(QWidget):
         leak_title = QLabel("Active Leaks")
         leak_title.setObjectName("SectionTitle")
         leak_layout.addWidget(leak_title)
-        for leak in leaks():
+        # D130: sabit sahte leaks() yerine GERÇEK leak motoru (oyuncu stat'larından).
+        # Gerçek leak'lerde ev_lost yok → graceful (.get); fix yoksa detail göster.
+        from app.db.repository import get_leak_analysis
+        for leak in get_leak_analysis():
             row = QHBoxLayout()
-            name = QLabel(leak["name"])
+            name = QLabel(leak.get("name", "—"))
             name.setObjectName("Muted")
-            severity = QLabel(leak["severity"])
-            severity.setObjectName("Red" if leak["severity"] in ("Critical", "High") else "Amber")
-            ev = QLabel(f"-{leak['ev_lost']}bb")
+            sev = leak.get("severity", "Info")
+            severity = QLabel(sev)
+            severity.setObjectName("Red" if sev in ("Critical", "High") else "Amber")
+            _ev = leak.get("ev_lost")
+            ev = QLabel(f"-{_ev}bb" if _ev is not None else "")
             ev.setObjectName("Red")
-            fix = QLabel(leak["fix"])
+            fix = QLabel(leak.get("fix") or leak.get("detail", ""))
             fix.setObjectName("Green")
             fix.setWordWrap(True)
             row.addWidget(name, 2)
