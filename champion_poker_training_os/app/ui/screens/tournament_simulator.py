@@ -762,6 +762,18 @@ class TournamentSimulatorScreen(QWidget):
         gto_row.addWidget(self.gto_range, 1)
         deck_v.addLayout(gto_row)
 
+        # D140: SENİN için canlı Soyrac HCP satırı — elini bridge-tarzı kafadan
+        # puanla değerlendirip ne yapman gerektiğini söyler (öğretici; karar serbest).
+        self.soyrac_lbl = QLabel("")
+        self.soyrac_lbl.setObjectName("SoyracHCP")
+        self.soyrac_lbl.setStyleSheet(
+            "QLabel#SoyracHCP { font-family:'JetBrains Mono',monospace; font-size:12px; "
+            "font-weight:700; color:#7fd4ff; background:#0c1a22; border:1px solid #1f3a48; "
+            "padding:5px 12px; letter-spacing:0.5px; }")
+        self.soyrac_lbl.setWordWrap(True)
+        self.soyrac_lbl.hide()
+        deck_v.addWidget(self.soyrac_lbl)
+
         # El-sonu notlandırılmış GTO reveal (Real Experience Mode'da bloklayan)
         self.gto_reveal = GTODecisionReveal()
         deck_v.addWidget(self.gto_reveal)
@@ -1218,6 +1230,23 @@ class TournamentSimulatorScreen(QWidget):
                     reveal_action=False,   # eğitim modu: cevabı el sonunda göster
                     advice=_adv,           # gerçek senaryo (RFI/vs-3bet/push…)
                 )
+                # D140: SENİN için canlı Soyrac HCP satırı (preflop, masada-yapılabilir)
+                if hasattr(self, "soyrac_lbl"):
+                    try:
+                        from app.poker.soyrac_advisor import soyrac_advice
+                        _icm = bool(getattr(self, "_cur_icm", 0))
+                        _sa = soyrac_advice(
+                            hero_hk or "", pos,
+                            scenario=getattr(_adv, "scenario_key", "RFI") or "RFI",
+                            vs_position=getattr(_adv, "vs_position", "") or "",
+                            stack_bb=stack_bb, icm=_icm)
+                        if hero_hk and not hand.community:
+                            self.soyrac_lbl.setText(_sa["line"])
+                            self.soyrac_lbl.show()
+                        else:
+                            self.soyrac_lbl.hide()
+                    except Exception:
+                        self.soyrac_lbl.hide()
         # Flag the most-aggressive non-hero as villain
         villain_idx = None
         max_bet = 0.0
