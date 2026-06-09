@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
-    QPushButton, QScrollArea, QSlider, QSpinBox, QVBoxLayout, QWidget,
+    QPushButton, QScrollArea, QSizePolicy, QSlider, QSpinBox, QVBoxLayout, QWidget,
 )
 
 
@@ -591,7 +591,12 @@ class TournamentSimulatorScreen(QWidget):
             "font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; "
             "color: #898d80; letter-spacing: 0.3px;"
         )
-        fs_l.addWidget(self._fs_label)
+        # D134 RESPONSIVE: bu uzun tek-satır strip 1297px min'i sürüyordu (dar
+        # pencerede tüm ekranı taşırıyordu). Ignored-genişlik → dar alanda kuyruğu
+        # kırpılır, ekran taşmaz.
+        self._fs_label.setMinimumWidth(0)
+        self._fs_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        fs_l.addWidget(self._fs_label, 1)
         pl.addWidget(self.field_strip)
         if not self.mtt_field or self.mtt_field.field_size <= 9:
             self.field_strip.hide()
@@ -602,6 +607,8 @@ class TournamentSimulatorScreen(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
+        # D134: aşırı dar alanda klip yerine yatay scroll (güvenlik ağı)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         content = QWidget()
         scroll.setWidget(content)
         cl = QVBoxLayout(content)
@@ -650,8 +657,12 @@ class TournamentSimulatorScreen(QWidget):
     def _meta_cell(self, label: str, value: str) -> QFrame:
         f = QFrame()
         f.setStyleSheet("border-right: 1px solid #23271f;")
+        # D134 RESPONSIVE: hücre küçülebilsin (yoksa metin genişliği meta_bar'ı
+        # ~1220px min'e zorlayıp dar pencerede taşıyordu). Min düşük + etiketler
+        # Ignored-genişlik → dar alanda metin kırpılır, tüm ekran taşmaz.
+        f.setMinimumWidth(48)
         v = QVBoxLayout(f)
-        v.setContentsMargins(14, 10, 14, 10)
+        v.setContentsMargins(10, 8, 10, 8)
         v.setSpacing(2)
         lbl = QLabel(label)
         lbl.setObjectName("TLabel")
@@ -665,6 +676,9 @@ class TournamentSimulatorScreen(QWidget):
             "font-family: 'JetBrains Mono', Menlo, monospace; font-size: 10px; "
             "color: #5a5e54; letter-spacing: 0.8px;"
         )
+        for _w in (lbl, val, sub):
+            _w.setMinimumWidth(0)
+            _w.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         v.addWidget(lbl)
         v.addWidget(val)
         v.addWidget(sub)
@@ -800,7 +814,7 @@ class TournamentSimulatorScreen(QWidget):
         for b in (self.fold_btn, self.check_btn, self.call_btn, self.raise_btn, self.allin_btn):
             # Min width fits "CALL ALL-IN  100.0 bb"; equal stretch reflows
             # cleanly when the user toggles sidebar/coach.
-            b.setMinimumWidth(160)
+            b.setMinimumWidth(96)   # D134: responsive — dar alanda küçülebilsin
             b.setMinimumHeight(48)
             b.setCursor(Qt.PointingHandCursor)
             b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
