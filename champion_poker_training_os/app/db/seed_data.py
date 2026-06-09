@@ -26,32 +26,95 @@ OPTIONS = [
 ]
 
 
+def _seed_cards_to_key(cards: str) -> str:
+    """'AsKh'→'AKo', 'JhTh'→'JTs', '8s8c'→'88'. Boş/geçersizde ''."""
+    if not cards or len(cards) < 4:
+        return ""
+    order = "AKQJT98765432"
+    r1, s1, r2, s2 = cards[0], cards[1], cards[2], cards[3]
+    if r1 not in order or r2 not in order:
+        return ""
+    if order.index(r1) > order.index(r2):
+        r1, s1, r2, s2 = r2, s2, r1, s1
+    if r1 == r2:
+        return r1 + r2
+    return r1 + r2 + ("s" if s1 == s2 else "o")
+
+
+def _real_preflop_best_action(street, pot_type, position, hero_cards, stack, options):
+    """GERÇEK GTO motorundan (get_action) preflop drill için doğru aksiyon (D131).
+
+    Yalnız GÜVENLE çözülebilen preflop senaryolar (SRP→RFI, 3BP→vs 3-bet, limped→
+    RFI). Postflop / 4BP / multiway → None (demo fallback; yanlış doğru-cevap
+    üretmektense dürüst demo). Dönen değer spot['options'] içindeki bir etikettir.
+    """
+    if street != "preflop":
+        return None
+    scenario = {"SRP": "RFI", "3BP": "vs 3-bet", "limped": "RFI"}.get(pot_type)
+    if scenario is None:
+        return None
+    hk = _seed_cards_to_key(hero_cards)
+    if not hk:
+        return None
+    try:
+        from app.poker.gto_ranges import get_action
+        a = get_action(position, hk, scenario=scenario,
+                       stack_depth=int(stack or 100), mode="cash",
+                       vs_position="BB" if scenario == "vs 3-bet" else None)
+    except Exception:
+        return None
+    r, c, f = a.get("raise", 0), a.get("call", 0), a.get("fold", 0)
+    if r >= max(c, f):
+        if "raise" in options:
+            return "raise"
+        if "jam" in options:
+            return "jam"
+    elif c >= f:
+        if "call" in options:
+            return "call"
+        if "check" in options:
+            return "check"
+    if "fold" in options:
+        return "fold"
+    if "check" in options:
+        return "check"
+    return None
+
+
 def generate_spot_drills(count: int = 120) -> list[dict]:
     drills: list[dict] = []
     option_cycle = cycle(OPTIONS)
     for idx in range(count):
         street = STREETS[idx % len(STREETS)]
         options = next(option_cycle)
-        best_action = options[(idx * 2 + 1) % len(options)]
         stack = [10, 15, 20, 25, 40, 60, 100, 200][idx % 8]
         pot = round(3.5 + (idx % 9) * 2.25, 1)
+        position = POSITIONS[idx % len(POSITIONS)]
+        hero_cards = HANDS[idx % len(HANDS)]
+        pot_type = POT_TYPES[idx % len(POT_TYPES)]
+        # GERÇEK best_action (D131): preflop'u gerçek GTO motoruyla hesapla →
+        # verdict gerçek + solver_verified=True (kalıcı kayda uygun). Çözülemeyen
+        # (postflop/4BP/multiway) → demo fallback (idx rotasyonu), solver_verified=False.
+        real_ba = _real_preflop_best_action(street, pot_type, position, hero_cards, stack, options)
+        best_action = real_ba if real_ba is not None else options[(idx * 2 + 1) % len(options)]
         drills.append(
             {
                 "id": f"SPOT-{idx + 1:03d}",
-                "title": f"{street.title()} {POSITIONS[idx % 7]} decision vs {['nit', 'reg', 'station', 'maniac'][idx % 4]}",
+                "title": f"{street.title()} {position} decision vs {['nit', 'reg', 'station', 'maniac'][idx % 4]}",
                 "format": FORMATS[idx % len(FORMATS)],
                 "table": ["6-max", "9-max", "HU"][idx % 3],
                 "street": street,
-                "position": POSITIONS[idx % len(POSITIONS)],
+                "position": position,
                 "stack_bb": stack,
                 "pot_bb": pot,
-                "hero_cards": HANDS[idx % len(HANDS)],
+                "hero_cards": hero_cards,
                 "board": "" if street == "preflop" else BOARDS[idx % len(BOARDS)],
                 "board_texture": BOARD_TEXTURES[idx % len(BOARD_TEXTURES)],
-                "pot_type": POT_TYPES[idx % len(POT_TYPES)],
+                "pot_type": pot_type,
                 "action_history": _action_history(idx, street),
                 "options": options,
                 "best_action": best_action,
+                "solver_verified": real_ba is not None,
                 "base_ev": round(0.85 + (idx % 6) * 0.18, 2),
                 "range_advantage": ["Hero + range", "Villain + range", "Neutral ranges"][idx % 3],
                 "nut_advantage": ["Hero nut advantage", "Villain nut advantage", "Shared nut density"][idx % 3],
