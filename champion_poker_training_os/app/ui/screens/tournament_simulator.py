@@ -361,6 +361,9 @@ class TournamentSimulatorScreen(QWidget):
         # İSTENİRSE açılır (açıkken oto-akış DURUR ki okunabilsin), kapanınca akar.
         self._reveal_pinned = False
         self._last_review = None   # (log, graded, summary) — talep üzerine reveal
+        # D136: el-el geri inceleme — geçmiş ellerin analizini sakla, ◀ ▶ ile gez
+        self._review_history = []  # [(hand_no, log, graded, summary)] (cap 60)
+        self._review_idx = -1      # şu an gösterilen geçmiş el (-1 = yok)
 
         # Background auto-play timer — fires every 250 ms regardless of
         # visibility.  When this tab is the active one it's a no-op; when
@@ -523,6 +526,10 @@ class TournamentSimulatorScreen(QWidget):
 
     def _build_play(self):
         self._clear_stack()
+        # D136: yeni turnuva → el-geçmişi sıfırla
+        self._review_history = []
+        self._review_idx = -1
+        self._reveal_pinned = False
         # Top-level layout: meta bar + table area + action deck
         page = QFrame()
         pl = QVBoxLayout(page)
@@ -724,10 +731,34 @@ class TournamentSimulatorScreen(QWidget):
         self.reveal_btn.setMinimumHeight(32)
         self.reveal_btn.clicked.connect(self._toggle_reveal)
         self.reveal_btn.setEnabled(False)
+        # D136: önceki elleri tek tek gez (◀ ▶) — her elin hatalarını/GTO'sunu gör
+        _nav_css = (
+            "QPushButton { background:#1c1708; color:#e0a33e; border:1px solid #6b5320; "
+            "font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; "
+            "padding:5px 9px; } QPushButton:hover { background:#241d0c; } "
+            "QPushButton:disabled { color:#5a5e54; border-color:#2a2a20; }")
+        self.prev_hand_btn = QPushButton("◀")
+        self.prev_hand_btn.setToolTip("Önceki el — geçmiş elleri tek tek incele")
+        self.prev_hand_btn.setStyleSheet(_nav_css)
+        self.prev_hand_btn.setMinimumHeight(32)
+        self.prev_hand_btn.clicked.connect(self._review_prev)
+        self.prev_hand_btn.setEnabled(False)
+        self.next_hand_btn = QPushButton("▶")
+        self.next_hand_btn.setToolTip("Sonraki el")
+        self.next_hand_btn.setStyleSheet(_nav_css)
+        self.next_hand_btn.setMinimumHeight(32)
+        self.next_hand_btn.clicked.connect(self._review_next)
+        self.next_hand_btn.setEnabled(False)
+        self.review_lbl = QLabel("")
+        self.review_lbl.setStyleSheet(
+            "font-family:'JetBrains Mono',monospace; font-size:10px; color:#898d80;")
         self.gto_range = GTORangeWidget()
         self.gto_range.setMaximumHeight(52)
         gto_row.addWidget(self.gto_btn)
+        gto_row.addWidget(self.prev_hand_btn)
         gto_row.addWidget(self.reveal_btn)
+        gto_row.addWidget(self.next_hand_btn)
+        gto_row.addWidget(self.review_lbl)
         gto_row.addWidget(self.gto_range, 1)
         deck_v.addLayout(gto_row)
 
@@ -833,12 +864,16 @@ class TournamentSimulatorScreen(QWidget):
             return
         self._recorder.reset()
         self._await_space = False
-        self._reveal_pinned = False          # D133: yeni el → analiz paneli sıfırla
+        self._reveal_pinned = False          # D133: yeni el → panel kapansın (akış)
         if hasattr(self, "gto_reveal"):
             self.gto_reveal.hide_panel()
         if hasattr(self, "reveal_btn"):
+            # D136: GEÇMİŞİ KORU — 'Son El' + ◀ önceki eller hâlâ erişilebilir.
             self.reveal_btn.setText("📋 Son El")
-            self.reveal_btn.setEnabled(False)
+            self.reveal_btn.setEnabled(bool(self._review_history))
+            self.prev_hand_btn.setEnabled(len(self._review_history) > 1)
+            self.next_hand_btn.setEnabled(False)
+            self.review_lbl.setText("")
         self._apply_icm_pressure()
         self.tournament.start_hand()
         self._refresh_table()
@@ -1610,18 +1645,26 @@ class TournamentSimulatorScreen(QWidget):
         self._session_score.add_hand(self._recorder.log)
         # D133: analizi sakla; oto-akışta paneli AÇMA (bloklamasın) — yalnız
         # '📋 Son El' butonu aktifleşir. Real-XP / panel pinli ise göster.
-        self._last_review = (list(self._recorder.log), _real_xp,
-                             self._session_score.summary())
+        _summary = self._session_score.summary()
+        self._last_review = (list(self._recorder.log), _real_xp, _summary)
         _has_review = any(d.get("hero_action") for d in self._recorder.log)
+        # D136: hero karar verdiyse geçmişe ekle (el-el geri inceleme); cap 60.
+        if _has_review:
+            _hno = (self._review_history[-1][0] + 1) if self._review_history else 1
+            self._review_history.append((_hno, list(self._recorder.log), _real_xp, _summary))
+            if len(self._review_history) > 60:
+                self._review_history.pop(0)
+            self._review_idx = len(self._review_history) - 1
         if hasattr(self, "gto_reveal"):
             if _real_xp or self._reveal_pinned:
                 self.gto_reveal.show_decisions(
-                    self._recorder.log, graded=_real_xp,
-                    session_summary=self._session_score.summary())
+                    self._recorder.log, graded=_real_xp, session_summary=_summary)
             else:
                 self.gto_reveal.hide_panel()
         if hasattr(self, "reveal_btn"):
-            self.reveal_btn.setEnabled(_has_review)
+            # 'Son El' + ◀ geçmiş varsa aktif (yeni elde de geçmiş erişilebilir)
+            self.reveal_btn.setEnabled(bool(self._review_history))
+            self.prev_hand_btn.setEnabled(len(self._review_history) > 1)
         try:
             from app.db.repository import record_decision_log
             record_decision_log(self._recorder.log)
@@ -1765,10 +1808,9 @@ class TournamentSimulatorScreen(QWidget):
             self._deal_next_hand()
 
     def _toggle_reveal(self):
-        """📋 Son El — el-sonu analizini aç/kapat (D133).
-
-        Açıkken oto-akış DURUR (panel pinli) ki tüm veriler okunabilsin; kapanınca
-        akış devam eder (eller arasıysa hemen sonrakini dağıtır)."""
+        """📋 Son El — el-sonu analizini aç/kapat (D133). Açıkken oto-akış DURUR
+        (panel pinli) ki okunabilsin; kapanınca akış sürer. Açınca EN SON eli
+        gösterir; ◀ ▶ ile geçmiş ellere gezilir (D136)."""
         if not hasattr(self, "gto_reveal"):
             return
         showing = self.gto_reveal.isVisible() and self._reveal_pinned
@@ -1776,16 +1818,36 @@ class TournamentSimulatorScreen(QWidget):
             self._reveal_pinned = False
             self.gto_reveal.hide_panel()
             self.reveal_btn.setText("📋 Son El")
-            # Akışa geri dön: eller arasıysak sonrakini dağıt
+            self.review_lbl.setText("")
+            self.next_hand_btn.setEnabled(False)
             if self._between_hands and not getattr(self, "_await_space", False):
                 QTimer.singleShot(150, self._maybe_auto_deal_next)
         else:
-            if not self._last_review:
+            if not self._review_history:
                 return
-            self._reveal_pinned = True
-            log, graded, summary = self._last_review
-            self.gto_reveal.show_decisions(log, graded=graded, session_summary=summary)
-            self.reveal_btn.setText("📋 Kapat")
+            self._show_review_idx(len(self._review_history) - 1)   # en son el
+
+    def _show_review_idx(self, idx: int) -> None:
+        """Geçmişteki idx'inci elin analizini göster + akışı duraklat (D136)."""
+        if not self._review_history:
+            return
+        idx = max(0, min(idx, len(self._review_history) - 1))
+        self._review_idx = idx
+        self._reveal_pinned = True
+        no, log, graded, summary = self._review_history[idx]
+        self.gto_reveal.show_decisions(log, graded=graded, session_summary=summary)
+        last_no = self._review_history[-1][0]
+        self.review_lbl.setText(f"El {no}/{last_no}")
+        self.reveal_btn.setText("📋 Kapat")
+        self.prev_hand_btn.setEnabled(idx > 0)
+        self.next_hand_btn.setEnabled(idx < len(self._review_history) - 1)
+
+    def _review_prev(self):
+        cur = self._review_idx if self._review_idx >= 0 else len(self._review_history)
+        self._show_review_idx(cur - 1)
+
+    def _review_next(self):
+        self._show_review_idx(self._review_idx + 1)
 
     def _space_pressed(self):
         """Spacebar — skip the inter-hand wait to deal immediately."""
