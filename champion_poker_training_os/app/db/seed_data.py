@@ -608,25 +608,54 @@ def study_plan() -> list[dict]:
 
 
 def dashboard_metrics() -> dict:
+    """GERÇEK oyuncu verisinden dashboard metrikleri (D128).
+
+    ESKİ: tamamen sabit sahte değerler (skill 742, streak 6, uydurma 7-gün trendi)
+    kullanıcının KENDİ performansı gibi sunuluyordu — projenin 'dürüst geri-bildirim'
+    felsefesini çürütüyordu. Artık hero_decisions + played_hands'ten hesaplanır;
+    veri yoksa dürüst 0/boş-durum (sahte sayı YOK).
+    """
+    try:
+        from app.db.repository import get_gto_category_accuracy, get_player_stats
+        cats = get_gto_category_accuracy() or {}
+        stats = get_player_stats() or {}
+    except Exception:
+        cats, stats = {}, {}
+
+    def _acc(*names: str) -> int:
+        for nm in names:
+            for k, v in cats.items():
+                if k.lower() == nm.lower():
+                    return round(v.get("accuracy", 0))
+        return 0
+
+    pre = _acc("Preflop")
+    flop, turn, river = _acc("Flop"), _acc("Turn"), _acc("River")
+    icm = _acc("ICM", "Bubble", "Final Table")
+    postflop = round((flop + turn) / 2) if (flop or turn) else 0
+    n_dec = sum(int(v.get("n", 0)) for v in cats.values())
+    overall = (round(sum(v.get("accuracy", 0) * v.get("n", 0)
+                         for v in cats.values()) / n_dec) if n_dec else 0)
+    avg_ev = (round(sum(abs(v.get("avg_ev_loss", 0)) * v.get("n", 0)
+                        for v in cats.values()) / n_dec * 100, 1) if n_dec else 0.0)
+    # En pahalı alanlar: GERÇEK kategorilerden en yüksek EV-loss (sahte liste değil)
+    spots = [f"{k}: {abs(v['avg_ev_loss']):.2f}bb/karar (n={v['n']})"
+             for k, v in sorted(cats.items(),
+                                key=lambda kv: abs(kv[1].get("avg_ev_loss", 0)),
+                                reverse=True) if v.get("n")][:5]
     return {
         "daily_goal": "75 drills + 150 fast-play hands",
-        "drills_today": 42,
-        "preflop_accuracy": 84,
-        "postflop_accuracy": 71,
-        "river_score": 68,
-        "icm_discipline": 76,
-        "math_reflex": 81,
-        "ev_loss_per_100": 22.6,
-        "skill_score": 742,
-        "streak": 6,
-        "progress_7d": [62, 65, 67, 66, 71, 74, 78],
-        "expensive_spots": [
-            "River overbet call with weak blocker: -3.2bb",
-            "Bubble AJo call-off 18bb: -2.7 $EV",
-            "Turn paired-board barrel: -1.8bb",
-            "BB fold vs BTN min-open: -0.9bb",
-            "Missed thin value on river: -0.7bb",
-        ],
+        "drills_today": n_dec,                     # gerçek karar hacmi
+        "preflop_accuracy": pre,
+        "postflop_accuracy": postflop,
+        "river_score": river,
+        "icm_discipline": icm,
+        "math_reflex": overall,
+        "ev_loss_per_100": float(avg_ev),
+        "skill_score": overall * 10 if n_dec else 0,   # gerçek doğruluktan (0-1000)
+        "streak": 0,                               # streak takibi yok → sahte 6 değil
+        "progress_7d": [overall] if n_dec else [0],    # non-empty şart; gerçek nokta
+        "expensive_spots": spots or ["Henüz yeterli veri yok — oyna / drill çöz"],
     }
 
 
