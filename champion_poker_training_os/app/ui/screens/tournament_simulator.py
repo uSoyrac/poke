@@ -356,6 +356,11 @@ class TournamentSimulatorScreen(QWidget):
         self._bot_timer.timeout.connect(self._tick_bot)
         self._between_hands = False
         self._recorder = DecisionRecorder()   # hero karar yakalama (reveal/grade)
+        # D133: OTO-AKIŞ — eller otomatik dağıtılır (kullanıcı 500 kez SPACE
+        # basmasın). El-sonu analiz paneli artık BLOKLAMAZ; '📋 Son El' butonuyla
+        # İSTENİRSE açılır (açıkken oto-akış DURUR ki okunabilsin), kapanınca akar.
+        self._reveal_pinned = False
+        self._last_review = None   # (log, graded, summary) — talep üzerine reveal
 
         # Background auto-play timer — fires every 250 ms regardless of
         # visibility.  When this tab is the active one it's a no-op; when
@@ -693,9 +698,22 @@ class TournamentSimulatorScreen(QWidget):
         )
         self.gto_btn.setMinimumHeight(32)
         self.gto_btn.clicked.connect(self._show_gto_popup)
+        # D133: el-sonu analizini İSTENİNCE aç/kapat (oto-akışta panel bloklamaz)
+        self.reveal_btn = QPushButton("📋 Son El")
+        self.reveal_btn.setToolTip("Son elin GTO analizini aç/kapat — açıkken oto-akış durur")
+        self.reveal_btn.setStyleSheet(
+            "QPushButton { background:#1c1708; color:#e0a33e; border:1px solid #6b5320; "
+            "font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; "
+            "letter-spacing:1px; padding:5px 12px; }"
+            "QPushButton:hover { background:#241d0c; }"
+        )
+        self.reveal_btn.setMinimumHeight(32)
+        self.reveal_btn.clicked.connect(self._toggle_reveal)
+        self.reveal_btn.setEnabled(False)
         self.gto_range = GTORangeWidget()
         self.gto_range.setMaximumHeight(52)
         gto_row.addWidget(self.gto_btn)
+        gto_row.addWidget(self.reveal_btn)
         gto_row.addWidget(self.gto_range, 1)
         deck_v.addLayout(gto_row)
 
@@ -801,8 +819,12 @@ class TournamentSimulatorScreen(QWidget):
             return
         self._recorder.reset()
         self._await_space = False
+        self._reveal_pinned = False          # D133: yeni el → analiz paneli sıfırla
         if hasattr(self, "gto_reveal"):
             self.gto_reveal.hide_panel()
+        if hasattr(self, "reveal_btn"):
+            self.reveal_btn.setText("📋 Son El")
+            self.reveal_btn.setEnabled(False)
         self._apply_icm_pressure()
         self.tournament.start_hand()
         self._refresh_table()
@@ -1572,10 +1594,20 @@ class TournamentSimulatorScreen(QWidget):
             from app.poker.session_score import SessionScore
             self._session_score = SessionScore()
         self._session_score.add_hand(self._recorder.log)
+        # D133: analizi sakla; oto-akışta paneli AÇMA (bloklamasın) — yalnız
+        # '📋 Son El' butonu aktifleşir. Real-XP / panel pinli ise göster.
+        self._last_review = (list(self._recorder.log), _real_xp,
+                             self._session_score.summary())
+        _has_review = any(d.get("hero_action") for d in self._recorder.log)
         if hasattr(self, "gto_reveal"):
-            self.gto_reveal.show_decisions(
-                self._recorder.log, graded=_real_xp,
-                session_summary=self._session_score.summary())
+            if _real_xp or self._reveal_pinned:
+                self.gto_reveal.show_decisions(
+                    self._recorder.log, graded=_real_xp,
+                    session_summary=self._session_score.summary())
+            else:
+                self.gto_reveal.hide_panel()
+        if hasattr(self, "reveal_btn"):
+            self.reveal_btn.setEnabled(_has_review)
         try:
             from app.db.repository import record_decision_log
             record_decision_log(self._recorder.log)
@@ -1698,26 +1730,48 @@ class TournamentSimulatorScreen(QWidget):
             QTimer.singleShot(900, self._build_report)
         else:
             self._between_hands = True
-            # Hero bu eli OYNADIYSA (karar verdiyse) el-sonu GTO reveal'ı
-            # okuması için OTOMATİK dağıtma — SPACE ile geçsin (panel artık
-            # "açılıp kapanmıyor"). Sadece hero'nun karışmadığı eller oto-akar.
-            has_review = any(d.get("hero_action") for d in self._recorder.log)
-            self._await_space = _real_xp or has_review
+            # D133: OTO-AKIŞ varsayılan — hero oynasa da otomatik dağıt (500 kez
+            # SPACE yok). YALNIZ Real-XP modu ya da '📋 Son El' paneli pinliyse
+            # bekle (okuma için). Panel pinliyse hiç dağıtma; değilse 1.6s sonra ak.
+            self._await_space = _real_xp or self._reveal_pinned
             if self._await_space:
                 self.feedback_label.setText(
                     self.feedback_label.text() + "   ·   ▸ SPACE → sonraki el")
             else:
-                QTimer.singleShot(1400, self._maybe_auto_deal_next)
+                QTimer.singleShot(1600, self._maybe_auto_deal_next)
 
     def _maybe_auto_deal_next(self):
-        # Hero el oynadıysa / Real Experience → sadece manuel (SPACE) ilerleme.
-        if getattr(self, "_await_space", False):
+        # Real-XP / SPACE bekleme / analiz paneli pinli → otomatik dağıtma.
+        if getattr(self, "_await_space", False) or getattr(self, "_reveal_pinned", False):
             return
         if bool(getattr(getattr(self, "state", None), "real_experience", False)):
             return
         if self._between_hands:
             self._between_hands = False
             self._deal_next_hand()
+
+    def _toggle_reveal(self):
+        """📋 Son El — el-sonu analizini aç/kapat (D133).
+
+        Açıkken oto-akış DURUR (panel pinli) ki tüm veriler okunabilsin; kapanınca
+        akış devam eder (eller arasıysa hemen sonrakini dağıtır)."""
+        if not hasattr(self, "gto_reveal"):
+            return
+        showing = self.gto_reveal.isVisible() and self._reveal_pinned
+        if showing:
+            self._reveal_pinned = False
+            self.gto_reveal.hide_panel()
+            self.reveal_btn.setText("📋 Son El")
+            # Akışa geri dön: eller arasıysak sonrakini dağıt
+            if self._between_hands and not getattr(self, "_await_space", False):
+                QTimer.singleShot(150, self._maybe_auto_deal_next)
+        else:
+            if not self._last_review:
+                return
+            self._reveal_pinned = True
+            log, graded, summary = self._last_review
+            self.gto_reveal.show_decisions(log, graded=graded, session_summary=summary)
+            self.reveal_btn.setText("📋 Kapat")
 
     def _space_pressed(self):
         """Spacebar — skip the inter-hand wait to deal immediately."""
