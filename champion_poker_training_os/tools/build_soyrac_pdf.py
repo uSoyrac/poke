@@ -104,7 +104,7 @@ def _insert_figs(chapter_html, chap_n):
         return ""
     out = re.sub(r'<div class="figref"[^>]*data-fig="([^"]*)"[^>]*>.*?</div>', repl, chapter_html, flags=re.S)
     # bolum basina ana flowchart (1=system, 6=preflop, 11=postflop, 12=icm)
-    lead = {1: "system", 6: "preflop", 11: "postflop", 12: "icm"}.get(chap_n)
+    lead = {1: "system", 6: "preflop", 11: "postflop", 13: "icm"}.get(chap_n)
     if lead and 'figwrap' not in out[:1500]:
         out = re.sub(r'(</h2>)', r'\1\n<figure class="figwrap">' + FIGS[lead]() + f'<figcaption>Sekil — {lead}</figcaption></figure>', out, count=1)
     return out
@@ -159,14 +159,20 @@ def build(result_path):
 
     parts = []
     # KAPAK
-    parts.append('<div class="cover"><h1>SOYRAC</h1><div class="sub">Insan-Hesaplanabilir Poker Karar Sistemi<br>Felsefe · Mantik · GTO &amp; ICM Karsiliklari · Ornekler</div>'
+    parts.append('<div class="cover"><h1>SOYRAC</h1><div class="sub">İnsan-Hesaplanabilir Poker Karar Sistemi<br>Felsefe · Mantık · GTO &amp; ICM Karşılıkları · Örnekler</div>'
                  '<div class="badges" style="margin-top:30mm"><span>Preflop GTO uyumu %91</span><span>Postflop %93</span><span>ICM %91</span><span>Cash +46…+80 bb/100</span></div>'
-                 '<div class="meta">Bridge HCP ve Blackjack Hi-Lo felsefesiyle · ampirik dogrulanmis · ogretici el kitabi</div></div>')
+                 '<div class="meta">Bridge HCP ve Blackjack Hi-Lo felsefesiyle · ampirik doğrulanmış · öğretici el kitabı</div></div>')
+
+    def _toc_title(c):
+        m = re.search(r"<h2>(.*?)</h2>", _strip_fence((c.get("data") or {}).get("chapter_html", "")), re.S)
+        t = re.sub(r"<[^>]+>", "", m.group(1)).strip() if m else c["t"]
+        return re.sub(r"^Bölüm\s+\d+\.\s*", "", t)        # numarayi TOC sayaci verir
+
     # ICINDEKILER
-    toc = '<div class="toc"><h2>Icindekiler</h2><ol>'
+    toc = '<div class="toc"><h2>İçindekiler</h2><ol>'
     for c in chapters:
-        toc += f'<li>{html.escape(c["t"])}</li>'
-    toc += '<li>Sozluk (Glossary)</li></ol></div>'
+        toc += f'<li>{html.escape(_toc_title(c))}</li>'
+    toc += '<li>Sözlük (Glossary)</li></ol></div>'
     parts.append(toc)
 
     # BOLUMLER
@@ -184,10 +190,10 @@ def build(result_path):
     # EDITOR KAPATICI NOTLAR
     cn = (review or {}).get("closing_notes_html", "")
     if cn:
-        parts.append(f'<div class="chapter"><h2>Editor Notlari</h2>{_strip_fence(cn)}</div>')
+        parts.append(f'<div class="chapter"><h2>Editör Notları</h2>{_strip_fence(cn)}</div>')
 
     # SOZLUK
-    gl = '<div class="chapter gloss"><h2>Sozluk (Glossary)</h2><dl>'
+    gl = '<div class="chapter gloss"><h2>Sözlük (Glossary)</h2><dl>'
     for t in sorted(glossary, key=str.lower):
         gl += f'<dt>{html.escape(t)}</dt><dd>{html.escape(glossary[t])}</dd>'
     gl += '</dl></div>'
