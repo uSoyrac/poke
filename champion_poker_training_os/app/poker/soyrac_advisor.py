@@ -96,7 +96,9 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
 
     if "3-bet" in sc or "3bet" in sc or "vs 3" in sc:   # blocker ekseni
         b4 = _b4_blocker(hand_key)
-        call_t = (4 if hu else _VS_RFI.get(pos, (9, 16))[0] + 2) + icm_adj
+        # LEAK FIX: 3-bet pot'ta GTO ÇOĞU eli folder (sadece JJ+/AQs+/KQs flat,
+        # premium 4-bet). Eski call_t (~8) %53 over-call sızdırıyordu (22-88/broadway).
+        call_t = (10 if hu else 22) + icm_adj
         act = "4-BET" if b4 >= 2 else ("CALL" if score >= call_t else "FOLD")
         return {"score": score, "b4": b4, "action": act, "scenario": "vs 3-bet",
                 "line": f"🧮 SHCP {score} · B4 blocker {b4} → {act}  (vs 3-bet)"}
