@@ -106,9 +106,18 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         if not hu:
             call_t += _OPENER_ADJ.get((vs_position or "").upper(), 1)
         act = "3-BET" if score >= raise_t else ("CALL" if score >= call_t else "FOLD")
+        # 6-max AGRESYON (D148): geç açana karşı suited-wheel-As (A2s-A5s) 3-BET BLÖF.
+        # Bu eller AA/AK'yı bloklar + nut-floş yedek-equity'si var; 3bet'i %5→~%10'a
+        # çıkarır (6-max GTO hedefi), expert'e karşı sömürülmeyi azaltır.
+        bluff3 = ""
+        if not hu and act in ("CALL", "FOLD") and \
+                (vs_position or "").upper() in ("CO", "BTN", "SB", "HJ") and \
+                _b4_blocker(hand_key) >= 2:
+            act = "3-BET"
+            bluff3 = " (blocker blöf)"
         return {"score": score, "call_t": call_t, "raise_t": raise_t,
                 "action": act, "scenario": "vs RFI",
-                "line": f"🧮 SHCP {score} · {pos}{' HU' if hu else ''} call≥{call_t}/3bet≥{raise_t} → {act}"}
+                "line": f"🧮 SHCP {score} · {pos}{' HU' if hu else ''} call≥{call_t}/3bet≥{raise_t} → {act}{bluff3}"}
 
     # RFI (açış) — pozisyon eşiği (puana eklenmez); HU'da çok düşük (geniş aç)
     thr = (3 if hu else _RFI.get(pos, 13)) + icm_adj + deep_adj
