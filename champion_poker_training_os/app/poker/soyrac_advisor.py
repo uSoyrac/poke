@@ -68,42 +68,46 @@ def _b4_blocker(hand_key: str) -> int:
 
 def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                   vs_position: str = "", stack_bb: float = 100,
-                  icm: bool = False) -> dict:
-    """SENİN elin için masada-yapılabilir değerlendirme → {score, action, line, ...}."""
+                  icm: bool = False, n_active: int = 9) -> dict:
+    """SENİN elin için masada-yapılabilir değerlendirme → {score, action, line, ...}.
+
+    n_active<=2 → HEADS-UP modu: range'ler çok genişler (HU'da BTN/SB ~%85 açar,
+    BB ~%70 savunur). Full-ring eşikleri HU'da çok sıkıdır (turnuvayı kapatamazsın)."""
     score = shcp_score(hand_key)
     pos = (position or "BTN").upper()
     icm_adj = 1 if icm else 0
     deep_adj = 1 if stack_bb <= 40 else 0
+    hu = n_active <= 2
     sc = (scenario or "RFI").lower()
 
     if "push" in sc or stack_bb < 15:              # kısa stack → equity ekseni
-        jam = score >= 16
+        jam = score >= (10 if hu else 16)          # HU'da çok geniş jam
         return {"score": score, "action": "JAM" if jam else "FOLD",
                 "scenario": "Push/Fold",
-                "line": f"🧮 SHCP {score} · kısa stack → {'JAM' if jam else 'FOLD'} (equity ekseni)"}
+                "line": f"🧮 SHCP {score} · kısa stack{' HU' if hu else ''} → {'JAM' if jam else 'FOLD'}"}
 
     if "3-bet" in sc or "3bet" in sc or "vs 3" in sc:   # blocker ekseni
         b4 = _b4_blocker(hand_key)
-        call_t = _VS_RFI.get(pos, (9, 16))[0] + 2 + icm_adj
+        call_t = (4 if hu else _VS_RFI.get(pos, (9, 16))[0] + 2) + icm_adj
         act = "4-BET" if b4 >= 2 else ("CALL" if score >= call_t else "FOLD")
         return {"score": score, "b4": b4, "action": act, "scenario": "vs 3-bet",
-                "line": f"🧮 SHCP {score} · B4 blocker {b4} → {act}  (vs 3-bet: blocker ekseni)"}
+                "line": f"🧮 SHCP {score} · B4 blocker {b4} → {act}  (vs 3-bet)"}
 
     if "vs rfi" in sc or "vs açış" in sc or "vs_rfi" in sc:
-        call_t, raise_t = _VS_RFI.get(pos, (9, 16))
+        call_t, raise_t = (2, 14) if hu else _VS_RFI.get(pos, (9, 16))
         call_t += icm_adj
         raise_t += icm_adj
         act = "3-BET" if score >= raise_t else ("CALL" if score >= call_t else "FOLD")
         return {"score": score, "call_t": call_t, "raise_t": raise_t,
                 "action": act, "scenario": "vs RFI",
-                "line": f"🧮 SHCP {score} · {pos} call≥{call_t}/3bet≥{raise_t} → {act}"}
+                "line": f"🧮 SHCP {score} · {pos}{' HU' if hu else ''} call≥{call_t}/3bet≥{raise_t} → {act}"}
 
-    # RFI (açış) — pozisyon eşiği (puana eklenmez)
-    thr = _RFI.get(pos, 13) + icm_adj + deep_adj
+    # RFI (açış) — pozisyon eşiği (puana eklenmez); HU'da çok düşük (geniş aç)
+    thr = (3 if hu else _RFI.get(pos, 13)) + icm_adj + deep_adj
     rel = "≥" if score >= thr else "<"
     act = "RAISE (AÇ)" if score >= thr else "FOLD"
     return {"score": score, "threshold": thr, "action": act, "scenario": "RFI",
-            "line": f"🧮 SHCP {score} {rel} {pos} eşik {thr} → {act}"}
+            "line": f"🧮 SHCP {score} {rel} {pos}{' HU' if hu else ''} eşik {thr} → {act}"}
 
 
 def advice_from_hand(hand, hero_idx: int, stack_bb: float = 100,
@@ -118,9 +122,14 @@ def advice_from_hand(hand, hero_idx: int, stack_bb: float = 100,
             return None
         hk = _hk(hero.hole_cards[0], hero.hole_cards[1])
         adv = live_gto_advice(hand, hero_idx, mode="MTT")
+        n_active = getattr(hand, "active_count", None)
+        if not n_active:
+            n_active = sum(1 for pl in hand.players
+                           if not getattr(pl, "is_folded", False)
+                           and not getattr(pl, "is_eliminated", False))
         return soyrac_advice(hk, hero.position,
                              scenario=getattr(adv, "scenario_key", "RFI") or "RFI",
                              vs_position=getattr(adv, "vs_position", "") or "",
-                             stack_bb=stack_bb, icm=icm)
+                             stack_bb=stack_bb, icm=icm, n_active=n_active or 9)
     except Exception:
         return None

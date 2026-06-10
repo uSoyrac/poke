@@ -175,16 +175,16 @@ if __name__ == "__main__":
              "Reg", "Nit", "Fish"]          # 8 rakip (elitler dahil) — eşit masada
     # 10 SNG
     sng_place = defaultdict(list)
-    for s in range(20):
+    for s in range(30):
         place, hh = run_sng(FIELD, seed=100 + s)
         for nm, pl in place.items():
             sng_place[nm].append(pl)
-        print(f"SNG {s+1}/20: Soyrac yeri = {place['Soyrac']}/9 ({hh} el)", flush=True)
-    print("\n=== 20 SNG ORTALAMA YER (1=şampiyon, 9=son) ===")
+        print(f"SNG {s+1}/30: Soyrac yeri = {place['Soyrac']}/9 ({hh} el)", flush=True)
+    print("\n=== 30 SNG ORTALAMA YER (1=şampiyon, 9=son) ===")
     for nm in ["Soyrac"] + FIELD:
         pls = sng_place[nm]
         itm = sum(1 for p in pls if p <= 3)
-        print(f"  {nm:<12} ort.yer {sum(pls)/len(pls):.2f}  · top3(ITM) {itm}/20  · win {pls.count(1)}")
+        print(f"  {nm:<12} ort.yer {sum(pls)/len(pls):.2f}  · top3(ITM) {itm}/30  · win {pls.count(1)}")
     # 5 CASH
     print("\n=== 10 CASH (6-max, 300 el) bb/100 ===")
     cash_agg = defaultdict(list)
