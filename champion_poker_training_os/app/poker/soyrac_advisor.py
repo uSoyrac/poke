@@ -72,7 +72,7 @@ def _b4_blocker(hand_key: str) -> int:
 
 def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                   vs_position: str = "", stack_bb: float = 100,
-                  icm: bool = False, n_active: int = 9) -> dict:
+                  icm: bool = False, n_active: int = 9, tourney: bool = False) -> dict:
     """SENİN elin için masada-yapılabilir değerlendirme → {score, action, line, ...}.
 
     n_active<=2 → HEADS-UP modu: range'ler çok genişler (HU'da BTN/SB ~%85 açar,
@@ -81,6 +81,10 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
     pos = (position or "BTN").upper()
     icm_adj = 1 if icm else 0
     deep_adj = 1 if stack_bb <= 40 else 0
+    # TURNUVA SIKILAŞTIRMA (D150): turnuvada reload yok → survival için açış/savunma
+    # eşiklerini +2 sık (cash'te tourney=False → loose-optimal korunur, #1). MTT'de
+    # daha az el = daha uzun yaşam (nit/ICM-Expert gibi ladder).
+    tourney_adj = 2 if (tourney and not n_active <= 2) else 0
     hu = n_active <= 2
     sc = (scenario or "RFI").lower()
 
@@ -99,7 +103,7 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
 
     if "vs rfi" in sc or "vs açış" in sc or "vs_rfi" in sc:
         call_t, raise_t = (2, 14) if hu else _VS_RFI.get(pos, (9, 16))
-        call_t += icm_adj
+        call_t += icm_adj + tourney_adj
         raise_t += icm_adj
         # 6-max FIX: savunma açanın pozisyonuna göre kayar (erken açana sıkı,
         # geç açana geniş). Düz BB savunması VPIP'i şişiriyordu (%61 → GTO-uyumlu).
@@ -120,7 +124,7 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                 "line": f"🧮 SHCP {score} · {pos}{' HU' if hu else ''} call≥{call_t}/3bet≥{raise_t} → {act}{bluff3}"}
 
     # RFI (açış) — pozisyon eşiği (puana eklenmez); HU'da çok düşük (geniş aç)
-    thr = (3 if hu else _RFI.get(pos, 13)) + icm_adj + deep_adj
+    thr = (3 if hu else _RFI.get(pos, 13)) + icm_adj + deep_adj + tourney_adj
     rel = "≥" if score >= thr else "<"
     act = "RAISE (AÇ)" if score >= thr else "FOLD"
     return {"score": score, "threshold": thr, "action": act, "scenario": "RFI",
@@ -128,7 +132,7 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
 
 
 def advice_from_hand(hand, hero_idx: int, stack_bb: float = 100,
-                     icm: bool = False) -> "dict | None":
+                     icm: bool = False, tourney: bool = False) -> "dict | None":
     """Canlı HandState'ten doğrudan: senaryoyu live_gto_advice ile aynı tespit edip
     SHCP satırı üret (gerçek motorla TUTARLI scenario)."""
     try:
@@ -147,6 +151,7 @@ def advice_from_hand(hand, hero_idx: int, stack_bb: float = 100,
         return soyrac_advice(hk, hero.position,
                              scenario=getattr(adv, "scenario_key", "RFI") or "RFI",
                              vs_position=getattr(adv, "vs_position", "") or "",
-                             stack_bb=stack_bb, icm=icm, n_active=n_active or 9)
+                             stack_bb=stack_bb, icm=icm, n_active=n_active or 9,
+                             tourney=tourney)
     except Exception:
         return None

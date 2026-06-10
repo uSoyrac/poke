@@ -30,6 +30,13 @@ class SoyracBrain:
     def set_opponent_read(self, *a, **k):
         pass
 
+    # TURNUVA SURVIVAL (D150 GERİ ALINDI): flat survival-ICM (0.06) test edildi →
+    # aşırı sıktı, derin-koşu agresyonunu öldürdü (full-expert FT %7.5→%0). MTT'de
+    # derin-koşu > marjinal survival (bubble hariç). Floor KALDIRILDI; sadece
+    # harness'in verdiği bubble-ICM (icm_pressure_for) geçer.
+    def _surv_icm(self):
+        return self.icm_pressure
+
     def _equity(self, p, state):
         try:
             from app.poker.equity import monte_carlo_equity
@@ -54,11 +61,12 @@ class SoyracBrain:
             # TURNUVA SHORT-STACK (D149): <22bb + tournament → kanıtlı push/fold'a
             # DELEGE (Nash jam çok daha geniş; SHCP score≥16 jam ÇOK sıkıydı → körler
             # yiyip MTT geç-aşamada bust). Derin (≥22bb) oyun SHCP kalır.
-            if self.tournament_mode and eff < 22:
-                self._gto.icm_pressure = self.icm_pressure
-                self._gto.tournament_mode = True
-                return self._gto.decide(state, idx)
-            adv = advice_from_hand(state, idx, stack_bb=eff, icm=self.icm_pressure > 0)
+            if self.tournament_mode:        # TURNUVA: preflop'u DA kanıtlı tournament
+                self._gto.icm_pressure = self.icm_pressure   # mantığa tam-delege
+                self._gto.tournament_mode = True             # (SHCP cash sistemi; MTT
+                return self._gto.decide(state, idx)          # ayrı modül = GTO Expert)
+            adv = advice_from_hand(state, idx, stack_bb=eff, icm=self.icm_pressure > 0,
+                                   tourney=self.tournament_mode)
             act = (adv or {}).get("action", "FOLD")
             if act == "JAM" and ActionType.ALL_IN in valid:
                 return ActionType.ALL_IN, p.stack
@@ -83,7 +91,7 @@ class SoyracBrain:
         # POSTFLOP — KAZANAN pipeline'a DELEGE: GTO Expert'in board-aware
         # _hand_strength + _gto_postflop_action + commit-gate + eq-0.16 haircut'i.
         # (v1'in board-kör monte_carlo_equity leak'i bununla kapanır.)
-        self._gto.icm_pressure = self.icm_pressure
+        self._gto.icm_pressure = self._surv_icm()
         self._gto.tournament_mode = self.tournament_mode
         return self._gto.decide(state, idx)
 
@@ -175,6 +183,7 @@ def run_cash(opponents, hands_n, seed=0):
                    ante=0, hero_seat=0, bot_archetypes=names[1:],
                    player_names=[f"a{i}" for i in range(1, n)], paced_bots=True)
     soy = SoyracBrain()
+    soy.tournament_mode = False          # cash = chip-EV (survival ICM YOK)
     for b in gl.bots.values():
         b.tournament_mode = True
     net = defaultdict(float)

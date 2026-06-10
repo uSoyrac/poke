@@ -26,6 +26,7 @@ def cash_stats(opps, hands, seed=1):
                    ante=0, hero_seat=0, bot_archetypes=names[1:],
                    player_names=[f'a{i}' for i in range(1, n)], paced_bots=True)
     soy = StatBrain()
+    soy.tournament_mode = False          # cash = chip-EV (survival ICM YOK)
     for b in gl.bots.values(): b.tournament_mode = True
     for h in range(hands):
         DEC.clear()
