@@ -9,9 +9,14 @@ from app.poker.postflop_gto import classify_board, cbet_strategy, defend_strateg
 
 BB = BotBrain(BOT_ARCHETYPES["GTO Expert"])
 
-def human_checked(strength, draws):
-    # İnsan: ORTA+ (value) veya gerçek çekme (semi-blöf) → BET, yoksa CHECK
-    return "bet" if (strength >= 0.58 or draws >= 0.32) else "check"
+def human_checked(strength, draws, tex):
+    # GELİŞTİRİLMİŞ insan kuralı (masada kolay):
+    #  KURU board (gökkuşağı/bağlantısız) + agresör → RANGE-CBET: elin ne olursa
+    #  olsun küçük bas (GTO kuru board'da yüksek frekans blöf-cbet yapar).
+    #  ISLAK board → polarize: sadece güçlü el / iyi çekme bas, gerisini çek.
+    if tex.wetness < 0.30:
+        return "bet"
+    return "bet" if (strength >= 0.62 or draws >= 0.40) else "check"
 
 def engine_checked(eq, tex, street):
     bet_f, _ = cbet_strategy(eq, tex, True, True, street, 2)
@@ -40,7 +45,7 @@ def run(n_per_street=4000, seed=42):
             try: tex = classify_board(board)
             except Exception: continue
             # bağlam 1: check-edildi (cbet kararı)
-            h1, e1 = human_checked(strength, draws), engine_checked(eq, tex, street)
+            h1, e1 = human_checked(strength, draws, tex), engine_checked(eq, tex, street)
             acc[(street, "checked→cbet")][0] += int(h1 == e1); acc[(street, "checked→cbet")][1] += 1
             # bağlam 2: yarım-pot bahis karşısında (defend kararı)
             h2, e2 = human_facing(strength, eq, be), engine_facing(eq, tex, pot, to_call)
