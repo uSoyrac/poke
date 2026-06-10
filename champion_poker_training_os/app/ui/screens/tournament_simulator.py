@@ -653,7 +653,21 @@ class TournamentSimulatorScreen(QWidget):
         cl.addWidget(self.history_card)
 
         cl.addStretch(1)
-        pl.addWidget(scroll, 1)
+
+        # D157: Soyrac Canlı Koç paneli — masanın SAĞINA dock (öğretici; oynarken
+        # 'nasıl düşün' gösterir). Toggle ⌘K, 3 mod. soyrac_advice/grading DEĞİŞMEZ.
+        table_row = QHBoxLayout()
+        table_row.setContentsMargins(0, 0, 0, 0)
+        table_row.setSpacing(0)
+        table_row.addWidget(scroll, 1)
+        try:
+            from app.ui.components.soyrac_coach_panel import SoyracCoachPanel
+            self.soyrac_panel = SoyracCoachPanel()
+            self.soyrac_panel.study_leak.connect(self._on_soyrac_leak)
+            table_row.addWidget(self.soyrac_panel, 0)
+        except Exception:
+            self.soyrac_panel = None
+        pl.addLayout(table_row, 1)
 
         # ACTION DECK (sticky bottom)
         self.action_deck = self._build_action_deck()
@@ -967,6 +981,13 @@ class TournamentSimulatorScreen(QWidget):
             amount = hero.stack
 
         self._recorder.attach_hero(action_type, amount, bb=max(hand.big_blind, 1))
+        # D157: Soyrac koç — aksiyonu öğretici panele bildir (HINT flash / QUIZ
+        # reveal+ders / leak). _refresh_table _last_explain'i ezmeden ÖNCE.
+        if getattr(self, "soyrac_panel", None) and getattr(self, "_last_soyrac_explain", None):
+            try:
+                self.soyrac_panel.on_hero_acted(action_type.name, snap=True)
+            except Exception:
+                pass
         self.tournament.hero_act(action_type, amount)
         self._refresh_table()
 
@@ -1230,23 +1251,25 @@ class TournamentSimulatorScreen(QWidget):
                     reveal_action=False,   # eğitim modu: cevabı el sonunda göster
                     advice=_adv,           # gerçek senaryo (RFI/vs-3bet/push…)
                 )
-                # D140: SENİN için canlı Soyrac HCP satırı (preflop, masada-yapılabilir)
-                if hasattr(self, "soyrac_lbl"):
+                # D157: canlı Soyrac KOÇ paneli (preflop+postflop öğretici).
+                # Real Experience Mode'da gizli (gerçek deneyim, ipucu yok).
+                if getattr(self, "soyrac_panel", None) and not _real_xp:
                     try:
-                        from app.poker.soyrac_advisor import soyrac_advice
+                        from app.poker.soyrac_advisor import soyrac_explain
                         _icm = bool(getattr(self, "_cur_icm", 0))
-                        _sa = soyrac_advice(
+                        _exp = soyrac_explain(
                             hero_hk or "", pos,
                             scenario=getattr(_adv, "scenario_key", "RFI") or "RFI",
                             vs_position=getattr(_adv, "vs_position", "") or "",
-                            stack_bb=stack_bb, icm=_icm)
-                        if hero_hk and not hand.community:
-                            self.soyrac_lbl.setText(_sa["line"])
-                            self.soyrac_lbl.show()
-                        else:
-                            self.soyrac_lbl.hide()
+                            stack_bb=stack_bb, icm=_icm,
+                            hand=hand, hero_idx=hand.hero_idx)
+                        if hero_hk:
+                            self.soyrac_panel.on_decision_point(_exp)
+                            self._last_soyrac_explain = _exp
                     except Exception:
-                        self.soyrac_lbl.hide()
+                        pass
+                if hasattr(self, "soyrac_lbl"):
+                    self.soyrac_lbl.hide()
         # Flag the most-aggressive non-hero as villain
         villain_idx = None
         max_bet = 0.0
@@ -1407,6 +1430,9 @@ class TournamentSimulatorScreen(QWidget):
         _sz = _st.live_gto.get("sizing") if (_st and getattr(_st, "live_gto", None)) else None
         self._recorder.capture(hand, hero_idx, gto, bb=bb, sizing=_sz,
                                fmt="mtt", stage=self._tourn_stage())
+        # D157: Soyrac önerisini el-sonu review için snapshot'a iliştir
+        if not _real_xp and getattr(self, "_last_soyrac_explain", None) and self._recorder.log:
+            self._recorder.log[-1]["soyrac_action"] = self._last_soyrac_explain.get("action")
 
         def lbl(base: str, atype) -> str:
             # Oyun sırasında ASLA GTO cevabı/%'si gösterme (her iki modda).
@@ -1661,6 +1687,13 @@ class TournamentSimulatorScreen(QWidget):
         )
         self.field_strip.show()
 
+    def _on_soyrac_leak(self, leak: str):
+        """Soyrac koç bir sapma/leak yakaladı → koç mesajı (Leak Finder köprüsü)."""
+        try:
+            self.coach_message.emit(f"📌 Soyrac dersi: {leak}")
+        except Exception:
+            pass
+
     def _on_hand_complete(self):
         if not self.tournament:
             return
@@ -1676,6 +1709,24 @@ class TournamentSimulatorScreen(QWidget):
         # '📋 Son El' butonu aktifleşir. Real-XP / panel pinli ise göster.
         _summary = self._session_score.summary()
         self._last_review = (list(self._recorder.log), _real_xp, _summary)
+        # D157: Soyrac koç el-sonu mini-review (Sen ↔ Soyrac + ders)
+        if getattr(self, "soyrac_panel", None) and not _real_xp:
+            try:
+                from app.poker.soyrac_advisor import soyrac_leak_category
+                _rows = []
+                for d in self._recorder.log:
+                    _ha, _soy = d.get("hero_action"), d.get("soyrac_action")
+                    if not _ha or not _soy:
+                        continue
+                    _street = d.get("street", "") or "—"
+                    _phase = "preflop" if _street.lower() in ("preflop", "", "—") else "postflop"
+                    _leak = soyrac_leak_category(
+                        {"phase": _phase, "scenario": d.get("scenario", ""), "action": _soy}, _ha)
+                    _rows.append({"street": _street, "hero": _ha, "soyrac": _soy,
+                                  "aligned": _leak is None, "lesson": _leak})
+                self.soyrac_panel.on_hand_complete(_rows)
+            except Exception:
+                pass
         _has_review = any(d.get("hero_action") for d in self._recorder.log)
         # D136: hero karar verdiyse geçmişe ekle (el-el geri inceleme); cap 60.
         if _has_review:
