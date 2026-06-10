@@ -111,60 +111,85 @@ def _play_hand(stacks, archs, sb, bb, button, soyrac_seat=0):
 
 
 # ── SNG (9-max tek masa turnuva) ─────────────────────────────────────
+# FIX: TEK kalıcı oyun → buton doğal döner + eleme oyun-içi (is_eliminated).
 def run_sng(opponents, seed):
-    rng = random.Random(seed)
     names = ["Soyrac"] + list(opponents)        # seat0 = Soyrac
-    stacks = [1500.0] * len(names)
-    button = rng.randint(0, len(names) - 1)
-    finish = []                                  # bust sırası (ilk busted = son)
+    n = len(names)
+    gl = PokerGame(num_players=n, starting_stack=1500, small_blind=10, big_blind=20,
+                   ante=0, hero_seat=0, bot_archetypes=names[1:],
+                   player_names=[f"a{i}" for i in range(1, n)], paced_bots=True)
+    soy = SoyracBrain()
+    for b in gl.bots.values():
+        b.tournament_mode = True
     levels = [(10, 20), (15, 30), (25, 50), (40, 80), (60, 120), (100, 200),
               (150, 300), (250, 500), (400, 800), (600, 1200)]
+    finish = []                                  # bust sırası (ilk busted = son)
     hands = 0
-    while len([s for s in stacks if s > 0]) > 1:
-        sb, bb = levels[min(hands // 8, len(levels) - 1)]
-        alive_idx = [i for i, s in enumerate(stacks) if s > 0]
-        sub_stacks = [stacks[i] for i in alive_idx]
-        sub_archs = [names[i] for i in alive_idx]
-        soyrac_pos = alive_idx.index(0) if 0 in alive_idx else -1
-        if soyrac_pos < 0:
-            break
-        # Soyrac'ı 0. koltuğa al (oynatıcı seat0=Soyrac bekliyor)
-        order = [soyrac_pos] + [j for j in range(len(alive_idx)) if j != soyrac_pos]
-        ss = [sub_stacks[j] for j in order]
-        sa = [sub_archs[j] for j in order]
-        res = _play_hand(ss, sa, sb, bb, button)
-        for k, j in enumerate(order):
-            stacks[alive_idx[j]] = res[k]
-        # bust kontrol
-        for i in list(range(len(stacks))):
-            if stacks[i] <= 0 and i not in finish and i not in [f for f in finish]:
-                pass
-        newly = [i for i in range(len(stacks)) if stacks[i] <= 0 and i not in finish]
-        for i in newly:
-            finish.append(i)
-        button = (button + 1) % len(names)
+    while sum(1 for p in gl.players if p.stack > 0) > 1:
+        sb, bb = levels[min(hands // 10, len(levels) - 1)]
+        gl.small_blind, gl.big_blind = sb, bb
+        for p in gl.players:
+            if p.stack <= 0:
+                p.is_eliminated = True
+        gl.start_hand()
+        guard = 0
+        while guard < 800:
+            guard += 1
+            hh = gl.current_hand
+            if hh and hh.is_complete:
+                break
+            prog = gl.step_action()
+            if gl.is_waiting_for_hero:
+                at, amt = soy.decide(gl.current_hand, gl.current_hand.hero_idx)
+                gl.hero_act(at, amt)
+            elif not prog:
+                break
+        for i, p in enumerate(gl.players):
+            if p.stack <= 0 and i not in finish:
+                finish.append(i)
         hands += 1
-        if hands > 400:
+        if hands > 600:
             break
-    survivor = [i for i in range(len(stacks)) if stacks[i] > 0]
+    survivor = [i for i, p in enumerate(gl.players) if p.stack > 0]
     order_1st_to_last = survivor + finish[::-1]
     place = {idx: rank + 1 for rank, idx in enumerate(order_1st_to_last)}
-    return {names[i]: place.get(i, len(names)) for i in range(len(names))}, hands
+    return {names[i]: place.get(i, n) for i in range(n)}, hands
 
 
 # ── CASH (6-max bb/100) ──────────────────────────────────────────────
-def run_cash(opponents, hands_n, seed):
-    rng = random.Random(seed)
+# FIX: TEK kalıcı oyun + start_hand tekrarı → buton DOĞAL döner (pozisyonlar
+# rotasyon yapar). Eskiden her el fresh oyun = hep "hand 1" = dealer hep seat0
+# = Soyrac hep BTN sanılıyordu → erken pozisyonda aşırı geniş oynayıp spew.
+def run_cash(opponents, hands_n, seed=0):
     names = ["Soyrac"] + list(opponents)
-    net = defaultdict(float)
+    n = len(names)
     sb, bb, stack = 0.5, 1.0, 100.0
-    button = 0
+    gl = PokerGame(num_players=n, starting_stack=stack, small_blind=sb, big_blind=bb,
+                   ante=0, hero_seat=0, bot_archetypes=names[1:],
+                   player_names=[f"a{i}" for i in range(1, n)], paced_bots=True)
+    soy = SoyracBrain()
+    for b in gl.bots.values():
+        b.tournament_mode = True
+    net = defaultdict(float)
     for h in range(hands_n):
-        ss = [stack] * len(names)
-        res = _play_hand(ss, list(names), sb, bb, button)
-        for i in range(len(names)):
-            net[names[i]] += res[i] - stack
-        button = (button + 1) % len(names)
+        for p in gl.players:                 # cash: her el stack resetle
+            p.stack = stack
+            p.is_eliminated = False
+        gl.start_hand()
+        guard = 0
+        while guard < 800:
+            guard += 1
+            hh = gl.current_hand
+            if hh and hh.is_complete:
+                break
+            prog = gl.step_action()
+            if gl.is_waiting_for_hero:
+                at, amt = soy.decide(gl.current_hand, gl.current_hand.hero_idx)
+                gl.hero_act(at, amt)
+            elif not prog:
+                break
+        for i in range(n):
+            net[names[i]] += gl.players[i].stack - stack
     return {nm: round(100 * net[nm] / hands_n, 2) for nm in names}
 
 

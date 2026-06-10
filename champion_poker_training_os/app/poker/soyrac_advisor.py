@@ -21,6 +21,10 @@ _RFI = {"UTG": 15, "UTG+1": 15, "MP": 14, "LJ": 13, "HJ": 12,
 _VS_RFI = {"BB": (6, 16), "SB": (9, 17), "BTN": (9, 16), "CO": (10, 16),
            "HJ": (11, 16), "LJ": (12, 17), "MP": (12, 17), "UTG": (13, 18),
            "UTG+1": (13, 18)}
+# Açan-pozisyonu savunma eşiğini kaydırır (erken açana sıkı, geç açana geniş).
+# 6-max kalibrasyonu: düz BB savunması (%61) erken açışlara aşırı genişti.
+_OPENER_ADJ = {"UTG": 4, "UTG+1": 4, "MP": 3, "LJ": 3, "HJ": 2,
+               "CO": 1, "BTN": 0, "SB": 0}
 
 
 def shcp_score(hand_key: str) -> int:
@@ -97,6 +101,10 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         call_t, raise_t = (2, 14) if hu else _VS_RFI.get(pos, (9, 16))
         call_t += icm_adj
         raise_t += icm_adj
+        # 6-max FIX: savunma açanın pozisyonuna göre kayar (erken açana sıkı,
+        # geç açana geniş). Düz BB savunması VPIP'i şişiriyordu (%61 → GTO-uyumlu).
+        if not hu:
+            call_t += _OPENER_ADJ.get((vs_position or "").upper(), 1)
         act = "3-BET" if score >= raise_t else ("CALL" if score >= call_t else "FOLD")
         return {"score": score, "call_t": call_t, "raise_t": raise_t,
                 "action": act, "scenario": "vs RFI",
