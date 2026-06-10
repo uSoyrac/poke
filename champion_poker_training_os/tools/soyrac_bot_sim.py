@@ -51,6 +51,13 @@ class SoyracBrain:
         commit_all = (p.stack, )
 
         if state.street == Street.PREFLOP:
+            # TURNUVA SHORT-STACK (D149): <22bb + tournament → kanıtlı push/fold'a
+            # DELEGE (Nash jam çok daha geniş; SHCP score≥16 jam ÇOK sıkıydı → körler
+            # yiyip MTT geç-aşamada bust). Derin (≥22bb) oyun SHCP kalır.
+            if self.tournament_mode and eff < 22:
+                self._gto.icm_pressure = self.icm_pressure
+                self._gto.tournament_mode = True
+                return self._gto.decide(state, idx)
             adv = advice_from_hand(state, idx, stack_bb=eff, icm=self.icm_pressure > 0)
             act = (adv or {}).get("action", "FOLD")
             if act == "JAM" and ActionType.ALL_IN in valid:
