@@ -189,6 +189,11 @@ class SoyracCoachPanel(QFrame):
         self.chain.setVisible(False)
         self.flow.setVisible(False)
         self.review.setVisible(False)
+        # İlk açılış nötr durumu (boş "SHCP —" + beyaz çubuk göstermesin)
+        self.thresh_bar.setVisible(False)
+        self.score_badge.setText("🧮 Hazır")
+        self.decision_lbl.setText("El bekleniyor…")
+        self._set_tone(self.decision_lbl, "hidden")
         self._sync_mode_ui()
 
     # ════ MOD ════
@@ -214,6 +219,9 @@ class SoyracCoachPanel(QFrame):
         self._clear_flash()
         if not explain or self._mode == "silent":
             return
+        # review'dan dönüşte üst verdict'i geri göster
+        self.flash.setVisible(True)
+        self.expander.setVisible(True)
         score = explain.get("score")
         self.score_badge.setText(f"SHCP {score}" if score is not None else explain.get("tier", "—"))
         self.scenario_chip.setText(explain.get("scenario_label", ""))
@@ -308,6 +316,11 @@ class SoyracCoachPanel(QFrame):
             link.setCursor(Qt.PointingHandCursor)
             link.clicked.connect(lambda: self.study_leak.emit(worst))
             self.review_v.addWidget(link); self._review_rows.append(link)
+        # review odakta: üstteki karar-anı verdict'ini gizle (boş kart görünmesin)
+        self.flash.setVisible(False)
+        self.expander.setVisible(False)
+        self.chain.setVisible(False)
+        self.flow.setVisible(False)
         self.review.setVisible(True)
 
     # ════ yardımcılar ════
