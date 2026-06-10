@@ -86,8 +86,64 @@ def fig_icm():
     s.append('</svg>')
     return "".join(s)
 
+def fig_vs3bet():
+    s = [f'<svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" class="fig">{_DEFS}']
+    s.append(_box(270, 10, 180, 40, "#FBEAF0", "#993556", "#4B1528", "Rakip 3-BET yaptı", "(3-bet pot)"))
+    s.append(_box(40, 95, 170, 50, "#E1F5EE", "#0F6E56", "#04342C", "Premium?", "QQ+ / AK → 4-BET"))
+    s.append(_box(275, 95, 170, 50, "#EAF3DE", "#3B6D11", "#173404", "Çok güçlü?", "JJ+/AQs+/KQs → CALL"))
+    s.append(_box(510, 95, 180, 50, "#FCEBEB", "#A32D2D", "#501313", "Gerisi", "→ KATLA (fold)"))
+    s.append(_box(40, 180, 170, 44, "#EEEDFE", "#534AB7", "#26215C", "Blocker blöf", "A2s-A5s → 4-BET"))
+    s.append(_arrow(330, 50, 125, 95)); s.append(_arrow(360, 50, 360, 95)); s.append(_arrow(390, 50, 600, 95))
+    s.append(_arrow(125, 145, 125, 180))
+    s.append('</svg>'); return "".join(s)
+
+def fig_bb():
+    s = [f'<svg viewBox="0 0 720 210" xmlns="http://www.w3.org/2000/svg" class="fig">{_DEFS}']
+    s.append(_box(270, 10, 180, 38, "#F1EFE8", "#5F5E5A", "#2C2C2A", "BB'desin, biri açtı", ""))
+    s.append(_box(30, 85, 200, 56, "#E1F5EE", "#0F6E56", "#04342C", "SAVUN (call/3bet)", "çift · suited-Ax · broadway (para burada)"))
+    s.append(_box(490, 85, 200, 56, "#FCEBEB", "#A32D2D", "#501313", "KATLA", "suited/offsuit-connector · çöp (GTO'ya bile -EV)"))
+    s.append(_box(255, 160, 210, 40, "#FAEEDA", "#854F0B", "#412402", "Erken açana (UTG) daha SIKI savun", ""))
+    s.append(_arrow(330, 48, 130, 85)); s.append(_arrow(390, 48, 590, 85))
+    s.append('</svg>'); return "".join(s)
+
+def fig_sizing():
+    s = [f'<svg viewBox="0 0 720 230" xmlns="http://www.w3.org/2000/svg" class="fig">{_DEFS}']
+    s.append(_box(270, 10, 180, 38, "#E6F1FB", "#185FA5", "#0C447C", "Bahis boyutu = GÖRELİ", "(mutlak bb değil)"))
+    s.append(_box(40, 90, 280, 56, "#E1F5EE", "#0F6E56", "#04342C", "PREFLOP = bahsin katı", "açış 2.3x · 3bet/4bet 3x (2.3→7→20bb)"))
+    s.append(_box(400, 90, 290, 56, "#EEEDFE", "#534AB7", "#26215C", "POSTFLOP = potun kesri", "kuru 1/3 · ıslak 3/4 · sonraki sokak büyür"))
+    s.append(_box(230, 175, 260, 40, "#FAEEDA", "#854F0B", "#412402", "Aynı 3/4 kuralı: flop 6bb, river 30bb (pot büyür)", ""))
+    s.append(_arrow(330, 48, 180, 90)); s.append(_arrow(390, 48, 540, 90))
+    s.append('</svg>'); return "".join(s)
+
+def fig_format():
+    s = [f'<svg viewBox="0 0 720 210" xmlns="http://www.w3.org/2000/svg" class="fig">{_DEFS}']
+    s.append(_box(280, 10, 160, 38, "#F1EFE8", "#5F5E5A", "#2C2C2A", "Hangi format?", ""))
+    s.append(_box(30, 90, 300, 60, "#E1F5EE", "#0F6E56", "#04342C", "CASH → SHCP loose-aggressive", "balığı ez · reload var · #1-3 elit"))
+    s.append(_box(390, 90, 300, 60, "#FAEEDA", "#854F0B", "#412402", "TURNUVA → SIKI + ICM + push/fold", "reload yok · survival · ayrı mod"))
+    s.append(_arrow(340, 48, 180, 90)); s.append(_arrow(400, 48, 540, 90))
+    s.append('</svg>'); return "".join(s)
+
+def fig_tier():
+    rows = [("NUT", "set+/2çift", "#E1F5EE", "#04342C", "stack-off OK"),
+            ("GÜÇLÜ", "overpair/top-2", "#EAF3DE", "#173404", "value bas/raise"),
+            ("ORTA", "top-pair iyi kicker", "#FAEEDA", "#412402", "1-2 sokak, overbet'e fold"),
+            ("ZAYIF", "zayıf-kicker/orta-çift", "#FAECE7", "#4A1B0C", "ince value / check-call"),
+            ("BLUFF-CATCH", "under-pair/ace-high", "#EEEDFE", "#26215C", "tek küçük bahse call"),
+            ("DRAW", "8-9 out", "#E6F1FB", "#0C447C", "semi-blöf / odds→call"),
+            ("HAVA", "hiçbiri", "#F1EFE8", "#2C2C2A", "give-up / blöf")]
+    s = [f'<svg viewBox="0 0 720 {len(rows)*34+20}" xmlns="http://www.w3.org/2000/svg" class="fig">']
+    for i, (t, h, fill, tc, act) in enumerate(rows):
+        y = 10 + i * 34
+        s.append(f'<rect x="20" y="{y}" width="680" height="28" rx="6" fill="{fill}" stroke="{tc}" stroke-width="0.8"/>')
+        s.append(f'<text x="34" y="{y+18}" font-size="12" font-weight="600" fill="{tc}">{t}</text>')
+        s.append(f'<text x="180" y="{y+18}" font-size="11" fill="{tc}">{h}</text>')
+        s.append(f'<text x="400" y="{y+18}" font-size="11" fill="{tc}">→ {act}</text>')
+    s.append('</svg>'); return "".join(s)
+
 FIGS = {"system": fig_system, "preflop": fig_preflop, "preflop_decision": fig_preflop,
-        "postflop": fig_postflop, "postflop_decision": fig_postflop, "icm": fig_icm}
+        "postflop": fig_postflop, "postflop_decision": fig_postflop, "icm": fig_icm,
+        "vs3bet": fig_vs3bet, "bb-defense": fig_bb, "bb_defense": fig_bb,
+        "sizing": fig_sizing, "format": fig_format, "tier": fig_tier}
 
 def _strip_fence(h):
     h = re.sub(r"^```[a-z]*\n?", "", h.strip())
@@ -160,7 +216,7 @@ def build(result_path):
     parts = []
     # KAPAK
     parts.append('<div class="cover"><h1>SOYRAC</h1><div class="sub">İnsan-Hesaplanabilir Poker Karar Sistemi<br>Felsefe · Mantık · GTO &amp; ICM Karşılıkları · Örnekler</div>'
-                 '<div class="badges" style="margin-top:30mm"><span>Preflop GTO uyumu %91</span><span>Postflop %93</span><span>ICM %91</span><span>Cash +46…+80 bb/100</span></div>'
+                 '<div class="badges" style="margin-top:30mm"><span>Preflop GTO uyumu %91</span><span>Postflop %93</span><span>ICM %91</span><span>Cash: kanonik #1-3 (elit)</span><span>MTT: şampiyonluk şansın 2.7-7.6 katı</span></div>'
                  '<div class="meta">Bridge HCP ve Blackjack Hi-Lo felsefesiyle · ampirik doğrulanmış · öğretici el kitabı</div></div>')
 
     def _toc_title(c):
