@@ -157,3 +157,130 @@ def advice_from_hand(hand, hero_idx: int, stack_bb: float = 100,
                              tourney=tourney)
     except Exception:
         return None
+
+
+# ════════════════════════════════════════════════════════════════════
+# CANLI KOÇ — ÖĞRETİCİ KATMAN (saf, Qt'siz; soyrac_advice/grading DEĞİŞMEZ)
+# Tasarım: LXD+ID+UX workflow. Kullanıcı oynarken "nasıl düşün" öğretir.
+# ════════════════════════════════════════════════════════════════════
+
+def shcp_breakdown(hand_key: str) -> str:
+    """Puanın adım-adım kırılımı: 'A=10 + K=8 + suited+4 + As-blocker+2 = 27'."""
+    if not hand_key or len(hand_key) < 2:
+        return ""
+    r1, r2 = hand_key[0].upper(), hand_key[1].upper()
+    if r1 not in _CP or r2 not in _CP:
+        return ""
+    sc = shcp_score(hand_key)
+    if r1 == r2:                                   # çift
+        return f"{r1}{r1} çifti = 16+{2 * _ORD.index(r1)} = {sc}"
+    parts = [f"{r1}={_CP[r1]}", f"{r2}={_CP[r2]}"]
+    if hand_key.endswith("s"):
+        parts.append("suited+4")
+        if "A" in (r1, r2):
+            parts.append("As-blocker+2")
+    gap = abs(_ORD.index(r1) - _ORD.index(r2)) - 1
+    gb = {0: 3, 1: 2, 2: 1}.get(gap, -2 if gap >= 4 else 0)
+    if gb:
+        lbl = "bitişik" if gap == 0 else (f"{gap}-gap" if gb > 0 else "uzak")
+        parts.append(f"{lbl}{'+' if gb > 0 else ''}{gb}")
+    return " + ".join(parts) + f" = {sc}"
+
+
+def _tone_for_action(action: str) -> str:
+    a = (action or "").upper()
+    if any(k in a for k in ("RAISE", "3-BET", "4-BET", "JAM", "BET", "AÇ")):
+        return "go"
+    if "CALL" in a or "CHECK" in a:
+        return "caution"
+    return "stop"
+
+
+def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
+                   vs_position: str = "", stack_bb: float = 100, icm: bool = False,
+                   n_active: int = 9, tourney: bool = False, *,
+                   hand=None, hero_idx=None, advice=None) -> dict:
+    """ÖĞRETİCİ çıktı — soyrac_advice'i sarar, üstüne 'nasıl düşün' katmanı serer.
+    Panel bunu okur; soyrac_advice/grading AYNEN korunur (fidelity 0-sapma)."""
+    base = soyrac_advice(hand_key, position, scenario=scenario, vs_position=vs_position,
+                         stack_bb=stack_bb, icm=icm, n_active=n_active, tourney=tourney)
+    action = base.get("action", "FOLD")
+    score = base.get("score")
+    pos = (position or "BTN").upper()
+    vp = (vs_position or "").upper()
+    hu = n_active <= 2
+    fmt = "🎯 Cash: loose-aggressive — balığı ez" if not tourney \
+        else "🏆 Turnuva: ICM-sıkı, survival"
+    out = {
+        "phase": "preflop", "scenario": base.get("scenario", scenario),
+        "action": action, "tone": _tone_for_action(action), "line": base.get("line", ""),
+        "score": score, "threshold": base.get("threshold"),
+        "call_t": base.get("call_t"), "raise_t": base.get("raise_t"), "b4": base.get("b4"),
+        "scale_max": 40, "format_note": fmt, "card_breakdown": shcp_breakdown(hand_key),
+        "tier": None, "board_label": None, "wetness": None, "golden_rule": None,
+        "size_frac": None, "flow_nodes": None, "terms": ["SHCP", "eşik"],
+    }
+    sc = base.get("scenario", scenario)
+    h = hand_key
+
+    if "Push" in str(sc):                          # PUSH/FOLD
+        out["scenario_label"] = f"Push/Fold · {pos}"
+        out["why"] = (f"Kısa stack ({stack_bb:.0f}bb) → equity ekseni. Puan {score} "
+                      f"{'≥ jam eşiği → JAM' if action == 'JAM' else '< eşik → FOLD'}")
+        out["chain_steps"] = [
+            f"🃏 El {h}: SHCP {score}",
+            f"♟ Stack {stack_bb:.0f}bb → push/fold modu (postflop yok)",
+            f"{'≥' if action == 'JAM' else '<'} Jam eşiği {16 if not hu else 10} → {action}",
+        ]
+        out["terms"] = ["SHCP", "push/fold", "ICM"]
+    elif "3-bet" in str(sc) or "3bet" in str(sc):  # vs 3-BET
+        b4 = base.get("b4", 0)
+        out["scenario_label"] = f"vs 3-bet · 3BP"
+        if action == "4-BET":
+            out["why"] = f"B4 blocker {b4}≥2 → AA/AK bloklar, premium baskı → 4-BET"
+        elif action == "CALL":
+            out["why"] = "Çok güçlü (JJ+/AQs+/KQs) → düz çağır"
+        else:
+            out["why"] = "Premium değil → KATLA. 3-bet pot pahalı, marjinal el para yakar"
+        out["chain_steps"] = [
+            f"🃏 El {h}: SHCP {score} · B4 blocker {b4}",
+            "🔒 3-bet pot: saf equity sıralaması ÇÖKER → blocker ekseni",
+            f"{'B4≥2 → 4-BET' if action == '4-BET' else 'Premium değil → ' + action}",
+            "💡 Kural: premium değilse KATLA",
+        ]
+        out["terms"] = ["B4 blocker", "3BP", "blocker"]
+    elif "vs" in str(sc).lower() and "rfi" in str(sc).lower() or "vs RFI" in str(sc):
+        ct, rt = base.get("call_t"), base.get("raise_t")
+        out["scenario_label"] = f"vs RFI · {vp or '?'} açtı"
+        if action == "3-BET":
+            out["why"] = f"Puan {score} ≥ 3bet eşiği {rt} → değer yükselt"
+        elif action == "CALL":
+            out["why"] = f"Orta bölge ({ct}≤{score}<{rt}) → düz çağır"
+        else:
+            out["why"] = f"İki eşiğin altı ({score}<{ct}) → negatif-EV bırak"
+        out["chain_steps"] = [
+            f"🃏 El {h}: SHCP {score}",
+            f"📍 {vp or '?'} açtı · call≥{ct} / 3bet≥{rt}",
+            f"→ {action}",
+            "♠ Açan ERKEN→sıkı savun, GEÇ→geniş",
+        ]
+        out["terms"] = ["SHCP", "eşik", "RFI"]
+    else:                                          # RFI (açış)
+        thr = base.get("threshold")
+        out["scenario_label"] = f"RFI · {pos}"
+        rel = "≥" if action.startswith("RAISE") else "<"
+        out["why"] = (f"{pos} eşiği {thr}, puanın {score} → "
+                      f"{'güvenle aç' if action.startswith('RAISE') else 'altında, para yakar → katla'}")
+        out["chain_steps"] = [
+            f"🃏 El {h}: SHCP {score}",
+            f"📍 {pos} eşiği {thr} (pozisyon PUANA eklenmez)",
+            f"{rel} Puan {score} {rel} eşik {thr} → {action}",
+            fmt,
+        ]
+        out["terms"] = ["SHCP", "eşik", "RFI"]
+
+    # QUIZ metinleri
+    out["quiz_prompt"] = f"Sen ne yapardın? ({out.get('scenario_label', '')} · {h})"
+    out["quiz_correct"] = action
+    out["quiz_options"] = ["FOLD", "CALL", "RAISE/3-BET"]
+    return out
