@@ -48,3 +48,65 @@ def test_fidelity_unchanged():
     soyrac_explain("98s", "BTN", "RFI")
     a2 = soyrac_advice("98s", "BTN", "RFI")
     assert a1 == a2
+
+
+# ── POSTFLOP motoru ──
+from app.engine.hand_state import Card, Street
+from app.poker.soyrac_advisor import soyrac_postflop_advice, soyrac_explain as _se
+
+
+class _PP:
+    def __init__(self, hole, stack=100):
+        self.hole_cards = [Card(c[0], c[1].lower()) for c in hole]; self.stack = stack
+
+
+class _HH:
+    def __init__(self, hole, board, pot=10, to_call=0, street=Street.FLOP):
+        self.players = [_PP(hole)]
+        self.community = [Card(c[0], c[1].lower()) for c in board]
+        self.pot = pot; self.street = street; self._tc = to_call
+    def to_call(self, idx): return self._tc
+
+
+def test_postflop_nut_set():
+    pf = soyrac_postflop_advice(_HH(['7h', '7c'], ['7s', '2d', '9h']), 0)
+    assert pf and pf["tier"] == "NUT"
+    assert "BET" in pf["action"]
+
+
+def test_postflop_overpair_strong():
+    pf = soyrac_postflop_advice(_HH(['Ah', 'Ac'], ['Ks', '7d', '2h']), 0)
+    assert pf and pf["tier"] in ("GÜÇLÜ", "NUT")
+
+
+def test_postflop_commit_gate():
+    # zayıf el + büyük bahis → commit-gate uyarısı
+    pf = soyrac_postflop_advice(_HH(['3h', '3c'], ['Ks', '9d', '2h'], pot=10, to_call=90), 0)
+    assert pf and ("Commit-gate" in (pf["golden_rule"] or "") or pf["action"] == "FOLD")
+
+
+def test_postflop_board_label():
+    pf = soyrac_postflop_advice(_HH(['Ah', 'Kh'], ['7s', '2d', '9h']), 0)
+    assert pf["board_label"] in ("KURU", "SEMİ-ISLAK", "ISLAK", "EŞLİ", "TEK-RENK")
+
+
+def test_explain_postflop_branch():
+    e = _se("77", "BTN", "RFI", hand=_HH(['7h', '7c'], ['7s', '2d', '9h']), hero_idx=0)
+    assert e["phase"] == "postflop" and e["tier"] == "NUT"
+    assert e["flow_nodes"] and len(e["chain_steps"]) >= 3
+
+
+# ── LEAK kategorisi ──
+from app.poker.soyrac_advisor import soyrac_leak_category
+
+
+def test_leak_categories():
+    # uyuşma → None
+    assert soyrac_leak_category({"phase": "preflop", "scenario": "RFI", "action": "FOLD"}, "FOLD") is None
+    # RFI eşik-altı raise
+    assert "geniş açış" in soyrac_leak_category({"phase": "preflop", "scenario": "RFI", "action": "FOLD"}, "RAISE")
+    # vs-3bet over-call
+    assert "over-call" in soyrac_leak_category({"phase": "preflop", "scenario": "vs 3-bet", "action": "FOLD"}, "CALL")
+    # commit-gate ihlali
+    e = {"phase": "postflop", "scenario": "Postflop", "action": "CHECK", "golden_rule": "⛔ Commit-gate: ..."}
+    assert "Commit-gate" in soyrac_leak_category(e, "RAISE")

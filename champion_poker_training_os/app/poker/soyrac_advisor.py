@@ -202,6 +202,30 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
                    hand=None, hero_idx=None, advice=None) -> dict:
     """ÖĞRETİCİ çıktı — soyrac_advice'i sarar, üstüne 'nasıl düşün' katmanı serer.
     Panel bunu okur; soyrac_advice/grading AYNEN korunur (fidelity 0-sapma)."""
+    # POSTFLOP dalı — board varsa 7-kademe + altın kural öğreticisi
+    if hand is not None and hero_idx is not None:
+        comm = getattr(hand, "community", None)
+        if comm and len(comm) >= 3:
+            pf = soyrac_postflop_advice(hand, hero_idx, advice)
+            if pf:
+                stn = {1: "Flop", 2: "Turn", 3: "River"}.get(len(comm) - 2, "Postflop")
+                return {
+                    "phase": "postflop", "scenario": "Postflop",
+                    "scenario_label": f"{stn} · {pf['board_label']}",
+                    "action": pf["action"], "tone": _tone_for_action(pf["action"]),
+                    "line": pf["line"], "score": None, "threshold": None,
+                    "call_t": None, "raise_t": None, "b4": None, "scale_max": 40,
+                    "why": pf["golden_rule"] or f"El gücün {pf['tier']} → {pf['action']}",
+                    "chain_steps": pf["chain_steps"], "format_note": "",
+                    "card_breakdown": "", "tier": pf["tier"],
+                    "board_label": pf["board_label"], "wetness": pf["wetness"],
+                    "golden_rule": pf["golden_rule"], "size_frac": pf["size_frac"],
+                    "flow_nodes": pf["flow_nodes"],
+                    "terms": ["7-kademe", "commit-gate", "pot-odds", "wetness"],
+                    "quiz_prompt": f"Sen ne yapardın? ({stn} {pf['board_label']} · {pf['tier']})",
+                    "quiz_correct": pf["action"],
+                    "quiz_options": ["FOLD", "CHECK/CALL", "BET/RAISE"],
+                }
     base = soyrac_advice(hand_key, position, scenario=scenario, vs_position=vs_position,
                          stack_bb=stack_bb, icm=icm, n_active=n_active, tourney=tourney)
     action = base.get("action", "FOLD")
@@ -284,3 +308,148 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
     out["quiz_correct"] = action
     out["quiz_options"] = ["FOLD", "CALL", "RAISE/3-BET"]
     return out
+
+
+_BOARD_TR = {"dry": "KURU", "wet/dynamic": "ISLAK", "semi-wet": "SEMİ-ISLAK",
+             "paired": "EŞLİ", "monotone": "TEK-RENK", "preflop": "—"}
+_EXPLAIN_BB = None
+
+
+def _explain_bb():
+    """_hand_strength için cache'li board-aware evaluator (GTO Expert beyni)."""
+    global _EXPLAIN_BB
+    if _EXPLAIN_BB is None:
+        from app.engine.bot_brain import BotBrain, BOT_ARCHETYPES
+        _EXPLAIN_BB = BotBrain(BOT_ARCHETYPES["GTO Expert"])
+    return _EXPLAIN_BB
+
+
+def _tier_from(strength: float, draws: float) -> str:
+    if strength >= 0.85:
+        return "NUT"
+    if strength >= 0.62:
+        return "GÜÇLÜ"
+    if strength >= 0.55:
+        return "ORTA"
+    if draws >= 0.30 and strength < 0.55:
+        return "DRAW"
+    if strength >= 0.40:
+        return "ZAYIF"
+    if strength >= 0.28:
+        return "BLUFF-CATCH"
+    return "HAVA"
+
+
+def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
+    """Postflop ÖĞRETİCİ — board-aware _hand_strength → 7-kademe + 3 altın kural
+    + sizing. Saf (Qt'siz); postflop_gto/bot kararı DEĞİŞMEZ."""
+    try:
+        from app.poker.postflop_gto import classify_board
+        from app.engine.hand_state import Street
+        hero = hand.players[hero_idx]
+        board = list(getattr(hand, "community", []) or [])
+        if len(board) < 3 or len(getattr(hero, "hole_cards", []) or []) < 2:
+            return None
+        strength, draws, _lbl = _explain_bb()._hand_strength(hero.hole_cards, board)
+        eq = min(1.0, strength + 0.45 * draws)
+        tex = classify_board(board)
+        tier = _tier_from(strength, draws)
+        blab = _BOARD_TR.get(tex.label, tex.label.upper())
+        to_call = hand.to_call(hero_idx)
+        pot = max(getattr(hand, "pot", 0.0), 0.01)
+        stack = max(getattr(hero, "stack", 0.0), 0.01)
+        street = getattr(hand, "street", Street.FLOP)
+        wet = tex.wetness
+        size = 0.33 if wet < 0.35 else (0.55 if wet < 0.6 else 0.75)
+        # 3 ALTIN KURAL — ilk tetikleyen
+        gr = None
+        if to_call > 0 and to_call / stack > 0.70 and strength < 0.60 and draws < 0.30:
+            gr = "⛔ Commit-gate: yığının %70'i riskte — sadece GÜÇLÜ+/çekme ile devam"
+        elif street == Street.FLOP and tex.label == "dry" and to_call <= 0.01:
+            gr = "🎯 Kuru board + agresör → range-cbet (her şeyle küçük bas, 1/3)"
+        elif to_call > 0:
+            be = to_call / (pot + to_call)
+            if eq < be:
+                gr = f"📉 Pot-odds: gereken %{be*100:.0f}, equity %{eq*100:.0f} → FOLD"
+            else:
+                gr = f"✅ Pot-odds: equity %{eq*100:.0f} ≥ gereken %{be*100:.0f} → call uygun"
+        # AKSİYON (tier-uyumlu, öğretici)
+        if to_call <= 0.01:
+            if tier in ("NUT", "GÜÇLÜ"):
+                action = "BET (value)"
+            elif tier == "DRAW":
+                action = "BET (semi-blöf)"
+            elif tier == "ORTA" and street == Street.FLOP and tex.label == "dry":
+                action = "BET (range)"
+            else:
+                action = "CHECK"
+        else:
+            be = to_call / (pot + to_call)
+            if tier == "NUT":
+                action = "RAISE"
+            elif eq >= be:
+                action = "CALL"
+            else:
+                action = "FOLD"
+        line = f"🎴 {blab} · {tier} → {action}"
+        chain = [
+            f"🎴 Board {blab} (ıslaklık {wet:.2f})",
+            f"📊 El gücün: {tier} (7-kademe)",
+            gr or f"💡 {tier} → {action}",
+            f"📏 Sizing: pot×{size:.2f} ({'kuru→küçük' if wet < 0.35 else 'ıslak→büyük'})",
+        ]
+        flow = [("Board", blab, True), ("El", tier, True),
+                ("Karar", action.split()[0], True)]
+        return {"tier": tier, "board_label": blab, "wetness": round(wet, 2),
+                "golden_rule": gr, "size_frac": size, "action": action, "line": line,
+                "chain_steps": chain, "flow_nodes": flow,
+                "strength": round(strength, 2), "draws": round(draws, 2), "eq": round(eq, 2)}
+    except Exception:
+        return None
+
+
+def soyrac_leak_category(explain: dict, hero_action: str) -> "str | None":
+    """Kullanıcı aksiyonu Soyrac önerisinden saparsa LEAK kategorisi (ders + leak-takibi).
+    None = uyuşma veya önemsiz. explain = soyrac_explain çıktısı."""
+    if not explain:
+        return None
+
+    def _n(a):
+        a = (a or "").upper()
+        if any(k in a for k in ("RAISE", "3-BET", "4-BET", "BET", "JAM")):
+            return "R"
+        if "CALL" in a or "CHECK" in a:
+            return "C"
+        if "FOLD" in a:
+            return "F"
+        return "?"
+
+    hs, hh = _n(explain.get("action")), _n(hero_action)
+    if hs == hh or hh == "?":
+        return None
+    sc = str(explain.get("scenario", "")).lower()
+    if explain.get("phase") == "preflop":
+        if "3-bet" in sc:
+            if hh == "C" and hs == "F":
+                return "3-bet pot over-call (premium değilken call → para yakar)"
+            if hh == "R" and hs == "F":
+                return "Aşırı 4-bet (premium/blocker yok)"
+        elif "vs" in sc:                              # vs RFI
+            if hh == "R" and hs != "R":
+                return "Aşırı 3-bet (premium değilken yükseltme)"
+            if hh == "C" and hs == "F":
+                return "Over-defend — çöp/spekülatif savunma (GTO'da bile -EV)"
+        else:                                          # RFI
+            if hh == "R" and hs == "F":
+                return "Çok geniş açış (eşik altı raise)"
+            if hh == "F" and hs == "R":
+                return "Çok sıkı — değer açışı kaçtı"
+    else:                                              # postflop
+        gr = explain.get("golden_rule", "") or ""
+        if "Commit-gate" in gr and hh == "R":
+            return "Commit-gate ihlali (zayıf elle %70+ stack riski)"
+        if "Pot-odds" in gr and "FOLD" in gr and hh == "C":
+            return "Pot-odds ihmali (negatif-EV call)"
+        if "range-cbet" in gr and hh == "C":
+            return "Range-cbet kaçırma (kuru board'da agresörken check)"
+    return f"Sapma: sen {hh}, Soyrac {hs}"
