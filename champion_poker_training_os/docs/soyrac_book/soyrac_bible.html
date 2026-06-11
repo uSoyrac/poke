@@ -1484,7 +1484,7 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 
 <p>Soyrac sistemi bunu tek bir eşiğe indirger. Full-ring (çok kişili masa) için kural şudur:</p>
 
-<div class="keyrule">Altın kural (&lt;15bb): SHCP puanın ≥ 16 ise JAM (all-in). Altındaysa FOLD. Başka hesap yok.</div>
+<div class="keyrule">Altın kural (&lt;15bb): SHCP jam eşiği POZİSYONA göre değişir (Nash): erken pozisyon sıkı (~puan 16), geç pozisyon (CO/BTN/SB) ÇOK daha geniş. Arkanda az kişi = daha geniş jam.<div class="keyrule">GÜNCELLEME (pozisyon-aware push/fold): jam eşiği TEK sabit sayı DEĞİL — pozisyona göre değişir (Nash, HRC/SnapShove-kalibre). Geç pozisyonda arkanda az kişi var → ÇOK daha geniş jam'le. Erken pozisyonda sıkı.</div><table class="tbl"><thead><tr><th>7bb jam aralığı</th><th>UTG</th><th>MP</th><th>CO</th><th>BTN</th><th>SB</th></tr></thead><tbody><tr><td>Nash jam %</td><td>~24</td><td>~30</td><td>~38</td><td>~54</td><td>~68</td></tr></tbody></table><div class="why">Neden geç pozisyon geniş: BTN'den jam'lediğinde sadece SB+BB arkanda; ikisinin de güçlü el bulma ihtimali düşük → fold-equity yüksek. UTG'den jam'lerken 5 kişi arkanda → çok daha sıkı olmalısın. Eski "puan ≥ 16 her yerden" kuralı geç pozisyonda ÇOK fazla fold ettiriyordu (kârlı jam'ler kaçıyordu).</div> Başka hesap yok.</div>
 
 <p>Bu eşik kodda birebir <code>jam = score &gt;= 16</code> olarak vardır. Peki neden tam 16? Çünkü 16, sistemde <b>en zayıf çiftin (22) puanıdır</b> (çift tabanı 16'dan başlar: 22=16, 33=18 ... AA=40). Yani "her çift + güçlü broadway'ler jam, daha zayıfı katla" demektir. İnsan kafasında hatırlaması kolay bir çizgi: <b>cebinde çift varsa ya da güçlü iki kart varsa it; çöpse katla.</b></p>
 
@@ -1557,14 +1557,14 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 <br>SHCP puanı: 3 (9) + 2 (8) + 4 (suited) + 3 (bitişik connector) = <b>~12</b>.
 <br>• <b>100bb:</b> BTN eşiği 8. Puan 12 ≥ 8 → <b>AÇ (raise ~2.3bb)</b>. Derin stack'te implied odds canlı; tutarsa rakibin yığınını hedefleriz.
 <br>• <b>35bb:</b> Eşik 8+1 (deep_adj) = 9. Puan 12 ≥ 9 → hâlâ <b>AÇ</b>, ama artık sınıra yakın. Spekülatif değeri azaldı.
-<br>• <b>12bb (push/fold):</b> JAM eşiği 16. Puan 12 &lt; 16 → <b>FOLD</b>. İmplied odds öldü; bu el artık ham equity'de premium değil, katla.
-<br><b>Ders:</b> El değişmedi, pozisyon değişmedi — sadece stack azaldı ve karar AÇ → AÇ → KATLA çizgisine kaydı. İşte stack derinliğinin tek-eksen felsefesi: puan sabit, eşik kaydı.</div>
+<br>• <b>12bb (push/fold):</b> BTN jam-eşiği ~10 (Nash ~%36 geniş). Puan 12 ≥ 10 → <b>JAM</b>. Geç pozisyon (arkanda sadece SB/BB) → 98s gibi suited connector bile kârlı JAM. Eski sabit-16 bunu YANLIŞÇA fold ettiriyordu — pozisyon-aware Nash düzeltti.
+<br><b>Ders:</b> El değişmedi, pozisyon değişmedi — stack azaldıkça karar AÇ → AÇ → JAM (BTN'de 12bb'de bile jam — geç pozisyon geniş). İşte stack derinliğinin tek-eksen felsefesi: puan sabit, eşik kaydı.</div>
 
 <div class="example">Örnek 2 — Sığ stack, kabarcık ICM: <b>5&spades;5&clubs; (55), CO</b>, turnuva kabarcık, 13bb.
 <br>SHCP puanı: çift tabanı = 16 + 2×(5'in indeksi=3) = <b>22</b>.
-<br>• Stack 13bb &lt; 15 → <b>push/fold modu</b>. JAM eşiği temelde 16.
-<br>• ICM baskısı (kabarcık) → eşik +1 = 17? Hayır — push/fold modunda eşik zaten ham-equity çizgisidir; ICM burada marjinal jam'leri (puanı 16-17 olan zayıf çiftler/broadway'ler) fold'a kaydırır. 55'in puanı 22, bu çizginin epey üstünde → <b>JAM (all-in)</b>.
-<br>• Karşılaştır: aynı spotta <b>K9o</b> (puan ~14) → 16 eşiğinin altında zaten → <b>FOLD</b>. ICM baskısı bu kararı daha da kesinleştirir.
+<br>• Stack 13bb &lt; 15 → <b>push/fold modu</b>. CO jam-eşiği ~14 (Nash ~%21; BTN/SB'den dar).
+<br>• ICM baskısı (kabarcık) → eşik +1 = 17? Hayır — push/fold modunda eşik zaten ham-equity çizgisidir; ICM burada marjinal jam'leri (düşük-puanlı zayıf eller/broadway'ler) fold'a kaydırır. 55'in puanı 22, bu çizginin epey üstünde → <b>JAM (all-in)</b>.
+<br>• Karşılaştır: aynı spotta <b>K9o</b> (puan ~14) → CO jam-eşiği 14'ün altında → <b>FOLD</b>. ICM baskısı bu kararı daha da kesinleştirir.
 <br><b>Ders:</b> Orta çift (55) sığ stack jam için mükemmeldir — equity'si net, postflop'a kalmaz, kabarcık ICM'inde bile rahat it. Ama K9 gibi "iyi görünen ama dominated" eller ICM kabarcığında ilk elenecek ellerdir.</div>
 
 <h3>9.8 Tek-bakışta özet kartı</h3>
@@ -1574,7 +1574,7 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 <tbody>
 <tr><td>Stack ~100bb, cash</td><td>Taban eşiklerle loose-agresif oyna (spekülatif el OK)</td></tr>
 <tr><td>Stack ≤ 40bb</td><td>Tüm eşiklere +1 ekle (marjinali ele)</td></tr>
-<tr><td>Stack &lt; 15bb (full-ring)</td><td>JAM/FOLD modu: puan ≥ 16 → JAM, yoksa FOLD</td></tr>
+<tr><td>Stack &lt; 15bb (full-ring)</td><td>JAM/FOLD modu: jam eşiği POZİSYONA göre (Nash): geç poz GENİŞ jam, erken sıkı (B9 tablo)</td></tr>
 <tr><td>Turnuva + elenme pahalı (kabarcık/FT)</td><td>ICM: eşiğe +1 daha; marjinal jam/call → fold</td></tr>
 <tr><td>Heads-up (2 kişi)</td><td>Açış eşiği 3, sığ JAM eşiği 10 — neredeyse her el</td></tr>
 <tr><td>Spekülatif el (suited connector) + sığ stack</td><td>FOLD — implied odds yok, çekinme katla</td></tr>
@@ -2015,7 +2015,7 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 
 <h4>Kısa stack (&lt;15bb): boyut kararı yok — jam</h4>
 
-<p>Yığının 15 büyük körün altına düştüğünde boyut sorusu ortadan kalkar. Modun <b>push/fold</b>'a geçer: ya all-in (jam) ya fold. Soyrac sisteminde score ≥ 16 ise JAM, değilse FOLD (heads-up'ta ≥ 10).</p>
+<p>Yığının 15 büyük körün altına düştüğünde boyut sorusu ortadan kalkar. Modun <b>push/fold</b>'a geçer: ya all-in (jam) ya fold. Soyrac sisteminde jam eşiği pozisyona göre (Nash): geç poz geniş, erken sıkı (HU çok geniş).</p>
 
 <div class="why">Neden boyut yok? Çünkü 12bb'yle 3bb'lik bir açış yapıp sonra fold'a düşmek paranı boşa harcar; o derinlikte tek temiz strateji "hep ya da hiç"tir. Nash push/fold mantığı bunu söyler.</div>
 
@@ -3330,7 +3330,7 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 <thead><tr><th>Görürsen</th><th>Yap</th></tr></thead>
 <tbody>
 <tr><td>Stack ≤ 40bb</td><td>Tüm eşiklere +1 ekle (biraz daha sıkı; implied odds azaldı)</td></tr>
-<tr><td>Stack &lt; 15bb</td><td>Push/Fold moduna geç: puan ≥ 16 → JAM, yoksa FOLD (HU'da ≥10 JAM)</td></tr>
+<tr><td>Stack &lt; 15bb</td><td>Push/Fold moduna geç: jam eşiği POZİSYONA göre (Nash): geç poz geniş (BTN~%54/SB~%68), erken sıkı (UTG~%24); HU çok geniş</td></tr>
 <tr><td>Turnuva (cash değil)</td><td>Açış/savunma eşiklerine +2 (reload yok → survival)</td></tr>
 <tr><td>ICM baskısı (bubble / final masa)</td><td>+1 sıkı (elenme pahalıysa kıs)</td></tr>
 <tr><td>Heads-up (2 kişi)</td><td>Çok genişle: RFI eşiği 3, push eşiği 10</td></tr>
