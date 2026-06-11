@@ -1208,3 +1208,83 @@ def update_skill_xp(category: str, xp_amount: int) -> None:
                 (category, xp_amount),
             )
         conn.commit()
+
+
+# ════════════════════════════════════════════════════════════════════
+# SOYRAC GERÇEK EL-KAYDI — kullanıcının turnuva elleri + Soyrac-vs-sen
+# karşılaştırması (gerçek otopsi için). Schema dosyasına dokunmaz.
+# ════════════════════════════════════════════════════════════════════
+def _ensure_soyrac_hands(conn) -> None:
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS soyrac_hands (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, tournament_id INTEGER,
+            street TEXT, scenario TEXT, hero_cards TEXT, position TEXT, stack_bb REAL,
+            user_action TEXT, soyrac_action TEXT, aligned INTEGER, leak TEXT)""")
+
+
+def next_soyrac_tournament_id() -> int:
+    conn = get_connection()
+    try:
+        _ensure_soyrac_hands(conn)
+        row = conn.execute("SELECT COALESCE(MAX(tournament_id), 0) + 1 FROM soyrac_hands").fetchone()
+        return int(row[0])
+    finally:
+        conn.close()
+
+
+def record_soyrac_hands(rows: list, tournament_id: int) -> int:
+    """Bir elin hero kararlarını kaydet. rows: [{street,scenario,hero_cards,position,
+    stack_bb,user_action,soyrac_action,aligned,leak}]. Döner: yazılan satır sayısı."""
+    if not rows:
+        return 0
+    from datetime import datetime
+    conn = get_connection()
+    try:
+        _ensure_soyrac_hands(conn)
+        ts = datetime.now().isoformat(timespec="seconds")
+        for r in rows:
+            conn.execute(
+                """INSERT INTO soyrac_hands (ts, tournament_id, street, scenario,
+                    hero_cards, position, stack_bb, user_action, soyrac_action, aligned, leak)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (ts, tournament_id, r.get("street"), r.get("scenario"), r.get("hero_cards"),
+                 r.get("position"), r.get("stack_bb"), r.get("user_action"),
+                 r.get("soyrac_action"), 1 if r.get("aligned") else 0, r.get("leak")))
+        conn.commit()
+        return len(rows)
+    finally:
+        conn.close()
+
+
+def get_soyrac_autopsy(n_tournaments: int = 3) -> dict:
+    """Son N turnuvanın Soyrac-vs-sen otopsisi: hizalanma%, en sık leak'ler,
+    senaryo bazında doğruluk."""
+    from collections import Counter
+    conn = get_connection()
+    try:
+        _ensure_soyrac_hands(conn)
+        tids = [r[0] for r in conn.execute(
+            "SELECT DISTINCT tournament_id FROM soyrac_hands ORDER BY tournament_id DESC LIMIT ?",
+            (n_tournaments,)).fetchall()]
+        if not tids:
+            return {"tournaments": 0, "decisions": 0, "aligned_pct": 0,
+                    "top_leaks": [], "by_scenario": {}}
+        ph = ",".join("?" * len(tids))
+        rows = conn.execute(
+            f"SELECT scenario, user_action, soyrac_action, aligned, leak "
+            f"FROM soyrac_hands WHERE tournament_id IN ({ph})", tids).fetchall()
+    finally:
+        conn.close()
+    total = len(rows)
+    aligned = sum(1 for r in rows if r[3])
+    leaks = Counter(r[4] for r in rows if r[4])
+    by_scn = {}
+    for r in rows:
+        scn = r[0] or "?"
+        d = by_scn.setdefault(scn, [0, 0])
+        d[0] += 1
+        d[1] += r[3]
+    return {"tournaments": len(tids), "decisions": total,
+            "aligned_pct": round(100 * aligned / max(total, 1)),
+            "top_leaks": leaks.most_common(6),
+            "by_scenario": {k: (v[0], round(100 * v[1] / max(v[0], 1))) for k, v in by_scn.items()}}

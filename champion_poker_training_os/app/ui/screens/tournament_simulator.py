@@ -323,6 +323,12 @@ class TournamentSimulatorScreen(QWidget):
         # "Custom" — leave picker untouched
 
     def _start_tournament(self):
+        # GERÇEK EL-KAYDI (Seçenek B): bu turnuvaya benzersiz id (otopsi gruplaması)
+        try:
+            from app.db import repository
+            self._soyrac_tno = repository.next_soyrac_tournament_id()
+        except Exception:
+            self._soyrac_tno = 1
         archetypes = self.field_picker.get_archetypes()
         size = len(archetypes) + 1  # hero + bots
         payout_key = "Heads-Up" if size == 2 else ("6-max" if size <= 6 else "9-max")
@@ -1715,6 +1721,7 @@ class TournamentSimulatorScreen(QWidget):
             try:
                 from app.poker.soyrac_advisor import soyrac_leak_category
                 _rows = []
+                _db_rows = []
                 for d in self._recorder.log:
                     _ha, _soy = d.get("hero_action"), d.get("soyrac_action")
                     if not _ha or not _soy:
@@ -1725,7 +1732,17 @@ class TournamentSimulatorScreen(QWidget):
                         {"phase": _phase, "scenario": d.get("scenario", ""), "action": _soy}, _ha)
                     _rows.append({"street": _street, "hero": _ha, "soyrac": _soy,
                                   "aligned": _leak is None, "lesson": _leak})
+                    _db_rows.append({"street": _street, "scenario": d.get("scenario", ""),
+                                     "hero_cards": d.get("hero_cards_disp", ""),
+                                     "position": d.get("hero_position", ""),
+                                     "stack_bb": round(float(d.get("eff_stack_bb", 0) or 0), 1),
+                                     "user_action": _ha, "soyrac_action": _soy,
+                                     "aligned": _leak is None, "leak": _leak})
                 self.soyrac_panel.on_hand_complete(_rows)
+                # GERÇEK EL-KAYDI (Seçenek B): otopsi için DB'ye yaz
+                if _db_rows:
+                    from app.db import repository
+                    repository.record_soyrac_hands(_db_rows, getattr(self, "_soyrac_tno", 1))
             except Exception:
                 pass
         _has_review = any(d.get("hero_action") for d in self._recorder.log)
