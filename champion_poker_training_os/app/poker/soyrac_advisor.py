@@ -252,7 +252,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
         out["why"] = (f"Kısa stack ({stack_bb:.0f}bb) → equity ekseni. Puan {score} "
                       f"{'≥ jam eşiği → JAM' if action == 'JAM' else '< eşik → FOLD'}")
         out["chain_steps"] = [
-            f"🃏 El {h}: SHCP {score}",
+            f"🃏 {h}: {out['card_breakdown']}",
             f"♟ Stack {stack_bb:.0f}bb → push/fold modu (postflop yok)",
             f"{'≥' if action == 'JAM' else '<'} Jam eşiği {16 if not hu else 10} → {action}",
         ]
@@ -267,7 +267,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
         else:
             out["why"] = "Premium değil → KATLA. 3-bet pot pahalı, marjinal el para yakar"
         out["chain_steps"] = [
-            f"🃏 El {h}: SHCP {score} · B4 blocker {b4}",
+            f"🃏 {h}: {out['card_breakdown']} · B4 blocker {b4}",
             "🔒 3-bet pot: saf equity sıralaması ÇÖKER → blocker ekseni",
             f"{'B4≥2 → 4-BET' if action == '4-BET' else 'Premium değil → ' + action}",
             "💡 Kural: premium değilse KATLA",
@@ -283,7 +283,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
         else:
             out["why"] = f"İki eşiğin altı ({score}<{ct}) → negatif-EV bırak"
         out["chain_steps"] = [
-            f"🃏 El {h}: SHCP {score}",
+            f"🃏 {h}: {out['card_breakdown']}",
             f"📍 {vp or '?'} açtı · call≥{ct} / 3bet≥{rt}",
             f"→ {action}",
             "♠ Açan ERKEN→sıkı savun, GEÇ→geniş",
@@ -296,7 +296,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
         out["why"] = (f"{pos} eşiği {thr}, puanın {score} → "
                       f"{'güvenle aç' if action.startswith('RAISE') else 'altında, para yakar → katla'}")
         out["chain_steps"] = [
-            f"🃏 El {h}: SHCP {score}",
+            f"🃏 {h}: {out['card_breakdown']}",
             f"📍 {pos} eşiği {thr} (pozisyon PUANA eklenmez)",
             f"{rel} Puan {score} {rel} eşik {thr} → {action}",
             fmt,
