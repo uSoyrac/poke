@@ -81,11 +81,13 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
     pos = (position or "BTN").upper()
     icm_adj = 1 if icm else 0
     deep_adj = 1 if stack_bb <= 40 else 0
-    # TURNUVA SIKILAŞTIRMA (D150): turnuvada reload yok → survival için açış/savunma
-    # eşiklerini +2 sık (cash'te tourney=False → loose-optimal korunur, #1). MTT'de
-    # daha az el = daha uzun yaşam (nit/ICM-Expert gibi ladder).
-    tourney_adj = 2 if (tourney and not n_active <= 2) else 0
     hu = n_active <= 2
+    # TURNUVA SIKILAŞTIRMA (D173 POZİSYON-DUYARLI): erken pozisyon SIKI (survival,
+    # reload yok), GEÇ pozisyon (CO/BTN/SB) SIKMA — turnuvada steal +EV (blind'lar
+    # değerli). Eski düz +2 over-tight'tı (gerçek-oyun post-mortem: VPIP %13.6, steal
+    # kaçtı, chip-EV −8.2). Late'te sıkma → steal'ler geri → accumulation.
+    _late_pos = pos in ("CO", "BTN", "SB")
+    tourney_adj = 2 if (tourney and not hu and not _late_pos) else 0
     sc = (scenario or "RFI").lower()
 
     if "push" in sc or stack_bb < 15:              # kısa stack → equity ekseni
