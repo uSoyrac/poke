@@ -41,6 +41,13 @@ class SoyracBrain:
     def _surv_icm(self):
         return self.icm_pressure
 
+    def _stage_icm(self, eff):
+        # DENEY BAŞARISIZ (ölçüldü): derin>50bb survival-caution (0.10) → FT
+        # %9.8→%8.5 DÜŞTÜ, ITM %26→%24, erken-bust düşmedi (%39). Tıpkı D150
+        # flat-floor: caution accumulation'ı öldürüyor. NEUTRAL'a alındı (geri).
+        # SONUÇ: ICM Expert delegasyonu (FT ~%10-12) zaten FT-tavanı.
+        return self.icm_pressure
+
     def _equity(self, p, state):
         try:
             from app.poker.equity import monte_carlo_equity
@@ -66,7 +73,7 @@ class SoyracBrain:
             # DELEGE (Nash jam çok daha geniş; SHCP score≥16 jam ÇOK sıkıydı → körler
             # yiyip MTT geç-aşamada bust). Derin (≥22bb) oyun SHCP kalır.
             if self.tournament_mode:        # TURNUVA: ICM Expert'e (FT-kralı) delege
-                self._tourney.icm_pressure = self.icm_pressure
+                self._tourney.icm_pressure = self._stage_icm(eff)   # +stage caution
                 self._tourney.tournament_mode = True
                 return self._tourney.decide(state, idx)
             adv = advice_from_hand(state, idx, stack_bb=eff, icm=self.icm_pressure > 0,
@@ -96,7 +103,11 @@ class SoyracBrain:
         # _hand_strength + _gto_postflop_action + commit-gate + eq-0.16 haircut'i.
         # (v1'in board-kör monte_carlo_equity leak'i bununla kapanır.)
         brain = self._tourney if self.tournament_mode else self._gto
-        brain.icm_pressure = self._surv_icm()
+        if self.tournament_mode:
+            _eff = (p.stack + p.current_bet) / bb
+            brain.icm_pressure = self._stage_icm(_eff)
+        else:
+            brain.icm_pressure = self._surv_icm()
         brain.tournament_mode = self.tournament_mode
         return brain.decide(state, idx)
 
