@@ -101,6 +101,11 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         # LEAK FIX: 3-bet pot'ta GTO ÇOĞU eli folder (sadece JJ+/AQs+/KQs flat,
         # premium 4-bet). Eski call_t (~8) %53 over-call sızdırıyordu (22-88/broadway).
         call_t = (10 if hu else 22) + icm_adj
+        # DENEY (D175, GERİ ALINDI): "suited broadway (iki kart T+) → CALL" eklendi
+        # (JTs/KQs FOLD'a düşmesin) ama vs-3bet accuracy %93.8→%92.6 DÜŞTÜ — blanket
+        # kural fazla geniş (QTs/KTs sıkı-açana GTO-fold, call'landı). Doğru cevap
+        # 3-bettor-pozisyonuna bağlı (opener-aware range gerekir = tam GTO). Basit-
+        # sistem sınırı: T9s gibi net spot doğru, JTs sınır spot yaklaşık. Eşik korundu.
         act = "4-BET" if b4 >= 2 else ("CALL" if score >= call_t else "FOLD")
         return {"score": score, "b4": b4, "action": act, "scenario": "vs 3-bet",
                 "line": f"🧮 SHCP {score} · B4 blocker {b4} → {act}  (vs 3-bet)"}
