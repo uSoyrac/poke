@@ -391,16 +391,24 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
                 action = "CALL"
             else:
                 action = "FOLD"
-        # RANGE-CAUTION: pot-odds RANGE-NAİF'tir (el-vs-board). A/broadway board
-        # açan-range'ini (özellikle erken/sıkı) VURUR → zayıf el sık DOMINATED,
-        # gerçek equity gösterilenden düşük. Rakip sıkıysa katla. (Kullanıcı içgörüsü.)
+        # AYRI RANGE-DEĞERLENDİRMESİ: pot-odds el-vs-board equity kullanır (range-naif).
+        # A/broadway board açan-range'ini (sıkı/erken) VURUR → gerçek equity şişik.
+        # Range-ayarlı equity = generic − haircut(board-korkutuculuğu). İkisini de göster.
         range_note = None
-        if to_call > 0 and tier in ("ZAYIF", "BLUFF-CATCH", "HAVA"):
+        range_adj_eq = None
+        if to_call > 0 and tier in ("ZAYIF", "BLUFF-CATCH", "HAVA", "ORTA"):
             ranks = [getattr(c, "rank", "") for c in board]
             bro = sum(1 for r in ranks if r in "AKQJT")
-            if "A" in ranks or bro >= 2:
-                range_note = ("⚠ A/broadway board açan-range'ini vurur — pot-odds "
-                              "range-naif; zayıf el sık dominated, rakip SIKIYSA katla")
+            has_ace = "A" in ranks
+            if has_ace or bro >= 2:
+                haircut = 0.20 if (has_ace and bro >= 2) else (0.15 if has_ace else 0.12)
+                range_adj_eq = max(0.0, eq - haircut)
+                be = to_call / (pot + to_call)
+                verdict = "KATLA" if range_adj_eq < be - 0.02 else (
+                    "marjinal (sıkıya fold, loose'a call)" if range_adj_eq < be + 0.04 else "call OK")
+                range_note = (f"⚖ Range-aware: açan-range'i board'u vurur → gerçek eq "
+                              f"~%{range_adj_eq*100:.0f} (generic %{eq*100:.0f}), gereken "
+                              f"%{be*100:.0f} → {verdict}")
         line = f"🎴 {blab} · {tier} → {action}"
         chain = [
             f"🎴 Board {blab} (ıslaklık {wet:.2f})",
@@ -414,7 +422,8 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
                 ("Karar", action.split()[0], True)]
         return {"tier": tier, "board_label": blab, "wetness": round(wet, 2),
                 "golden_rule": gr, "size_frac": size, "action": action, "line": line,
-                "range_note": range_note, "chain_steps": chain, "flow_nodes": flow,
+                "range_note": range_note, "range_adj_eq": range_adj_eq,
+                "chain_steps": chain, "flow_nodes": flow,
                 "strength": round(strength, 2), "draws": round(draws, 2), "eq": round(eq, 2)}
     except Exception:
         return None
