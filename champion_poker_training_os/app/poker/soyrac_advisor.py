@@ -185,7 +185,13 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                 "line": f"🧮 SHCP {score} · {pos}{' HU' if hu else ''} call≥{call_t}/3bet≥{raise_t} → {act}{bluff3}"}
 
     # RFI (açış) — pozisyon eşiği (puana eklenmez); HU'da çok düşük (geniş aç)
-    thr = (3 if hu else _RFI.get(pos, 13)) + icm_adj + deep_adj + tourney_adj
+    # MASA-BOYUTU (D180): kısa masada ERKEN pozisyonlar daha az kişiyle karşılaşır →
+    # GENİŞLE (6-max UTG 5 arkada, 9-max UTG 8 arkada gibi sıkı olmamalı). Geç pozisyon
+    # (CO/BTN/SB) behind SABİT → dokunma. Gevşet: ~2 eksik oyuncu/-1, max -3. (Teori-
+    # sağlam; GTO'da masa-boyutu verisi yok → temkinli faktör.)
+    _early = pos in ("UTG", "UTG+1", "MP", "LJ", "HJ")
+    table_adj = -min(3, (9 - n_active) // 2) if (not hu and _early and n_active < 9) else 0
+    thr = (3 if hu else _RFI.get(pos, 13)) + icm_adj + deep_adj + tourney_adj + table_adj
     rel = "≥" if score >= thr else "<"
     act = "RAISE (AÇ)" if score >= thr else "FOLD"
     return {"score": score, "threshold": thr, "action": act, "scenario": "RFI",
