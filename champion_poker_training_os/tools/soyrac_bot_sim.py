@@ -21,7 +21,11 @@ class SoyracBrain:
     commit-gate + eq-0.16 haircut). v1 board-kör monte_carlo_equity kullanıp
     -165 sızdırıyordu; kök neden buydu (ordu teşhisi)."""
     def __init__(self):
-        self._gto = BotBrain(BOT_ARCHETYPES["GTO Expert"])   # kazanan postflop motoru
+        self._gto = BotBrain(BOT_ARCHETYPES["GTO Expert"])   # CASH postflop motoru
+        # İLERİ TURNUVA (ölçüldü): FT-kralı ICM Expert (FT %10.9 > GTO Expert %6.9).
+        # Turnuvada survival+ICM-farkındalıklı agresyon → daha çok final masası.
+        # AYRI beyin: cash SHCP+GTO Expert dokunulmaz, sadece tournament_mode değişir.
+        self._tourney = BotBrain(BOT_ARCHETYPES["ICM Expert"])
         self.profile = self._gto.profile
         self.icm_pressure = 0.0
         self.tournament_mode = True
@@ -61,10 +65,10 @@ class SoyracBrain:
             # TURNUVA SHORT-STACK (D149): <22bb + tournament → kanıtlı push/fold'a
             # DELEGE (Nash jam çok daha geniş; SHCP score≥16 jam ÇOK sıkıydı → körler
             # yiyip MTT geç-aşamada bust). Derin (≥22bb) oyun SHCP kalır.
-            if self.tournament_mode:        # TURNUVA: preflop'u DA kanıtlı tournament
-                self._gto.icm_pressure = self.icm_pressure   # mantığa tam-delege
-                self._gto.tournament_mode = True             # (SHCP cash sistemi; MTT
-                return self._gto.decide(state, idx)          # ayrı modül = GTO Expert)
+            if self.tournament_mode:        # TURNUVA: ICM Expert'e (FT-kralı) delege
+                self._tourney.icm_pressure = self.icm_pressure
+                self._tourney.tournament_mode = True
+                return self._tourney.decide(state, idx)
             adv = advice_from_hand(state, idx, stack_bb=eff, icm=self.icm_pressure > 0,
                                    tourney=self.tournament_mode)
             act = (adv or {}).get("action", "FOLD")
@@ -91,9 +95,10 @@ class SoyracBrain:
         # POSTFLOP — KAZANAN pipeline'a DELEGE: GTO Expert'in board-aware
         # _hand_strength + _gto_postflop_action + commit-gate + eq-0.16 haircut'i.
         # (v1'in board-kör monte_carlo_equity leak'i bununla kapanır.)
-        self._gto.icm_pressure = self._surv_icm()
-        self._gto.tournament_mode = self.tournament_mode
-        return self._gto.decide(state, idx)
+        brain = self._tourney if self.tournament_mode else self._gto
+        brain.icm_pressure = self._surv_icm()
+        brain.tournament_mode = self.tournament_mode
+        return brain.decide(state, idx)
 
 
 # ── tek-el oynatıcı (seat0 = Soyrac, gerisi arketip) ─────────────────

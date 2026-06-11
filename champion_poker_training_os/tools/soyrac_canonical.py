@@ -13,7 +13,11 @@ _RealBB = BB.BotBrain
 SOY = copy.copy(BOT_ARCHETYPES["GTO Expert"]); SOY.name = "Soyrac"
 BOT_ARCHETYPES["Soyrac"] = SOY
 def _factory(profile, *a, **k):
-    return SoyracBrain() if profile is SOY else _RealBB(profile, *a, **k)
+    if profile is SOY:
+        b = SoyracBrain()
+        b.tournament_mode = False      # CASH = SHCP (chip-EV); harness default True'ydu
+        return b
+    return _RealBB(profile, *a, **k)
 GL.BotBrain = _factory
 PS.BotBrain = _factory                       # run_cash hero_brain
 PS.ARCHS = PS.ARCHS + ["Soyrac"]             # havuza ekle
