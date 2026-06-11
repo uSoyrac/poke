@@ -1262,6 +1262,7 @@ class TournamentSimulatorScreen(QWidget):
                             scenario=getattr(_adv, "scenario_key", "RFI") or "RFI",
                             vs_position=getattr(_adv, "vs_position", "") or "",
                             stack_bb=stack_bb, icm=_icm,
+                            tourney=True,        # TURNUVA: ICM-sıkı eşik + <15bb push/fold
                             hand=hand, hero_idx=hand.hero_idx)
                         if hero_hk:
                             self.soyrac_panel.on_decision_point(_exp)
