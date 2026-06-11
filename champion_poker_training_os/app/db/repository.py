@@ -1288,3 +1288,42 @@ def get_soyrac_autopsy(n_tournaments: int = 3) -> dict:
             "aligned_pct": round(100 * aligned / max(total, 1)),
             "top_leaks": leaks.most_common(6),
             "by_scenario": {k: (v[0], round(100 * v[1] / max(v[0], 1))) for k, v in by_scn.items()}}
+
+
+def _ensure_soyrac_results(conn) -> None:
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS soyrac_results (
+            tournament_id INTEGER PRIMARY KEY, ts TEXT, finish INTEGER,
+            field_size INTEGER, itm INTEGER, profit REAL, pct_rank REAL)""")
+
+
+def record_soyrac_result(tournament_id, finish, field_size, itm, profit, pct_rank=0) -> None:
+    """Turnuva SONUCUNU kaydet (bitiş-yeri/ITM/kâr) — otopsi trendi için."""
+    from datetime import datetime
+    conn = get_connection()
+    try:
+        _ensure_soyrac_results(conn)
+        conn.execute(
+            """INSERT OR REPLACE INTO soyrac_results
+               (tournament_id, ts, finish, field_size, itm, profit, pct_rank)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (int(tournament_id), datetime.now().isoformat(timespec="seconds"),
+             int(finish or 0), int(field_size or 0), 1 if itm else 0,
+             float(profit or 0), float(pct_rank or 0)))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_soyrac_results(n: int = 20) -> list:
+    """Son N turnuva sonucu (yeni→eski)."""
+    conn = get_connection()
+    try:
+        _ensure_soyrac_results(conn)
+        rows = conn.execute(
+            "SELECT tournament_id, finish, field_size, itm, profit, pct_rank, ts "
+            "FROM soyrac_results ORDER BY tournament_id DESC LIMIT ?", (n,)).fetchall()
+        return [dict(zip(("tournament_id", "finish", "field_size", "itm",
+                          "profit", "pct_rank", "ts"), r)) for r in rows]
+    finally:
+        conn.close()

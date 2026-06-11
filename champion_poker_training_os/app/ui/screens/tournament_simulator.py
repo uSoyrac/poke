@@ -432,6 +432,14 @@ class TournamentSimulatorScreen(QWidget):
         Açılış briefing'in karşılığı — sonuç + gerçek stats + leak'lerle
         beslenip Gemini'den (yoksa offline koç) eğitici bir post-mortem ister.
         """
+        # GERÇEK SONUÇ KAYDI: bitiş-yeri/ITM/kâr → otopsi trendi (kararlarla eşleşir)
+        try:
+            from app.db import repository
+            repository.record_soyrac_result(
+                getattr(self, "_soyrac_tno", 1), finish, field_size, itm, profit, pct_rank)
+        except Exception:
+            pass
+
         def _g(k, d=0):
             try:
                 return stats.get(k, d)
