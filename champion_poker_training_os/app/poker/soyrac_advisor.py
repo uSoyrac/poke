@@ -391,18 +391,30 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
                 action = "CALL"
             else:
                 action = "FOLD"
+        # RANGE-CAUTION: pot-odds RANGE-NAİF'tir (el-vs-board). A/broadway board
+        # açan-range'ini (özellikle erken/sıkı) VURUR → zayıf el sık DOMINATED,
+        # gerçek equity gösterilenden düşük. Rakip sıkıysa katla. (Kullanıcı içgörüsü.)
+        range_note = None
+        if to_call > 0 and tier in ("ZAYIF", "BLUFF-CATCH", "HAVA"):
+            ranks = [getattr(c, "rank", "") for c in board]
+            bro = sum(1 for r in ranks if r in "AKQJT")
+            if "A" in ranks or bro >= 2:
+                range_note = ("⚠ A/broadway board açan-range'ini vurur — pot-odds "
+                              "range-naif; zayıf el sık dominated, rakip SIKIYSA katla")
         line = f"🎴 {blab} · {tier} → {action}"
         chain = [
             f"🎴 Board {blab} (ıslaklık {wet:.2f})",
             f"📊 El gücün: {tier} (7-kademe)",
             gr or f"💡 {tier} → {action}",
-            f"📏 Sizing: pot×{size:.2f} ({'kuru→küçük' if wet < 0.35 else 'ıslak→büyük'})",
         ]
+        if range_note:
+            chain.append(range_note)
+        chain.append(f"📏 Sizing: pot×{size:.2f} ({'kuru→küçük' if wet < 0.35 else 'ıslak→büyük'})")
         flow = [("Board", blab, True), ("El", tier, True),
                 ("Karar", action.split()[0], True)]
         return {"tier": tier, "board_label": blab, "wetness": round(wet, 2),
                 "golden_rule": gr, "size_frac": size, "action": action, "line": line,
-                "chain_steps": chain, "flow_nodes": flow,
+                "range_note": range_note, "chain_steps": chain, "flow_nodes": flow,
                 "strength": round(strength, 2), "draws": round(draws, 2), "eq": round(eq, 2)}
     except Exception:
         return None
