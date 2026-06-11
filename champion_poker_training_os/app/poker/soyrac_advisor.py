@@ -70,6 +70,41 @@ def _b4_blocker(hand_key: str) -> int:
     return val + bluff
 
 
+_JAM_DIST = None
+
+
+def _jam_threshold_for_pct(pct: float) -> int:
+    """Top-pct% el (kombo-ağırlıklı) için SHCP-puan eşiği. Nash jam%'i SHCP
+    eşiğine çevirir → push/fold pozisyon+stack-duyarlı (mtt_ranges.mtt_jam_pct)."""
+    global _JAM_DIST
+    if _JAM_DIST is None:
+        items = []
+        for i, r1 in enumerate(_ORD[::-1]):
+            for j, r2 in enumerate(_ORD[::-1]):
+                if i == j:
+                    hk, combos = r1 + r1, 6
+                elif i < j:
+                    hk, combos = r1 + r2 + "s", 4
+                else:
+                    hk, combos = r2 + r1 + "o", 12
+                items.append((shcp_score(hk), combos))
+        items.sort(reverse=True)
+        _JAM_DIST = items
+    target = max(0.0, pct) / 100.0 * 1326
+    # puan-kovaları kaba → cum'u HEDEFE EN YAKIN bırakan eşiği seç (over/undershoot
+    # değil, en yakın). Yoksa eşik-geçişinde aşırı kombo eklenip jam% şişiyordu.
+    by_score = {}
+    for s, c in _JAM_DIST:
+        by_score[s] = by_score.get(s, 0) + c
+    cum, best_s, best_diff = 0, 0, 1e9
+    for s in sorted(by_score, reverse=True):
+        cum += by_score[s]
+        d = abs(cum - target)
+        if d < best_diff:
+            best_diff, best_s = d, s
+    return best_s
+
+
 def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                   vs_position: str = "", stack_bb: float = 100,
                   icm: bool = False, n_active: int = 9, tourney: bool = False) -> dict:
@@ -91,10 +126,27 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
     sc = (scenario or "RFI").lower()
 
     if "push" in sc or stack_bb < 15:              # kısa stack → equity ekseni
-        jam = score >= (10 if hu else 16)          # HU'da çok geniş jam
+        # POZİSYON-AWARE NASH (D177): jam eşiği pozisyon+stack'e göre (mtt_jam_pct,
+        # HRC/SnapShove-kalibre). Eski sabit-16 her yerden %17 jam'liyordu — BTN
+        # 7bb Nash ~%54! Geç pozisyon ÇOK daha geniş jam'lemeli (arkanda az kişi).
+        if hu:
+            jam_thr = 10
+        else:
+            try:
+                from app.poker.mtt_ranges import mtt_jam_pct
+                jp = mtt_jam_pct(pos, stack_bb) * 0.83   # puan-kova dönüşüm-aşımını telafi
+                if icm:
+                    jp *= 0.82                     # ICM: elenme pahalı → biraz sıkı
+                jam_thr = _jam_threshold_for_pct(jp)
+            except Exception:
+                jam_thr = 16
+        jam = score >= jam_thr
         return {"score": score, "action": "JAM" if jam else "FOLD",
-                "scenario": "Push/Fold",
-                "line": f"🧮 SHCP {score} · kısa stack{' HU' if hu else ''} → {'JAM' if jam else 'FOLD'}"}
+                "scenario": "Push/Fold", "threshold": jam_thr,
+                "line": f"🧮 SHCP {score} ≥ jam-eşik {jam_thr} ({pos})"
+                        f"{' HU' if hu else ''} → {'JAM' if jam else 'FOLD'}"
+                        if jam else
+                        f"🧮 SHCP {score} < jam-eşik {jam_thr} ({pos}) → FOLD"}
 
     if "3-bet" in sc or "3bet" in sc or "vs 3" in sc:   # blocker ekseni
         b4 = _b4_blocker(hand_key)
@@ -258,12 +310,15 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
         out["scenario_label"] = f"Push/Fold · {pos}"
         out["why"] = (f"Kısa stack ({stack_bb:.0f}bb) → equity ekseni. Puan {score} "
                       f"{'≥ jam eşiği → JAM' if action == 'JAM' else '< eşik → FOLD'}")
+        _jthr = base.get("threshold", 16)
+        out["threshold"] = _jthr
         out["chain_steps"] = [
             f"🃏 {h}: {out['card_breakdown']}",
-            f"♟ Stack {stack_bb:.0f}bb → push/fold modu (postflop yok)",
-            f"{'≥' if action == 'JAM' else '<'} Jam eşiği {16 if not hu else 10} → {action}",
+            f"♟ Stack {stack_bb:.0f}bb → push/fold modu (Nash, pozisyon-duyarlı)",
+            f"📍 {pos} jam-eşiği {_jthr} (geç poz → düşük eşik = geniş jam)",
+            f"{'≥' if action == 'JAM' else '<'} Puan {score} {'≥' if action == 'JAM' else '<'} {_jthr} → {action}",
         ]
-        out["terms"] = ["SHCP", "push/fold", "ICM"]
+        out["terms"] = ["SHCP", "push/fold", "Nash", "ICM"]
     elif "3-bet" in str(sc) or "3bet" in str(sc):  # vs 3-BET
         b4 = base.get("b4", 0)
         out["scenario_label"] = f"vs 3-bet · 3BP"
