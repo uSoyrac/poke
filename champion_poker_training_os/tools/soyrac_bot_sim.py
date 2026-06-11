@@ -99,6 +99,13 @@ class SoyracBrain:
                 return ActionType.CHECK, 0.0
             return (ActionType.FOLD, 0.0) if ActionType.FOLD in valid else (ActionType.CHECK, 0.0)
 
+        # RANGE-AWARE BLUFF-CATCH DENEYİ (ÖLÇÜLDÜ, GERİ ALINDI): zayıf-el+büyük-bahis+
+        # A/broadway board → blanket FOLD test edildi. Cash nötr (#1 +52 korundu) ama
+        # MTT FT %9.8→%8.1, ITM %26→%23 DÜŞTÜ — loose MTT sahasında over-fold (bahis
+        # yapanların çoğu sıkı-A-range'ine sahip değil, bluff'lu). DERS: range-aware
+        # fold okuma-bağımlı (sadece SIKI rakibe doğru); blanket bot-kuralı zarar.
+        # YERİ = advice katmanı (D169 range_note), kullanıcı villain-read uygular.
+
         # POSTFLOP — KAZANAN pipeline'a DELEGE: GTO Expert'in board-aware
         # _hand_strength + _gto_postflop_action + commit-gate + eq-0.16 haircut'i.
         # (v1'in board-kör monte_carlo_equity leak'i bununla kapanır.)
