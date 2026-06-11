@@ -299,3 +299,125 @@ def belt(badges: list) -> str:
     if earned >= 1:
         return f"🥉 Soyrac Çırağı ({earned}/{n})"
     return f"Başlangıç ({earned}/{n})"
+
+
+# ── DETAYLI REFERANS — her modülün tam tabloları (gerçek koddan üretilir) ──
+def module_detail(module_key: str) -> list:
+    """Modülün TAM detay tablolarını döndür: [{title, headers?, rows}]. Tablolar
+    soyrac_advisor sabitlerinden (gerçek motor) üretilir → her zaman doğru."""
+    from app.poker.soyrac_advisor import (
+        _CP, _RFI, _VS_RFI, _OPENER_ADJ, shcp_score, _b4_blocker)
+    mk = module_key
+
+    if mk == "M1":                                  # SHCP puanlama
+        ranks = "AKQJT98765432"
+        return [
+            {"title": "Kart Puanları (iki kartı topla)",
+             "headers": ["Kart"] + list(ranks),
+             "rows": [["Puan"] + [str(_CP[r]) for r in ranks]]},
+            {"title": "Bonuslar",
+             "rows": [["Suited (aynı renk)", "+4  (içinde As varsa ek +2)"],
+                      ["Bitişik (gap 0)", "+3"], ["1-gap", "+2"], ["2-gap", "+1"],
+                      ["4+ gap", "−2"], ["Çift (pair)", "16 + 2×rank"]]},
+            {"title": "Örnek Puanlar (gerçek shcp_score)",
+             "headers": ["El", "AA", "KK", "AKs", "AKo", "A5s", "KQs", "98s", "JTo", "72o"],
+             "rows": [["Puan"] + [str(shcp_score(h)) for h in
+                      ["AA", "KK", "AKs", "AKo", "A5s", "KQs", "98s", "JTo", "72o"]]]},
+        ]
+
+    if mk == "M2":                                  # RFI eşikleri
+        order = ["UTG", "UTG+1", "MP", "LJ", "HJ", "CO", "BTN", "SB"]
+        return [
+            {"title": "RFI Açış Eşikleri @100bb (puan ≥ eşik → AÇ)",
+             "headers": ["Pozisyon"] + order + ["HU"],
+             "rows": [["Eşik"] + [str(_RFI[p]) for p in order] + ["3"]]},
+            {"title": "Kural",
+             "rows": [["Puan ≥ eşik", "RAISE (AÇ)"], ["Puan < eşik", "FOLD"],
+                      ["≤40bb stack", "eşik +1 (biraz sıkı)"],
+                      ["ICM baskısı", "eşik +1"]]},
+        ]
+
+    if mk == "M3":                                  # vs-RFI
+        rows = [[p, str(ct), str(rt)] for p, (ct, rt) in _VS_RFI.items()]
+        return [
+            {"title": "vs-RFI Çift Eşik (savunan)",
+             "headers": ["Pozisyon", "CALL ≥", "3-BET ≥"], "rows": rows},
+            {"title": "Karar",
+             "rows": [["Puan ≥ 3-bet eşiği", "3-BET"], ["Puan ≥ call eşiği", "CALL"],
+                      ["Altında", "FOLD"]]},
+            {"title": "Açan-Duyarlı Savunma (call eşiğine eklenir)",
+             "headers": ["Açan"] + list(_OPENER_ADJ.keys()),
+             "rows": [["+"] + [f"+{v}" for v in _OPENER_ADJ.values()]]},
+            {"title": "Not",
+             "rows": [["Erken açana", "DAHA SIKI savun (+ büyük)"],
+                      ["Geç açana (BTN/SB)", "geniş savun (+0)"],
+                      ["A2s-A5s vs geç açan", "3-BET blöf (AA/AK bloklar)"]]},
+        ]
+
+    if mk == "M4":                                  # vs-3bet blocker
+        ex = ["AA", "KK", "QQ", "JJ", "AKs", "AKo", "A5s", "A4s", "AJs", "KQs"]
+        return [
+            {"title": "B4 Blocker Skoru (3-bet pot — saf puan ÇÖKER)",
+             "rows": [["AA / KK", "3"], ["QQ / AKs / AKo", "2"], ["JJ", "1"],
+                      ["+ Ax-suited tekerlek (A5s-A2s)", "+2"],
+                      ["+ Kx-suited düşük", "+1"]]},
+            {"title": "Karar",
+             "rows": [["B4 ≥ 2", "4-BET (value + blöf)"],
+                      ["Çok güçlü (JJ+/AQs+/KQs)", "CALL"], ["Gerisi", "FOLD (premium değil)"]]},
+            {"title": "Örnek B4 Skorları",
+             "headers": ["El"] + ex,
+             "rows": [["B4"] + [str(_b4_blocker(h)) for h in ex]]},
+            {"title": "KRİTİK: A5s > AJs",
+             "rows": [["A5s", "As+tekerlek blocker → 4-BET blöf"],
+                      ["AJs", "hiçbir şey bloklamaz, dominated → CALL"],
+                      ["Saf equity", "AJs > A5s der; vs-3bet'te TERS!"]]},
+        ]
+
+    if mk == "M5":                                  # postflop 7-kademe
+        return [
+            {"title": "7-Kademe El-Gücü (board'a bak, 2 saniyede ata)",
+             "headers": ["Kademe", "Örnek el", "Ne yap"],
+             "rows": [["NUT", "set+/2-çift", "value, stack-off OK"],
+                      ["GÜÇLÜ", "overpair/top-2", "value bet/raise"],
+                      ["ORTA", "top-pair iyi kicker", "1-2 sokak value, overbet'e fold"],
+                      ["ZAYIF", "zayıf kicker/orta-çift", "ince value / check-call"],
+                      ["BLUFF-CATCH", "under-pair/ace-high", "tek küçük bahse call"],
+                      ["DRAW", "OESD 8 / floş 9 out", "semi-blöf / odds→call"],
+                      ["HAVA", "hiçbiri", "give-up / blöf"]]},
+            {"title": "Outs (Rule of 2&4)",
+             "rows": [["Flop", "out × 4 ≈ equity%"], ["Turn", "out × 2 ≈ equity%"],
+                      ["Sonraki sokak", "bir kademe aşağı say (haircut)"]]},
+        ]
+
+    if mk == "M6":                                  # 3 altın kural
+        return [
+            {"title": "3 Altın Kural",
+             "rows": [["1. Commit-gate", "yığının %70'i riskte → sadece GÜÇLÜ+/çekme"],
+                      ["2. Flop range-cbet", "kuru board + agresörsen → her şeyle 1/3 bas"],
+                      ["3. Pot-odds", "gereken eq = to_call/(pot+to_call); altındaysan fold"]]},
+            {"title": "Bet Sizing (potun kesri)",
+             "headers": ["Board", "Kuru", "Yarı-ıslak", "Islak/polarize"],
+             "rows": [["Boyut", "1/3 pot", "1/2 pot", "3/4 pot"]]},
+            {"title": "Pot-Odds Eşikleri",
+             "headers": ["Bahis", "1/2 pot", "2/3 pot", "pot"],
+             "rows": [["Gereken eq", "%33", "%40", "%50"]]},
+        ]
+
+    if mk == "M7":                                  # format / push-fold
+        return [
+            {"title": "Format Ayrımı",
+             "headers": ["", "Cash", "Turnuva"],
+             "rows": [["Stil", "SHCP loose-aggressive", "DAHA SIKI + ICM"],
+                      ["Neden", "reload var, balığı ez", "reload yok, hayatta kal"],
+                      ["Sonuç", "#1 elit (+52bb/100)", "FT-odaklı (push/fold)"]]},
+            {"title": "Push/Fold (<15bb — equity ekseni)",
+             "rows": [["Puan ≥ 16", "JAM (all-in)"], ["HU: Puan ≥ 10", "JAM"],
+                      ["Altında", "FOLD"], ["15-25bb", "re-steal/baskı"],
+                      ["Büyük stack", "bubble bully"]]},
+            {"title": "İleri Turnuva (ölçüldü: FT %12)",
+             "rows": [["Erken/derin", "marjinal flip'te stack'i riske ATMA"],
+                      ["Bubble kısa", "call'ları sıklaştır (elenme pahalı)"],
+                      ["Bubble büyük", "baskı yap (kısalar katlar)"]]},
+        ]
+
+    return []

@@ -12,11 +12,12 @@ from PySide6.QtCore import Qt, Signal, QSettings, QByteArray
 from PySide6.QtGui import QPixmap, QPainter
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame,
-    QScrollArea, QStackedWidget, QSizePolicy,
+    QScrollArea, QStackedWidget, QSizePolicy, QGridLayout,
 )
 
 from app.poker.soyrac_curriculum import (
-    MODULES, module_list, make_drill, grade_drill, compute_badge, belt, _norm_action)
+    MODULES, module_list, make_drill, grade_drill, compute_badge, belt,
+    _norm_action, module_detail)
 
 _QSS = """
 #AcademyRoot { background:#0c1410; }
@@ -49,6 +50,11 @@ _QSS = """
 #ProgHead { color:#7fd4ff; font-size:12px; font-weight:700; }
 #ProgRow { color:#c2ccc6; font-size:11px; }
 #MetricBig { color:#e9f3ef; font-size:15px; font-weight:800; }
+#DetailTbl { background:#0a1510; border:1px solid #1c3329; border-radius:8px; }
+#DetailTitle { color:#7fd4ff; font-size:12px; font-weight:700; }
+#DetailHead { background:#15302575; color:#9fe8c4; font-size:11px; font-weight:700;
+              border:1px solid #1c3329; padding:3px 6px; }
+#DetailCell { color:#c8d0cc; font-size:11px; border:1px solid #142a22; padding:3px 6px; }
 """
 
 
@@ -153,6 +159,12 @@ class SoyracAcademyScreen(QWidget):
         cv.addWidget(self.learn_fig)
         self.learn_bullets = QVBoxLayout(); self.learn_bullets.setSpacing(4)
         cv.addLayout(self.learn_bullets)
+        # DETAYLI TABLOLAR (gerçek koddan — tek tek puan/eşik/3bet/4bet)
+        cv.addWidget(self._wsep())
+        self.detail_head = QLabel("📋 Tam Tablo (okuyup ezberle)"); self.detail_head.setObjectName("WorkedHead")
+        cv.addWidget(self.detail_head)
+        self.detail_v = QVBoxLayout(); self.detail_v.setSpacing(8)
+        cv.addLayout(self.detail_v)
         # worked example
         cv.addWidget(self._wsep())
         self.worked_head = QLabel("💡 Örnek (canlı motordan)"); self.worked_head.setObjectName("WorkedHead")
@@ -171,6 +183,30 @@ class SoyracAcademyScreen(QWidget):
     def _wsep(self):
         s = QFrame(); s.setFrameShape(QFrame.HLine)
         s.setStyleSheet("color:#1c3329; background:#1c3329; max-height:1px;"); return s
+
+    def _table_widget(self, tbl):
+        """{title, headers?, rows} → okunabilir mini-tablo (QGridLayout)."""
+        box = QFrame(); box.setObjectName("DetailTbl")
+        bv = QVBoxLayout(box); bv.setContentsMargins(8, 6, 8, 8); bv.setSpacing(5)
+        t = QLabel(tbl["title"]); t.setObjectName("DetailTitle"); t.setWordWrap(True)
+        bv.addWidget(t)
+        grid = QGridLayout(); grid.setHorizontalSpacing(0); grid.setVerticalSpacing(2)
+        r0 = 0
+        headers = tbl.get("headers")
+        if headers:
+            for c, h in enumerate(headers):
+                lbl = QLabel(str(h)); lbl.setObjectName("DetailHead")
+                lbl.setAlignment(Qt.AlignCenter); lbl.setMinimumHeight(22)
+                grid.addWidget(lbl, 0, c)
+            r0 = 1
+        for ri, row in enumerate(tbl["rows"]):
+            for c, cell in enumerate(row):
+                lbl = QLabel(str(cell)); lbl.setObjectName("DetailCell"); lbl.setWordWrap(True)
+                lbl.setMinimumHeight(22)
+                lbl.setAlignment(Qt.AlignVCenter | (Qt.AlignLeft if len(row) <= 2 and c == 0 else Qt.AlignLeft))
+                grid.addWidget(lbl, ri + r0, c)
+        bv.addLayout(grid)
+        return box
 
     # ── ALIŞTIR görünümü ──
     def _build_drill(self):
@@ -229,6 +265,12 @@ class SoyracAcademyScreen(QWidget):
         for bl in m["learn_bullets"]:
             l = QLabel("• " + bl); l.setObjectName("Bullet"); l.setWordWrap(True)
             self.learn_bullets.addWidget(l)
+        # DETAYLI TABLOLAR (gerçek koddan — tek tek puan/eşik/3bet/4bet)
+        self._clear(self.detail_v)
+        details = module_detail(mk)
+        self.detail_head.setVisible(bool(details))
+        for tbl in details:
+            self.detail_v.addWidget(self._table_widget(tbl))
         # worked example (gerçek motordan)
         self._clear(self.worked_chain)
         if m["scenario"]:
