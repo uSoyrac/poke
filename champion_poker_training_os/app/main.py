@@ -42,6 +42,7 @@ from app.ui.screens.range_trainer import RangeTrainerScreen
 from app.ui.screens.read_trainer import ReadTrainerScreen
 from app.ui.screens.sizing_trainer import SizingTrainerScreen
 from app.ui.screens.quiz_trainer import QuizTrainerScreen
+from app.ui.screens.soyrac_academy import SoyracAcademyScreen
 from app.ui.screens.solver_sandbox import SolverSandboxScreen
 from app.ui.screens.mtt_trainer import MTTTrainerScreen
 from app.ui.screens.reports import ReportsScreen
@@ -87,6 +88,7 @@ NAV_ITEMS = [
     "Dashboard",
     "Play Session",
     "My Profile",
+    "Soyrac Sistem Eğitimi",
     "GTO Study Library",
     "Spot Practice Trainer",
     "Hand History Analyzer",
@@ -279,6 +281,7 @@ class MainWindow(QMainWindow):
         single_classes = {
             "Dashboard": DashboardScreen,
             "My Profile": PlayerProfileScreen,
+            "Soyrac Sistem Eğitimi": SoyracAcademyScreen,
             "GTO Study Library": StudyLibraryScreen,
             "Spot Practice Trainer": SpotTrainerScreen,
             "Hand History Analyzer": HandAnalyzerScreen,
