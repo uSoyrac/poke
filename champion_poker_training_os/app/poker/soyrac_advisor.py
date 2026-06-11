@@ -273,11 +273,15 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
             out["why"] = "Çok güçlü (JJ+/AQs+/KQs) → düz çağır"
         else:
             out["why"] = "Premium değil → KATLA. 3-bet pot pahalı, marjinal el para yakar"
+        _tb_early = (vs_position or "").upper() in ("UTG", "UTG+1", "MP", "LJ", "HJ")
+        _tb_read = (f"♟ 3-bettor {vp or '?'}: " + ("ERKEN → sıkı range, premium-only (daha çok katla)"
+                    if _tb_early else "GEÇ/blind → geniş/squeeze (suited-broadway da devam okunabilir)"))
         out["chain_steps"] = [
             f"🃏 {h}: {out['card_breakdown']} · B4 blocker {b4}",
             "🔒 3-bet pot: saf equity sıralaması ÇÖKER → blocker ekseni",
             f"{'B4≥2 → 4-BET' if action == '4-BET' else 'Premium değil → ' + action}",
-            "💡 Kural: premium değilse KATLA",
+            _tb_read,
+            "💡 Kural: premium değilse KATLA (3-bettor pozisyonunu OKU)",
         ]
         out["terms"] = ["B4 blocker", "3BP", "blocker"]
     elif "vs" in str(sc).lower() and "rfi" in str(sc).lower() or "vs RFI" in str(sc):
