@@ -115,7 +115,11 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
     score = shcp_score(hand_key)
     pos = (position or "BTN").upper()
     icm_adj = 1 if icm else 0
-    deep_adj = 1 if stack_bb <= 40 else 0
+    # STACK-DERİNLİĞİ (D181): GTO sığlaştıkça SIKILAŞIR (ölçüldü: ~75bb plato; 40bb
+    # +1; 25bb +2 — get_action stack-aware doğrulamasıyla kalibre). Eski binary
+    # (≤40→+1) 25 ile 40'ı eşitliyordu; kademeli daha iyi eşleşir. <15bb → push/fold
+    # (ayrı dal, D177 Nash). İNSAN-DENKLEMİ: derin=baz, sığlaştıkça +1/+2.
+    deep_adj = 2 if stack_bb <= 25 else (1 if stack_bb <= 40 else 0)
     hu = n_active <= 2
     # TURNUVA SIKILAŞTIRMA (D173 POZİSYON-DUYARLI): erken pozisyon SIKI (survival,
     # reload yok), GEÇ pozisyon (CO/BTN/SB) SIKMA — turnuvada steal +EV (blind'lar
