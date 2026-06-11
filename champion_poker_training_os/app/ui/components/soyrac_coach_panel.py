@@ -39,6 +39,11 @@ _QSS = """
 #SoyracExpander:hover { color:#a9e4ff; }
 #SoyracChain { background:#0a1820; border:1px solid #142a35; border-radius:6px; }
 #SoyracChainLine { color:#c2ccc6; font-size:11px; }
+#SoyracSysmap { background:#0a1612; border:1px solid #16302a; border-radius:6px; }
+#SysHead { color:#9fe8c4; font-size:11px; font-weight:700; }
+#SysLine { color:#9aa49c; font-size:11px; }
+#SysCur { color:#e9f3ef; font-size:11px; font-weight:700; background:#16302575;
+          border-radius:4px; padding:1px 4px; }
 #SoyracFlowNode { background:#10222c; border:1px solid #1d4456; border-radius:6px;
                   color:#9aa49c; font-size:10px; padding:3px 6px; }
 #SoyracFlowNode[active="true"] { background:#15323f; color:#e9f3ef; border:1px solid #2f7d9c; }
@@ -162,6 +167,16 @@ class SoyracCoachPanel(QFrame):
         self.chain_v.setSpacing(3)
         body.addWidget(self.chain)
 
+        # [C2] SİSTEM HARİTASI — tüm sistemi öğret + şu an hangi dalda olduğunu göster
+        self.sys_btn = QPushButton("📚 Sistem nasıl çalışır?")
+        self.sys_btn.setObjectName("SoyracExpander"); self.sys_btn.setCursor(Qt.PointingHandCursor)
+        self.sys_btn.clicked.connect(self._toggle_sysmap)
+        body.addWidget(self.sys_btn)
+        self.sysmap = QFrame(); self.sysmap.setObjectName("SoyracSysmap")
+        self.sysmap_v = QVBoxLayout(self.sysmap); self.sysmap_v.setContentsMargins(8, 6, 8, 6)
+        self.sysmap_v.setSpacing(3)
+        body.addWidget(self.sysmap)
+
         # [D] FLOW (postflop)
         self.flow = QFrame(); self.flow.setObjectName("SoyracFlow")
         self.flow_h = QHBoxLayout(self.flow); self.flow_h.setContentsMargins(2, 2, 2, 2)
@@ -186,7 +201,9 @@ class SoyracCoachPanel(QFrame):
         QShortcut(QKeySequence("Meta+K"), self, activated=self.toggle_collapsed)
 
         self._apply_chain_visibility()
+        self._sysmap_open = False
         self.chain.setVisible(False)
+        self.sysmap.setVisible(False)
         self.flow.setVisible(False)
         self.review.setVisible(False)
         # İlk açılış nötr durumu (boş "SHCP —" + beyaz çubuk göstermesin)
@@ -208,8 +225,10 @@ class SoyracCoachPanel(QFrame):
         silent = self._mode == "silent"
         self.flash.setVisible(not silent)
         self.expander.setVisible(not silent)
+        self.sys_btn.setVisible(not silent)
         if silent:
             self.chain.setVisible(False)
+            self.sysmap.setVisible(False)
 
     # ════ TETİK 1: karar anı ════
     def on_decision_point(self, explain: dict):
@@ -222,6 +241,9 @@ class SoyracCoachPanel(QFrame):
         # review'dan dönüşte üst verdict'i geri göster
         self.flash.setVisible(True)
         self.expander.setVisible(True)
+        self.sys_btn.setVisible(True)
+        if self._sysmap_open:
+            self._render_sysmap(explain); self.sysmap.setVisible(True)
         score = explain.get("score")
         self.score_badge.setText(f"SHCP {score}" if score is not None else explain.get("tier", "—"))
         self.scenario_chip.setText(explain.get("scenario_label", ""))
@@ -319,6 +341,8 @@ class SoyracCoachPanel(QFrame):
         # review odakta: üstteki karar-anı verdict'ini gizle (boş kart görünmesin)
         self.flash.setVisible(False)
         self.expander.setVisible(False)
+        self.sys_btn.setVisible(False)
+        self.sysmap.setVisible(False)
         self.chain.setVisible(False)
         self.flow.setVisible(False)
         self.review.setVisible(True)
@@ -357,6 +381,62 @@ class SoyracCoachPanel(QFrame):
             self._render_chain(self._last_explain)
         self.chain.setVisible(self._chain_open)
         self._st.setValue("soyrac/chain_expanded", "true" if self._chain_open else "false")
+
+    def _toggle_sysmap(self):
+        self._sysmap_open = not self.sysmap.isVisible()
+        if self._sysmap_open:
+            self._render_sysmap(self._last_explain)
+        self.sysmap.setVisible(self._sysmap_open)
+        self.sys_btn.setText("▴ Sistemi gizle" if self._sysmap_open else "📚 Sistem nasıl çalışır?")
+
+    def _render_sysmap(self, explain):
+        while self.sysmap_v.count():
+            it = self.sysmap_v.takeAt(0)
+            if it.widget():
+                it.widget().setParent(None)
+        scn = str((explain or {}).get("scenario", "")).lower()
+        phase = (explain or {}).get("phase", "preflop")
+
+        def head(t):
+            l = QLabel(t); l.setObjectName("SysHead"); l.setWordWrap(True); self.sysmap_v.addWidget(l)
+
+        def line(t, cur=False):
+            l = QLabel(t); l.setObjectName("SysCur" if cur else "SysLine"); l.setWordWrap(True)
+            self.sysmap_v.addWidget(l)
+
+        head("💡 ÇEKİRDEK İLKE")
+        line("Elin gücü TEK eksen (SHCP puanı). Pozisyon/board/ICM puana EKLENMEZ — sadece karar EŞİĞİNİ kaydırır.")
+        if phase == "preflop":
+            head("AKIŞ: El → SHCP puan → senaryo → eşik → karar")
+            branches = [
+                ("rfi", "RFI", "önünde açış yok → SEN aç (puan ≥ pozisyon eşiği)"),
+                ("vs rfi", "vs-RFI", "biri açtı → çift eşik: 3bet / call / fold"),
+                ("3-bet", "vs-3bet", "3-bet var → blocker ekseni (premium/A5s 4-bet, gerisi fold)"),
+                ("push", "Push/Fold", "<15bb → equity ekseni: puan ≥16 JAM"),
+            ]
+            if "push" in scn:
+                _cur = "push"
+            elif "3-bet" in scn or "3bet" in scn:
+                _cur = "3-bet"
+            elif "vs" in scn and "rfi" in scn:
+                _cur = "vs rfi"
+            elif "rfi" in scn:
+                _cur = "rfi"
+            else:
+                _cur = ""
+            head("SENARYO DALLARI (şu an ◀)")
+            for kk, name, desc in branches:
+                cur = (kk == _cur)
+                line(f"{'▶' if cur else '•'} {name}: {desc}" + ("  ◀ ŞU AN" if cur else ""), cur)
+        else:
+            head("POSTFLOP AKIŞ: Board oku → 7-kademe → 3 altın kural → karar")
+            line("7-kademe: NUT · GÜÇLÜ · ORTA · ZAYIF · BLUFF-CATCH · DRAW · HAVA")
+            line("3 altın kural: commit-gate (%70) · flop range-cbet (kuru) · pot-odds")
+            tier = (explain or {}).get("tier")
+            if tier:
+                line(f"▶ Şu an: {tier} kademesi", True)
+        head("FORMAT")
+        line("Cash = loose-aggressive (balığı ez) · Turnuva = erken sıkı + geç steal + ICM")
 
     def _apply_chain_visibility(self):
         self.expander.setText("▴ Düşünceyi gizle" if self._chain_open else "▾ Nasıl düşünmeliyim?")
