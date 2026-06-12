@@ -259,13 +259,15 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
             # GTO-doğru daraltma (derin çift→CALL) botu −16bb/100 düşürdü (D184 emsali,
             # paired); zayıf sahada agresif 4-bet +EV. Sığ'da GTO de geniş (merged).
             v4_t = 23 + icm_adj
-            value4 = score >= v4_t
+            # D209 Fix4: premium blocker (QQ+/AK, b4≥2) sığda KOŞULSUZ value-4bet.
+            # AKo skor 21 < 23 idi → CALL'a düşüyordu (bug); sığ 3bet'e karşı AKo jam'dir.
+            value4 = (score >= v4_t) or (b4 >= 2 and stack_bb <= 45)
         else:
             # ADVICE + derin (>45bb): GTO polarize → SADECE QQ+/AKs value-4bet (b4≥2);
             # JJ-TT-99-88 set-mine için CALL (pair-ladder spew'ünü kapat, A2/A7).
             v4_t = 27 + icm_adj
             value4 = (score >= v4_t) and (b4 >= 2)
-        bluff4 = (b4 >= 2 and stack_bb >= 60)
+        bluff4 = (b4 >= 2 and stack_bb >= 46)   # D209 Fix13: 46-59bb ölü-bölge kapat (AKo/wheel)
         if value4 or bluff4:
             act = "4-BET"
         elif score >= flat_t:
