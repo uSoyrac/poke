@@ -25,6 +25,11 @@ _VS_RFI = {"BB": (6, 16), "SB": (9, 17), "BTN": (9, 16), "CO": (10, 16),
 # 6-max kalibrasyonu: düz BB savunması (%61) erken açışlara aşırı genişti.
 _OPENER_ADJ = {"UTG": 4, "UTG+1": 4, "MP": 3, "LJ": 3, "HJ": 2,
                "CO": 1, "BTN": 0, "SB": 0}
+# Defender-pozisyon vs-RFI ince ayarı (call_delta, raise_delta) — D184 greedy
+# kalibrasyon (defender×opener tam grid, %83.6→%91.0). Blind: opener_adj + bu;
+# IP: opener_adj YOK + bu. BB over-call kıs, SB/HJ flat aç, CO/HJ 3bet sıkı.
+_VSRFI_ADJ = {"BB": (1, 1), "SB": (-1, 1),
+              "BTN": (1, 1), "CO": (0, 2), "HJ": (-1, 2)}
 
 
 def shcp_score(hand_key: str) -> int:
@@ -107,11 +112,18 @@ def _jam_threshold_for_pct(pct: float) -> int:
 
 def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                   vs_position: str = "", stack_bb: float = 100,
-                  icm: bool = False, n_active: int = 9, tourney: bool = False) -> dict:
+                  icm: bool = False, n_active: int = 9, tourney: bool = False,
+                  bot_mode: bool = False) -> dict:
     """SENİN elin için masada-yapılabilir değerlendirme → {score, action, line, ...}.
 
     n_active<=2 → HEADS-UP modu: range'ler çok genişler (HU'da BTN/SB ~%85 açar,
-    BB ~%70 savunur). Full-ring eşikleri HU'da çok sıkıdır (turnuvayı kapatamazsın)."""
+    BB ~%70 savunur). Full-ring eşikleri HU'da çok sıkıdır (turnuvayı kapatamazsın).
+
+    bot_mode=True (D184): SADECE bot-sim (advice_from_hand) için vs-RFI'yi eski
+    cash-optimal (sıkı IP flat) tutar. Sebep: GTO-doğru geniş IP flat ADVICE için
+    doğru (insan postflop'ta equity realize eder) ama bot postflop'u marjinal
+    flopları sızdırır → cash −16bb/100 (5/5 seed, paired). Default False = insan-
+    advice = GTO-accurate vs-RFI %91 (D169 deseni: GTO-genişlik advice katmanı)."""
     score = shcp_score(hand_key)
     pos = (position or "BTN").upper()
     icm_adj = 1 if icm else 0
@@ -181,16 +193,30 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         call_t, raise_t = (2, 14) if hu else _VS_RFI.get(pos, (9, 16))
         call_t += icm_adj + tourney_adj
         raise_t += icm_adj
-        # 6-max FIX: savunma açanın pozisyonuna göre kayar (erken açana sıkı,
-        # geç açana geniş). Düz BB savunması VPIP'i şişiriyordu (%61 → GTO-uyumlu).
+        # POZİSYON-DUYARLI SAVUNMA (D184): açan-pozisyonu (opener_adj) SADECE
+        # OOP blind savunmasında önemli (squeeze riski + dominate). IP (BTN/CO/HJ)
+        # flat'i açan-pozisyonundan AZ etkilenir → opener_adj UYGULANMAZ. Eski düz
+        # opener_adj IP'de call_t'yi şişirip AŞIRI FOLD ettiriyordu (HJ 139 over-fold:
+        # QJo/Q9s/T9s/suited-conn GTO-call'larını atıyordu). Yerine per-pozisyon
+        # (call_delta, raise_delta) kalibrasyonu (defender×opener tam grid greedy):
+        # IP'de 3bet sıkı/flat geniş; HJ en çok over-fold'du → flat'i aç (call−1).
+        # vs-RFI accuracy %83.6→%91.0. Blocker-3bet-blöf SADECE IP (blind'da değil).
         if not hu:
-            call_t += _OPENER_ADJ.get((vs_position or "").upper(), 1)
+            if bot_mode:                # BOT: eski cash-optimal (sıkı IP flat)
+                call_t += _OPENER_ADJ.get((vs_position or "").upper(), 1)
+            else:                       # ADVICE: GTO-accurate per-pozisyon (D184)
+                cd, rd = _VSRFI_ADJ.get(pos, (0, 0))
+                if pos in ("BB", "SB"):
+                    call_t += _OPENER_ADJ.get((vs_position or "").upper(), 1)
+                call_t += cd
+                raise_t += rd
         act = "3-BET" if score >= raise_t else ("CALL" if score >= call_t else "FOLD")
         # 6-max AGRESYON (D148): geç açana karşı suited-wheel-As (A2s-A5s) 3-BET BLÖF.
-        # Bu eller AA/AK'yı bloklar + nut-floş yedek-equity'si var; 3bet'i %5→~%10'a
-        # çıkarır (6-max GTO hedefi), expert'e karşı sömürülmeyi azaltır.
+        # Bu eller AA/AK'yı bloklar + nut-floş yedek-equity'si var. ADVICE'ta SADECE IP
+        # defender (blind'da GTO flat/call'lar); bot_mode'da eski davranış (tüm pozisyon).
         bluff3 = ""
-        if not hu and act in ("CALL", "FOLD") and \
+        _bluff_pos_ok = bot_mode or pos not in ("BB", "SB")
+        if not hu and act in ("CALL", "FOLD") and _bluff_pos_ok and \
                 (vs_position or "").upper() in ("CO", "BTN", "SB", "HJ") and \
                 _b4_blocker(hand_key) >= 2:
             act = "3-BET"
@@ -234,7 +260,7 @@ def advice_from_hand(hand, hero_idx: int, stack_bb: float = 100,
                              scenario=getattr(adv, "scenario_key", "RFI") or "RFI",
                              vs_position=getattr(adv, "vs_position", "") or "",
                              stack_bb=stack_bb, icm=icm, n_active=n_active or 9,
-                             tourney=tourney)
+                             tourney=tourney, bot_mode=True)
     except Exception:
         return None
 
