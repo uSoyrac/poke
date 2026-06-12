@@ -76,6 +76,7 @@ def main() -> int:
     if ts is None:
         ts = TournamentSimulatorScreen(state)
     ts.field_picker.set_composition(["TAG", "Fish", "Maniac", "Nit", "Reg"])
+    ts._confirm_abort = lambda: True   # offscreen: modal onayını atla (hang guard)
     ts._start_tournament()
     QApplication.processEvents()
     QApplication.processEvents()

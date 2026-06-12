@@ -146,6 +146,9 @@ check("Closing a tab decrements count", len(host._tabs) == MultiSessionTabs.MAX_
 print("\n── 5. Mid-tournament END & NEW ──")
 from app.ui.screens.tournament_simulator import TournamentSimulatorScreen
 ts = TournamentSimulatorScreen(state)
+# _end_and_restart() canlı turnuvada _confirm_abort() modal QMessageBox açar;
+# offscreen'de kapatacak kullanıcı yok → exec() sonsuza bloke (hang). Otomatik 'Yes'.
+ts._confirm_abort = lambda: True
 
 # Stub field picker to 4 bots so tournament starts fast
 ts.field_picker.set_composition(["TAG", "Fish", "Maniac", "Nit"])
@@ -168,6 +171,7 @@ check("After end, setup screen is rebuilt (field_picker re-attached)",
 print("\n── 6. Tournament advice signal ──")
 captured: list[str] = []
 ts2 = TournamentSimulatorScreen(state)
+ts2._confirm_abort = lambda: True             # modal hang guard (bkz. §5)
 ts2.tournament_advice_requested.connect(captured.append)
 ts2.field_picker.set_composition(["TAG", "Fish", "Reg"])
 ts2._start_tournament()

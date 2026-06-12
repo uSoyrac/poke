@@ -52,6 +52,10 @@ def test_restart_does_not_duplicate_shortcuts():
 
     QApplication.instance() or QApplication([])
     scr = TournamentSimulatorScreen(AppState())
+    # _end_and_restart() canlı turnuvada _confirm_abort() modal QMessageBox açar;
+    # offscreen test'te kapatacak kullanıcı yok → exec() sonsuza bloke (hang).
+    # Onayı otomatik 'Yes' yap (docstring: 'Test'te monkeypatch'lenebilir').
+    scr._confirm_abort = lambda: True
     scr._start_tournament()
     scr._end_and_restart()
     scr._start_tournament()
