@@ -623,6 +623,46 @@ def _board_threat(board, label: str, hole=None) -> "tuple[float, list]":
     return min(0.52, h), reasons
 
 
+def _draw_equity(hole, board) -> "tuple[float, list]":
+    """Çekme equity'si — STREET-AWARE + COMBO-AWARE (D201). _hand_strength'in draw'ı
+    river'da hayalet-equity verir (board-kart-sayısı kör) + combo (FD+düz) ayırmaz +
+    flop(2-kart)/turn(1-kart) realization'ı eşitler. Bu, çekmeyi DOĞRU sayar:
+    river→0 (çekme kalmadı), flop rule-of-4, turn rule-of-2, FD+düz ADDITIVE.
+    Card değer-ölçeği 0-index (A=12)."""
+    n = len(board)
+    if n >= 5:
+        return 0.0, []                                   # RİVER: çekme yok (hayalet öl)
+    if not hole or n < 3:
+        return 0.0, []
+    from collections import Counter
+    hv = [c.value for c in hole]
+    hs = [c.suit for c in hole]
+    bv = [c.value for c in board]
+    sc = Counter(hs + [c.suit for c in board])
+    outs, notes = 0, []
+    # FLUSH-çekme: hero o renkte ≥1 kart + toplam 4 (5 değil=zaten flush) → 9 out
+    fd = next((s for s, c in sc.items() if c == 4 and s in hs), None)
+    if fd:
+        outs += 9; notes.append("floş-çekme(9)")
+    # DÜZ-çekme: açık-uçlu(8) / gutshot(4). Tekerlek için A=−1.
+    av = sorted(set(hv + bv))
+    if 12 in av:
+        av = sorted(set(av + [-1]))
+    oesd = any(av[i + 3] - av[i] == 3 for i in range(len(av) - 3))
+    gut = (not oesd) and any(av[i + 3] - av[i] == 4 for i in range(len(av) - 3))
+    if oesd:
+        outs += 8; notes.append("açık-uçlu(8)")
+    elif gut:
+        outs += 4; notes.append("gutshot(4)")
+    # OVERCARD'lar (iki kart da board'un üstünde, başka çekme yoksa) → küçük kredi
+    if not fd and not oesd and hv and bv and min(hv) > max(bv):
+        outs += 3; notes.append("2 overcard(3)")
+    if outs <= 0:
+        return 0.0, []
+    mult = 4 if n == 3 else 2                             # flop iki-kart / turn tek-kart
+    return min(0.72, outs * mult / 100.0), notes
+
+
 def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
     """Postflop ÖĞRETİCİ — board-aware _hand_strength → 7-kademe + 3 altın kural
     + sizing. Saf (Qt'siz); postflop_gto/bot kararı DEĞİŞMEZ."""
@@ -633,8 +673,11 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
         board = list(getattr(hand, "community", []) or [])
         if len(board) < 3 or len(getattr(hero, "hole_cards", []) or []) < 2:
             return None
-        strength, draws, label = _explain_bb()._hand_strength(hero.hole_cards, board)
-        eq = min(1.0, strength + 0.45 * draws)
+        strength, _raw_draws, label = _explain_bb()._hand_strength(hero.hole_cards, board)
+        # ÇEKME (D201): _hand_strength draw'ı river-hayalet + combo-kör + street-eşit.
+        # _draw_equity DOĞRU sayar (river=0, flop ×4/turn ×2, FD+düz additive).
+        draws, draw_notes = _draw_equity(hero.hole_cards, board)
+        eq = min(1.0, strength + draws)
         tex = classify_board(board)
         tier = _tier_from(strength, draws)
         blab = _BOARD_TR.get(tex.label, tex.label.upper())

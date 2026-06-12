@@ -205,3 +205,28 @@ def test_top_boat_still_raises():
     # OVER-FIX guard: üst-dolu (AA on AA2) RAISE kalmalı
     pf = soyrac_postflop_advice(_PFH(["Ah","Ad"], ["As","2c","2d","7h","9s"], 40, 15), 0)
     assert "RAISE" in pf["action"]
+
+
+# ── KADEME B: çekme motoru street/combo-aware (D201) ──
+def test_river_busted_draw_folds():
+    # B2: river 8-high busted draw → FOLD (hayalet equity yok)
+    pf = soyrac_postflop_advice(_PFH(["8h","7h"], ["Ah","Kc","Qd","2s","3c"], 40, 30), 0)
+    assert pf["action"] == "FOLD" and pf["eq"] < 0.2
+
+
+def test_combo_draw_flop_calls():
+    # B1: FD+OESD combo flop yarım-pota → DRAW, CALL (FOLD değil)
+    pf = soyrac_postflop_advice(_PFH(["9h","8h"], ["Th","7h","2c"], 20, 10, _St.FLOP), 0)
+    assert pf["tier"] == "DRAW" and "CALL" in pf["action"] and pf["eq"] > 0.5
+
+
+def test_turn_big_draw_reaches_draw_tier():
+    # B5: turn 15-out combo → DRAW tier ulaşılabilir (HAVA değil)
+    pf = soyrac_postflop_advice(_PFH(["Jh","Th"], ["9h","8h","2c","Ks"], 20, 10, _St.TURN), 0)
+    assert pf["tier"] == "DRAW"
+
+
+def test_made_hand_draw_zero_unchanged():
+    # OVER-FIX guard: kuru board made-hand (draws=0) etkilenmez
+    pf = soyrac_postflop_advice(_PFH(["7h","7c"], ["7s","2d","9h"], 10, 3, _St.FLOP), 0)
+    assert pf["tier"] == "NUT" and "RAISE" in pf["action"]
