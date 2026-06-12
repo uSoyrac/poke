@@ -552,35 +552,75 @@ def _tier_from(strength: float, draws: float) -> str:
     return "HAVA"
 
 
-def _board_threat(board, label: str) -> "tuple[float, list]":
-    """FACING-A-BET board-tehdit haircut'ı (D198). _hand_strength MUTLAK el-gücü
-    verir (random'a karşı) ama board-tehdidini görmez: 3-çubuk board'da flush'un
-    yoksa, eşli board'da dolu'n yoksa, Ace/broadway board'da villain'in bahis-range'i
-    board'u vurur. Made-hand FACING-A-BET'te bir BLUFF-CATCHER'a düşer → equity'yi
-    gerçekçi seviyeye indir. label = _hand_strength el-tipi (o board'un nut-tipi muaf)."""
+def _board_threat(board, label: str, hole=None) -> "tuple[float, list]":
+    """Board-tehdit haircut'ı (D198+D200). _hand_strength MUTLAK el-gücü verir
+    (random'a karşı) ama board-tehdidini görmez. Bu, made-hand'in board'a karşı
+    NE KADAR korunmasız olduğunu RANK-FARKINDALIKLI hesaplar: 3-flush'ta nut-floşun
+    yoksa, eşli board'da alt-dolu/zayıf-kicker-trips, DÜZ board'da idiot-end, Ace/
+    broadway board'da açan-range vurması. label=_hand_strength el-tipi; hole=hero
+    kartları (rank-farkındalık için). nut-floş/üst-dolu vb. gerçekten nut ise muaf."""
     from collections import Counter
     if not board:
         return 0.0, []
-    suit_n = max(Counter(c.suit for c in board).values())
-    rank_n = max(Counter(c.value for c in board).values())
+    hole = hole or []
+    hv = [c.value for c in hole]
+    hs = [c.suit for c in hole]
+    suit_ct = Counter(c.suit for c in board)
+    rank_ct = Counter(c.value for c in board)
+    suit_n = max(suit_ct.values())
+    bvals = [c.value for c in board]
     ranks = [getattr(c, "rank", "") for c in board]
     h, reasons = 0.0, []
-    # 1) 3+ aynı renk board + hero FLUSH DEĞİL → en büyük tehdit (flush hazır olabilir)
-    if suit_n >= 3 and label not in ("flush", "full house", "quads", "straight flush"):
-        h += 0.34 if suit_n >= 4 else 0.28
-        reasons.append("flush board, çubuğun yok")
-    # 2) EŞLİ board + hero dolu/quad/trips DEĞİL → üst-el (full house/trips) mümkün
-    if rank_n >= 2 and label not in ("full house", "quads", "trips", "set"):
-        h += 0.12
-        reasons.append("eşli board, dolu/trips mümkün")
-    # 3) Ace/broadway board + made-hand → villain açış-range'i board'u sık vurur
-    if label not in ("flush", "full house", "quads", "straight", "set", "trips"):
+
+    # 1) FLUSH board (3+ aynı renk) — RANK-FARKINDALIKLI (sub-nut floş NUT değil)
+    flush_suit = next((s for s, n in suit_ct.items() if n >= 3), None)
+    if flush_suit and label not in ("full house", "quads", "straight flush"):
+        hero_flush_ranks = [c.value for c in hole if c.suit == flush_suit]
+        if label == "flush":
+            if any(v >= 11 for v in hero_flush_ranks):     # A(12)/K(11) floş = (near-)nut → muaf
+                pass
+            else:
+                h += 0.20; reasons.append("sub-nut floş (üst floş mümkün)")
+        else:                                              # made-hand, floş yok
+            h += 0.34 if suit_n >= 4 else 0.28
+            reasons.append("flush board, çubuğun yok")
+
+    # 2) EŞLİ board — RANK-FARKINDALIKLI (alt-dolu / zayıf-kicker trips)
+    board_pair = max((r for r, n in rank_ct.items() if n >= 2), default=0)
+    if board_pair:
+        if label == "trips":
+            kick = max((v for v in hv if v != board_pair), default=0)
+            if kick < 10:                                  # < Q(10) kicker → üst-trips/dolu mümkün
+                h += 0.14; reasons.append("trips zayıf-kicker")
+        elif label == "full house":
+            if len(hv) == 2 and hv[0] == hv[1] and hv[0] < board_pair:
+                h += 0.22; reasons.append("alt-dolu (üst-dolu mümkün)")
+        elif label not in ("quads", "set"):
+            h += 0.12; reasons.append("eşli board, dolu/trips mümkün")
+
+    # 3) DÜZ board (4-ardışık-board / board düz yapıyor) — D200 yeni
+    bu = sorted(set(bvals))
+    if 12 in bu:                                           # Ace (bu ölçekte A=12)
+        bu = sorted(set(bu + [-1]))                        # tekerlek (A-2-3-4-5, A=düşük)
+    four_straight = any(bu[i + 3] - bu[i] <= 4 for i in range(len(bu) - 3))
+    board_full_straight = any(bu[i + 4] - bu[i] == 4 for i in range(len(bu) - 4))
+    if four_straight and label not in ("flush", "full house", "quads", "straight flush"):
+        if board_full_straight and label == "straight":
+            h += 0.35; reasons.append("board'da tam düz — board oynuyor olabilirsin (chop)")
+        elif label == "straight":
+            h += 0.18; reasons.append("düz board, idiot-end riski (üst-düz mümkün)")
+        else:
+            h += 0.16; reasons.append("düz board, düz hazır olabilir")
+
+    # 4) Ace/broadway board — villain açış-range'i board'u sık vurur
+    if label not in ("flush", "full house", "quads", "straight", "set", "trips",
+                     "top two pair", "two pair"):
         bro = sum(1 for r in ranks if r in "AKQJT")
         if "A" in ranks:
             h += 0.10; reasons.append("Ace board, açan-range vurur")
         elif bro >= 2:
-            h += 0.07; reasons.append("broadway board, açan-range vurur")
-    return min(0.45, h), reasons
+            h += 0.07; reasons.append("broadway board")
+    return min(0.52, h), reasons
 
 
 def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
@@ -605,11 +645,16 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
         # BOARD-TEHDİT (D198): made-hand FACING-A-BET'te board-tehdidiyle (flush/eşli/
         # Ace-broadway) bluff-catcher'a düşer. eq_facing = eq − tehdit (sadece bahse
         # karşı). nut-tipi (flush/dolu vb.) muaf.
-        threat, threat_reasons = _board_threat(board, label)
+        threat, threat_reasons = _board_threat(board, label, hero.hole_cards)
+        # Bu board'un GERÇEK nut-tipi (tehdide bağışık): üst-dolu/quads/straight-flush
+        # ve near-nut floş (threat~0). Bunun dışındaki made-hand, tehdit yüksekse
+        # facing-bet'te bluff-catcher, betting'de pot-kontrol/check (D200 — set on
+        # flush board RAISE değil; sub-nut floş NUT değil).
+        _real_nut = ((label in ("full house", "quads", "straight flush") and threat < 0.08)
+                     or (label == "flush" and threat < 0.05))
         eq_facing = max(0.0, eq - threat) if to_call > 0 else eq
-        _bluff_catch = (to_call > 0 and threat >= 0.20 and
-                        label not in ("flush", "full house", "quads",
-                                      "straight flush", "set"))
+        _bluff_catch = (to_call > 0 and threat >= 0.18 and not _real_nut)
+        _vuln_bet = (to_call <= 0.01 and threat >= 0.22 and not _real_nut)
         wet = tex.wetness
         size = 0.33 if wet < 0.35 else (0.55 if wet < 0.6 else 0.75)
         # 3 ALTIN KURAL — ilk tetikleyen
@@ -638,7 +683,12 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
             # board'da TÜM range küçük cbet (blöf dahil — range avantajı + fold-equity).
             # Islak board polarize kalır (sadece value/çekme bas, gerisi check).
             _range_cbet = (street == Street.FLOP and tex.label == "dry")
-            if tier in ("NUT", "GÜÇLÜ"):
+            if _vuln_bet and tier in ("NUT", "GÜÇLÜ", "ORTA"):
+                # D200: tehlikeli board'da korunmasız made-hand → BET value DEĞİL,
+                # pot-kontrol/check (board konuştu; büyük value-bet kendini fold-ettirir/
+                # raise yer). A1: monotone top-pair artık CHECK.
+                action = "CHECK (board tehlikeli — pot kontrol/bluff-catch)"
+            elif tier in ("NUT", "GÜÇLÜ"):
                 action = "BET (value)"
             elif tier == "DRAW":
                 action = "BET (semi-blöf)"

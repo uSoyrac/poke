@@ -162,3 +162,46 @@ def test_dry_board_top_pair_still_calls():
     # Kuru K72 board top-pair (AK) bahse karşı → CALL (tehdit yok, over-fix yok)
     pf = soyrac_postflop_advice(_PFH(["Ah","Kd"], ["Ks","7d","2h"], 10, 3, _St.FLOP), 0)
     assert pf["action"] == "CALL" and pf["tier"] == "GÜÇLÜ"
+
+
+# ── KADEME A: board-tehdit motoru tamamlandı (D200) ──
+def test_monotone_toppair_betting_checks():
+    # A1: monotone board'da top-pair, to_call=0 → BET value DEĞİL, CHECK/pot-kontrol
+    pf = soyrac_postflop_advice(_PFH(["Qh","9d"], ["Ts","5c","Qc","2h","3c"], 20, 0), 0)
+    assert "CHECK" in pf["action"]
+
+
+def test_board_straight_not_raise():
+    # A2: board 5-düz (89TJQ) + 22 → RAISE DEĞİL (board oynuyor)
+    pf = soyrac_postflop_advice(_PFH(["2h","2d"], ["8s","9c","Tc","Jh","Qd"], 40, 15), 0)
+    assert "RAISE" not in pf["action"] and pf["tier"] == "BLUFF-CATCH"
+
+
+def test_subnut_flush_not_raise():
+    # A4: sub-nut floş (32c) 4-floş board → RAISE DEĞİL
+    pf = soyrac_postflop_advice(_PFH(["3c","2c"], ["As","Kc","9c","4h","7c"], 40, 15), 0)
+    assert "RAISE" not in pf["action"]
+
+
+def test_set_on_flushboard_not_raise():
+    # A5: set 4-floş board → RAISE DEĞİL (floşa karşı bluff-catch)
+    pf = soyrac_postflop_advice(_PFH(["2c","2d"], ["2s","Ah","Kh","Qh","7h"], 40, 15), 0)
+    assert "RAISE" not in pf["action"]
+
+
+def test_bottom_boat_not_raise():
+    # A8: alt-dolu (22 on AA2) → RAISE DEĞİL (her Ax üst-dolu)
+    pf = soyrac_postflop_advice(_PFH(["2h","2d"], ["As","Ac","2s","7h","9d"], 40, 15), 0)
+    assert "RAISE" not in pf["action"]
+
+
+def test_nut_flush_still_raises():
+    # OVER-FIX guard: gerçek nut floş (Ac9c) RAISE kalmalı
+    pf = soyrac_postflop_advice(_PFH(["Ac","9c"], ["Ts","5c","Qc","2h","3c"], 40, 15), 0)
+    assert pf["tier"] == "NUT" and "RAISE" in pf["action"]
+
+
+def test_top_boat_still_raises():
+    # OVER-FIX guard: üst-dolu (AA on AA2) RAISE kalmalı
+    pf = soyrac_postflop_advice(_PFH(["Ah","Ad"], ["As","2c","2d","7h","9s"], 40, 15), 0)
+    assert "RAISE" in pf["action"]
