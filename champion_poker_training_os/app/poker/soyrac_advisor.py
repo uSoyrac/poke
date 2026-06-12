@@ -443,6 +443,8 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
         "action": action, "tone": _tone_for_action(action), "line": base.get("line", ""),
         "score": score, "threshold": base.get("threshold"),
         "call_t": base.get("call_t"), "raise_t": base.get("raise_t"), "b4": base.get("b4"),
+        "threshold_breakdown": base.get("threshold_breakdown"),
+        "count_line": base.get("count_line", ""),    # D194: true-count eşik kırılımı
         "scale_max": 40, "format_note": fmt, "card_breakdown": shcp_breakdown(hand_key),
         "tier": None, "board_label": None, "wetness": None, "golden_rule": None,
         "size_frac": None, "flow_nodes": None, "terms": ["SHCP", "eşik"],

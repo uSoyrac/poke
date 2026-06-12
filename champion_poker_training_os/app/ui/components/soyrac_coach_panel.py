@@ -151,6 +151,11 @@ class SoyracCoachPanel(QFrame):
         row1.addWidget(self.scenario_chip, 1)
         vb.addLayout(row1)
         self.thresh_bar = _ThreshBar(); vb.addWidget(self.thresh_bar)
+        # True-count tarzı eşik kırılımı (D194): 'baz 15 · ICM +1 · sığ +2 → efektif 18'
+        self.count_lbl = QLabel(""); self.count_lbl.setObjectName("SoyracCount")
+        self.count_lbl.setWordWrap(True)
+        self.count_lbl.setStyleSheet("color:#7fd4ff; font-size:11px; padding:1px 0 3px 0;")
+        self.count_lbl.setVisible(False); vb.addWidget(self.count_lbl)
         self.decision_lbl = QLabel("—"); self.decision_lbl.setObjectName("SoyracDecision")
         vb.addWidget(self.decision_lbl)
         self.reason_lbl = QLabel(""); self.reason_lbl.setObjectName("SoyracReason")
@@ -263,6 +268,15 @@ class SoyracCoachPanel(QFrame):
             self.thresh_bar.setFormat(f"%v / 40")
 
         quiz = self._mode == "quiz"
+        # True-count eşik kırılımı — RFI'de + quiz değilse (cevabı sızdırmasın)
+        cl = explain.get("count_line", "")
+        bd = explain.get("threshold_breakdown") or {}
+        show_count = bool(cl) and not quiz and any(
+            bd.get(k) for k in ("icm_adj", "deep_adj", "tourney_adj", "table_adj"))
+        self.count_lbl.setVisible(show_count)
+        if show_count:
+            self.count_lbl.setText("🎲 " + cl)
+
         if quiz:
             self.decision_lbl.setText("?  (sen ne yapardın?)")
             self._set_tone(self.decision_lbl, "hidden")

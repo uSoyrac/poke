@@ -110,3 +110,21 @@ def test_leak_categories():
     # commit-gate ihlali
     e = {"phase": "postflop", "scenario": "Postflop", "action": "CHECK", "golden_rule": "⛔ Commit-gate: ..."}
     assert "Commit-gate" in soyrac_leak_category(e, "RAISE")
+
+
+# ── TRUE-COUNT eşik kırılımı (D194) ──
+def test_explain_carries_threshold_breakdown():
+    # Düzeltmeli senaryo → count_line + breakdown dolu
+    e = soyrac_explain("AJo", "UTG", "RFI", stack_bb=30, icm=True, tourney=True)
+    bd = e.get("threshold_breakdown")
+    assert bd and bd["base"] == 15 and bd["effective"] == bd["base"] + bd["icm_adj"] \
+        + bd["deep_adj"] + bd["tourney_adj"] + bd["table_adj"]
+    assert "baz 15" in e["count_line"] and "efektif" in e["count_line"]
+
+
+def test_explain_count_line_base_only_when_no_adjust():
+    # Düz cash 100bb UTG → sadece baz (düzeltme yok)
+    e = soyrac_explain("AJo", "UTG", "RFI", stack_bb=100, icm=False, tourney=False)
+    bd = e["threshold_breakdown"]
+    assert bd["icm_adj"] == 0 and bd["deep_adj"] == 0 and bd["tourney_adj"] == 0
+    assert e["count_line"].startswith("baz")
