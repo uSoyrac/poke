@@ -110,6 +110,37 @@ def _jam_threshold_for_pct(pct: float) -> int:
     return best_s
 
 
+def _preflop_size(action: str, position: str, stack_bb: float,
+                  ante: bool, hu: bool) -> "dict | None":
+    """Preflop bet-sizing önerisi (D188, A9) — sizing_advice._open_size_bb'i bağlar.
+    KRİTİK ayrım: aynı '4-BET' derin'de küçük (~2.2× 3bet) ama sığ'da JAM olmalı;
+    eski advisor bu farkı hiç göstermiyordu (size_frac=None hardcode)."""
+    a = (action or "").upper()
+    st = round(stack_bb, 1)
+    if "JAM" in a:
+        return {"size_bb": st, "text": f"all-in ({st}bb)"}
+    if "RAISE" in a:                                   # RFI açış
+        try:
+            from app.poker.sizing_advice import _open_size_bb
+            sz = _open_size_bb(position, stack_bb, ante)
+        except Exception:
+            sz = round(stack_bb, 1) if stack_bb <= 15 else (2.3 if ante else 2.5)
+        if sz >= stack_bb - 0.1:
+            return {"size_bb": sz, "text": f"jam ({sz}bb — sığ)"}
+        return {"size_bb": sz, "text": f"{sz}bb aç"}
+    if "3-BET" in a:
+        if stack_bb <= 25:
+            return {"size_bb": st, "text": f"3bet-jam ({st}bb — sığ, fold-equity)"}
+        ip = (position or "").upper() in ("BTN", "CO", "HJ")
+        return {"size_bb": None,
+                "text": "≈3× açış (IP)" if ip else "≈4× açış (OOP — pozisyon yok, denial)"}
+    if "4-BET" in a:
+        if stack_bb <= 40:
+            return {"size_bb": st, "text": f"4bet-jam ({st}bb — sığ, commit)"}
+        return {"size_bb": None, "text": "≈2.2× 3bet (küçük 4bet — derin, jam değil)"}
+    return None
+
+
 def _threshold_count_line(b: dict) -> str:
     """True-count tarzı eşik kırılımı (D186): 'baz 15 · ICM +1 · sığ +2 → efektif 18'.
     Blackjack running→true count gibi: baz eşik + yalnız SIFIR-OLMAYAN düzeltmeler.
@@ -195,6 +226,7 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         jam = score >= jam_thr
         return {"score": score, "action": "JAM" if jam else "FOLD",
                 "scenario": "Push/Fold", "threshold": jam_thr,
+                "size": _preflop_size("JAM" if jam else "FOLD", pos, stack_bb, bool(tourney), hu),
                 "line": f"🧮 SHCP {score} ≥ jam-eşik {jam_thr} ({pos})"
                         f"{' HU' if hu else ''} → {'JAM' if jam else 'FOLD'}"
                         if jam else
@@ -237,6 +269,7 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         else:
             act = "FOLD"
         return {"score": score, "b4": b4, "action": act, "scenario": "vs 3-bet",
+                "size": _preflop_size(act, pos, stack_bb, bool(tourney), hu),
                 "line": f"🧮 SHCP {score} · B4 blocker {b4} · 4bet≥{v4_t}/call≥{flat_t}"
                         f" → {act}  (vs 3-bet)"}
 
@@ -274,6 +307,7 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
             bluff3 = " (blocker blöf)"
         return {"score": score, "call_t": call_t, "raise_t": raise_t,
                 "action": act, "scenario": "vs RFI",
+                "size": _preflop_size(act, pos, stack_bb, bool(tourney), hu),
                 "line": f"🧮 SHCP {score} · {pos}{' HU' if hu else ''} call≥{call_t}/3bet≥{raise_t} → {act}{bluff3}"}
 
     # RFI (açış) — pozisyon eşiği (puana eklenmez); HU'da çok düşük (geniş aç)
@@ -294,6 +328,7 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                  "tourney_adj": tourney_adj, "table_adj": table_adj, "effective": thr}
     return {"score": score, "threshold": thr, "action": act, "scenario": "RFI",
             "threshold_breakdown": breakdown,
+            "size": _preflop_size(act, pos, stack_bb, bool(tourney), hu),
             "count_line": _threshold_count_line(breakdown),
             "line": f"🧮 SHCP {score} {rel} {pos}{' HU' if hu else ''} eşik {thr} → {act}"}
 
