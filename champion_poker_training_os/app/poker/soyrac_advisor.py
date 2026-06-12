@@ -432,7 +432,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
                    vs_position: str = "", stack_bb: float = 100, icm: bool = False,
                    n_active: int = 9, tourney: bool = False, *,
                    stage: str = "", avg_stack_bb: float = 0.0,
-                   stacks=None, payouts=None,
+                   stacks=None, payouts=None, villain_stats=None,
                    hand=None, hero_idx=None, advice=None) -> dict:
     """ÖĞRETİCİ çıktı — soyrac_advice'i sarar, üstüne 'nasıl düşün' katmanı serer.
     Panel bunu okur; soyrac_advice/grading AYNEN korunur (fidelity 0-sapma)."""
@@ -451,7 +451,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
     if hand is not None and hero_idx is not None:
         comm = getattr(hand, "community", None)
         if comm and len(comm) >= 3:
-            pf = soyrac_postflop_advice(hand, hero_idx, advice)
+            pf = soyrac_postflop_advice(hand, hero_idx, advice, villain_stats=villain_stats)
             if pf:
                 stn = {1: "Flop", 2: "Turn", 3: "River"}.get(len(comm) - 2, "Postflop")
                 return {
@@ -712,9 +712,13 @@ def _draw_equity(hole, board) -> "tuple[float, list]":
     return min(0.72, outs * mult / 100.0), notes
 
 
-def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
+def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "dict | None":
     """Postflop ÖĞRETİCİ — board-aware _hand_strength → 7-kademe + 3 altın kural
-    + sizing. Saf (Qt'siz); postflop_gto/bot kararı DEĞİŞMEZ."""
+    + sizing. Saf (Qt'siz); postflop_gto/bot kararı DEĞİŞMEZ.
+
+    villain_stats (D211, opsiyonel): rakip-okuması → BLUFF-CATCH eq-marjını ayarlar
+    ('gereken-blöf eşiği alpha + rakip-tipi kaydırması'; blackjack Illustrious-18).
+    None → default marj 0.10 (mevcut davranış, fidelity 0-sapma)."""
     try:
         from app.poker.postflop_gto import classify_board
         from app.engine.hand_state import Street
@@ -762,6 +766,27 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
         _vuln_bet = (to_call <= 0.01 and threat >= 0.22 and not _real_nut)
         wet = tex.wetness
         size = 0.33 if wet < 0.35 else (0.55 if wet < 0.6 else 0.75)
+        # BLUFF-CATCH OKUMA-MARJI (D211) — gr VE action ORTAK kullansın (çelişki önle).
+        # "gereken-blöf eşiği (alpha=be) + rakip-tipi kaydırması" (blackjack Illustrious-18:
+        # temel=MDF, sapma=rakip-tipi, yetersiz-sayım<25→temelde kal). GATED: villain_stats
+        # yoksa marj=0.10 (mevcut davranış, fidelity 0-sapma). Taban=CALL; sapma tek-yönlü.
+        be = to_call / (pot + to_call) if to_call > 0 else 0.0
+        _bc_margin = 0.10
+        _read_word = "pasif/under-bluffer'a FOLD, agresife CALL"
+        if to_call > 0 and villain_stats and not _multi:
+            _vp = float((villain_stats.get("vpip", 0) if hasattr(villain_stats, "get") else 0) or 0)
+            _obs = float((villain_stats.get("obs_hands", 0) if hasattr(villain_stats, "get") else 0) or 0)
+            if _vp > 0 and (not _obs or _obs >= 25):            # sayım-güven kapısı
+                from app.poker.opponent_typology import classify_hellmuth
+                _name = classify_hellmuth(
+                    _vp, float(villain_stats.get("pfr", 0) or 0),
+                    float((villain_stats.get("aggression", villain_stats.get("af", 0))) or 0),
+                    float(villain_stats.get("river_bluff", 0) or 0))[1]
+                _bc_margin = {"Mouse": 0.12, "Lion": 0.04, "Eagle": 0.0,
+                              "Elephant": -0.02, "Jackal": -0.10}.get(_name, 0.10)
+                _read_word = (f"{_name}: under-bluff → FOLD" if _bc_margin > 0.06 else
+                              (f"{_name}: over-bluff → CALL geniş" if _bc_margin < 0 else
+                               f"{_name}: dengeli → saf MDF"))
         # 3 ALTIN KURAL — ilk tetikleyen
         gr = None
         if to_call > 0 and to_call / stack > 0.70 and strength < 0.60 and draws < 0.30:
@@ -769,20 +794,22 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
         elif street == Street.FLOP and tex.label == "dry" and to_call <= 0.01:
             gr = "🎯 Kuru board + agresör → range-cbet (her şeyle küçük bas, 1/3)"
         elif to_call > 0:
-            be = to_call / (pot + to_call)
             if threat >= 0.12:
                 _tr = ", ".join(threat_reasons)
                 gr = (f"⚖ Board-tehdit ({_tr}): made-hand bluff-catcher → gerçek eq "
                       f"~%{eq_facing*100:.0f} (ham %{eq*100:.0f}), gereken %{be*100:.0f} → "
                       + ("KATLA" if eq_facing < be - 0.02 else
-                         ("marjinal: pasif/under-bluffer'a FOLD, agresife CALL"
-                          if eq_facing < be + 0.10 else "call uygun")))
-            elif eq_facing < be:                       # D202: action ile aynı eq (desync biter)
-                _mw = f" ({n_active}-yollu)" if _multi else ""
-                gr = f"📉 Pot-odds{_mw}: gereken %{be*100:.0f}, equity %{eq_facing*100:.0f} → FOLD"
+                         (f"marjinal ({_read_word})"
+                          if eq_facing < be + _bc_margin else "call uygun")))
             else:
+                # gr action ile AYNI 3-yollu (desync biter): call / marjinal-okuma / fold
                 _mw = f" ({n_active}-yollu)" if _multi else ""
-                gr = f"✅ Pot-odds{_mw}: equity %{eq_facing*100:.0f} ≥ gereken %{be*100:.0f} → call uygun"
+                if eq_facing >= be + _bc_margin:
+                    gr = f"✅ Pot-odds{_mw}: equity %{eq_facing*100:.0f} ≥ gereken %{be*100:.0f} → call uygun"
+                elif eq_facing >= be - 0.02:
+                    gr = f"⚖ Marjinal{_mw}: equity %{eq_facing*100:.0f} ~ gereken %{be*100:.0f} → {_read_word}"
+                else:
+                    gr = f"📉 Pot-odds{_mw}: gereken %{be*100:.0f}, equity %{eq_facing*100:.0f} → FOLD"
         # AKSİYON (tier-uyumlu, öğretici)
         if to_call <= 0.01:
             # RANGE-CBET (D188b/A12): kuru flop'ta agresörken golden_rule "her şeyle
@@ -806,15 +833,21 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
             else:
                 action = "CHECK"
         else:
-            be = to_call / (pot + to_call)
-            # FACING-A-BET: board-tehdit-ayarlı eq (eq_facing). Bluff-catch ise
-            # eşik civarı = OKUMA-BAĞIMLI (pasife fold / agresife call), kör CALL değil.
+            # FACING-A-BET: board-tehdit-ayarlı eq (eq_facing) vs gereken-blöf+okuma-marjı
+            # (be ve _bc_margin yukarıda gr ile ORTAK hesaplandı → çelişki yok).
             if tier == "NUT" and not _bluff_catch:
                 action = "RAISE"
-            elif eq_facing >= be + 0.10:
+            elif eq_facing >= be + _bc_margin:
                 action = "CALL"
             elif eq_facing >= be - 0.02:
-                action = "CALL (marjinal — pasif/under-bluffer'a FOLD, agresife CALL)"
+                # marjinal bant — okuma NORMATİF (text-only desync giderildi): sıkı→FOLD,
+                # bluffy→CALL; okuma yoksa mevcut metin (davranış değişmez).
+                if villain_stats and _bc_margin > 0.06:
+                    action = f"FOLD (bluff-catch — {_read_word})"
+                elif villain_stats and _bc_margin < 0:
+                    action = f"CALL (bluff-catch — {_read_word})"
+                else:
+                    action = "CALL (marjinal — pasif/under-bluffer'a FOLD, agresife CALL)"
             else:
                 action = "FOLD"
             if _bluff_catch:
@@ -840,6 +873,12 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
         ]
         if range_note:
             chain.append(range_note)
+        # BLUFF-CATCH koç-satırı (D211): gereken-blöf (alpha) + rakip o kadar blöf yapar mı
+        if to_call > 0 and (_bluff_catch or "marjinal" in action or "bluff-catch" in action.lower()):
+            _q = ("Hayır → FOLD" if _bc_margin > 0.06 else
+                  ("Fazlasıyla → CALL" if _bc_margin < 0 else "Dengeli → saf MDF math"))
+            chain.append(f"🎯 Bluff-catch: gereken-blöf %{be*100:.0f} (alpha). "
+                         f"Rakip bu boyutta o kadar blöf yapar mı? [{_read_word}] → {_q}")
         # SIZING satırı SADECE bet/raise'te (D4: CHECK/FOLD'da sizing göstermek çelişki).
         # RAISE = önündeki bahsin katı (pot-fraksiyonu DEĞİL — D2: aksi absürt/illegal).
         if "RAISE" in action:
