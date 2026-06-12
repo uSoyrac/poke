@@ -39,6 +39,12 @@ def _started_screen():
     s._refresh_table()
     s._refresh_field_strip()
     QA.processEvents()
+    # _end_and_restart() canlı (tamamlanmamış) turnuvada _confirm_abort() ile
+    # modal QMessageBox açar; offscreen test'te onu kapatacak kullanıcı yok →
+    # exec() nested event-loop'ta SONSUZA kadar bloke olur (hang, fail değil).
+    # Docstring'in işaret ettiği gibi onayı monkeypatch'leyip otomatik 'Yes'
+    # yap — timer-temizliği yapan gerçek _end_and_restart akışı korunur.
+    s._confirm_abort = lambda: True
     return s
 
 
