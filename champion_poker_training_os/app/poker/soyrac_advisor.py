@@ -110,6 +110,19 @@ def _jam_threshold_for_pct(pct: float) -> int:
     return best_s
 
 
+def _threshold_count_line(b: dict) -> str:
+    """True-count tarzı eşik kırılımı (D186): 'baz 15 · ICM +1 · sığ +2 → efektif 18'.
+    Blackjack running→true count gibi: baz eşik + yalnız SIFIR-OLMAYAN düzeltmeler.
+    Kullanıcı 'neden bu eşik'i refleks okur; davranış değişmez, sadece görünür."""
+    parts = [f"baz {b.get('base', 0)}"]
+    for key, lbl in (("icm_adj", "ICM"), ("deep_adj", "sığ-stack"),
+                     ("tourney_adj", "turnuva"), ("table_adj", "masa")):
+        v = b.get(key, 0)
+        if v:
+            parts.append(f"{lbl} {v:+d}")
+    return " · ".join(parts) + f" → efektif eşik {b.get('effective', 0)}"
+
+
 def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                   vs_position: str = "", stack_bb: float = 100,
                   icm: bool = False, n_active: int = 9, tourney: bool = False,
@@ -255,10 +268,18 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
     # sağlam; GTO'da masa-boyutu verisi yok → temkinli faktör.)
     _early = pos in ("UTG", "UTG+1", "MP", "LJ", "HJ")
     table_adj = -min(3, (9 - n_active) // 2) if (not hu and _early and n_active < 9) else 0
-    thr = (3 if hu else _RFI.get(pos, 13)) + icm_adj + deep_adj + tourney_adj + table_adj
+    base_thr = 3 if hu else _RFI.get(pos, 13)
+    thr = base_thr + icm_adj + deep_adj + tourney_adj + table_adj
     rel = "≥" if score >= thr else "<"
     act = "RAISE (AÇ)" if score >= thr else "FOLD"
+    # TRUE-COUNT göstergesi (D186): eşik bir DENKLEM (base + düzeltmeler). Blackjack
+    # true-count gibi açığa çıkar → kullanıcı "neden bu eşik" görür (davranış DEĞİŞMEZ,
+    # sadece şeffaflık). Coach paneli/Akademi bunu çubuk olarak çizebilir.
+    breakdown = {"base": base_thr, "icm_adj": icm_adj, "deep_adj": deep_adj,
+                 "tourney_adj": tourney_adj, "table_adj": table_adj, "effective": thr}
     return {"score": score, "threshold": thr, "action": act, "scenario": "RFI",
+            "threshold_breakdown": breakdown,
+            "count_line": _threshold_count_line(breakdown),
             "line": f"🧮 SHCP {score} {rel} {pos}{' HU' if hu else ''} eşik {thr} → {act}"}
 
 
