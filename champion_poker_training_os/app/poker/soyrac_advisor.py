@@ -140,8 +140,31 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
     _late_pos = pos in ("CO", "BTN", "SB")
     tourney_adj = 2 if (tourney and not hu and not _late_pos) else 0
     sc = (scenario or "RFI").lower()
+    _facing = ("vs" in sc) or ("3-bet" in sc) or ("3bet" in sc)   # önünde raise/jam var
 
-    if "push" in sc or stack_bb < 15:              # kısa stack → equity ekseni
+    # CALL-vs-JAM ekseni (D185, A1): kısa stack + ÖNÜNDE jam/raise var → re-jam çoğu
+    # zaman imkânsız (rakip all-in); tek eksen CALL/FOLD. Eski kod stack<15'i kör
+    # açış-jam dalına atıp "JAM" döndürüyordu = all-in'e re-jam öğretmek (yanlış-eğitim).
+    # call_vs_jam_pct: Nash call-off range (jam'den DAR — call'lamak daha çok equity ister).
+    if stack_bb < 15 and _facing:
+        if hu:
+            cj_thr = 12                            # HU: aksiyonu kapatıyorsun, fiyat var → geniş
+        else:
+            try:
+                from app.poker.mtt_ranges import call_vs_jam_pct
+                cp = call_vs_jam_pct(stack_bb) * 0.83
+                if icm:
+                    cp *= 0.82                     # ICM: call-off pahalı (elenme) → sıkı
+                cj_thr = _jam_threshold_for_pct(cp)
+            except Exception:
+                cj_thr = 18
+        callit = score >= cj_thr
+        return {"score": score, "action": "CALL" if callit else "FOLD",
+                "scenario": "Call vs Jam", "threshold": cj_thr,
+                "line": f"🧮 SHCP {score} {'≥' if callit else '<'} call-vs-jam eşik {cj_thr}"
+                        f" ({pos}){' HU' if hu else ''} → {'CALL' if callit else 'FOLD'} (jam'e karşı)"}
+
+    if "push" in sc or (stack_bb < 15 and not _facing):    # AÇIŞ-jam (önünde raise yok)
         # POZİSYON-AWARE NASH (D177): jam eşiği pozisyon+stack'e göre (mtt_jam_pct,
         # HRC/SnapShove-kalibre). Eski sabit-16 her yerden %17 jam'liyordu — BTN
         # 7bb Nash ~%54! Geç pozisyon ÇOK daha geniş jam'lemeli (arkanda az kişi).
