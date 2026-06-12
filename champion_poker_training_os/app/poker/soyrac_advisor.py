@@ -147,7 +147,8 @@ def _threshold_count_line(b: dict) -> str:
     Kullanıcı 'neden bu eşik'i refleks okur; davranış değişmez, sadece görünür."""
     parts = [f"baz {b.get('base', 0)}"]
     for key, lbl in (("icm_adj", "ICM"), ("deep_adj", "sığ-stack"),
-                     ("tourney_adj", "turnuva"), ("table_adj", "masa")):
+                     ("tourney_adj", "turnuva"), ("table_adj", "masa"),
+                     ("preempt_adj", "pre-empt")):
         v = b.get(key, 0)
         if v:
             parts.append(f"{lbl} {v:+d}")
@@ -320,8 +321,24 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
     # sağlam; GTO'da masa-boyutu verisi yok → temkinli faktör.)
     _early = pos in ("UTG", "UTG+1", "MP", "LJ", "HJ")
     table_adj = -min(3, (9 - n_active) // 2) if (not hu and _early and n_active < 9) else 0
+    # PRE-EMPT (D207, bridge prensibi — botta +61pp MTT ROI, in+out-of-sample kanıtlı):
+    # turnuvada geç-poz folded-to açış rakibi BLOKE eder (fold-equity) → cash-eşiğinin
+    # ALTINDA aç. Az kişi = çok pre-empt (6-max>9-max). Pozisyon-kademe (BTN geniş /
+    # SB dar-OOP) + kapatma-bölgesi (final 3-4 tam-gaz) + vulnerability (derin geniş /
+    # sığ-baskı çek). Eşiği DÜŞÜRÜR. SADECE turnuva+geç-poz → cash dokunulmaz.
+    preempt_adj = 0
+    if tourney and not hu and _late_pos:
+        pa = 3 + max(0, (9 - n_active) // 2)          # az kişi → daha geniş
+        pa += {"BTN": 1, "CO": 0, "SB": -1}.get(pos, 0)  # bridge koltuk
+        if n_active <= 3:
+            pa += 2                                    # kapatma: tam-gaz
+        if stack_bb > 45:
+            pa += 1                                    # derin: bol fold-equity
+        elif icm_adj > 0:
+            pa -= 1                                    # sığ-baskı/bubble: çek
+        preempt_adj = -pa
     base_thr = 3 if hu else _RFI.get(pos, 13)
-    thr = base_thr + icm_adj + deep_adj + tourney_adj + table_adj
+    thr = base_thr + icm_adj + deep_adj + tourney_adj + table_adj + preempt_adj
     rel = "≥" if score >= thr else "<"
     # BB-OPSİYON (D203, F1): RFI dalında pos=BB → bedava-flop opsiyonu var; eşik altı
     # FOLD DEĞİL CHECK (limped/unraised pot'ta BB hiçbir zaman fold etmez, opsiyonunu
@@ -334,7 +351,8 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
     # true-count gibi açığa çıkar → kullanıcı "neden bu eşik" görür (davranış DEĞİŞMEZ,
     # sadece şeffaflık). Coach paneli/Akademi bunu çubuk olarak çizebilir.
     breakdown = {"base": base_thr, "icm_adj": icm_adj, "deep_adj": deep_adj,
-                 "tourney_adj": tourney_adj, "table_adj": table_adj, "effective": thr}
+                 "tourney_adj": tourney_adj, "table_adj": table_adj,
+                 "preempt_adj": preempt_adj, "effective": thr}
     return {"score": score, "threshold": thr, "action": act, "scenario": "RFI",
             "threshold_breakdown": breakdown,
             "size": _preflop_size(act, pos, stack_bb, bool(tourney), hu),
@@ -442,8 +460,13 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
     pos = (position or "BTN").upper()
     vp = (vs_position or "").upper()
     hu = n_active <= 2
-    fmt = "🎯 Cash: loose-aggressive — balığı ez" if not tourney \
-        else "🏆 Turnuva: ICM-sıkı, survival"
+    _pa = (base.get("threshold_breakdown") or {}).get("preempt_adj", 0)
+    if not tourney:
+        fmt = "🎯 Cash: loose-aggressive — balığı ez"
+    elif _pa:                                  # pre-empt aktif: çelişki önle
+        fmt = "🏆 Turnuva geç-poz: PRE-EMPT — açış bloke eder, geniş çal"
+    else:
+        fmt = "🏆 Turnuva: ICM-sıkı, survival"
     out = {
         "phase": "preflop", "scenario": base.get("scenario", scenario),
         "action": action, "tone": _tone_for_action(action), "line": base.get("line", ""),

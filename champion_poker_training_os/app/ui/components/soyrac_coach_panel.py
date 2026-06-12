@@ -281,7 +281,7 @@ class SoyracCoachPanel(QFrame):
         cl = explain.get("count_line", "")
         bd = explain.get("threshold_breakdown") or {}
         show_count = bool(cl) and not quiz and any(
-            bd.get(k) for k in ("icm_adj", "deep_adj", "tourney_adj", "table_adj"))
+            bd.get(k) for k in ("icm_adj", "deep_adj", "tourney_adj", "table_adj", "preempt_adj"))
         self.count_lbl.setVisible(show_count)
         if show_count:
             self.count_lbl.setText("🎲 " + cl)
