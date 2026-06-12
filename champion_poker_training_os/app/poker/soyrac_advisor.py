@@ -431,9 +431,22 @@ def _tone_for_action(action: str) -> str:
 def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
                    vs_position: str = "", stack_bb: float = 100, icm: bool = False,
                    n_active: int = 9, tourney: bool = False, *,
+                   stage: str = "", avg_stack_bb: float = 0.0,
+                   stacks=None, payouts=None,
                    hand=None, hero_idx=None, advice=None) -> dict:
     """ÖĞRETİCİ çıktı — soyrac_advice'i sarar, üstüne 'nasıl düşün' katmanı serer.
     Panel bunu okur; soyrac_advice/grading AYNEN korunur (fidelity 0-sapma)."""
+    # ICM/FT REHBERİ (D210) — bubble/FT'de conversion-katmanı (chip değil $). Sadece
+    # öğretici (base karar değişmez); kapatma-bölgesinde stack-rolü + take-point + pay-jump.
+    _ftg = None
+    if tourney and stage:
+        try:
+            from app.poker.icm import icm_ft_guidance
+            g = icm_ft_guidance(stage, stack_bb, avg_stack_bb, n_active, stacks, payouts,
+                                hero_idx if hero_idx is not None else 0)
+            _ftg = g if g.get("active") else None
+        except Exception:
+            _ftg = None
     # POSTFLOP dalı — board varsa 7-kademe + altın kural öğreticisi
     if hand is not None and hero_idx is not None:
         comm = getattr(hand, "community", None)
@@ -457,6 +470,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
                     "quiz_prompt": f"Sen ne yapardın? ({stn} {pf['board_label']} · {pf['tier']})",
                     "quiz_correct": pf["action"],
                     "quiz_options": ["FOLD", "CHECK/CALL", "BET/RAISE"],
+                    "icm_guidance": _ftg,
                 }
     base = soyrac_advice(hand_key, position, scenario=scenario, vs_position=vs_position,
                          stack_bb=stack_bb, icm=icm, n_active=n_active, tourney=tourney)
@@ -482,6 +496,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
         "scale_max": 40, "format_note": fmt, "card_breakdown": shcp_breakdown(hand_key),
         "tier": None, "board_label": None, "wetness": None, "golden_rule": None,
         "size_frac": None, "flow_nodes": None, "terms": ["SHCP", "eşik"],
+        "icm_guidance": _ftg,
     }
     sc = base.get("scenario", scenario)
     h = hand_key

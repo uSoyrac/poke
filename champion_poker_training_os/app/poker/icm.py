@@ -204,3 +204,56 @@ def icm_tighten(freqs: dict, risk_premium: float) -> dict:
     out["call"] -= moved
     out["fold"] += moved
     return out
+
+
+def icm_ft_guidance(stage: str, hero_stack_bb: float, avg_stack_bb: float = 0.0,
+                    n_left: "int | None" = None,
+                    stacks: "list | None" = None, payouts: "list | None" = None,
+                    hero_idx: int = 0) -> dict:
+    """ICM/FT KOÇ rehberi (D210) — bubble/FT'de CHIP değil $ kazanmak için insan-
+    okunabilir karar-katmanı. MTT 'conversion-kaybına' (FT'ye ulaş ama kapatama)
+    nişan alır: kapatma bölgesinde ICM-baskısını, STACK-ROLÜNÜ ve pay-jump riskini
+    açık eder. Malmuth-Harville + risk_premium tabanlı; SADECE öğretici (base karar
+    DEĞİŞMEZ — push/fold zaten cube_pressure ile ICM-ayarlı, bu onu GÖRÜNÜR kılar).
+
+    Canonical ICM: BÜYÜK stack baskı uygular, KISA stack +cEV jam bulur, ORTA stack
+    en temkinli (para-bubble'da orta stack en çok kaybeder — ladder'a oyna).
+    """
+    stg = (stage or "").lower()
+    if stg not in ("bubble", "final table", "satellite"):
+        return {"active": False}
+    avg = avg_stack_bb if avg_stack_bb and avg_stack_bb > 0 else hero_stack_bb
+    rp = risk_premium(hero_stack_bb, avg, stg)
+    tp = cube_take_point(stg, hero_stack_bb, avg)
+    label = {"bubble": "Bubble", "final table": "Final Masa",
+             "satellite": "Satellite"}.get(stg, stg.title())
+    ratio = hero_stack_bb / max(avg, 1.0)
+    if ratio >= 1.3:
+        role, role_line = "big", (
+            "🦏 BÜYÜK STACK — BASKI uygula: orta-stack'lere geniş aç/3-bet (onlar "
+            "elenmekten korkar, fold eder = senin chip'in). Diğer büyük-stack'le risk alma.")
+    elif ratio <= 0.6:
+        role, role_line = "short", (
+            "🩳 KISA STACK — +cEV JAM'leri bul (fold-equity senin lehine, inisiyatif al); "
+            "ama CALL-OFF daralt — call'layıp elenmek pahalı, sen jam'le.")
+    else:
+        role, role_line = "medium", (
+            "⚠️ ORTA STACK — EN TEMKİNLİ. Para-bubble'da orta stack EN ÇOK kaybeder. "
+            "Premium'la baskıya gir, marjinali FOLD, pay-jump'ı (ladder) bekle.")
+    lines = [
+        f"🏆 {label}: ICM-baskısı AKTİF — chip değil $ kazan, elenme = $ kaybı.",
+        f"📊 Call take-point ~%{tp * 100:.0f} equity (chipEV'de %33 yeterdi → "
+        f"+%{(tp - 0.33) * 100:.0f} daha sıkı call'la).",
+        role_line,
+    ]
+    bf = None
+    if stacks and payouts:
+        try:
+            bf = bubble_factor(stacks, payouts, hero_idx)
+            lines.append(f"💸 Bubble-factor {bf}× — kaybettiğin her chip kazandığından "
+                         f"{bf}× pahalı → marjinal coin-flip'ten KAÇ.")
+        except Exception:
+            bf = None
+    return {"active": True, "stage_label": label, "risk_premium": rp,
+            "take_point": tp, "role": role, "bubble_factor": bf,
+            "headline": f"🏆 {label} · ICM-baskısı", "lines": lines}

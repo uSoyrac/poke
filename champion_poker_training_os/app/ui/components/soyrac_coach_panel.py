@@ -156,6 +156,13 @@ class SoyracCoachPanel(QFrame):
         self.count_lbl.setWordWrap(True)
         self.count_lbl.setStyleSheet("color:#7fd4ff; font-size:11px; padding:1px 0 3px 0;")
         self.count_lbl.setVisible(False); vb.addWidget(self.count_lbl)
+        # ICM/FT rehberi (D210) — bubble/FT'de conversion-katmanı (chip değil $)
+        self.icm_lbl = QLabel(""); self.icm_lbl.setObjectName("SoyracICM")
+        self.icm_lbl.setWordWrap(True)
+        self.icm_lbl.setStyleSheet("color:#ffd166; font-size:11px; font-weight:bold; "
+                                   "background:#2a2410; border-left:3px solid #ffd166; "
+                                   "border-radius:4px; padding:5px 7px; margin:2px 0;")
+        self.icm_lbl.setVisible(False); vb.addWidget(self.icm_lbl)
         self.decision_lbl = QLabel("—"); self.decision_lbl.setObjectName("SoyracDecision")
         vb.addWidget(self.decision_lbl)
         self.reason_lbl = QLabel(""); self.reason_lbl.setObjectName("SoyracReason")
@@ -285,6 +292,13 @@ class SoyracCoachPanel(QFrame):
         self.count_lbl.setVisible(show_count)
         if show_count:
             self.count_lbl.setText("🎲 " + cl)
+
+        # ICM/FT rehberi (D210) — bubble/FT'de göster (quiz'de bile: $ disiplini cevabı sızdırmaz)
+        ftg = explain.get("icm_guidance")
+        show_icm = bool(ftg and ftg.get("lines"))
+        self.icm_lbl.setVisible(show_icm)
+        if show_icm:
+            self.icm_lbl.setText("\n".join(ftg["lines"]))
 
         if quiz:
             self.decision_lbl.setText("?  (sen ne yapardın?)")
