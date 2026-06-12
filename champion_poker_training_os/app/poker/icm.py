@@ -110,6 +110,34 @@ def risk_premium(hero_stack_bb: float, avg_stack_bb: float, stage: str) -> float
     return round(stage_bonus + stack_pressure, 3)
 
 
+def cube_pressure_factor(stage: str = "bubble", hero_stack_bb: float = 15.0,
+                         avg_stack_bb: float = 0.0) -> float:
+    """Tavla doubling-cube take-point ↔ ICM (D191). Tavlada cube'u kabul etmek için
+    gereken kazanma-şansı (take-point ~%25) gammon/elenme riskiyle YÜKSELİR; ICM'de
+    de jam'e call/jam için gereken equity bubble/FT/satellite'te yükselir → range
+    DARALIR. Bu, jam/call range-genişliği için tek çarpan üretir (eski flat 0.82
+    yerine STAGE-aware). risk_premium()'u cube take-point'ine çevirir.
+
+    chipEV/early → 1.0 (daralma yok). bubble rp≈0.09 → ~0.82 (eski sabit = bubble'mış!).
+    final table → ~0.74, satellite → ~0.64 (daha çok daralma — A11'in kaçırdığı
+    43 JAM→FOLD flip). Kısa-stack (avg altı) ek baskı (risk_premium stack-pressure)."""
+    avg = avg_stack_bb if avg_stack_bb and avg_stack_bb > 0 else hero_stack_bb
+    rp = risk_premium(hero_stack_bb, avg, stage)
+    factor = 1.0 - min(0.45, rp * 2.0)        # take-point yükseldikçe range çarpanı düşer
+    return round(max(0.50, factor), 3)
+
+
+def cube_take_point(stage: str = "bubble", hero_stack_bb: float = 15.0,
+                    avg_stack_bb: float = 0.0) -> float:
+    """Cube analojisi — bir jam'e call için gereken MİNİMUM equity (take-point).
+    chipEV'de pot-odds break-even (~%33 tipik 1:2); ICM baskısı take-point'i yükseltir.
+    Öğretim/koç için: 'bubble'da %33 değil ~%40 equity gerekir' der."""
+    avg = avg_stack_bb if avg_stack_bb and avg_stack_bb > 0 else hero_stack_bb
+    rp = risk_premium(hero_stack_bb, avg, stage)
+    base_tp = 0.33                              # chipEV ~1:2 pot-odds break-even
+    return round(min(0.60, base_tp + rp * 1.1), 3)
+
+
 def bounty_ev(bounty_chips: float, win_probability: float, call_cost: float) -> float:
     """Calculate bounty EV in PKO format."""
     return win_probability * bounty_chips - (1.0 - win_probability) * call_cost

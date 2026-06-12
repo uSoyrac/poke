@@ -157,7 +157,8 @@ def _threshold_count_line(b: dict) -> str:
 def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                   vs_position: str = "", stack_bb: float = 100,
                   icm: bool = False, n_active: int = 9, tourney: bool = False,
-                  bot_mode: bool = False) -> dict:
+                  bot_mode: bool = False, stage: str = "",
+                  avg_stack_bb: float = 0.0) -> dict:
     """SENİN elin için masada-yapılabilir değerlendirme → {score, action, line, ...}.
 
     n_active<=2 → HEADS-UP modu: range'ler çok genişler (HU'da BTN/SB ~%85 açar,
@@ -198,7 +199,8 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                 from app.poker.mtt_ranges import call_vs_jam_pct
                 cp = call_vs_jam_pct(stack_bb) * 0.83
                 if icm:
-                    cp *= 0.82                     # ICM: call-off pahalı (elenme) → sıkı
+                    from app.poker.icm import cube_pressure_factor
+                    cp *= cube_pressure_factor(stage or "bubble", stack_bb, avg_stack_bb)  # tavla-cube ICM
                 cj_thr = _jam_threshold_for_pct(cp)
             except Exception:
                 cj_thr = 18
@@ -219,7 +221,8 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                 from app.poker.mtt_ranges import mtt_jam_pct
                 jp = mtt_jam_pct(pos, stack_bb) * 0.83   # puan-kova dönüşüm-aşımını telafi
                 if icm:
-                    jp *= 0.82                     # ICM: elenme pahalı → biraz sıkı
+                    from app.poker.icm import cube_pressure_factor
+                    jp *= cube_pressure_factor(stage or "bubble", stack_bb, avg_stack_bb)  # tavla-cube ICM
                 jam_thr = _jam_threshold_for_pct(jp)
             except Exception:
                 jam_thr = 16
