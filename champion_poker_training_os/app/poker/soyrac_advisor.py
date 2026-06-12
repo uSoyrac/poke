@@ -323,7 +323,13 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
     base_thr = 3 if hu else _RFI.get(pos, 13)
     thr = base_thr + icm_adj + deep_adj + tourney_adj + table_adj
     rel = "≥" if score >= thr else "<"
-    act = "RAISE (AÇ)" if score >= thr else "FOLD"
+    # BB-OPSİYON (D203, F1): RFI dalında pos=BB → bedava-flop opsiyonu var; eşik altı
+    # FOLD DEĞİL CHECK (limped/unraised pot'ta BB hiçbir zaman fold etmez, opsiyonunu
+    # kullanır). Eşik üstü → RAISE (limper'ları izole / pot kur).
+    if pos == "BB" and not hu:
+        act = "RAISE (AÇ)" if score >= thr else "CHECK (bedava flop — opsiyon)"
+    else:
+        act = "RAISE (AÇ)" if score >= thr else "FOLD"
     # TRUE-COUNT göstergesi (D186): eşik bir DENKLEM (base + düzeltmeler). Blackjack
     # true-count gibi açığa çıkar → kullanıcı "neden bu eşik" görür (davranış DEĞİŞMEZ,
     # sadece şeffaflık). Coach paneli/Akademi bunu çubuk olarak çizebilir.
