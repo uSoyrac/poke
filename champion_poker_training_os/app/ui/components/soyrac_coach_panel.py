@@ -13,7 +13,7 @@ from PySide6.QtCore import Qt, Signal, QTimer, QSettings
 from PySide6.QtGui import QPainter, QColor, QShortcut, QKeySequence
 from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QComboBox,
-    QProgressBar, QSizePolicy,
+    QProgressBar, QSizePolicy, QScrollArea,
 )
 
 # tone → renk (go=yeşil / caution=amber / stop=kırmızı)
@@ -199,8 +199,17 @@ class SoyracCoachPanel(QFrame):
         body.addWidget(self.review)
 
         self.body_w = QFrame(); self.body_w.setLayout(body)
-        self.body_w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-        root.addWidget(self.body_w, 1)
+        # D204: içerik (chain+sysmap ikisi açıkken) sabit-yükseklikli sidebar'ı aşınca
+        # etiketler sıkışıp ÜST ÜSTE biniyordu (scroll yoktu). QScrollArea ile sar →
+        # taşınca dikey kaydırır, wordWrap satırları artık sıkışmaz.
+        self.body_w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        scroll = QScrollArea()
+        scroll.setObjectName("SoyracBodyScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setWidget(self.body_w)
+        root.addWidget(scroll, 1)
 
         QShortcut(QKeySequence("Ctrl+K"), self, activated=self.toggle_collapsed)
         QShortcut(QKeySequence("Meta+K"), self, activated=self.toggle_collapsed)
