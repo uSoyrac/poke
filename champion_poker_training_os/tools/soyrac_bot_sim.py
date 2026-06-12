@@ -73,6 +73,39 @@ class SoyracBrain:
             # DELEGE (Nash jam çok daha geniş; SHCP score≥16 jam ÇOK sıkıydı → körler
             # yiyip MTT geç-aşamada bust). Derin (≥22bb) oyun SHCP kalır.
             if self.tournament_mode:        # TURNUVA: ICM Expert'e (FT-kralı) delege
+                # PRE-EMPT STEAL (bridge prensibi): folded-to + geç poz + derin →
+                # AÇIŞ rakibi bloke eder (fold-equity), pür-değerin ALTINDA geniş aç.
+                # Az kişi = çok pre-empt (6-max > 9-max). "16'da 1NT ama 15'le aç."
+                # mode: off / flat (kör, ROI-kanıtlı) / smart (koşullu: pozisyon+kapatma+vuln)
+                pmode = getattr(self, "preempt_mode", "smart")   # ROI-kanıtlı (in+out-of-sample)
+                if pmode != "off" and len(p.hole_cards) >= 2:
+                    is_unraised = (state.current_bet <= bb * 1.01)
+                    pos = (getattr(p, "position", "") or "").upper()
+                    if is_unraised and pos in ("BTN", "CO", "SB", "HJ") and eff > 22:
+                        from app.poker.soyrac_advisor import shcp_score, _RFI
+                        from app.engine.bot_brain import hand_key as _hk
+                        score = shcp_score(_hk(p.hole_cards[0], p.hole_cards[1]))
+                        n_seats = len(state.players)
+                        preempt = 3 + max(0, (9 - n_seats) // 2)   # az kişi → daha geniş
+                        if pmode == "smart":
+                            # (1) pozisyon kademesi — bridge koltuk: BTN en geniş, SB dar (OOP)
+                            preempt += {"BTN": 1, "CO": 0, "HJ": 0, "SB": -1}.get(pos, 0)
+                            # (2) kapatma bölgesi — blackjack 'sayaç patladı': final 3-4 tam-gaz
+                            if n_seats <= 3:
+                                preempt += 2
+                            # (3) vulnerability — derin=bol fold-equity (+1); sığ-baskı=çek (−1)
+                            if eff > 45:
+                                preempt += 1
+                            elif self._stage_icm(eff) > 0.5:
+                                preempt -= 1
+                        if score >= _RFI.get(pos, 13) - preempt:
+                            to = max(bb * 2.2, state.min_raise + p.current_bet)
+                            if ActionType.RAISE in valid:
+                                return ActionType.RAISE, to
+                            if ActionType.BET in valid:
+                                return ActionType.BET, to
+                        elif ActionType.FOLD in valid:
+                            return ActionType.FOLD, 0.0
                 self._tourney.icm_pressure = self._stage_icm(eff)   # +stage caution
                 self._tourney.tournament_mode = True
                 return self._tourney.decide(state, idx)
