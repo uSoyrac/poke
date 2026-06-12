@@ -56,6 +56,8 @@ class NarrowResult:
     chain: List[str] = field(default_factory=list) # çıkarım zinciri (öğretim)
     summary: str = ""                              # tek-cümle okuma
     shape: str = ""                                # capped/polarized/strong/wide/weak
+    running_count: int = 0                         # blackjack tarzı tek-sayı (kafadan takip)
+    rc_steps: List[str] = field(default_factory=list)  # adım-adım tally (+1/-2 → toplam)
 
 
 def _top_buckets(b: Dict[str, float], n: int = 3) -> List[str]:
@@ -164,13 +166,21 @@ def narrow(villain_pos: str, events: List[Tuple[str, str, str]],
     chain = [f"🎴 Başlangıç ({villain_pos} {first_action}): "
              + ", ".join(f"{_LABEL[k].split(' ')[0]}" for k in _top_buckets(buckets))]
     # 3-bet başlangıcı doğal polarize; flat başlangıcı capped sinyali
-    strength = 1.0 if (first_action or "").lower() in ("3bet", "3-bet", "reraise") else 0.0
-    polar = (first_action or "").lower() in ("3bet", "3-bet", "reraise")
+    _is3 = (first_action or "").lower() in ("3bet", "3-bet", "reraise")
+    strength = 1.0 if _is3 else 0.0
+    polar = _is3
+    # RUNNING COUNT (D196, blackjack): aksiyon-başına temiz tamsayı +/−, tek koşan sayı.
+    # Kafadan takip edilir; sdelta'nın yuvarlanmışı. 3bet açılışı +1, flat −2 ile başlar.
+    rc = 1 if _is3 else 0
+    rc_steps = [f"{first_action} → {rc:+d}"]
     for ev in events:
         street, role, action = (list(ev) + ["", "", ""])[:3]
         buckets, note, sdelta, p = _apply(buckets, street, role, action)
         strength += sdelta
         polar = polar or p
+        d = int(round(sdelta))
+        rc += d
+        rc_steps.append(f"{street[:1].upper()}:{action} {d:+d} → {rc:+d}")
         chain.append(note)
     shape = _shape(strength, polar, sum(buckets.values()))
     tops = _top_buckets(buckets)
@@ -183,7 +193,21 @@ def narrow(villain_pos: str, events: List[Tuple[str, str, str]],
     }
     summary = (f"Villain range biçimi: {shape.upper()} → " + _shape_read.get(shape, ""))
     chain.append(f"🧠 SONUÇ: {', '.join(_LABEL[t] for t in tops)}")
-    return NarrowResult(buckets=buckets, chain=chain, summary=summary, shape=shape)
+    return NarrowResult(buckets=buckets, chain=chain, summary=summary, shape=shape,
+                        running_count=rc, rc_steps=rc_steps)
+
+
+def running_count_read(rc: int) -> str:
+    """Tek-sayı running-count → hızlı okuma (blackjack: yüksek count = avantaj)."""
+    if rc <= -3:
+        return f"RC {rc:+d} → ÇOK ZAYIF/capped: blöf + ince value, büyük bahse saygı yok"
+    if rc <= -1:
+        return f"RC {rc:+d} → zayıf eğilim: agresyona dön, value-bet"
+    if rc >= 3:
+        return f"RC {rc:+d} → ÇOK GÜÇLÜ/polarize: saygı + orta elinle bluff-catch"
+    if rc >= 1:
+        return f"RC {rc:+d} → güçlü eğilim: marjinali bırak"
+    return f"RC {rc:+d} → nötr: standart oyna"
 
 
 def narrow_line(villain_pos: str, events: List[Tuple[str, str, str]],

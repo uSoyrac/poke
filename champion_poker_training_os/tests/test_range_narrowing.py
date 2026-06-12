@@ -61,3 +61,31 @@ def test_narrow_line_string():
 def test_buckets_complete():
     r = narrow("BTN", [], first_action="open")
     assert set(r.buckets.keys()) == set(BUCKETS)
+
+
+# ── RUNNING COUNT (D196, blackjack tek-sayı) ──
+from app.poker.range_narrowing import running_count_read
+
+
+def test_running_count_capped_negative():
+    r = narrow("CO", [("preflop", "facing_3bet", "call"), ("flop", "aggressor", "check")],
+               first_action="open")
+    assert r.running_count <= -3
+    assert len(r.rc_steps) == 3                       # open + 2 event
+    assert "ZAYIF" in running_count_read(r.running_count)
+
+
+def test_running_count_polarized_positive():
+    r = narrow("BTN", [("flop", "aggressor", "bet"), ("turn", "aggressor", "barrel"),
+                       ("river", "aggressor", "bet")], first_action="3bet")
+    assert r.running_count >= 3
+    assert "GÜÇLÜ" in running_count_read(r.running_count)
+
+
+def test_running_count_read_neutral():
+    assert "nötr" in running_count_read(0)
+
+
+def test_rc_steps_format():
+    r = narrow("BB", [("flop", "caller", "check_raise")], first_action="call")
+    assert all("→" in s for s in r.rc_steps)
