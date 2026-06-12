@@ -212,10 +212,25 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         #   FLAT/CONTINUE: broadway tier (skor≥flat_t) — eski 22 eşiği bunları fold'a
         #     düşürüyordu; flat_t=18 ile KQs/KJs/QJs/AQo continue (GTO call'lar).
         # Parametreler vs-3bet accuracy sweep'iyle kalibre: %90.4→%93.0 (943/1014).
-        v4_t = 23 + icm_adj
+        # STACK-AWARE value-4bet (D187, A2/A7): pair-ladder (16+2×rank) küçük/orta
+        # çiftleri (TT-66 skor 24-32) şişiriyor → DERİN'de (cash 100bb) GTO bunları
+        # set-mine için CALL/FOLD eder, 4-bet=domine spew. Derin: yüksek eşik (27) +
+        # blocker-gate (b4≥2 = QQ+/AKs); JJ-TT-99-88 CALL'a düşer. Sığ (≤45bb): GTO
+        # merged, geniş value (TT+ jam) → eski eşik (23, gate yok). flat_t değişmez.
         flat_t = (10 if hu else 18) + icm_adj
+        if bot_mode or stack_bb <= 45:
+            # BOT (her stack) + sığ advice: geniş value-4bet. Bot için cash-optimal —
+            # GTO-doğru daraltma (derin çift→CALL) botu −16bb/100 düşürdü (D184 emsali,
+            # paired); zayıf sahada agresif 4-bet +EV. Sığ'da GTO de geniş (merged).
+            v4_t = 23 + icm_adj
+            value4 = score >= v4_t
+        else:
+            # ADVICE + derin (>45bb): GTO polarize → SADECE QQ+/AKs value-4bet (b4≥2);
+            # JJ-TT-99-88 set-mine için CALL (pair-ladder spew'ünü kapat, A2/A7).
+            v4_t = 27 + icm_adj
+            value4 = (score >= v4_t) and (b4 >= 2)
         bluff4 = (b4 >= 2 and stack_bb >= 60)
-        if score >= v4_t or bluff4:
+        if value4 or bluff4:
             act = "4-BET"
         elif score >= flat_t:
             act = "CALL"
