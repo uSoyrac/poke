@@ -128,3 +128,37 @@ def test_explain_count_line_base_only_when_no_adjust():
     bd = e["threshold_breakdown"]
     assert bd["icm_adj"] == 0 and bd["deep_adj"] == 0 and bd["tourney_adj"] == 0
     assert e["count_line"].startswith("baz")
+
+
+# ── BOARD-TEHDİT haircut (D198) — flush board'da top-pair bluff-catcher ──
+from app.engine.hand_state import Card as _C, Street as _St
+
+
+def _PFH(hole, board, pot, tc, street=_St.RIVER):
+    class _P:
+        def __init__(s): s.hole_cards=[_C(c[0],c[1]) for c in hole]; s.stack=75.0
+    class _H:
+        def __init__(s): s.players=[_P()]; s.community=[_C(c[0],c[1]) for c in board]; s.pot=pot; s.street=street
+        def to_call(s,i): return tc
+    return _H()
+
+
+def test_monotone_board_top_pair_is_bluffcatch():
+    # Q9 (çubuksuz) monotone 3-çubuk board, bahse karşı → bluff-catcher, kör CALL DEĞİL
+    pf = soyrac_postflop_advice(_PFH(["Qh","9d"], ["Ts","5c","Qc","2h","3c"], 83.8, 33.3), 0)
+    assert pf["tier"] == "BLUFF-CATCH"
+    assert "marjinal" in pf["action"] or pf["action"] == "FOLD"
+    assert pf["eq"] >= 0.5                    # ham eq hâlâ yüksek (görünür)
+    assert "Board-tehdit" in (pf["golden_rule"] or "")
+
+
+def test_flush_hand_unaffected_by_threat():
+    # Hero FLUSH (çubuklu) aynı board → güçlü kalır (haircut muaf)
+    pf = soyrac_postflop_advice(_PFH(["Ac","9c"], ["Ts","5c","Qc","2h","3c"], 83.8, 33.3), 0)
+    assert pf["tier"] == "NUT" and "RAISE" in pf["action"]
+
+
+def test_dry_board_top_pair_still_calls():
+    # Kuru K72 board top-pair (AK) bahse karşı → CALL (tehdit yok, over-fix yok)
+    pf = soyrac_postflop_advice(_PFH(["Ah","Kd"], ["Ks","7d","2h"], 10, 3, _St.FLOP), 0)
+    assert pf["action"] == "CALL" and pf["tier"] == "GÜÇLÜ"

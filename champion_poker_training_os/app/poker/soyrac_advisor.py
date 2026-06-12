@@ -552,6 +552,37 @@ def _tier_from(strength: float, draws: float) -> str:
     return "HAVA"
 
 
+def _board_threat(board, label: str) -> "tuple[float, list]":
+    """FACING-A-BET board-tehdit haircut'ı (D198). _hand_strength MUTLAK el-gücü
+    verir (random'a karşı) ama board-tehdidini görmez: 3-çubuk board'da flush'un
+    yoksa, eşli board'da dolu'n yoksa, Ace/broadway board'da villain'in bahis-range'i
+    board'u vurur. Made-hand FACING-A-BET'te bir BLUFF-CATCHER'a düşer → equity'yi
+    gerçekçi seviyeye indir. label = _hand_strength el-tipi (o board'un nut-tipi muaf)."""
+    from collections import Counter
+    if not board:
+        return 0.0, []
+    suit_n = max(Counter(c.suit for c in board).values())
+    rank_n = max(Counter(c.value for c in board).values())
+    ranks = [getattr(c, "rank", "") for c in board]
+    h, reasons = 0.0, []
+    # 1) 3+ aynı renk board + hero FLUSH DEĞİL → en büyük tehdit (flush hazır olabilir)
+    if suit_n >= 3 and label not in ("flush", "full house", "quads", "straight flush"):
+        h += 0.34 if suit_n >= 4 else 0.28
+        reasons.append("flush board, çubuğun yok")
+    # 2) EŞLİ board + hero dolu/quad/trips DEĞİL → üst-el (full house/trips) mümkün
+    if rank_n >= 2 and label not in ("full house", "quads", "trips", "set"):
+        h += 0.12
+        reasons.append("eşli board, dolu/trips mümkün")
+    # 3) Ace/broadway board + made-hand → villain açış-range'i board'u sık vurur
+    if label not in ("flush", "full house", "quads", "straight", "set", "trips"):
+        bro = sum(1 for r in ranks if r in "AKQJT")
+        if "A" in ranks:
+            h += 0.10; reasons.append("Ace board, açan-range vurur")
+        elif bro >= 2:
+            h += 0.07; reasons.append("broadway board, açan-range vurur")
+    return min(0.45, h), reasons
+
+
 def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
     """Postflop ÖĞRETİCİ — board-aware _hand_strength → 7-kademe + 3 altın kural
     + sizing. Saf (Qt'siz); postflop_gto/bot kararı DEĞİŞMEZ."""
@@ -562,7 +593,7 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
         board = list(getattr(hand, "community", []) or [])
         if len(board) < 3 or len(getattr(hero, "hole_cards", []) or []) < 2:
             return None
-        strength, draws, _lbl = _explain_bb()._hand_strength(hero.hole_cards, board)
+        strength, draws, label = _explain_bb()._hand_strength(hero.hole_cards, board)
         eq = min(1.0, strength + 0.45 * draws)
         tex = classify_board(board)
         tier = _tier_from(strength, draws)
@@ -571,6 +602,14 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
         pot = max(getattr(hand, "pot", 0.0), 0.01)
         stack = max(getattr(hero, "stack", 0.0), 0.01)
         street = getattr(hand, "street", Street.FLOP)
+        # BOARD-TEHDİT (D198): made-hand FACING-A-BET'te board-tehdidiyle (flush/eşli/
+        # Ace-broadway) bluff-catcher'a düşer. eq_facing = eq − tehdit (sadece bahse
+        # karşı). nut-tipi (flush/dolu vb.) muaf.
+        threat, threat_reasons = _board_threat(board, label)
+        eq_facing = max(0.0, eq - threat) if to_call > 0 else eq
+        _bluff_catch = (to_call > 0 and threat >= 0.20 and
+                        label not in ("flush", "full house", "quads",
+                                      "straight flush", "set"))
         wet = tex.wetness
         size = 0.33 if wet < 0.35 else (0.55 if wet < 0.6 else 0.75)
         # 3 ALTIN KURAL — ilk tetikleyen
@@ -581,7 +620,14 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
             gr = "🎯 Kuru board + agresör → range-cbet (her şeyle küçük bas, 1/3)"
         elif to_call > 0:
             be = to_call / (pot + to_call)
-            if eq < be:
+            if threat >= 0.12:
+                _tr = ", ".join(threat_reasons)
+                gr = (f"⚖ Board-tehdit ({_tr}): made-hand bluff-catcher → gerçek eq "
+                      f"~%{eq_facing*100:.0f} (ham %{eq*100:.0f}), gereken %{be*100:.0f} → "
+                      + ("KATLA" if eq_facing < be - 0.02 else
+                         ("marjinal: pasif/under-bluffer'a FOLD, agresife CALL"
+                          if eq_facing < be + 0.10 else "call uygun")))
+            elif eq < be:
                 gr = f"📉 Pot-odds: gereken %{be*100:.0f}, equity %{eq*100:.0f} → FOLD"
             else:
                 gr = f"✅ Pot-odds: equity %{eq*100:.0f} ≥ gereken %{be*100:.0f} → call uygun"
@@ -602,30 +648,27 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
                 action = "CHECK"
         else:
             be = to_call / (pot + to_call)
-            if tier == "NUT":
+            # FACING-A-BET: board-tehdit-ayarlı eq (eq_facing). Bluff-catch ise
+            # eşik civarı = OKUMA-BAĞIMLI (pasife fold / agresife call), kör CALL değil.
+            if tier == "NUT" and not _bluff_catch:
                 action = "RAISE"
-            elif eq >= be:
+            elif eq_facing >= be + 0.10:
                 action = "CALL"
+            elif eq_facing >= be - 0.02:
+                action = "CALL (marjinal — pasif/under-bluffer'a FOLD, agresife CALL)"
             else:
                 action = "FOLD"
-        # AYRI RANGE-DEĞERLENDİRMESİ: pot-odds el-vs-board equity kullanır (range-naif).
-        # A/broadway board açan-range'ini (sıkı/erken) VURUR → gerçek equity şişik.
-        # Range-ayarlı equity = generic − haircut(board-korkutuculuğu). İkisini de göster.
+            if _bluff_catch:
+                tier = "BLUFF-CATCH"           # görünür tier'ı da düzelt (top-pair değil)
+        # BOARD-TEHDİT NOTU (D198): birleşik haircut (flush/eşli/Ace-broadway) — eski
+        # ayrı "range-aware" (sadece Ace/broadway + GÜÇLÜ hariç) bunu kaçırıyordu.
         range_note = None
         range_adj_eq = None
-        if to_call > 0 and tier in ("ZAYIF", "BLUFF-CATCH", "HAVA", "ORTA"):
-            ranks = [getattr(c, "rank", "") for c in board]
-            bro = sum(1 for r in ranks if r in "AKQJT")
-            has_ace = "A" in ranks
-            if has_ace or bro >= 2:
-                haircut = 0.20 if (has_ace and bro >= 2) else (0.15 if has_ace else 0.12)
-                range_adj_eq = max(0.0, eq - haircut)
-                be = to_call / (pot + to_call)
-                verdict = "KATLA" if range_adj_eq < be - 0.02 else (
-                    "marjinal (sıkıya fold, loose'a call)" if range_adj_eq < be + 0.04 else "call OK")
-                range_note = (f"⚖ Range-aware: açan-range'i board'u vurur → gerçek eq "
-                              f"~%{range_adj_eq*100:.0f} (generic %{eq*100:.0f}), gereken "
-                              f"%{be*100:.0f} → {verdict}")
+        if to_call > 0 and threat >= 0.12:
+            range_adj_eq = eq_facing
+            range_note = ("⚖ Board-tehdit (" + ", ".join(threat_reasons) +
+                          f"): made-hand bluff-catcher → gerçek eq ~%{eq_facing*100:.0f} "
+                          f"(ham %{eq*100:.0f}). Üst-eline âşık olma; pasife fold, agresife call.")
         line = f"🎴 {blab} · {tier} → {action}"
         chain = [
             f"🎴 Board {blab} (ıslaklık {wet:.2f})",
