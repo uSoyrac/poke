@@ -582,12 +582,17 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
                 gr = f"✅ Pot-odds: equity %{eq*100:.0f} ≥ gereken %{be*100:.0f} → call uygun"
         # AKSİYON (tier-uyumlu, öğretici)
         if to_call <= 0.01:
+            # RANGE-CBET (D188b/A12): kuru flop'ta agresörken golden_rule "her şeyle
+            # küçük bas" diyordu ama action HAVA/ZAYIF'ı CHECK ediyordu (çelişki). Kuru
+            # board'da TÜM range küçük cbet (blöf dahil — range avantajı + fold-equity).
+            # Islak board polarize kalır (sadece value/çekme bas, gerisi check).
+            _range_cbet = (street == Street.FLOP and tex.label == "dry")
             if tier in ("NUT", "GÜÇLÜ"):
                 action = "BET (value)"
             elif tier == "DRAW":
                 action = "BET (semi-blöf)"
-            elif tier == "ORTA" and street == Street.FLOP and tex.label == "dry":
-                action = "BET (range)"
+            elif _range_cbet and tier in ("ORTA", "ZAYIF", "BLUFF-CATCH", "HAVA"):
+                action = "BET (range)"          # kuru board agresör → blöf dahil cbet
             else:
                 action = "CHECK"
         else:
