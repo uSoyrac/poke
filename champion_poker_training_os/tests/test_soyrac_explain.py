@@ -230,3 +230,41 @@ def test_made_hand_draw_zero_unchanged():
     # OVER-FIX guard: kuru board made-hand (draws=0) etkilenmez
     pf = soyrac_postflop_advice(_PFH(["7h","7c"], ["7s","2d","9h"], 10, 3, _St.FLOP), 0)
     assert pf["tier"] == "NUT" and "RAISE" in pf["action"]
+
+
+# ── KADEME C/D/E: multiway + sizing + sync (D202) ──
+class _PPm:
+    def __init__(self, h, st=75.0, folded=False):
+        self.hole_cards=[_C(c[0],c[1]) for c in h]; self.stack=st; self.is_folded=folded
+def _MWH(hole, board, pot, tc, n, street=_St.FLOP):
+    class _H:
+        def __init__(s):
+            s.players=[_PPm(hole)]+[_PPm(["2d","7s"],folded=(i>=n-1)) for i in range(8)]
+            s.community=[_C(c[0],c[1]) for c in board]; s.pot=pot; s.street=street
+            s._tc=tc; s.active_count=n
+        def to_call(s,i): return s._tc
+    return _H()
+
+
+def test_multiway_closes_range_cbet():
+    hu = soyrac_postflop_advice(_MWH(["8c","6d"], ["Ks","7d","2h"], 10, 0, 2), 0)
+    mw = soyrac_postflop_advice(_MWH(["8c","6d"], ["Ks","7d","2h"], 10, 0, 5), 0)
+    assert "BET" in hu["action"] and mw["action"] == "CHECK"
+
+
+def test_multiway_field_haircut_tightens():
+    hu = soyrac_postflop_advice(_MWH(["7h","6d"], ["Ks","7d","2h","9c","Js"], 20, 8, 2, _St.RIVER), 0)
+    mw = soyrac_postflop_advice(_MWH(["7h","6d"], ["Ks","7d","2h","9c","Js"], 20, 8, 5, _St.RIVER), 0)
+    assert "CALL" in hu["action"] and mw["action"] == "FOLD"
+
+
+def test_raise_sizing_not_pot_fraction():
+    pf = soyrac_postflop_advice(_MWH(["7h","7c"], ["7s","2d","9h"], 20, 8, 2), 0)
+    szs = [c for c in pf["chain_steps"] if "Sizing" in c]
+    assert szs and "raise" in szs[0] and "raise-to"[:5]  # raise-to ifadesi
+
+
+def test_check_has_no_sizing_line():
+    pf = soyrac_postflop_advice(_MWH(["8c","6d"], ["Ks","7d","2h","9c","Js"], 20, 0, 2, _St.RIVER), 0)
+    assert pf["action"] == "CHECK"
+    assert not any("Sizing" in c for c in pf["chain_steps"])

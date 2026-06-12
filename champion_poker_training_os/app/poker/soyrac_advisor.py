@@ -695,8 +695,21 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
         # flush board RAISE değil; sub-nut floş NUT değil).
         _real_nut = ((label in ("full house", "quads", "straight flush") and threat < 0.08)
                      or (label == "flush" and threat < 0.05))
+        # MULTIWAY (D202): coach HU-varsayımlıydı; çok-yollu pot'ta el-değerleri düşer
+        # (her rakip board'u vurabilir), range-cbet fold-equity'si çöker. n_active türet;
+        # ≥3 → made-marjinal eq'ye field-haircut (ÇEKMELER MUAF — nut FD değer korur),
+        # range-cbet kapat. Pure-threshold üstüne ince katman.
+        n_active = getattr(hand, "active_count", 0) or sum(
+            1 for pl in hand.players if not getattr(pl, "is_folded", False)
+            and not getattr(pl, "is_eliminated", False)) or 2
+        _multi = n_active >= 3
+        field_hc = min(0.18, 0.07 * (n_active - 2)) if _multi else 0.0
         eq_facing = max(0.0, eq - threat) if to_call > 0 else eq
-        _bluff_catch = (to_call > 0 and threat >= 0.18 and not _real_nut)
+        if to_call > 0 and _multi and tier != "DRAW" and not _real_nut:
+            eq_facing = max(0.0, eq_facing - field_hc)      # çok rakip = çok el seni geçer
+            if field_hc:
+                threat_reasons = (threat_reasons or []) + [f"{n_active}-yollu (alan haircut)"]
+        _bluff_catch = (to_call > 0 and (threat >= 0.18 or (_multi and threat >= 0.10)) and not _real_nut)
         _vuln_bet = (to_call <= 0.01 and threat >= 0.22 and not _real_nut)
         wet = tex.wetness
         size = 0.33 if wet < 0.35 else (0.55 if wet < 0.6 else 0.75)
@@ -715,17 +728,21 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
                       + ("KATLA" if eq_facing < be - 0.02 else
                          ("marjinal: pasif/under-bluffer'a FOLD, agresife CALL"
                           if eq_facing < be + 0.10 else "call uygun")))
-            elif eq < be:
-                gr = f"📉 Pot-odds: gereken %{be*100:.0f}, equity %{eq*100:.0f} → FOLD"
+            elif eq_facing < be:                       # D202: action ile aynı eq (desync biter)
+                _mw = f" ({n_active}-yollu)" if _multi else ""
+                gr = f"📉 Pot-odds{_mw}: gereken %{be*100:.0f}, equity %{eq_facing*100:.0f} → FOLD"
             else:
-                gr = f"✅ Pot-odds: equity %{eq*100:.0f} ≥ gereken %{be*100:.0f} → call uygun"
+                _mw = f" ({n_active}-yollu)" if _multi else ""
+                gr = f"✅ Pot-odds{_mw}: equity %{eq_facing*100:.0f} ≥ gereken %{be*100:.0f} → call uygun"
         # AKSİYON (tier-uyumlu, öğretici)
         if to_call <= 0.01:
             # RANGE-CBET (D188b/A12): kuru flop'ta agresörken golden_rule "her şeyle
             # küçük bas" diyordu ama action HAVA/ZAYIF'ı CHECK ediyordu (çelişki). Kuru
             # board'da TÜM range küçük cbet (blöf dahil — range avantajı + fold-equity).
             # Islak board polarize kalır (sadece value/çekme bas, gerisi check).
-            _range_cbet = (street == Street.FLOP and tex.label == "dry")
+            # MULTIWAY: range-cbet (blöf dahil) sadece HU'da — 3+ rakipte fold-equity
+            # çöker (C1) → çok-yollu pot'ta sadece value bas.
+            _range_cbet = (street == Street.FLOP and tex.label == "dry" and not _multi)
             if _vuln_bet and tier in ("NUT", "GÜÇLÜ", "ORTA"):
                 # D200: tehlikeli board'da korunmasız made-hand → BET value DEĞİL,
                 # pot-kontrol/check (board konuştu; büyük value-bet kendini fold-ettirir/
@@ -774,7 +791,17 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
         ]
         if range_note:
             chain.append(range_note)
-        chain.append(f"📏 Sizing: pot×{size:.2f} ({'kuru→küçük' if wet < 0.35 else 'ıslak→büyük'})")
+        # SIZING satırı SADECE bet/raise'te (D4: CHECK/FOLD'da sizing göstermek çelişki).
+        # RAISE = önündeki bahsin katı (pot-fraksiyonu DEĞİL — D2: aksi absürt/illegal).
+        if "RAISE" in action:
+            _rto = round(to_call * 2.7, 1)
+            chain.append(f"📏 Sizing: ≈{_rto}bb'ye raise (önündeki bahsin ~2.7×; pot-fraksiyonu değil)")
+        elif "BET" in action:
+            _spr = stack / pot
+            if _spr < 1.3 and tier in ("NUT", "GÜÇLÜ"):
+                chain.append("📏 Sizing: düşük SPR + güçlü → jam/commit (küçük bahis yok)")
+            else:
+                chain.append(f"📏 Sizing: pot×{size:.2f} ({'kuru→küçük' if wet < 0.35 else 'ıslak→büyük'})")
         flow = [("Board", blab, True), ("El", tier, True),
                 ("Karar", action.split()[0], True)]
         return {"tier": tier, "board_label": blab, "wetness": round(wet, 2),
