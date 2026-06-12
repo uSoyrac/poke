@@ -281,6 +281,8 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         call_t, raise_t = (2, 14) if hu else _VS_RFI.get(pos, (9, 16))
         call_t += icm_adj + tourney_adj
         raise_t += icm_adj
+        if tourney:   # D208: MTT facing over-call leak (sim: book BB CALL nerede ICM FOLD ×835)
+            call_t += 3   # disiplinli savunma — pre-empt geniş açışıyla DENGE (tek-yön sıkmak zarar)
         # POZİSYON-DUYARLI SAVUNMA (D184): açan-pozisyonu (opener_adj) SADECE
         # OOP blind savunmasında önemli (squeeze riski + dominate). IP (BTN/CO/HJ)
         # flat'i açan-pozisyonundan AZ etkilenir → opener_adj UYGULANMAZ. Eski düz
@@ -336,7 +338,8 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
             pa += 1                                    # derin: bol fold-equity
         elif icm_adj > 0:
             pa -= 1                                    # sığ-baskı/bubble: çek
-        preempt_adj = -pa
+        pa = pa // 2   # D208: pre-empt YARI-genişlik — saf sistemde disiplinli defense'le
+        preempt_adj = -pa   # tam-genişlik over-open'dı (sim: BTN RAISE nerede ICM FOLD ×603)
     base_thr = 3 if hu else _RFI.get(pos, 13)
     thr = base_thr + icm_adj + deep_adj + tourney_adj + table_adj + preempt_adj
     rel = "≥" if score >= thr else "<"

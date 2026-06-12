@@ -72,7 +72,9 @@ class SoyracBrain:
             # TURNUVA SHORT-STACK (D149): <22bb + tournament → kanıtlı push/fold'a
             # DELEGE (Nash jam çok daha geniş; SHCP score≥16 jam ÇOK sıkıydı → körler
             # yiyip MTT geç-aşamada bust). Derin (≥22bb) oyun SHCP kalır.
-            if self.tournament_mode:        # TURNUVA: ICM Expert'e (FT-kralı) delege
+            _bp = getattr(self, "book_preflop", getattr(self, "pure_book", False))
+            _use_icm_pre = (not _bp) or (getattr(self, "book_deep_only", False) and eff <= 22)  # kısa→ICM, derin→kitap
+            if self.tournament_mode and _use_icm_pre:  # TURNUVA: ICM delege (HYBRID/kısa-stack)
                 # PRE-EMPT STEAL (bridge prensibi): folded-to + geç poz + derin →
                 # AÇIŞ rakibi bloke eder (fold-equity), pür-değerin ALTINDA geniş aç.
                 # Az kişi = çok pre-empt (6-max > 9-max). "16'da 1NT ama 15'le aç."
@@ -138,6 +140,44 @@ class SoyracBrain:
         # yapanların çoğu sıkı-A-range'ine sahip değil, bluff'lu). DERS: range-aware
         # fold okuma-bağımlı (sadece SIKI rakibe doğru); blanket bot-kuralı zarar.
         # YERİ = advice katmanı (D169 range_note), kullanıcı villain-read uygular.
+
+        # PURE-BOOK (Faz C): postflop'u SAF KİTAP 7-kademe ile oyna (board-tehdit +
+        # commit-gate + bluff-catch) — delege YOK. Botu = kullanıcının oynadığı sistem
+        # yapar → şampiyona DÜRÜST ölçer. Toggle (default kapalı → davranış değişmez).
+        if getattr(self, "book_postflop", getattr(self, "pure_book", False)):
+            try:
+                from app.poker.soyrac_advisor import soyrac_postflop_advice
+                pf = soyrac_postflop_advice(state, idx)
+                if pf and pf.get("action"):
+                    a = pf["action"]; pot = max(getattr(state, "pot", 0.0) or 0.0, bb)
+                    if "FOLD" in a:
+                        if ActionType.FOLD in valid:
+                            return ActionType.FOLD, 0.0
+                    elif "RAISE" in a:
+                        amt = min(to_call * 2.7, p.stack + p.current_bet)
+                        amt = max(amt, state.min_raise + p.current_bet)
+                        if ActionType.RAISE in valid:
+                            return ActionType.RAISE, amt
+                        if ActionType.ALL_IN in valid:
+                            return ActionType.ALL_IN, p.stack
+                    elif "CALL" in a and ActionType.CALL in valid:
+                        return ActionType.CALL, to_call
+                    elif "BET" in a:
+                        frac = pf.get("size_frac") or 0.6
+                        amt = min(max(pot * frac, bb), p.stack)
+                        if ActionType.BET in valid:
+                            return ActionType.BET, amt
+                        if ActionType.RAISE in valid:
+                            return ActionType.RAISE, max(amt, state.min_raise + p.current_bet)
+                    # CHECK / fallback
+                    if to_call <= 0 and ActionType.CHECK in valid:
+                        return ActionType.CHECK, 0.0
+                    if ActionType.CHECK in valid:
+                        return ActionType.CHECK, 0.0
+                    if ActionType.FOLD in valid:
+                        return ActionType.FOLD, 0.0
+            except Exception:
+                pass   # kitap çözemezse aşağıdaki kazanan pipeline'a düş
 
         # POSTFLOP — KAZANAN pipeline'a DELEGE: GTO Expert'in board-aware
         # _hand_strength + _gto_postflop_action + commit-gate + eq-0.16 haircut'i.
