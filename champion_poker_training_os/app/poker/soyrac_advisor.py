@@ -152,19 +152,30 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                         if jam else
                         f"🧮 SHCP {score} < jam-eşik {jam_thr} ({pos}) → FOLD"}
 
-    if "3-bet" in sc or "3bet" in sc or "vs 3" in sc:   # blocker ekseni
+    if "3-bet" in sc or "3bet" in sc or "vs 3" in sc:   # blocker + üç-kademe eksen
         b4 = _b4_blocker(hand_key)
-        # LEAK FIX: 3-bet pot'ta GTO ÇOĞU eli folder (sadece JJ+/AQs+/KQs flat,
-        # premium 4-bet). Eski call_t (~8) %53 over-call sızdırıyordu (22-88/broadway).
-        call_t = (10 if hu else 22) + icm_adj
-        # DENEY (D175, GERİ ALINDI): "suited broadway (iki kart T+) → CALL" eklendi
-        # (JTs/KQs FOLD'a düşmesin) ama vs-3bet accuracy %93.8→%92.6 DÜŞTÜ — blanket
-        # kural fazla geniş (QTs/KTs sıkı-açana GTO-fold, call'landı). Doğru cevap
-        # 3-bettor-pozisyonuna bağlı (opener-aware range gerekir = tam GTO). Basit-
-        # sistem sınırı: T9s gibi net spot doğru, JTs sınır spot yaklaşık. Eşik korundu.
-        act = "4-BET" if b4 >= 2 else ("CALL" if score >= call_t else "FOLD")
+        # ÜÇ-KADEME (D182) — eski "b4≥2→4bet, score≥22→call, gerisi FOLD" mantığı
+        # premium suited/offsuit broadway'i (KQs/KJs/QJs/JTs/AQo) ÇÖPE atıyordu:
+        # GTO bunları CONTINUE eder (KQs 4-bet value, KJs/QJs/AQo flat) → 48 spot
+        # kaçtı. Yeni: get_action'ın merged yapısını taklit et —
+        #   4-BET VALUE: premium (skor≥v4_t: AQs+/JJ+/TT) — sığ-derin value/jam.
+        #   4-BET BLUFF: wheel-ace blocker (b4≥2) ama SADECE DERİN (≤40bb GTO bluff-
+        #     4bet'i folder; fold-equity realize olmaz, dominated call'lanır).
+        #   FLAT/CONTINUE: broadway tier (skor≥flat_t) — eski 22 eşiği bunları fold'a
+        #     düşürüyordu; flat_t=18 ile KQs/KJs/QJs/AQo continue (GTO call'lar).
+        # Parametreler vs-3bet accuracy sweep'iyle kalibre: %90.4→%93.0 (943/1014).
+        v4_t = 23 + icm_adj
+        flat_t = (10 if hu else 18) + icm_adj
+        bluff4 = (b4 >= 2 and stack_bb >= 60)
+        if score >= v4_t or bluff4:
+            act = "4-BET"
+        elif score >= flat_t:
+            act = "CALL"
+        else:
+            act = "FOLD"
         return {"score": score, "b4": b4, "action": act, "scenario": "vs 3-bet",
-                "line": f"🧮 SHCP {score} · B4 blocker {b4} → {act}  (vs 3-bet)"}
+                "line": f"🧮 SHCP {score} · B4 blocker {b4} · 4bet≥{v4_t}/call≥{flat_t}"
+                        f" → {act}  (vs 3-bet)"}
 
     if "vs rfi" in sc or "vs açış" in sc or "vs_rfi" in sc:
         call_t, raise_t = (2, 14) if hu else _VS_RFI.get(pos, (9, 16))
