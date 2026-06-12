@@ -666,9 +666,13 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None) -> "dict | None":
         range_adj_eq = None
         if to_call > 0 and threat >= 0.12:
             range_adj_eq = eq_facing
-            range_note = ("⚖ Board-tehdit (" + ", ".join(threat_reasons) +
-                          f"): made-hand bluff-catcher → gerçek eq ~%{eq_facing*100:.0f} "
-                          f"(ham %{eq*100:.0f}). Üst-eline âşık olma; pasife fold, agresife call.")
+            # gr zaten board-tehdidi gösteriyorsa tekrarlama (dedup) → ek vurgu kısa kalsın
+            if "Board-tehdit" not in (gr or ""):
+                range_note = ("⚖ Board-tehdit (" + ", ".join(threat_reasons) +
+                              f"): made-hand bluff-catcher → gerçek eq ~%{eq_facing*100:.0f} "
+                              f"(ham %{eq*100:.0f}). Üst-eline âşık olma; pasife fold, agresife call.")
+            else:
+                range_note = "💡 Üst-eline âşık olma — board konuştu; pasife fold, agresife call."
         line = f"🎴 {blab} · {tier} → {action}"
         chain = [
             f"🎴 Board {blab} (ıslaklık {wet:.2f})",
