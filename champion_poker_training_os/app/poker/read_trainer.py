@@ -111,3 +111,74 @@ def score_read(guess: str, drill: ReadDrill) -> dict:
                        f"Bu profil tipik {drill.archetype} davranışı.")
     return {"correct": correct, "explanation": explanation,
             "exploit": drill.correct_exploit}
+
+
+# ── ÇIKARIM ZİNCİRİ DRILL (D192, bridge negatif-çıkarım — range_narrowing) ──
+_INFERENCE_SCENARIOS = [
+    ("CO", "open",
+     [("preflop", "facing_3bet", "call"), ("flop", "aggressor", "check")],
+     "CO açtı · 3-bet'ine CALL etti (4-bet yok) · flop'u CHECK etti (cbet yok)"),
+    ("UTG", "open",
+     [("flop", "aggressor", "bet"), ("turn", "aggressor", "check")],
+     "UTG açtı · flop CBET · turn CHECK (barrel yok)"),
+    ("BB", "call",
+     [("flop", "caller", "check_raise")],
+     "BTN'e karşı BB CALL etti · flopta CHECK-RAISE"),
+    ("BTN", "3bet",
+     [("flop", "aggressor", "bet"), ("turn", "aggressor", "barrel"),
+      ("river", "aggressor", "bet")],
+     "BTN 3-BET etti · flop+turn+river üç sokak BARREL"),
+    ("HJ", "open",
+     [("flop", "aggressor", "bet"), ("turn", "aggressor", "barrel")],
+     "HJ açtı · flop+turn BARREL (river kaldı)"),
+    ("SB", "open",
+     [("preflop", "facing_3bet", "call"), ("flop", "caller", "check_call"),
+      ("turn", "caller", "check")],
+     "SB açtı · 3-bet'e CALL · flop CHECK-CALL · turn CHECK"),
+    ("MP", "open",
+     [("flop", "caller", "donk")],
+     "MP açtı (sonra caller) · flopta DONK-BET"),
+]
+
+_SHAPE_LABELS = {
+    "capped": "CAPPED (güçlü uç yok)",
+    "polarized": "POLARİZE (nuts ya da blöf)",
+    "strong": "GÜÇLÜ (value-ağır)",
+    "wide": "GENİŞ (dağınık)",
+    "weak": "ZAYIF (pasif)",
+}
+
+
+@dataclass
+class InferenceDrill:
+    villain_pos: str
+    headline: str
+    chain: List[str]
+    correct_shape: str
+    summary: str
+    choices: List[str]
+
+
+def generate_inference_drill(rng: Optional[random.Random] = None) -> InferenceDrill:
+    """Bir aksiyon-dizisi üret → range_narrowing ile doğru biçimi (shape) bul;
+    kullanıcı 'villain range'i hangi biçim?' tahmin eder, reveal = çıkarım zinciri."""
+    rng = rng or random
+    pos, fa, events, headline = rng.choice(_INFERENCE_SCENARIOS)
+    from app.poker.range_narrowing import narrow
+    r = narrow(pos, events, first_action=fa)
+    distractors = [s for s in _SHAPE_LABELS if s != r.shape]
+    rng.shuffle(distractors)
+    opts = [r.shape] + distractors[:3]
+    rng.shuffle(opts)
+    return InferenceDrill(
+        villain_pos=pos, headline=headline, chain=r.chain,
+        correct_shape=r.shape, summary=r.summary,
+        choices=[_SHAPE_LABELS[s] for s in opts],
+    )
+
+
+def score_inference(choice_label: str, drill: InferenceDrill) -> dict:
+    """Biçim tahminini skorla → {correct, chain, summary, correct_label}."""
+    correct = (choice_label == _SHAPE_LABELS[drill.correct_shape])
+    return {"correct": correct, "chain": drill.chain, "summary": drill.summary,
+            "correct_label": _SHAPE_LABELS[drill.correct_shape]}

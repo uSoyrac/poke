@@ -47,3 +47,33 @@ def test_variety_across_seeds():
     types = {generate_read_drill(random.Random(s)).correct_type
              for s in range(40)}
     assert len(types) >= 3                   # farklı tipler üretiliyor
+
+
+# ── ÇIKARIM ZİNCİRİ DRILL (D192) ──
+import random as _rnd
+from app.poker.read_trainer import (generate_inference_drill, score_inference,
+                                    _SHAPE_LABELS, InferenceDrill)
+
+
+def test_inference_drill_structure():
+    d = generate_inference_drill(_rnd.Random(1))
+    assert isinstance(d, InferenceDrill)
+    assert d.correct_shape in _SHAPE_LABELS
+    assert _SHAPE_LABELS[d.correct_shape] in d.choices    # doğru cevap seçeneklerde
+    assert 2 <= len(d.chain)                              # çıkarım zinciri dolu
+    assert d.headline and d.summary
+
+
+def test_inference_scoring_correct_and_wrong():
+    d = generate_inference_drill(_rnd.Random(2))
+    right = score_inference(_SHAPE_LABELS[d.correct_shape], d)
+    assert right["correct"] is True and right["chain"]
+    wrong_label = next(v for k, v in _SHAPE_LABELS.items() if k != d.correct_shape)
+    assert score_inference(wrong_label, d)["correct"] is False
+
+
+def test_inference_choices_unique_and_sized():
+    for seed in range(8):
+        d = generate_inference_drill(_rnd.Random(seed))
+        assert len(d.choices) == len(set(d.choices))     # tekrarsız
+        assert 2 <= len(d.choices) <= 5
