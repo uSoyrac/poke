@@ -784,9 +784,10 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
                     float(villain_stats.get("river_bluff", 0) or 0))[1]
                 _bc_margin = {"Mouse": 0.12, "Lion": 0.04, "Eagle": 0.0,
                               "Elephant": -0.02, "Jackal": -0.10}.get(_name, 0.10)
-                _read_word = (f"{_name}: under-bluff → FOLD" if _bc_margin > 0.06 else
-                              (f"{_name}: over-bluff → CALL geniş" if _bc_margin < 0 else
-                               f"{_name}: dengeli → saf MDF"))
+                # KULLANICI-DİLİ (animal-etiketi DEĞİL — gözlemlenebilir davranış):
+                _read_word = ("sıkı/pasif rakip (az blöf) → FOLD" if _bc_margin > 0.06 else
+                              ("agresif/çok-basan rakip (çok blöf) → CALL" if _bc_margin < 0 else
+                               "dengeli rakip → saf matematik"))
         # 3 ALTIN KURAL — ilk tetikleyen
         gr = None
         if to_call > 0 and to_call / stack > 0.70 and strength < 0.60 and draws < 0.30:
@@ -875,10 +876,17 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
             chain.append(range_note)
         # BLUFF-CATCH koç-satırı (D211): gereken-blöf (alpha) + rakip o kadar blöf yapar mı
         if to_call > 0 and (_bluff_catch or "marjinal" in action or "bluff-catch" in action.lower()):
-            _q = ("Hayır → FOLD" if _bc_margin > 0.06 else
-                  ("Fazlasıyla → CALL" if _bc_margin < 0 else "Dengeli → saf MDF math"))
-            chain.append(f"🎯 Bluff-catch: gereken-blöf %{be*100:.0f} (alpha). "
-                         f"Rakip bu boyutta o kadar blöf yapar mı? [{_read_word}] → {_q}")
+            # KULLANICI-DİLİ: okuma yoksa SEN oku (kendi gözlemin); app-stat varsa davranış-tarifi
+            if not villain_stats or _bc_margin == 0.10:
+                _bcverd = "→ SEN oku: çok-basan/agresifse CALL, sıkı/pasifse FOLD"
+            elif _bc_margin > 0.06:
+                _bcverd = "→ rakip sıkı/az-blöf yapan biri: FOLD"
+            elif _bc_margin < 0:
+                _bcverd = "→ rakip agresif/çok-blöf yapan biri: CALL"
+            else:
+                _bcverd = "→ rakip dengeli: saf matematik"
+            chain.append(f"🎯 Bluff-catch: gereken-blöf %{be*100:.0f} — rakip bu boyutta "
+                         f"o kadar blöf yapar mı? {_bcverd}")
         # SIZING satırı SADECE bet/raise'te (D4: CHECK/FOLD'da sizing göstermek çelişki).
         # RAISE = önündeki bahsin katı (pot-fraksiyonu DEĞİL — D2: aksi absürt/illegal).
         if "RAISE" in action:
