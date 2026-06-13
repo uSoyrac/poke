@@ -782,6 +782,30 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
         if len(board) < 3 or len(getattr(hero, "hole_cards", []) or []) < 2:
             return None
         strength, _raw_draws, label = _explain_bb()._hand_strength(hero.hole_cards, board)
+        # D218 LEAK-FIX (kullanıcı canlı yakaladı): EŞLİ board'da DÜŞÜK pocket pair
+        # overvaluation. _hand_strength board'un kendi çiftini (örn. KK) hero'nun "iki
+        # çift"inin yarısı sayıyor → 22 + board-KK = "two pair" (0.66 GÜÇLÜ) → value-bet
+        # spew. Gerçekte board'u oynuyorsun: katkın sadece pocket → her ÜST-pocket ve her
+        # board-eşlemesi seni geçer. Pocket pair + eşli board + pocket board'da YOK
+        # (set/dolu değil) → over/under-pair olarak yeniden değerle (üst-pair değer kalır).
+        _hc = hero.hole_cards
+        _paired_note = None
+        if (label in ("two pair", "top two pair") and len(_hc) >= 2
+                and _hc[0].value == _hc[1].value):
+            _bv = [c.value for c in board]
+            _pp = _hc[0].value
+            if _pp not in _bv and any(_bv.count(v) >= 2 for v in set(_bv)):
+                _unpaired = [v for v in _bv if _bv.count(v) == 1]
+                if _pp > max(_unpaired, default=-1):
+                    # üst-pair (örn. AA / K-K-7): board'un üstünde → gerçekten güçlü, değer kalır
+                    strength, label = 0.62, "üst-pair (eşli board — değer)"
+                else:
+                    # alt-pair: sadece eşsiz elleri geçer → board oynuyorsun, bluff-catch/hava
+                    strength = min(0.45, 0.26 + max(0, _pp) / 12 * 0.18)
+                    label = "alt-pair (eşli board — board oynuyor, üst-pocket'lar geçer)"
+                    _paired_note = ("🪤 Eşli board: 'iki çift'in board'un çiftinden — gerçek "
+                                    "katkın sadece cebindeki düşük pair. Her ÜST-pocket ve "
+                                    "board'u eşleyen herkes seni geçer → DEĞER değil, bluff-catch.")
         # ÇEKME (D201): _hand_strength draw'ı river-hayalet + combo-kör + street-eşit.
         # _draw_equity DOĞRU sayar (river=0, flop ×4/turn ×2, FD+düz additive).
         draws, draw_notes = _draw_equity(hero.hole_cards, board)
@@ -932,6 +956,8 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
             f"📊 El gücün: {tier} (7-kademe)",
             gr or f"💡 {tier} → {action}",
         ]
+        if _paired_note:
+            chain.append(_paired_note)
         if range_note:
             chain.append(range_note)
         # BLUFF-CATCH koç-satırı (D211): gereken-blöf (alpha) + rakip o kadar blöf yapar mı
