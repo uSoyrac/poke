@@ -3509,4 +3509,38 @@ SHCP: A=10 K=8 Q=6 J=5 T=4 9=3 8=2 (topla) · suited +4 (+2 Ax) · çift=16+2·s
 <div class="example"><b>Örnek:</b> LJ · 35bb · turnuva · A♣J♣ → baz 13 + sığ(≤40) 1 = <b>14</b>. AJs = 10+5+4+2(Ax)−2(uzak) = <b>19</b> ≥ 14 → <b>AÇ.</b></div>
 <p class="gto"><b>Tek cümle:</b> "Taban 8, arkandaki her kişi +1 puan. Buton/SB ezbere geniş. Turnuvada erken-pozda +2 (survival). Sığsam +1/+2, bubble/FT'de CALL'larımı sık, geç-poz turnuvada geniş çal." — Bu denklem mevcut Soyrac eşiklerini birebir verir (cash %94,8 GTO-doğru); artık app olmadan kafadan uygulayabilirsin.</p>
 </section>
+
+<section class="chapter">
+<h1>Bölüm 22 — Postflop El-Okuma Tuzakları: "Board Seni Kandırır"</h1>
+<p class="note">Bu bölümün her kuralı, gerçek elde yapılan bir hatadan doğdu. Hepsinin ortak hastalığı tek cümlede: <b>elinin SHOWDOWN değerini, senin KARTLARININ kattığı değerle karıştırma.</b> Board beş kartı herkese ortak verir; senin elin = board'a EK olarak getirdiğin şeydir. Aşağıdaki beş tuzak, bu ayrımı kaybedince ya nutsu çöpe atmana ya da çöpü nuts sanmana yol açar.</p>
+
+<h2>1. Tekerlek (A-2-3-4-5) bir DÜZDÜR — As'i düşük say</h2>
+<p>As hem en yüksek hem en düşük karttır. T-J-Q-K-A bir düz olduğu gibi, <b>A-2-3-4-5 de</b> bir düzdür (the "wheel" / tekerlek, beş-yüksek düz). Board'da 2-3-5 görüp elinde A-4 varsa: <b>düzün var.</b></p>
+<div class="example"><b>Tuzak:</b> A♥4♥ · board 5♥-T♣-2♣-Q♥-3♣ → A-2-3-4-5 düz. "As-yüksek, elim yok" deyip atma — bu bir düz.</div>
+<div class="keyrule">Düz ararken As'i <b>hem K'nın üstünde hem 2'nin altında</b> gez. Bitişik kontrolünde "A-2-3-4-5" ve "T-J-Q-K-A" iki uçtur.</div>
+
+<h2>2. Eşli board: "iki çiftim var" — ama hangisi SENİN?</h2>
+<p>Board'da bir çift varsa (örn. K-K-x-x-x), o çifti <b>masadaki herkes</b> paylaşır. Cebinde 22 ile "K-K + 2-2 = iki çift" demek bir yanılsama: senin gerçek katkın sadece <b>düşük cebindeki pair</b>. Her üst-pocket (33+) ve board'u eşleyen herkes (bir K/9/7'si olan) seni geçer.</p>
+<div class="example"><b>Tuzak:</b> 2♦2♥ · board K-K-9-7-4 → teknik olarak "iki çift" ama bu DEĞER değil. Value-bet edersen yalnız seni geçen eller call'lar (board'u eşleyenler), geçtiğin eşsiz eller fold eder. → <b>bluff-catch / CHECK.</b></div>
+<div class="keyrule">Eşli board + cebinde pair: pair'in board'un ÜSTÜNDE mi (örn. AA / K-K-7 → değer), ALTINDA mı (örn. 22 / K-K-9 → board oynuyorsun, bluff-catch)? Soru bu.</div>
+
+<h2>3. Çift trips = FULL HOUSE (set değil!)</h2>
+<p>İki ayrı "üçlü" bir araya gelince full house olur. Cebinde 22, board'da 8-8-8 varsa: 888 + 22 = <b>full house</b> (eights full of deuces), "set" değil. Board zaten bir trips gösteriyorsa ve sende ayrı bir pair/trips varsa → dolu.</p>
+<div class="keyrule">"Üçlü gördüm" demekle kalma: <b>ikinci bir çift daha var mı?</b> (board'da ya da cebinde) → varsa dolu, eşli-board korkusuna kapılma, DEĞER bas.</div>
+
+<h2>4. Düz + aynı renk = STRAIGHT FLUSH — "floş" deyip küçümseme</h2>
+<p>Floş kartların aynı zamanda ardışıksa, o bir floş değil <b>straight flush</b> (çoğu zaman el-sıralamasının tepesi). 6♦4♦ · board 5♦-7♦-3♦ → 3-4-5-6-7 hep karo = straight flush. Steel wheel (A-2-3-4-5 tek renk) de buna dahildir.</p>
+<div class="keyrule">Floş yaptığında bir saniye dur: <b>bu beş aynı-renk kart ardışık mı?</b> Öyleyse straight flush — sub-nut floş korkusuyla küçük basma, bu nuts.</div>
+
+<h2>5. 3-floş ≠ 4-floş: tehdit derecesi SİNEK SAYISINA bağlı</h2>
+<p>"Board'da sinek var" yeterli bilgi değil — KAÇ tane olduğu kararı değiştirir:</p>
+<table class="tbl"><tr><th>Board</th><th>Floş için rakipte</th><th>Olasılık</th><th>Made-hand'in (düz/set)</th></tr>
+<tr><td><b>4 sinek</b></td><td>tek çubuk yeter</td><td>~%40 (sık)</td><td>çok tehlikeli → bluff-catch, büyük bet'ten kaçın</td></tr>
+<tr><td><b>3 sinek</b></td><td>iki çubuk gerek</td><td>~%5-8 (nadir)</td><td>hâlâ DEĞER → güvenle değer bas</td></tr>
+<tr><td><b>5 sinek (board floş)</b></td><td>tek üst-çubuk</td><td>—</td><td>board oynuyorsun, üst-çubuğun yoksa bluff-catch</td></tr></table>
+<div class="example"><b>Tuzak:</b> A♥4♥ wheel düz · board 5♥-T♣-2♣-Q♥-3♣. Burada sadece <b>3 sinek</b> (T-2-3) var → floş için rakibe 2 çubuk lazım (nadir). Düzün tüm set/iki-çift/tek-çiftleri geçer, yalnız 6-yüksek düze (2-3-4-5-6) ve nadir 2-çubuklu floşa kaybeder → bu bir <b>DEĞER eli, BET.</b> "Monotone, korkayım" deme; 3-floş 4-floş değildir.</div>
+<div class="keyrule">Önce SİNEK SAY: 4+ ise board konuştu (tek kart floş yapar) → güçlü made bile bluff-catch. 3 ise floş 2-kart ister, nadir → düz/set hâlâ değer; bu board'da yalnız <b>tek-çift</b> bluff-catcher'dır (zaten iki-çift+'a kaybeder, floştan bağımsız).</div>
+
+<div class="keyrule">Altın kural (bölüm sentezi): Showdown'da elin = board + SENİN kattığın. Board'un çiftini/floşunu/düzünü kendine yazma; As'i iki uçta gez; üçlü görünce ikinci çifti ara; floş yapınca ardışıklığı kontrol et; ve sinekleri SAY (3 ≠ 4). Bu beş refleks, "nutsu attım / çöpü nuts sandım" hatalarının tamamını kapatır.</div>
+</section>
 </body></html>
