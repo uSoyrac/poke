@@ -891,6 +891,7 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
                 else:
                     gr = f"📉 Pot-odds{_mw}: gereken %{be*100:.0f}, equity %{eq_facing*100:.0f} → FOLD"
         # AKSİYON (tier-uyumlu, öğretici)
+        _vuln_note = None
         if to_call <= 0.01:
             # RANGE-CBET (D188b/A12): kuru flop'ta agresörken golden_rule "her şeyle
             # küçük bas" diyordu ama action HAVA/ZAYIF'ı CHECK ediyordu (çelişki). Kuru
@@ -904,6 +905,13 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
                 # pot-kontrol/check (board konuştu; büyük value-bet kendini fold-ettirir/
                 # raise yer). A1: monotone top-pair artık CHECK.
                 action = "CHECK (board tehlikeli — pot kontrol/bluff-catch)"
+                # D219: made-hand ÖĞRETİCİ uyarı — nuts SANMA. flush/düz board'da düz/set/
+                # iki-çift "NUT" gücünde görünse de board onu geçer → görünür tier'ı düzelt.
+                _vuln_note = ("🌊 Board konuştu (" + ", ".join(threat_reasons or ["tehlikeli"]) +
+                              f"): elin made AMA NUTS DEĞİL — gerçek eq ~%{max(0.0, eq-threat)*100:.0f} "
+                              f"(ham %{eq*100:.0f}). Büyük value-bet kendini fold-ettirir/raise yer "
+                              "→ pot-kontrol CHECK (showdown'a ucuz git).")
+                tier = "BLUFF-CATCH"
             elif tier in ("NUT", "GÜÇLÜ"):
                 action = "BET (value)"
             elif tier == "DRAW":
@@ -956,6 +964,8 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
             f"📊 El gücün: {tier} (7-kademe)",
             gr or f"💡 {tier} → {action}",
         ]
+        if _vuln_note:
+            chain.append(_vuln_note)
         if _paired_note:
             chain.append(_paired_note)
         if range_note:

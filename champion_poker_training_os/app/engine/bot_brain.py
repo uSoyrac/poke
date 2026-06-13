@@ -1126,7 +1126,10 @@ class BotBrain:
         hero_suits_in_max = sum(1 for s in (c1.suit, c2.suit) if all_suits.count(s) >= 4)
 
         # Straight check (rough)
-        unique_ranks = sorted(set(all_ranks))
+        # WHEEL FIX (D219): Ace plays LOW for A-2-3-4-5. Without -1, the wheel straight
+        # (and its draws) are invisible → a made wheel was scored "high card" (HAVA).
+        unique_ranks = sorted(set(all_ranks) | ({-1} if 12 in all_ranks else set()))
+        low_w = -1 if (12 in (high, low)) else low   # hero Ace can be the low end of a wheel
         straight_outs = 0
         has_straight = False
         # Check for 5 consecutive
@@ -1140,7 +1143,8 @@ class BotBrain:
             for i in range(len(unique_ranks) - 3):
                 if (unique_ranks[i + 3] - unique_ranks[i] == 3
                         and (high in unique_ranks[i:i + 4]
-                             or low in unique_ranks[i:i + 4])):
+                             or low in unique_ranks[i:i + 4]
+                             or low_w in unique_ranks[i:i + 4])):
                     straight_outs = 8
                     break
             # Gutshot: 4 consecutive with 1 gap (5 cards spanning 4 unique values,
@@ -1149,7 +1153,8 @@ class BotBrain:
                 for i in range(len(unique_ranks) - 3):
                     span = unique_ranks[i + 3] - unique_ranks[i]
                     if span == 4 and (high in unique_ranks[i:i + 4]
-                                       or low in unique_ranks[i:i + 4]):
+                                       or low in unique_ranks[i:i + 4]
+                                       or low_w in unique_ranks[i:i + 4]):
                         straight_outs = 4
                         break
 
