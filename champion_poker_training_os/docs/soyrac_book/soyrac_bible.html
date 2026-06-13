@@ -3454,4 +3454,58 @@ El gücü aynı; SPR commitment eşiğini kaydırdı.</div>
 
 <div class="gto"><b>Özet:</b> Soyrac çekirdeği elit; bu 6 kural onu best-winner'a yaklaştırıyor. Hepsi sim-kanıtlı (kazanmayan — örn. zayıf-made-river-fold — geri alındı). Cash #1 (+60 bb/100), MTT güçlü-reg-üstü.</div>
 </section>
+
+<section class="chapter">
+<h1>Bölüm 21 — Eşik Denklemi: Tek Matematikle Tüm Açış Kararları</h1>
+<p class="note">Bu bölüm Soyrac'ın açış-eşiklerinin ARKASINDAKİ matematiği verir: kafadan, app olmadan, her masa-boyutu/stack/aşamada eşiği hesaplayabilesin. Blackjack'te "true-count" gibi: baz + düzeltmeler = efektif. Çekirdek keşif — eşik, <b>arkandaki kişi sayısının</b> doğrusal bir fonksiyonudur.</p>
+
+<h2>1. Çekirdek: EŞİK = 8 + arkandaki kişi (NEDEN?)</h2>
+<p>Açışta kâr iki kanaldan: (1) fold-equity (herkes pas → blindleri al), (2) call'lanınca pot-equity. Sadece fold-equity'i izole et: arkanda <b>k</b> kişi, her biri ~%17 oranla devam eder →</p>
+<div class="gto">P(herkes pas) = (1 − 0,17)<sup>k</sup> = 0,83<sup>k</sup><br>
+&nbsp;&nbsp;k=8 (UTG): 0,83⁸ = %22 steal tutar → pot-equity şart → <b>YÜKSEK eşik</b><br>
+&nbsp;&nbsp;k=4 (HJ): %47 → yarı zaman steal<br>
+&nbsp;&nbsp;k=2 (BTN): %69 → 3'te 2 steal → zayıf el bile +EV → <b>DÜŞÜK eşik</b><br>
+&nbsp;&nbsp;k=1 (SB): %83 → neredeyse hep alırsın</div>
+<p class="why">ln(0,83<sup>k</sup>) = k·ln(0,83) → <b>k'da doğrusal.</b> SHCP puanı equity'ye monoton olduğundan, çarpımsal fold-equity puan-eşiğinde doğrusal düşüşe çevrilir. Regresyon (6 pozisyon): eşik ≈ 8,6 + 0,86·k, R²≈0,98 → kafadan ezber: <b>arkandaki her kişi +1 puan.</b></p>
+
+<h2>2. Baz Tablo (100bb derin)</h2>
+<table class="tbl"><tr><th>Pozisyon</th><th>Arkanda</th><th>Baz eşik</th><th>Not</th></tr>
+<tr><td>UTG / UTG+1</td><td>8 / 7</td><td>15</td><td>üst tavan (8+ kişi, +1 fark etmez)</td></tr>
+<tr><td>MP</td><td>6</td><td>14</td><td>8 + arkandaki</td></tr>
+<tr><td>LJ</td><td>5</td><td>13</td><td>8 + arkandaki</td></tr>
+<tr><td>HJ</td><td>4</td><td>12</td><td>8 + arkandaki</td></tr>
+<tr><td>CO</td><td>3</td><td>11</td><td>8 + arkandaki</td></tr>
+<tr><td>BTN</td><td>2</td><td><b>8</b></td><td>steal-koltuğu primi −2 (postflop pozisyon + realization)</td></tr>
+<tr><td>SB</td><td>1</td><td><b>9</b></td><td>OOP → raise-or-fold (ezber-sabit)</td></tr>
+<tr><td>BB</td><td>0</td><td>—</td><td>eşik-altı FOLD değil CHECK (bedava flop)</td></tr></table>
+<p class="why">BTN/SB neden formül-dışı: GTO bu iki koltuğu sadece fold-equity ile değil <b>postflop pozisyon-avantajıyla</b> da genişletir → saf-formülün altında. Bu iki sabiti ezberle.</p>
+
+<h2>3. Masa-Boyutu OTOMATİK (ek kural YOK)</h2>
+<p>Masa küçülünce arkandaki kişi kendiliğinden azalır → eşik kendiliğinden gevşer:</p>
+<div class="keyrule">9-max UTG: arkanda 8 → eşik 15 &nbsp;|&nbsp; 6-max UTG: arkanda 5 → eşik <b>13</b> (15 değil!) &nbsp;|&nbsp; 4-max UTG: arkanda 3 → eşik <b>11</b> &nbsp;|&nbsp; HU: arkanda 0-1 → ~9, çok geniş aç.</div>
+<p class="why">"Arkandaki kişi" tek değişken hem pozisyonu hem masa-boyutunu yakalar — senin "azalan kişiye duyarlı" sezgin tam buradaki matematik.</p>
+
+<h2>4. Düzeltmeler (tamsayı, eşiğe ekle)</h2>
+<table class="tbl"><tr><th>Eksen</th><th>Ayar</th></tr>
+<tr><td>Stack &gt;40bb (derin)</td><td>+0 (genişlik aynı; sadece el-seçimi: domine offsuit azalt, suited-connector artır)</td></tr>
+<tr><td>Stack 26–40bb</td><td>+1 (range ~−3,5pp daralır)</td></tr>
+<tr><td>Stack 16–25bb</td><td>+2 (spekülatif kuyruğu kes → çift+broadway+suited-ace çekirdeği)</td></tr>
+<tr><td>Stack ≤15bb</td><td>EŞİK KURALINI BIRAK → PUSH/FOLD (Nash, pozisyon-duyarlı)</td></tr>
+<tr><td>Bubble (CALL'a)</td><td>+1 &nbsp;·&nbsp; Final Masa: +2 &nbsp;·&nbsp; Satellite: +3</td></tr>
+<tr><td>Turnuva geç-poz folded-to</td><td>PRE-EMPT: eşiği DÜŞÜR (açış bloke eder; cash'te yok)</td></tr></table>
+<p class="why"><b>Kritik asimetri:</b> ICM/stage ayarı sadece CALL/marjinal-savunmaya eklenir, AÇIŞA değil — bubble'da fold-equity büyür, big-stack jam hâlâ +EV. Stack-rolü: BÜYÜK stack açış/3bet −2 (baskı) ama call-off +1; KISA stack jam-eşiği −2 (bas) ama call-off +1; ORTA en temkinli (ladder bekle).</p>
+
+<h2>5. ⭐ EZBER KARTI (masada 3 saniye)</h2>
+<div class="keyrule" style="font-family:monospace;white-space:pre-line;">① BAZ = 8 + arkandaki kişi
+   UTG/UTG+1=15 · MP=14 · LJ=13 · HJ=12 · CO=11 · BTN=8 · SB=9 · BB=CHECK
+② DÜZELTME (sadece sıfır-olmayanı ekle):
+   Stack ≤40 +1 · ≤25 +2 · ≤15 → PUSH/FOLD
+   Stage bubble +1 · FT +2 · sat +3 (CALL eksenine)
+   Turnuva geç-poz folded-to → pre-empt (geniş çal)
+③ EFEKTİF = baz + düzeltmeler.  SHCP PUAN ≥ EFEKTİF → AÇ, değilse FOLD
+SHCP: A=10 K=8 Q=6 J=5 T=4 9=3 8=2 (topla) · suited +4 (+2 Ax) · çift=16+2·sıra
+      bitişik +3 / 1-gap +2 / 2-gap +1 / uzak(≥4) −2</div>
+<div class="example"><b>Örnek:</b> LJ · 35bb · turnuva · A♣J♣ → baz 13 + sığ(≤40) 1 = <b>14</b>. AJs = 10+5+4+2(Ax)−2(uzak) = <b>19</b> ≥ 14 → <b>AÇ.</b></div>
+<p class="gto"><b>Tek cümle:</b> "Taban 8, arkandaki her kişi +1 puan. Buton/SB ezbere geniş. Sığsam +1/+2, bubble/FT'de CALL'larımı sık, geç-poz turnuvada geniş çal." — Bu denklem mevcut Soyrac eşiklerini birebir verir (cash %94,8 GTO-doğru); artık app olmadan kafadan uygulayabilirsin.</p>
+</section>
 </body></html>
