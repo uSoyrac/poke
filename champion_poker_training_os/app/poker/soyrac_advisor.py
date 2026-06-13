@@ -841,9 +841,14 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
             elif eq_facing >= be + _bc_margin:
                 action = "CALL"
             elif eq_facing >= be - 0.02:
+                # D212 LEAK-FIX (sim: FLOP/TURN HAVA|CALL win %2-3 vs gereken %22-25 = spew):
+                # HAVA (made-hand YOK + gerçek-çekme YOK) marjinal-bantta CALL'lamaz → FOLD.
+                # Overcard "equity"si ham/realize-olmaz (reverse-implied: vurunca domine).
+                if tier == "HAVA":
+                    action = "FOLD (el yok — overcard-equity realize olmaz)"
                 # marjinal bant — okuma NORMATİF (text-only desync giderildi): sıkı→FOLD,
                 # bluffy→CALL; okuma yoksa mevcut metin (davranış değişmez).
-                if villain_stats and _bc_margin > 0.06:
+                elif villain_stats and _bc_margin > 0.06:
                     action = f"FOLD (bluff-catch — {_read_word})"
                 elif villain_stats and _bc_margin < 0:
                     action = f"CALL (bluff-catch — {_read_word})"
