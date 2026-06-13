@@ -1272,13 +1272,14 @@ class TournamentSimulatorScreen(QWidget):
                         from app.poker.soyrac_advisor import soyrac_explain
                         _icm = bool(getattr(self, "_cur_icm", 0))
                         # ICM-FT rehberi (D210): stage + avg-stack türet (bubble/FT'de açılır)
-                        _stage, _avg_bb = "", 0.0
+                        _stage, _avg_bb, _nact = "", 0.0, 9
                         try:
                             _icmv = float(getattr(self, "_cur_icm", 0) or 0)
                             _fld = getattr(self, "mtt_field", None) or getattr(self, "tournament", None)
                             _rem = int(getattr(_fld, "players_remaining", 99) or 99)
                             _bb = max(getattr(hand, "big_blind", 1) or 1, 1)
                             _alive = [p for p in hand.players if not getattr(p, "is_eliminated", False)]
+                            _nact = max(2, len(_alive))   # D211d: GERÇEK masa-boyutu (koç kişi-sayısına duyarlı)
                             _avg_bb = round(sum(p.stack for p in _alive) / max(len(_alive), 1) / _bb, 1)
                             _stage = ("final table" if _rem <= 9 else
                                       ("bubble" if _icmv >= 0.6 else ""))
@@ -1288,7 +1289,7 @@ class TournamentSimulatorScreen(QWidget):
                             hero_hk or "", pos,
                             scenario=getattr(_adv, "scenario_key", "RFI") or "RFI",
                             vs_position=getattr(_adv, "vs_position", "") or "",
-                            stack_bb=stack_bb, icm=_icm,
+                            stack_bb=stack_bb, icm=_icm, n_active=_nact,   # D211d: gerçek masa-boyutu
                             tourney=True,        # TURNUVA: ICM-sıkı eşik + <15bb push/fold
                             stage=_stage, avg_stack_bb=_avg_bb,
                             # D211b: villain_stats GEÇİLMİYOR — koç %100 KİTAP-kararı versin
