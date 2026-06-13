@@ -419,6 +419,45 @@ def shcp_breakdown(hand_key: str) -> str:
     return " + ".join(parts) + f" = {sc}"
 
 
+def _is_premium_3bet(hand_key: str) -> bool:
+    """Nit'in dar erken-range'ine karşı bile DEĞER-3bet edilen premium: JJ+ veya AK/AQs."""
+    if not hand_key or len(hand_key) < 2:
+        return False
+    r1, r2 = hand_key[0].upper(), hand_key[1].upper()
+    if r1 == r2:                                   # çift
+        return _ORD.index(r1) >= _ORD.index("J")   # JJ+
+    return hand_key in ("AKs", "AKo", "AQs")
+
+
+def _preflop_exploit(action: str, vs_position: str, villain_stats, hand_key: str):
+    """D217: GTO-baz preflop aksiyonu rakip-okumasıyla ŞEFFAF ayarla (öğretici sentez).
+    Döner (final_action, exploit_note). villain_stats yoksa/yetersizse → değişiklik yok.
+    Konservatif: yalnız net-kanıtlı exploit kararları (nit erken-açışa thin-3bet → flat)."""
+    if not villain_stats:
+        return action, None
+    try:
+        vp = float((villain_stats.get("vpip", 0) if hasattr(villain_stats, "get") else 0) or 0)
+        obs = float((villain_stats.get("obs_hands", 0) if hasattr(villain_stats, "get") else 0) or 0)
+        if vp <= 0 or (obs and obs < 25):
+            return action, None
+        from app.poker.opponent_typology import classify_hellmuth
+        name = classify_hellmuth(
+            vp, float(villain_stats.get("pfr", 0) or 0),
+            float((villain_stats.get("aggression", villain_stats.get("af", 0))) or 0),
+            float(villain_stats.get("river_bluff", 0) or 0))[1]
+    except Exception:
+        return action, None
+    early = (vs_position or "").upper() in ("UTG", "UTG+1", "MP", "LJ")
+    # vs NIT (tight-passive) ERKEN-açışına THIN 3-bet (premium DEĞİL) → FLAT:
+    # nit erken-range'i güçlü/dar → QJs/KQ/AJ domine + fold-equity yok → değer-3bet spew.
+    # Premium (JJ+/AK/AQs) → 3-BET kalır (nit'in range'ine karşı bile değer).
+    if name == "Mouse" and "3-BET" in action and early and not _is_premium_3bet(hand_key):
+        return "CALL", ("rakip sıkı+pasif (az el oynar, agresyon düşük) → erken-açış range'i "
+                        "güçlü/dar → QJs/KQ/AJ domine + fold-equity yok → değer-3bet yerine "
+                        "FLAT (pozisyonda equity realize et)")
+    return action, None
+
+
 def _tone_for_action(action: str) -> str:
     a = (action or "").upper()
     if any(k in a for k in ("RAISE", "3-BET", "4-BET", "JAM", "BET", "AÇ")):
@@ -480,6 +519,10 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
     vp = (vs_position or "").upper()
     hu = n_active <= 2
     _pa = (base.get("threshold_breakdown") or {}).get("preempt_adj", 0)
+    # EXPLOIT SENTEZİ (D217): GTO-baz aksiyonu rakip-okumasıyla ayarla. Headline =
+    # sentezlenmiş final; kırılım GTO-baz→exploit→karar gösterir (şeffaf, öğretici).
+    _gto_action = action
+    _final_action, _exploit_note = _preflop_exploit(action, vp, villain_stats, hand_key)
     if not tourney:
         fmt = "🎯 Cash: loose-aggressive — balığı ez"
     elif _pa:                                  # pre-empt aktif: çelişki önle
@@ -564,9 +607,21 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
         ]
         out["terms"] = ["SHCP", "eşik", "RFI"]
 
+    # EXPLOIT SENTEZİ kırılımı (D217): GTO-baz reasoning yukarıda; üstüne exploit-katmanı
+    # + sentezlenmiş final. Headline = final (rakip-okumalı). Şeffaf → kullanıcı öğrenir.
+    if _exploit_note and _final_action != _gto_action:
+        out["chain_steps"] = (out.get("chain_steps") or []) + [
+            f"🎯 GTO-baz: {_gto_action}",
+            f"🔍 Exploit (okuma): {_exploit_note}",
+            f"✅ Soyrac kararı: {_final_action}",
+        ]
+        out["action"] = _final_action
+        out["tone"] = _tone_for_action(_final_action)
+        out["why"] = f"GTO {_gto_action} → rakip-okuması → {_final_action}"
+        out["scenario_label"] = (out.get("scenario_label", "") + " · exploit").strip(" ·")
     # QUIZ metinleri
     out["quiz_prompt"] = f"Sen ne yapardın? ({out.get('scenario_label', '')} · {h})"
-    out["quiz_correct"] = action
+    out["quiz_correct"] = out["action"]
     out["quiz_options"] = ["FOLD", "CALL", "RAISE/3-BET"]
     return out
 
