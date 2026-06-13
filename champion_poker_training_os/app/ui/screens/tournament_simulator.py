@@ -1291,7 +1291,8 @@ class TournamentSimulatorScreen(QWidget):
                             stack_bb=stack_bb, icm=_icm,
                             tourney=True,        # TURNUVA: ICM-sıkı eşik + <15bb push/fold
                             stage=_stage, avg_stack_bb=_avg_bb,
-                            villain_stats=_vstats,   # D211: bluff-catch okuma-marjı
+                            # D211b: villain_stats GEÇİLMİYOR — koç %100 KİTAP-kararı versin
+                            # (app-stat'la otomatik bluff-catch çevirme YOK; kullanıcı okur).
                             hand=hand, hero_idx=hand.hero_idx)
                         if hero_hk:
                             self.soyrac_panel.on_decision_point(_exp)
