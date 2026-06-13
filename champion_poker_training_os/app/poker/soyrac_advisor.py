@@ -686,8 +686,21 @@ def _board_threat(board, label: str, hole=None) -> "tuple[float, list]":
             else:
                 h += 0.20; reasons.append("sub-nut floş (üst floş mümkün)")
         else:                                              # made-hand, floş yok
-            h += 0.34 if suit_n >= 4 else 0.28
-            reasons.append("flush board, çubuğun yok")
+            # D220 LEAK-FIX (kullanıcı yakaladı): SUIT-SAYISINA duyarlı olmalı.
+            # 4-floş board → rakibin TEK çubuğu floş yapar (çok sık, ~%40) → büyük tehdit.
+            # 3-floş board → floş ancak rakipte 2-ÇUBUK varsa (NADİR, ~%5-8) → küçük tehdit.
+            # Eski kod 3-floş'a 0.28 verip made-hand'i (hatta nut-düzü) bluff-catch'e
+            # düşürüyordu — 3-floş board'da düz/set hâlâ DEĞER eli (sim: eq ~%85-93).
+            if suit_n >= 4:
+                h += 0.34; reasons.append("4-floş board, çubuğun yok (tek çubuk floş yapar)")
+            else:
+                # 3-floş: floş ancak 2-çubukla (nadir). AMA el-sınıfına bağlı:
+                # GÜÇLÜ made (düz/set/iki-çift) → floş dışında çok az şey geçer → küçük (0.10).
+                # TEK-ÇİFT (top/mid/overpair) → zaten river'da kırılgan (iki-çift+ geçer),
+                # floştan bağımsız bluff-catcher → orta haircut (0.22) korunur.
+                _strong_made = label in ("straight", "set", "trips", "two pair", "top two pair")
+                h += 0.10 if _strong_made else 0.22
+                reasons.append("3-floş (floş 2-çubukla — nadir)")
 
     # 2) EŞLİ board — RANK-FARKINDALIKLI (alt-dolu / zayıf-kicker trips)
     board_pair = max((r for r, n in rank_ct.items() if n >= 2), default=0)
@@ -813,6 +826,13 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
         tex = classify_board(board)
         tier = _tier_from(strength, draws)
         blab = _BOARD_TR.get(tex.label, tex.label.upper())
+        # D220: classify_board "monotone"u 3+ aynı-suit sayıyor (flop mantığı). 5-kartlı
+        # board'da 3-floş ≠ monotone (yanıltıcı "TEK-RENK"). Gerçek suit-sayısıyla düzelt.
+        if tex.label == "monotone" and board:
+            from collections import Counter as _C
+            _mx = max(_C(c.suit for c in board).values())
+            if _mx < 5:
+                blab = f"{_mx}-FLOŞ"
         to_call = hand.to_call(hero_idx)
         pot = max(getattr(hand, "pot", 0.0), 0.01)
         stack = max(getattr(hero, "stack", 0.0), 0.01)

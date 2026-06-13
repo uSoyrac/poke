@@ -58,17 +58,44 @@ def _spot(h, b, to_call):
     return soyrac_postflop_advice(hand, 0)
 
 
-def test_wheel_on_flush_board_is_bluffcatch_not_air():
-    """KULLANICI SPOTU: A4 wheel / 4-sinek board, checked-to → CHECK + 'made ama NUTS DEĞİL'
-    (HAVA DEĞİL, ama floş-board'da değer de değil → bluff-catch)."""
+def test_wheel_on_4flush_board_is_bluffcatch():
+    """A4 wheel / 4-SİNEK board (Qc) → checked-to CHECK (tek çubuk floş yapar = gerçekten
+    tehlikeli → bluff-catch, value değil). 4-floş genuinely dangerous."""
     out = _spot("Ah 4h", "5h Tc 2c Qc 3c", 0.0)
     assert out["tier"] != "HAVA", f"made düz HAVA olmamalı: {out['tier']}"
-    assert "BET (value)" not in out["action"], f"floş board'da düz value-bet etmemeli: {out['action']}"
-    assert out["action"].startswith("CHECK"), f"checked-to → CHECK beklenir: {out['action']}"
+    assert "BET (value)" not in out["action"], f"4-floş'ta düz value-bet etmemeli: {out['action']}"
+    assert out["action"].startswith("CHECK"), f"4-floş checked-to → CHECK: {out['action']}"
 
 
-def test_wheel_on_flush_board_facing_bet_bluffcatch():
-    """A4 wheel / floş board, bet'e karşı → bluff-catch (eq floş-haircut'lı), GÜÇLÜ-value değil."""
+def test_wheel_on_4flush_facing_bet_bluffcatch():
+    """A4 wheel / 4-floş board, bet'e karşı → bluff-catch (floş-haircut'lı)."""
     out = _spot("Ah 4h", "5h Tc 2c Qc 3c", 3.0)
     assert out["tier"] in ("BLUFF-CATCH", "ZAYIF", "HAVA") or "bluff" in out["action"].lower(), \
-        f"floş board'da düz bluff-catch olmalı: tier={out['tier']} action={out['action']}"
+        f"4-floş'ta düz bluff-catch olmalı: tier={out['tier']} action={out['action']}"
+
+
+def test_wheel_on_3flush_board_is_value():
+    """KULLANICI GERÇEK SPOTU (D220): A4 wheel / 3-SİNEK board (Qh, sadece T-2-3 sinek) →
+    floş ancak rakipte 2-çubukla (nadir) → düz hâlâ DEĞER eli (eq ~%85-93). checked-to →
+    BET (value), bluff-catch DEĞİL. Eski bug: 3-floş'a 4-floş gibi 0.28 haircut → yanlış CHECK."""
+    out = _spot("Ah 4h", "5h Tc 2c Qh 3c", 0.0)
+    assert out["tier"] == "NUT", f"3-floş'ta wheel düz NUT kalmalı: {out['tier']}"
+    assert "BET (value)" in out["action"], f"3-floş'ta düz value-bet etmeli: {out['action']}"
+
+
+def test_wheel_on_3flush_facing_bet_raises():
+    """A4 wheel / 3-floş board, bet'e karşı → RAISE (değer), bluff-catch-call değil."""
+    out = _spot("Ah 4h", "5h Tc 2c Qh 3c", 3.0)
+    assert "RAISE" in out["action"], f"3-floş'ta düz bet'e RAISE etmeli: {out['action']}"
+
+
+def test_board_threat_suit_count_aware():
+    """_board_threat suit-sayısına duyarlı: 4-floş ≫ 3-floş haircut (kök kural)."""
+    from app.poker.soyrac_advisor import _board_threat
+    b3 = [card_from_str(x) for x in "5h Tc 2c Qh 3c".split()]   # 3 sinek
+    b4 = [card_from_str(x) for x in "5h Tc 2c Qc 3c".split()]   # 4 sinek
+    hole = [card_from_str("Ah"), card_from_str("4h")]
+    t3 = _board_threat(b3, "straight", hole)[0]
+    t4 = _board_threat(b4, "straight", hole)[0]
+    assert t3 < 0.15, f"3-floş küçük tehdit olmalı: {t3}"
+    assert t4 >= 0.30, f"4-floş büyük tehdit olmalı: {t4}"
