@@ -1285,10 +1285,22 @@ class TournamentSimulatorScreen(QWidget):
                                       ("bubble" if _icmv >= 0.6 else ""))
                         except Exception:
                             pass
+                        # D216: SENARYO SAĞLAM tespit — _adv None/eksikse koç sessizce
+                        # "RFI"e düşüyordu (BB raise yediği halde RFI sanıp yanlış-eşik
+                        # veriyordu). Hand'den DOĞRUDAN türet (bottom-bar ile aynı mantık).
+                        _scn = getattr(_adv, "scenario_key", "") or ""
+                        _vp = getattr(_adv, "vs_position", "") or ""
+                        if not _scn:
+                            try:
+                                from app.poker.gto_live_advice import _count_preflop_raises_before_hero
+                                _nr, _rp = _count_preflop_raises_before_hero(hand, hand.hero_idx)
+                                _scn = "RFI" if _nr == 0 else ("vs RFI" if _nr == 1 else "vs 3-bet")
+                                _vp = _rp or _vp
+                            except Exception:
+                                _scn = "RFI"
                         _exp = soyrac_explain(
                             hero_hk or "", pos,
-                            scenario=getattr(_adv, "scenario_key", "RFI") or "RFI",
-                            vs_position=getattr(_adv, "vs_position", "") or "",
+                            scenario=_scn, vs_position=_vp,
                             stack_bb=stack_bb, icm=_icm, n_active=_nact,   # D211d: gerçek masa-boyutu
                             tourney=True,        # TURNUVA: ICM-sıkı eşik + <15bb push/fold
                             stage=_stage, avg_stack_bb=_avg_bb,
