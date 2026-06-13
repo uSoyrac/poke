@@ -1161,12 +1161,27 @@ class BotBrain:
         # Score
         label = "high card"
         strength = 0.12
+        # FULL HOUSE FIX (D221, leak-audit): eski kontrol 'trips + EXACTLY-pair' arıyordu,
+        # iki-trips (3+3) full house'u kaçırıp 'trips/set' diyordu (örn. 22 / 8-8-8-x →
+        # 888+22 dolu ama 'set' sanıyordu → eşli-board haircut yiyordu). Doğru kural:
+        # bir trips VAR + en az 2 ayrı rank pair-veya-üstü (= trips + (pair|trips)).
+        _pair_plus = sum(1 for c in rank_counts.values() if c >= 2)
+        _has_trips = any(c >= 3 for c in rank_counts.values())
         if max_rank_count >= 4:
             strength = 0.98; label = "quads"
-        elif max_rank_count == 3 and any(v == 2 for v in rank_counts.values()):
+        elif _has_trips and _pair_plus >= 2:
             strength = 0.96; label = "full house"
         elif max_suit_count >= 5 and hero_suits_in_max:
-            strength = 0.92; label = "flush"
+            # STRAIGHT-FLUSH FIX (D221, leak-audit): floş kartları aynı zamanda düz mü?
+            # Eski kod nut-düz-floşu 'flush' deyip sub-nut haircut'ı yiyordu.
+            _fs = next((s for s, c in suit_counts.items() if c >= 5), None)
+            _fv = sorted({cc.value for cc in ([c1, c2] + list(board)) if cc.suit == _fs})
+            if 12 in _fv:                                  # A düşük da olabilir (steel wheel)
+                _fv = sorted(set(_fv) | {-1})
+            if any(_fv[i + 4] - _fv[i] == 4 for i in range(len(_fv) - 4)):
+                strength = 0.99; label = "straight flush"
+            else:
+                strength = 0.92; label = "flush"
         elif has_straight:
             strength = 0.85; label = "straight"
         elif max_rank_count == 3:
