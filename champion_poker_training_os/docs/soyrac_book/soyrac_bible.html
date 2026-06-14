@@ -3645,4 +3645,38 @@ SHCP: A=10 K=8 Q=6 J=5 T=4 9=3 8=2 (topla) · suited +4 (+2 Ax) · çift=16+2·s
 <p>(Bölüm 24.2 ile aynı omurga — sayım sisteminin parçası.) Masada say: 7-kişide <b>4+/7 flop görüyorsa</b> yumuşak → KAL. Koltuk: en agresif oyuncu SAĞINA (sonra konuşursun), gevşek-para SOLUNA. En iyi koltuk = en zayıf oyuncunun hemen SOLU.</p>
 <div class="keyrule">Altın kural (sayım sentezi): Etiket değil DAVRANIŞ say. Tek sayı = STATION sayacı (fold-to-bet) — VPIP yalan söyler, o söylemez. Eşiği geç → önceden-bağlı ayara geç (Illustrious-18). Sık-tekrarda yumuşat, nadir-spotta tam-gaz. Balığı eğitme. Ve en kârlı sayımı kart gelmeden yap: doğru masa + doğru koltuk.</div>
 </section>
+
+<section class="chapter">
+<h1>Bölüm 26 — Bet-Sizing & Implied-Odds Ustalığı (4 Kafadan-Kural)</h1>
+<p class="note">Kanon (Janda, Chen/Ankenman, Hardin, Acevedo) dört yüksek-kaldıraçlı sizing/odds kuralında birleşiyor. Hepsi tam-sayı oran-karşılaştırması — kesirli çarpım yok.</p>
+
+<h2>1. Set-Mining "10× Kuralı" (implied-odds kapısı)</h2>
+<p>Bir açışa karşı sadece-VURURSA-kazanan elle (küçük çift = set-mine, suited-connector, suited-ace) call yapmadan önce implied-odds'u say:</p>
+<div class="gto">Effective stack (bb) ÷ call maliyeti (bb) ≥ <b>10</b> → CALL uygun. Altında → FOLD.<br>
+Neden 10: çift, set'i ~8'de-1 flop'lar → vurunca rakibin yığınının ~8-10 katını kazanman lazım (her zaman ödemez). Açış ~2.5bb → 100bb derinde 40× (bol), ama 20bb'de 8× (yetersiz → set-mine FOLD).</div>
+<div class="keyrule">Kafadan: "stack, call'ın 10 katı mı?" Değilse spekülatif eli at. Analoji — backgammon cube TAKE: küçük bedeli şimdi öde, AMA sadece maç/stack yeterince derinse büyük ödülü topla. Sığ stack'te set-mining para sızdırır.</div>
+
+<h2>2. Steal Boyutu — NET-Risk Break-Even (SB kör-indirimi)</h2>
+<p>Steal'da gereken fold-oranı boyuta bağlı; ve gerçek RİSK'in yatırdığın körü DÜŞER:</p>
+<table class="tbl"><tr><th>Açış boyutu</th><th>Gereken fold-oranı</th></tr>
+<tr><td>2bb</td><td>~%57 (5'te ~3)</td></tr>
+<tr><td>2.5bb</td><td>~%62 (3'te 2)</td></tr>
+<tr><td>3bb</td><td>~%67 (3'te 2)</td></tr></table>
+<div class="keyrule">İki adım: (1) Gerçek riskin = açış − YATIRDIĞIN kör (SB'den açarken 0.5bb'in zaten potta → risk daha az → daha geniş steal). (2) Rakibin saygı duyduğu EN KÜÇÜK boyutu kullan: küçük steal daha az fold gerektirir = daha kârlı. Analoji — backgammon take-point: cube'u ancak rakibin pas-frekansı eşiği geçince ship et.</div>
+
+<h2>3. Geometrik Pot Büyütme (river'da all-in için SPR-lookup)</h2>
+<p>Değer-eli planlarken flop'ta SPR'a (effective ÷ flop-pot) bak, kalan sokağı say (flop=3); aynı pot-oranını her sokak sürersen son bahis tam all-in olur:</p>
+<table class="tbl"><tr><th>Flop SPR</th><th>Her sokak bas</th><th>Sonuç</th></tr>
+<tr><td>~13</td><td>POT</td><td>pot-pot-pot → river all-in</td></tr>
+<tr><td>~6</td><td>2/3 pot</td><td>river all-in</td></tr>
+<tr><td>~3.5</td><td>YARIM pot</td><td>river all-in</td></tr>
+<tr><td>&lt; 2</td><td>ŞİMDİ jam</td><td>zaten commit'sin</td></tr></table>
+<div class="keyrule">Kafadan: SPR oku → tablodan oran çek (çarpma yok). Güçlü değer-elinle "yığını river'a nasıl taşırım?" sorusunun cevabı bu. Analoji — backgammon cube: optimal çiftler eşit-aralıklı equity eşiklerine dizilir.</div>
+
+<h2>4. İnce-Value Küçük River Bet (elastik rakibe)</h2>
+<p>River'da değer basmadan önce TEK soru: "daha kötü bir el yarıdan FAZLA call'lar mı?" Evet → değer bas.</p>
+<div class="gto">Rakip büyük bet'e zayıf-çiftini FOLD ediyorsa (elastik) → <b>1/4–1/3 pot</b> küçük bas. Sık-call'lanan küçük bet, nadir-call'lanan büyük bet'i geçer (%40 kazanan bet > 1.8× boyutta %10 kazanan). IP'de daha çok ince-value bas (pozisyon koruması); OOP'ta check-call'a meyilli ol.</div>
+<div class="keyrule">Kafadan: "daha kötü el call'lar mı?" yoksa bas-ma (check). Call'lıyor ama büyüğe fold ediyorsa → küçük bas. Analoji — blackjack soft-double vs zayıf dealer: marjinal-ama-favori spotta daha küçük/az-iddialı bahis daha çok çıkarır. Bölüm 22 "value/bluff testi" ile birleştir: kötü-el-call + iyi-el-fold = bas.</div>
+<div class="keyrule">Altın kural (bölüm sentezi): Set-mine sadece 10× derinlikte. Steal'da net-riski say, en küçük etkili boyutu seç. Değer-elini SPR-lookup'la river'a taşı. İnce-value'yu elastik rakibe KÜÇÜK bas. Dördü de oran-karşılaştırması — çarpma yok.</div>
+</section>
 </body></html>
