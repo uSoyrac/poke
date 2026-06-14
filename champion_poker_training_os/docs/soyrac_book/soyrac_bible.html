@@ -3679,4 +3679,31 @@ Neden 10: çift, set'i ~8'de-1 flop'lar → vurunca rakibin yığınının ~8-10
 <div class="keyrule">Kafadan: "daha kötü el call'lar mı?" yoksa bas-ma (check). Call'lıyor ama büyüğe fold ediyorsa → küçük bas. Analoji — blackjack soft-double vs zayıf dealer: marjinal-ama-favori spotta daha küçük/az-iddialı bahis daha çok çıkarır. Bölüm 22 "value/bluff testi" ile birleştir: kötü-el-call + iyi-el-fold = bas.</div>
 <div class="keyrule">Altın kural (bölüm sentezi): Set-mine sadece 10× derinlikte. Steal'da net-riski say, en küçük etkili boyutu seç. Değer-elini SPR-lookup'la river'a taşı. İnce-value'yu elastik rakibe KÜÇÜK bas. Dördü de oran-karşılaştırması — çarpma yok.</div>
 </section>
+
+<section class="chapter">
+<h1>Bölüm 27 — Son Keskinleştirmeler: Semi-Bluff, Ante, Indifference, Range</h1>
+<p class="note">Madenciliğin son dört "keskinleştirme"si — mevcut Soyrac mekaniklerini netleştirir. Hepsi tam-sayı/kavramsal, masada uygulanır.</p>
+
+<h2>1. Semi-Bluff "12 Out = Jam" Eşiği</h2>
+<p>Out say (kirli out'ları ÇIKAR — Bölüm 22.6), flop'ta ×4 yap. <b>12+ out (×4 = 48+) HEADS-UP</b> → iki kart gelecekken coin-flip'tesin VEYA öndesin → çekmeyi made-hand gibi oyna, <b>JAM / ortaya koy</b>. 14+ out (≈56) → net favori, kesin tüm-ortaya.</p>
+<div class="keyrule">Kombo-çekmeler buraya girer: floş-çekme(9) + açık-uçlu(8) = 15 out (kirli düşülünce ~12-13) → JAM. Kafadan: "12 out'um var mı? → made-hand gibi bas." Analoji — backgammon cube: ~%50'de cube'u çevir, varyans çözülmeden işi zorla.</div>
+
+<h2>2. Ante Döngüsü — Steal Eşiği Ante'ye Bağlı</h2>
+<p>Steal'dan önce ANTE var mı bak (steal'ı tamamen değiştirir):</p>
+<div class="gto">• <b>ANTE YOK</b> → steal blöfü ~%70 kazanmalı → SIKI steal (baz geç-poz eşikleri).<br>
+• <b>ANTE CANLI</b> → ölü-para break-even'ı ~%50'ye düşürür → any-two geç-pozdan kârlı → steal'ı SERT genişlet (pre-empt indirimi tam uygulanır).</div>
+<div class="keyrule">Kafadan: "ante var mı?" → varsa steal-eşiğini düşür (geniş çal), yoksa sıkı. Turnuvada ante-level başlayınca steal motoru AÇILIR. Analoji — blackjack true-count gating: bet'i ancak sayı (ante ölü-parası) lehine olunca rampla.</div>
+
+<h2>3. Indifference (Denge) Testi — "Hep-call / hep-fold edip kâr edebilir mi?"</h2>
+<p>Blöf ya da değer basmadan önce iki-soru tam-sayı testi:</p>
+<div class="gto">(1) Rakip HEP FOLD ederse kâr eder miyim? (2) Rakip HEP CALL ederse kâr eder miyim?<br>
+Tam birine EVET → DENGESİZSİN → o dengesizliği sömüren aksiyonu seç. İkisine de evet/hayır → dengelisin (GTO).</div>
+<div class="keyrule">Bu, Bölüm 22'nin value/bluff testinin GTO-tarafı: rakibin tek bir saf-stratejiyle (hep-call ya da hep-fold) seni cezalandıramadığı noktayı ara. Exploit ederken bilerek dengesiz oyna (rakibin hatası yönünde). Analoji — taş-kağıt-makas: 1/3-1/3 karışım rakibi kayıtsız bırakır; rakip sapınca sen sapmanın TERSİNİ bas.</div>
+
+<h2>4. Bayesçi El-Okuma — Range Tut, Her Sokak Güncelle</h2>
+<p>Rakibe ASLA tek el atama — küçük bir olası-el seti tut, bu şekilde oynamayacakları ÇİZ. Tam-sayı güncelleme:</p>
+<div class="gto">Yeni oyuncu ilk eli yükseltti → agresyon-önyargısını ~%10'dan ~%50'ye ZIPLAT. Üst üste İKİNCİ yükseltme → %85+. Büyük karardan önce: rakibin range'inde kaç value-combo kaç blöf-combo var, SAY.</div>
+<div class="keyrule">"Tek el" tuzağına düşme — dağılım düşün (Bölüm 24 zihinsel oyunla birleşir). Okumaya HIZLI güncelle (3-4 el yeter — Bölüm 23.2), kendi win-rate'ine yavaş. Analoji — blackjack running-count: her kart sayıyı, her aksiyon range'i günceller.</div>
+<div class="keyrule">Altın kural (bölüm sentezi): 12-out çekmeyi made gibi jam'le. Ante varsa steal'ı aç. Basmadan önce "hep-call/hep-fold kâr eder mi?" sor. Rakibe range tut, agresyon-priorunu hızlı zıplat. Dördü de masada, kafadan, saniyede.</div>
+</section>
 </body></html>
