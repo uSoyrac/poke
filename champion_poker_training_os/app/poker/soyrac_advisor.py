@@ -774,6 +774,24 @@ def _draw_equity(hole, board) -> "tuple[float, list]":
     # OVERCARD'lar (iki kart da board'un üstünde, başka çekme yoksa) → küçük kredi
     if not fd and not oesd and hv and bv and min(hv) > max(bv):
         outs += 3; notes.append("2 overcard(3)")
+    # OUT-DISCOUNTING (D227, kanon — "dirty outs"): rakibin DAHA İYİ elini tamamlayan
+    # out'ları ÇIKAR. (a) EŞLİ board → floş/düz hit etse bile DOLU'ya kaybedebilir;
+    # (b) alt-floş-çekme → üst floş mümkün. Tam-sayı indirim ("kirli out'u sayma").
+    disc = 0
+    if any(c >= 2 for c in Counter(bv).values()):        # (a) eşli board → dolu riski
+        if fd:
+            disc += 2
+        if oesd:
+            disc += 2
+        elif gut:
+            disc += 1
+    if fd:                                                # (b) alt-floş-çekme (üst floş)
+        hero_hi = max((c.value for c in hole if c.suit == fd), default=0)
+        if hero_hi < 10:                                 # < Q (0-index: T=8, J=9, Q=10)
+            disc += 1
+    if disc:
+        outs = max(1, outs - disc)
+        notes.append(f"−{disc} kirli-out (rakip üst-el)")
     if outs <= 0:
         return 0.0, []
     mult = 4 if n == 3 else 2                             # flop iki-kart / turn tek-kart
