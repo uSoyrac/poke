@@ -3621,4 +3621,28 @@ SHCP: A=10 K=8 Q=6 J=5 T=4 9=3 8=2 (topla) · suited +4 (+2 Ax) · çift=16+2·s
 <p class="why">Analoji — tavla: pip-count'a göre checker-stilini değiştir (koşan/tutan/priming). Uyum sağlayan kazanır; tek-stil oyuncu sömürülür. Masa-imajı = blackjack'te "heat" — dikkat çektiysen vites küçült.</p>
 <div class="keyrule">Altın kural: En kârlı kararların bazıları KART GELMEDEN (masa/koltuk seç) ve OYNARKEN-DURURKEN (stop-loss, kal/kalk) verilir. Bunları sayıyla yönet, duyguyla değil.</div>
 </section>
+
+<section class="chapter">
+<h1>Bölüm 25 — Rakip Sayım Sistemi: "Rakibi Say, Exploit Et"</h1>
+<p class="note">Blackjack'te kartları sayar, sayı eşiği geçince temel-stratejiden saparsın (Illustrious-18). Burada AYNI şeyi rakibe yaparsın: her oyuncu için kafanda küçük TAM-SAYI tally'ler tut, sayı eşiği geçince önceden-bağlı exploit ayarına geç. Profil etiketi (çakal/fare) ezberleme — DAVRANIŞI SAY. Bu, "rakibi okuyorum" lafını ölçülebilir sisteme çevirir.</p>
+
+<h2>1. Sayılacak 5 Şey (her rakip için, kafadan)</h2>
+<table class="tbl"><tr><th>#</th><th>Say</th><th>Nasıl</th><th>Eşik → Ayar</th></tr>
+<tr><td>1</td><td><b>Tip (ilk tur)</b></td><td>İlk 9 elde yükseltme say</td><td>4+ → maniac (call-down, blöf bırak) · 0-1 → nit (steal'la, premium'una saygı) · 2-3 → normal</td></tr>
+<tr><td>2</td><td><b>STATION sayacı</b> (en kritik)</td><td>Ona attığın ilk 3 bet'in kaçını FOLD etti</td><td>2/3 fold → fit-or-fold → <b>BLÖF ET</b> (c-bet any-two, barrel) · 0-1/3 fold → gerçek station → <b>BLÖF YOK</b>, her çifti ince value bas, raise'ine fold</td></tr>
+<tr><td>3</td><td><b>3-bet sıklığı</b></td><td>Orbit'lerde 3-bet'lerini say</td><td>sık → light-4bet/flat ile karşıla · nadir → 3-bet'i = premium, fold/dar-call</td></tr>
+<tr><td>4</td><td><b>Showdown blöf</b></td><td>Kaç kez blöf gösterdi</td><td>2+ → over-bluffer (call-down değer-eşiğini düşür) · 0 (hep değer gösterdi) → honest (agresyonuna fold)</td></tr>
+<tr><td>5</td><td><b>Fold-to-steal</b></td><td>Blind'ini kaç kez savundu</td><td>çoğu zaman fold → bol steal (geç-poz any-two) · sık savunuyor → steal'ı kıs</td></tr></table>
+<div class="keyrule">KRİTİK — VPIP/PFR TUZAĞI: 38/5 görünen iki oyuncu zıt olabilir. Fit-or-fold loose ile gerçek station ikisi de "loose-passive" görünür; onları AYIRAN tek şey <b>#2 STATION sayacı (fold-to-bet)</b>, VPIP değil. Yanlış istatistiği saymak = yanlış kart saymak: birini bluff'larsın (+EV), öbürünü bluff'larsın (para yakar). Önce fold-to-bet say.</div>
+
+<h2>2. Ne Kadar Sert? (Max vs Min Exploit — counter-exploit yeme)</h2>
+<p>Sayı eşiği geçince EV-max cevap SAF stratejidir (over-folder → her zaman blöf; station → asla blöf). Ama saf oyun, rakip uyum sağlarsa kendisi sömürülebilir:</p>
+<div class="gto">• <b>DÜŞÜK-frekans spot</b> (nadir tekrarlanan turn/river dokusu) → MAX çek, her seferinde. Küçük örnekte pattern göremez.<br>
+• <b>YÜKSEK-frekans spot</b> (her el tekrarlayan: açışın, c-bet'in) → bir kademe YUMUŞAT (any-two yerine eşiği 3 değil 2 düşür); birkaç "dürüst" eli karışımda tut → %100 öngörülebilir olma.</div>
+<div class="keyrule">ASLA balığı eğitme: over-folder'a blöf gösterme, station'a value-jam-sonra-göster yapma. Göstermek onu dengeye iter, edge'ini küçültür. SESSİZCE sömür — sadece onu DAHA UZAĞA it. (Blackjack: küçük, fark-edilmez sapma binlerce elde kazandırır; flashy overbet = pit boss'u uyaran büyük bet-spread.)</div>
+
+<h2>3. Kart Gelmeden: Oyun & Koltuk (en büyük tek edge)</h2>
+<p>(Bölüm 24.2 ile aynı omurga — sayım sisteminin parçası.) Masada say: 7-kişide <b>4+/7 flop görüyorsa</b> yumuşak → KAL. Koltuk: en agresif oyuncu SAĞINA (sonra konuşursun), gevşek-para SOLUNA. En iyi koltuk = en zayıf oyuncunun hemen SOLU.</p>
+<div class="keyrule">Altın kural (sayım sentezi): Etiket değil DAVRANIŞ say. Tek sayı = STATION sayacı (fold-to-bet) — VPIP yalan söyler, o söylemez. Eşiği geç → önceden-bağlı ayara geç (Illustrious-18). Sık-tekrarda yumuşat, nadir-spotta tam-gaz. Balığı eğitme. Ve en kârlı sayımı kart gelmeden yap: doğru masa + doğru koltuk.</div>
+</section>
 </body></html>
