@@ -3543,4 +3543,75 @@ SHCP: A=10 K=8 Q=6 J=5 T=4 9=3 8=2 (topla) · suited +4 (+2 Ax) · çift=16+2·s
 
 <div class="keyrule">Altın kural (bölüm sentezi): Showdown'da elin = board + SENİN kattığın. Board'un çiftini/floşunu/düzünü kendine yazma; As'i iki uçta gez; üçlü görünce ikinci çifti ara; floş yapınca ardışıklığı kontrol et; ve sinekleri SAY (3 ≠ 4). Bu beş refleks, "nutsu attım / çöpü nuts sandım" hatalarının tamamını kapatır.</div>
 </section>
+
+<section class="chapter">
+<h1>Bölüm 23 — World-Class Çerçeve: Ezber, Varyans ve ICM-Deal</h1>
+<p class="note">Bu bölüm 21-kitap kanonundan (Chen/Ankenman, Acevedo, Janda, Duke, Hardin) süzülen ve sim/evaluator ile DOĞRULANMIŞ üç "elit refleks"i verir. Hepsi kafadan: ya ezber-recall ya tam-sayı sayım. Kesirli çarpım yok (tek istisna masa-dışı deal matematiği — orada vaktin var).</p>
+
+<h2>1. Preflop Equity Ezber Tablosu (hesaplama, RECALL)</h2>
+<p>Elit oyuncu masada equity HESAPLAMAZ — ezberinden çağırır. Tıpkı blackjack temel-strateji kartı gibi: aşağıdaki sayılar gerçek Monte-Carlo evaluator'ıyla (40k el) doğrulandı; ezberle, masada düşünme.</p>
+<table class="tbl"><tr><th colspan="2">ÇİFTLER (random rakibe karşı, HU %)</th><th colspan="2">DİĞER</th></tr>
+<tr><td>AA</td><td><b>85</b></td><td>AKs</td><td>67</td></tr>
+<tr><td>KK</td><td>82</td><td>AKo / AQs / AJs</td><td>66</td></tr>
+<tr><td>QQ</td><td>79</td><td>AQo</td><td>64</td></tr>
+<tr><td>JJ</td><td>77</td><td>KQs</td><td>63</td></tr>
+<tr><td>TT</td><td>75</td><td>A5s</td><td>60</td></tr>
+<tr><td>99 / 88</td><td>72 / 69</td><td>JTs</td><td>57</td></tr>
+<tr><td>77 / 66 / 55</td><td>66 / 63 / 60</td><td>T9s</td><td>54</td></tr>
+<tr><td>44 / 33 / 22</td><td>57 / 54 / 50</td><td>98s / 76s / 54s</td><td>50 / 45 / 42</td></tr></table>
+<div class="keyrule">FLIP ezberi: AKo vs QQ = <b>43/57</b> (çift hafif favori) · AK vs JJ/TT = <b>~46/54</b> (coin-flip) · 88 vs AK = <b>55/45</b> (çift favori). "Çift vs iki üst-kart = yazı-tura; çift kazanmaya hafif önde."</div>
+<p class="why">Neden recall: in-hand 5 saniyen var. Equity'yi türetmek (combo say, board-doku, vs-range) imkânsız; ama AA=85, AK=67 gibi 25 sayıyı ezberlemek bir hafta sürer ve ömür boyu kalır — blackjack Illustrious-18 gibi.</p>
+
+<h2>2. Varyans & Örneklem: Okumaya HIZLI, Win-Rate'e YAVAŞ Güven</h2>
+<p>İki tam-sayı kuralı (kafada, masada değil):</p>
+<div class="gto">① Win-rate belirsizliğini YARIYA indirmek için <b>4× el</b> oynamalısın (std-sapma √N ile düşer). 10k el ≈ kaba; 40k el ≈ yarı-kaba; 100k+ ≈ güvenilir.<br>
+② <b>%40-45</b> oranında 300-el oturumlarını, +EV oynasan bile KAYBEDERSİN. Tek oturum sinyal değil — gürültü.</div>
+<div class="keyrule">Pratik ayrım: <b>Rakip okumasına HIZLI güven</b> (3-4 el bir pattern verir — sıkı/agresif belli olur). <b>Kendi win-rate'ine YAVAŞ güven</b> (yüzlerce oturum gerekir). Karıştırma: kötü hafta strateji değiştirme sebebi DEĞİL.</div>
+<p class="why">Analoji — backgammon match equity: %60 tek-oyun favorisi bile maçların %40'ını kaybeder. Kısa-vade sonuç, karar kalitesinden bağımsızdır (bkz [[Bölüm 14 Resulting]]).</p>
+
+<h2>3. ICM Deal Matematiği: Asla Chip-Chop'a Evet Deme</h2>
+<p>Final-table deal teklif edilince (masa-dışı, vaktin var) kendi $-payını TAHMİN et:</p>
+<div class="gto">Senin payın ≈ <b>2.'lik ödül + (chip payın) × (1.'lik − 2.'lik farkı)</b><br>
+Örn. 2 kişi kaldı, ödüller 1.=1000$ 2.=600$, sen toplam chip'in ~yarısındasın → 600 + (yarı × 400) = <b>800$</b>. Teklif ≥ payın → KABUL; değilse RED.</div>
+<div class="keyrule">ASLA ham "chip-chop" (chip oranına göre düz bölüşme) kabul etme — o, kısa stack'i FAZLA değerler (ICM nedeniyle chip ≠ para). Her zaman 2.'liği tabana koy, sadece farkı chip-oranıyla paylaştır.</div>
+<p class="why">Analoji — backgammon cube yanlış-fiyatlama: "save" (cube'u şişik fiyattan kabul) kısa-stack'in kârıdır. Deal-table'da vaktin olduğu için kesirli oran serbest; bu masa-üstü split-saniye kuralı değil.</p>
+<div class="keyrule">Altın kural: Ezberle (equity tablosu), sabret (varyans), pazarlık-öncesi hesapla (deal). Elit fark masada hesaplamada değil, ÖNCEDEN hazır olmakta.</div>
+</section>
+
+<section class="chapter">
+<h1>Bölüm 24 — Masa-Üstü Disiplin: Tilt, Seçim, Bankroll, Vites</h1>
+<p class="note">Para masada el oynarken kadar, el oynamadan ÖNCE ve oynamayı bırakırken kazanılır/kaybedilir. Bu bölüm dört sayılabilir disiplini verir: tilt-tespiti, oyun/koltuk seçimi, bankroll merdiveni, ve masa-dokusuna göre vites.</p>
+
+<h2>1. Tilt Taksonomisi + Erken-Tespit + 6-4-6 Nefes</h2>
+<p>Tilt'i masada çözemezsin — ÖNCEDEN hazırlanırsın (Illustrious-18 gibi: index'i türetme, ezberle).</p>
+<table class="tbl"><tr><th>Tilt tipi</th><th>Tek-cümle mantık-enjeksiyonu (telefona yaz)</th></tr>
+<tr><td>Kötü-şans (bad beat)</td><td>"O call benim kârım — yine gelsin isterim."</td></tr>
+<tr><td>Haksızlık</td><td>"Adalet uzun vade; bu el bağımsız."</td></tr>
+<tr><td>Kendi hatam</td><td>"Hata bilgi; sonraki karara odaklan."</td></tr>
+<tr><td>İntikam</td><td>"Belirli rakibi yenmek hedef değil; +EV hedef."</td></tr>
+<tr><td>Hak-ediş / çaresizlik</td><td>"Stack sıfırlandı sayılır; her el yeni."</td></tr></table>
+<div class="keyrule">BEDENSEL SİNYAL SAY: kalp hızlanma / çene kasma / hızlı tıklama → <b>2 sinyal = DUR</b>. <b>6-4-6 nefes</b> (6 sn al, 4 tut, 6 ver) × 3. Hâlâ varsa otur-çık. Sayım objektif; "iyiyim" yalanına izin verme.</div>
+
+<h2>2. Oyun & Koltuk Seçimi — Kart Gelmeden Yapılan Exploit</h2>
+<p>En büyük edge çoğu zaman el dağıtılmadan SEÇİLİR. İki şeyi say:</p>
+<div class="gto">• <b>GEVŞEKLİK:</b> 7-kişilik masada her flop'u kaç kişi görüyor? <b>4+/7 düzenli flop görüyorsa</b> → yumuşak masa, OTUR/KAL.<br>
+• <b>KOLTUK:</b> Para masada saat-yönünde akar. <b>Gevşek/agresif oyuncuların SOLUNDA otur</b> (onlar önce konuşur, sen pozisyonla sömürürsün). Sağında oturmak = sürekli OOP.</div>
+<div class="keyrule">"Her shoe'yu oynamazsın" (blackjack): masayı/koltuğu tara, koşullar uygunsa otur. Kötü koltuk + sıkı masa = en iyi elin bile az kâr.</div>
+
+<h2>3. Bankroll Merdiveni — "Bankroll için True-Count"</h2>
+<p>Bankroll'unu BUY-IN cinsinden say (roll ÷ 100bb = kaç tam stack'in var). Dürüst win-rate'ine göre tampon oku:</p>
+<table class="tbl"><tr><th>CASH win-rate</th><th>Gereken buy-in</th><th></th><th>MTT alan boyutu</th><th>Gereken buy-in</th></tr>
+<tr><td>≤1 bb/100</td><td>120</td><td></td><td>küçük (&lt;50)</td><td>~50</td></tr>
+<tr><td>2 bb/100</td><td>60</td><td></td><td>orta (90-250)</td><td>~100-150</td></tr>
+<tr><td>3 bb/100</td><td>40</td><td></td><td>büyük (~1000)</td><td>~270</td></tr>
+<tr><td>4 / 5+ bb/100</td><td>30 / 25</td><td></td><td>devasa (2000+)</td><td>500+</td></tr></table>
+<div class="keyrule">Win-rate'inden emin değilsen: cash 3bb/100 varsay → <b>40 buy-in tut</b>. MTT'de varyans alanla ŞİŞER — turnuva bankroll'u cash'in birkaç katı. Buy-in sayın eşiğin altına düşerse bir kademe İN (true-count düşünce unit'i çek).</div>
+
+<h2>4. Stop-Loss + Masa İmajı + Vites Değiştir</h2>
+<div class="gto"><b>Soğuk stop-loss:</b> Zirveden <b>3 buy-in</b> kaybettin → KALK (tilt birikmeden). Sayı sabit, duygu değil.<br>
+<b>Kötü oyunu değil, kötü MASAYI bırak:</b> büyük kazançtan sonra stack'e değil MASAYA bak — 2+ tilt eden/kötü oyuncu varsa kazanırken KAL (en yüksek-EV an); masada hep regler varsa kalk.</div>
+<div class="keyrule">VİTES (orbit-başı gönüllü-pota-gireni say): ≥4/8 gevşek → SIKILAŞ; ≤2/8 sıkı → AÇIL. Masa dokusunun TERSİ oyna, kademeli değil ANİ geç. 2-3 gösterilmemiş kazançtan sonra imajın "sıkı"dır → 1 tur daha geniş çal-blöf yap.</div>
+<p class="why">Analoji — tavla: pip-count'a göre checker-stilini değiştir (koşan/tutan/priming). Uyum sağlayan kazanır; tek-stil oyuncu sömürülür. Masa-imajı = blackjack'te "heat" — dikkat çektiysen vites küçült.</p>
+<div class="keyrule">Altın kural: En kârlı kararların bazıları KART GELMEDEN (masa/koltuk seç) ve OYNARKEN-DURURKEN (stop-loss, kal/kalk) verilir. Bunları sayıyla yönet, duyguyla değil.</div>
+</section>
 </body></html>
