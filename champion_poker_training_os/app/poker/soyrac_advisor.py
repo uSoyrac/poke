@@ -303,6 +303,14 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                 call_t += cd
                 raise_t += rd
         act = "3-BET" if score >= raise_t else ("CALL" if score >= call_t else "FOLD")
+        # D234 (kullanıcı yakaladı + GTO-teyit): KÜÇÜK ÇİFT (22-44) açışa 3-BET DEĞİL FLAT.
+        # SHCP pariteyi şişirir (33=18 ≥ 3bet-eşiği) → tüm çiftleri 3bet ettiriyordu. Ama
+        # küçük çift = SET-MINE eli: 3bet ödeyecek kötü eli fold'lar, daha iyiye 4bet yer,
+        # ucuz-flop isteyen eli pot'u şişirir, early-MTT'de yarı-stack riski. GTO: 33/44
+        # PURE-CALL (r0/c90). 55+ GTO-3bet kalır (66+ r100). → 22-44'ü set-mine FLAT'le.
+        if act == "3-BET" and len(hand_key) == 2 and hand_key[0] == hand_key[1] \
+                and "23456789TJQKA".index(hand_key[0]) <= 2 and score >= call_t:
+            act = "CALL"
         # 6-max AGRESYON (D148): geç açana karşı suited-wheel-As (A2s-A5s) 3-BET BLÖF.
         # Bu eller AA/AK'yı bloklar + nut-floş yedek-equity'si var. ADVICE'ta SADECE IP
         # defender (blind'da GTO flat/call'lar); bot_mode'da eski davranış (tüm pozisyon).
