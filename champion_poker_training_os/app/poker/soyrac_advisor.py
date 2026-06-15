@@ -274,6 +274,13 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
             act = "CALL"
         else:
             act = "FOLD"
+        # D236 (leak-avı + GTO-teyit + profil): KÜÇÜK ÇİFT (33-66) 3-BET'e CALL DEĞİL FOLD.
+        # GTO 44-66 PURE-FOLD (77 fold-lean, 88+ call); 3-bet pot DÜŞÜK-SPR → set-mine
+        # implied-odds'u yok → çağırmak para yakar (profil: "3bet pot over-call" 39×).
+        # 88+ set-mine CALL kalır. ADVICE-only (bot_mode geniş kalır — D184: bot-daraltma -EV).
+        if not bot_mode and act == "CALL" and len(hand_key) == 2 and hand_key[0] == hand_key[1] \
+                and "23456789TJQKA".index(hand_key[0]) <= 4:
+            act = "FOLD"
         return {"score": score, "b4": b4, "action": act, "scenario": "vs 3-bet",
                 "size": _preflop_size(act, pos, stack_bb, bool(tourney), hu),
                 "line": f"🧮 SHCP {score} · B4 blocker {b4} · 4bet≥{v4_t}/call≥{flat_t}"
