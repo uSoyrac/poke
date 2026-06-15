@@ -845,6 +845,21 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
                     _paired_note = ("🪤 Eşli board: 'iki çift'in board'un çiftinden — gerçek "
                                     "katkın sadece cebindeki düşük pair. Her ÜST-pocket ve "
                                     "board'u eşleyen herkes seni geçer → DEĞER değil, bluff-catch.")
+        elif (label in ("two pair", "top two pair") and len(_hc) >= 2
+                and _hc[0].value != _hc[1].value):
+            # D235 (value-audit yakaladı): ÇİFT-EŞLİ board'da NON-pocket hero board'un
+            # iki çiftini oynuyor (örn. 6,2 / A-A-4-4) → hiçbir board kartını eşlemiyor →
+            # katkı sadece KICKER. _hand_strength "two pair" 0.66 GÜÇLÜ sanıp value-bet
+            # spew'i öneriyordu (gerçek eq ~%12). → kicker-only zayıf.
+            from collections import Counter as _Cb
+            _bv = [c.value for c in board]
+            _board_pairs = [r for r, ncnt in _Cb(_bv).items() if ncnt >= 2]
+            if len(_board_pairs) >= 2 and not any(c.value in _bv for c in _hc):
+                strength = 0.30
+                label = "board iki-çifti (sen oynamıyorsun — kicker)"
+                _paired_note = ("🪤 İki çift de BOARD'un — sen sadece kicker oynuyorsun "
+                                "(cebindeki kartlar el yapmadı). Board'u eşleyen ya da "
+                                "üst-pocket'i olan herkes geçer → DEĞER değil, çoğu zaman çöp.")
         # ÇEKME (D201): _hand_strength draw'ı river-hayalet + combo-kör + street-eşit.
         # _draw_equity DOĞRU sayar (river=0, flop ×4/turn ×2, FD+düz additive).
         draws, draw_notes = _draw_equity(hero.hole_cards, board)

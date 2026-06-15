@@ -55,3 +55,17 @@ def test_real_two_pair_unpaired_board_still_value():
     """KORUMA: K9 / K-9-7-4-2 = gerçek top-two → BET(value) KALMALI (regresyon yok)."""
     out = _spot(["Kh", "9d"], ["Ks", "9c", "7h", "4s", "2d"], 0.0)
     assert "BET" in out["action"], f"gerçek iki-çift value kalmalı: {out['action']}"
+
+
+def test_d235_board_two_pair_play_not_value():
+    """D235: NON-pocket hero çift-eşli board'da board'un iki çiftini oynuyor (6,2 / A-A-4-4)
+    → kicker-only, value-bet ETMEMELİ (eski: GÜÇLÜ→BET spew, gerçek eq ~%12)."""
+    out = _spot(["6d", "2h"], ["As", "Ad", "4c", "4h"], 0.0)
+    assert out["tier"] != "GÜÇLÜ", f"board-oynama GÜÇLÜ olmamalı: {out['tier']}"
+    assert "BET (value)" not in out["action"], f"board-oynama value-bet etmemeli: {out['action']}"
+
+
+def test_d235_real_two_pair_preserved():
+    """KORUMA: gerçek top-two (K9 / K-9-7) → BET(value) KALMALI (regresyon yok)."""
+    out = _spot(["Kh", "9d"], ["Ks", "9c", "7h", "2s"], 0.0)
+    assert "BET" in out["action"], f"gerçek two-pair value kalmalı: {out['action']}"
