@@ -1646,17 +1646,21 @@ class TournamentSimulatorScreen(QWidget):
             return
         if self.tournament.hero_busted:
             return   # Hero is out — tournament legitimately over
-        if self.mtt_field.is_final_table:
-            return   # Final masaya inildi → artık dengeleme yok, kazanana dek oynanır
         if self.mtt_field.bg_players_remaining <= 0:
             return   # No background players left to draw from
 
+        # D247: FT'ye inerken arka-plandaki SON oyuncular hero masasına BİRLEŞTİRİLİR
+        # (gerçek MTT: son masalar kırılır, herkes final masaya oturur). Eski kod FT'de
+        # erken-return ediyordu → bg'deki oyuncu hero masasına HİÇ taşınmıyor, sayıda
+        # HAYALET kalıyordu (header 6 ama feltte 5). FT'de de doldurmaya devam et → bg=0
+        # olunca yukarıdaki guard durdurur (tek-seferlik konsolidasyon).
+        ft = self.mtt_field.is_final_table
         alive_at_table = self.tournament.players_remaining
         seats = len(self.tournament.game.players)
         # Masa ≤6 oyuncuya inince yeniden doldur (gerçek MTT'de kısa masalar
         # kırılır, oyuncular dağıtılır). Hedef: tam masa (koltuk sayısı).
-        if alive_at_table > 6:
-            return
+        if not ft and alive_at_table > 6:
+            return   # FT-dışı: masa hâlâ dolu → dengeleme yok. FT'de konsolide et.
 
         target = min(seats, self.mtt_field.players_remaining)
         need = target - alive_at_table
