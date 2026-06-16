@@ -1050,15 +1050,87 @@ def get_overall_archive_stats() -> dict:
         }
 
 
+# D237: gerçek Soyrac-sapma leak'leri (soyrac_hands user_action vs soyrac_action).
+# SADECE -EV leak'ler yüzeye çıkar; +EV "dokunuşlar" (loose-call, flat-cheap-flop)
+# HARİÇ. Her leak'e kitap-referanslı fix. Bust-share severity'yi belirler.
+_SOYRAC_LEAK_META = {
+    "Over-defend — çöp/spekülatif savunma (GTO'da bile -EV)": {
+        "name": "Çöp/spekülatif over-defend", "category": "Preflop",
+        "fix": "Çöpü SADECE BB + indirim + kapanış multiway savun; gerisi FOLD. (Bible Böl.22.2/24.1)"},
+    "Çok geniş açış (eşik altı raise)": {
+        "name": "Çok geniş açış (eşik-altı)", "category": "Preflop",
+        "fix": "Eşik-altı açma. Geç-poz turnuva steal'i (yarım pre-empt) hariç sıkı kal. (Böl.21)"},
+    "3-bet pot over-call (premium değilken call → para yakar)": {
+        "name": "3-bet pot over-call", "category": "Preflop",
+        "fix": "33-66 3-bet'e FOLD, 77+ set-mine call, QQ+/AK 4-bet. (Böl.26.1) [D236 motora da girdi]"},
+    "Aşırı 3-bet (premium değilken yükseltme)": {
+        "name": "Aşırı 3-bet (non-premium)", "category": "Preflop",
+        "fix": "Küçük çifti/zayıf eli 3-bet'leme → flat/fold. 3-bet for value 66+/JJ+. (Böl.26.1) [D234]"},
+    "Aşırı 4-bet (premium/blocker yok)": {
+        "name": "Aşırı 4-bet (non-premium)", "category": "Preflop",
+        "fix": "4-bet SADECE QQ+/AK veya derin wheel-ace blocker-bluff. (Böl.27)"},
+    "Sapma: sen R, Soyrac C": {
+        "name": "Raise-yerine-flat ters çevirme", "category": "Preflop",
+        "fix": "Set-miner/connector'ı raise'e çevirme → flat (ucuz flop). Agresyon value-3bet + steal'de. (Böl.26.1)"},
+}
+
+
+def _soyrac_leaks_from_rows(rows, min_count: int = 10) -> list:
+    """SAF mantık (DB-bağımsız, test-edilebilir): (leak, count, busts) satırlarından
+    -EV leak dict'leri üretir. rows: [{'leak','c','busts'} ...] (dict ya da sqlite.Row)."""
+    out = []
+    for r in rows:
+        leak = r["leak"]; cnt = int(r["c"] or 0); busts = int(r["busts"] or 0)
+        meta = _SOYRAC_LEAK_META.get(leak)
+        if not meta or cnt < min_count:
+            continue                       # touch ya da seyrek → atla
+        bust_share = (busts / cnt) if cnt else 0.0
+        sev = "High" if bust_share >= 0.22 or cnt >= 50 else "Medium"
+        out.append({
+            "name": meta["name"], "severity": sev, "category": meta["category"],
+            "sample_size": cnt,
+            "ev_lost": round(cnt * 0.6 * (1 + 2 * bust_share), 1),
+            "frequency_deviation": f"{cnt}× (bust %{100*bust_share:.0f})",
+            "detail": f"Gerçek oyununda {cnt} kez: {leak}. Bust turnuvalardaki pay %{100*bust_share:.0f}.",
+            "fix": meta["fix"],
+        })
+    out.sort(key=lambda x: -x["ev_lost"])
+    return out
+
+
+def get_soyrac_deviation_leaks(min_count: int = 10) -> list:
+    """soyrac_hands'teki GERÇEK kullanıcı-sapmalarından -EV leak'leri çıkarır
+    (touch'lar HARİÇ). Bust-share (soyrac_results.itm join) severity'yi belirler.
+    Leak Finder ekranı + drill/repair bunları gösterir → gerçek-veri → drill köprüsü."""
+    try:
+        with get_connection() as conn:
+            rows = conn.execute(
+                "SELECT leak, COUNT(*) c, "
+                "SUM(CASE WHEN sr.itm=0 THEN 1 ELSE 0 END) busts "
+                "FROM soyrac_hands sh LEFT JOIN soyrac_results sr "
+                "ON sh.tournament_id=sr.tournament_id "
+                "WHERE sh.leak IS NOT NULL AND sh.leak!='' GROUP BY sh.leak"
+            ).fetchall()
+    except Exception:
+        return []
+    return _soyrac_leaks_from_rows([dict(r) for r in rows], min_count)
+
+
 def get_leak_analysis() -> list:
     """Auto-detect leaks from played hand data + GTO-decision history.
 
-    İki kaynak: (1) played_hands aggregate istatistikleri (VPIP/WTSD/W$SD…),
-    (2) hero_decisions karar-bazlı GTO sapmaları (over-fold/spew, kategori
-    bazında). İkisi birleşir.
+    Üç kaynak: (1) played_hands aggregate istatistikleri (VPIP/WTSD/W$SD…),
+    (2) hero_decisions karar-bazlı GTO sapmaları, (3) soyrac_hands GERÇEK
+    Soyrac-sapma leak'leri (D237 — kullanıcının asıl leak'leri). Birleşir.
     """
     stats = get_player_stats()
     leaks_found = []
+
+    # ── GERÇEK Soyrac-sapma leak'leri (D237) — kullanıcının asıl -EV sapmaları ──
+    try:
+        leaks_found.extend(get_soyrac_deviation_leaks())
+    except Exception:
+        pass
 
     # ── Karar-bazlı GTO leak'leri (her zaman dene; veri varsa ekler) ──
     try:
