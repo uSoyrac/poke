@@ -404,16 +404,27 @@ def module_detail(module_key: str) -> list:
         ]
 
     if mk == "M7":                                  # format / push-fold
+        # MTT evre stratejisi TEK KAYNAK mtt_playbook.stage_plan'dan (D242) — akademi,
+        # koç ve kitap aynı kaynaktan beslensin (tablo dead-code'u da çözer).
+        from app.poker.mtt_playbook import stage_plan
+        _stage_rows = [[stage_plan(s)["headline"], stage_plan(s)["priorities"][0]]
+                       for s in ("early", "mid", "late", "bubble", "itm", "final table")]
         return [
+            {"title": "MTT Evre Stratejisi (playbook — tek kaynak)",
+             "headers": ["Evre", "Birincil öncelik"],
+             "rows": _stage_rows},
             {"title": "Format Ayrımı",
              "headers": ["", "Cash", "Turnuva"],
              "rows": [["Stil", "SHCP loose-aggressive", "DAHA SIKI + ICM"],
                       ["Neden", "reload var, balığı ez", "reload yok, hayatta kal"],
                       ["Sonuç", "#1 elit (+52bb/100)", "FT-odaklı (push/fold)"]]},
-            {"title": "Push/Fold (<15bb — equity ekseni)",
-             "rows": [["Puan ≥ 16", "JAM (all-in)"], ["HU: Puan ≥ 10", "JAM"],
-                      ["Altında", "FOLD"], ["15-25bb", "re-steal/baskı"],
-                      ["Büyük stack", "bubble bully"]]},
+            {"title": "Push/Fold + Re-Shove (<15bb — equity ekseni)",
+             "rows": [["Açış-jam (önde raise yok): Puan ≥ poz-eşik", "JAM"],
+                      ["<15bb AÇIŞA karşı (re-shove)", "JAM/FOLD — fold-equity (flat değil)"],
+                      ["15-18bb OOP (blind) açışa", "flat YOK → jam-or-fold"],
+                      ["15-18bb IP açışa", "flat OK (pozisyon equity-realize)"],
+                      ["3-bet/jam'e karşı <15bb", "call-vs-jam (CALL/FOLD — re-jam yok)"],
+                      ["HU: Puan ≥ 10", "JAM"]]},
             {"title": "İleri Turnuva (ölçüldü: FT %12)",
              "rows": [["Erken/derin", "marjinal flip'te stack'i riske ATMA"],
                       ["Bubble kısa", "call'ları sıklaştır (elenme pahalı)"],
