@@ -163,6 +163,14 @@ class SoyracCoachPanel(QFrame):
                                    "background:#2a2410; border-left:3px solid #ffd166; "
                                    "border-radius:4px; padding:5px 7px; margin:2px 0;")
         self.icm_lbl.setVisible(False); vb.addWidget(self.icm_lbl)
+        # ALAN-EXPLOIT (D241) — MTT popülasyon-okuma (örneklem-bağımsız). ICM altın
+        # "savunma" iken bu yeşil-teal "saldırı"/sömürü → görsel olarak ayrışır.
+        self.field_lbl = QLabel(""); self.field_lbl.setObjectName("SoyracFieldExploit")
+        self.field_lbl.setWordWrap(True)
+        self.field_lbl.setStyleSheet("color:#5fe3c0; font-size:11px; font-weight:bold; "
+                                     "background:#102a26; border-left:3px solid #3fb9a0; "
+                                     "border-radius:4px; padding:5px 7px; margin:2px 0;")
+        self.field_lbl.setVisible(False); vb.addWidget(self.field_lbl)
         self.decision_lbl = QLabel("—"); self.decision_lbl.setObjectName("SoyracDecision")
         vb.addWidget(self.decision_lbl)
         self.reason_lbl = QLabel(""); self.reason_lbl.setObjectName("SoyracReason")
@@ -299,6 +307,14 @@ class SoyracCoachPanel(QFrame):
         self.icm_lbl.setVisible(show_icm)
         if show_icm:
             self.icm_lbl.setText("\n".join(ftg["lines"]))
+
+        # ALAN-EXPLOIT (D241) — MTT popülasyon-okuma; quiz'de bile göster (alan eğilimi
+        # cevabı sızdırmaz, "nasıl düşün" öğretir). icm savunma ile yan yana → tam resim.
+        fexp = explain.get("field_exploit")
+        show_field = bool(fexp and fexp.get("lines"))
+        self.field_lbl.setVisible(show_field)
+        if show_field:
+            self.field_lbl.setText(fexp["headline"] + "\n" + "\n".join(fexp["lines"]))
 
         if quiz:
             self.decision_lbl.setText("?  (sen ne yapardın?)")

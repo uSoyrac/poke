@@ -487,7 +487,8 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
                    n_active: int = 9, tourney: bool = False, *,
                    stage: str = "", avg_stack_bb: float = 0.0,
                    stacks=None, payouts=None, villain_stats=None,
-                   hand=None, hero_idx=None, advice=None) -> dict:
+                   hand=None, hero_idx=None, advice=None,
+                   field: str = "soft") -> dict:
     """ÖĞRETİCİ çıktı — soyrac_advice'i sarar, üstüne 'nasıl düşün' katmanı serer.
     Panel bunu okur; soyrac_advice/grading AYNEN korunur (fidelity 0-sapma)."""
     # ICM/FT REHBERİ (D210) — bubble/FT'de conversion-katmanı (chip değil $). Sadece
@@ -501,6 +502,16 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
             _ftg = g if g.get("active") else None
         except Exception:
             _ftg = None
+    # ALAN-EXPLOIT (D241) — villain örneklemi GEREKTİRMEZ; evre+stack+yumuşaklık önsel'i.
+    # icm_ft_guidance ICM-SAVUNMA; bu katman alanı SÖMÜRÜR (early=blöf-yok, bubble=baskı).
+    _fexp = None
+    if tourney:
+        try:
+            from app.poker.mtt_exploit import mtt_field_exploit
+            fe = mtt_field_exploit(stage, stack_bb, avg_stack_bb, scenario, n_active, field)
+            _fexp = fe if fe.get("active") else None
+        except Exception:
+            _fexp = None
     # POSTFLOP dalı — board varsa 7-kademe + altın kural öğreticisi
     if hand is not None and hero_idx is not None:
         comm = getattr(hand, "community", None)
@@ -525,6 +536,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
                     "quiz_correct": pf["action"],
                     "quiz_options": ["FOLD", "CHECK/CALL", "BET/RAISE"],
                     "icm_guidance": _ftg,
+                    "field_exploit": _fexp,
                 }
     base = soyrac_advice(hand_key, position, scenario=scenario, vs_position=vs_position,
                          stack_bb=stack_bb, icm=icm, n_active=n_active, tourney=tourney)
@@ -555,6 +567,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
         "tier": None, "board_label": None, "wetness": None, "golden_rule": None,
         "size_frac": None, "flow_nodes": None, "terms": ["SHCP", "eşik"],
         "icm_guidance": _ftg,
+        "field_exploit": _fexp,
     }
     sc = base.get("scenario", scenario)
     h = hand_key
