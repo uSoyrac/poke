@@ -1758,6 +1758,11 @@ class TournamentSimulatorScreen(QWidget):
             return
         if not self.tournament.hand_log:
             return
+        # D248: DONMA-ÖNLEYİCİ watchdog — EN BAŞTA kur. Aşağıdaki post-hand işinde
+        # (tick / masa-dengeleme / panel) bir hata oluşsa bile 6sn sonra el-akışını
+        # kurtarır. Kullanıcı FT'de "el bitti, sonraki gelmiyor" donması yakaladı:
+        # CPU %0 (timer durmuş) = auto-deal QTimer'ı hiç kurulmamış. Watchdog garantiler.
+        QTimer.singleShot(6000, self._deal_watchdog)
         # ── El-sonu GTO reveal + karar persist + oturum karnesi ──
         _real_xp = bool(getattr(getattr(self, "state", None), "real_experience", False))
         if not hasattr(self, "_session_score"):
@@ -1929,7 +1934,10 @@ class TournamentSimulatorScreen(QWidget):
         # Table balancing — if hero's table has run low on opponents but the
         # background field still has players, reseat new opponents so the
         # experience stays a full ring (mirrors real MTT table consolidation).
-        self._maybe_refill_table()
+        try:
+            self._maybe_refill_table()        # D248: hatası sonraki eli ASLA bloklamasın
+        except Exception:
+            pass
 
         # Tournament complete?
         if self.tournament.is_complete:
@@ -1956,6 +1964,26 @@ class TournamentSimulatorScreen(QWidget):
         if self._between_hands:
             self._between_hands = False
             self._deal_next_hand()
+
+    def _deal_watchdog(self):
+        """D248: eller-arası KALICI donmayı önle. _on_hand_complete başında kurulur;
+        6sn sonra hâlâ aktif el yoksa (current_hand None/complete) ve KASITLI bekleme
+        (SPACE/panel-pin/real-xp) yoksa sonraki eli zorla dağıt. Normal akış zaten
+        dağıttıysa current_hand sürüyordur → no-op (çift-dağıtma yok)."""
+        try:
+            if not self.tournament or self.tournament.is_complete:
+                return
+            if getattr(self, "_await_space", False) or getattr(self, "_reveal_pinned", False):
+                return                          # kasıtlı bekleme (okuma/real-xp) → dokunma
+            if bool(getattr(getattr(self, "state", None), "real_experience", False)):
+                return
+            hand = self.tournament.game.current_hand
+            if hand is not None and not hand.is_complete:
+                return                          # aktif el sürüyor (normal akış dağıttı) → no-op
+            self._between_hands = False
+            self._deal_next_hand()
+        except Exception:
+            pass
 
     def _toggle_reveal(self):
         """📋 Son El — el-sonu analizini aç/kapat (D133). Açıkken oto-akış DURUR
