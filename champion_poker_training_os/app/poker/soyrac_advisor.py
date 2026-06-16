@@ -867,6 +867,21 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
                 _paired_note = ("🪤 İki çift de BOARD'un — sen sadece kicker oynuyorsun "
                                 "(cebindeki kartlar el yapmadı). Board'u eşleyen ya da "
                                 "üst-pocket'i olan herkes geçer → DEĞER değil, çoğu zaman çöp.")
+        elif label in ("trips", "quads") and len(_hc) >= 2:
+            # D239 (value-audit residual): BOARD'da trips/quads var (örn. 7-7-7 / 3-3-3-3)
+            # ve hero o ranke SAHİP DEĞİL → board'un elini oynuyor + kicker. _hand_strength
+            # "trips" 0.74 / "quads" 0.98 sanıp value/raise spew'i öneriyordu (gerçek eq
+            # 0.14-0.44: dolu/üst-kicker geçer). → kicker-only zayıf/bluff-catch.
+            from collections import Counter as _Ct
+            _bvc = _Ct(c.value for c in board)
+            _trip_rank = next((r for r, ncnt in _bvc.items()
+                               if ncnt >= (4 if label == "quads" else 3)), None)
+            if _trip_rank is not None and not any(c.value == _trip_rank for c in _hc):
+                strength = 0.38
+                label = f"board {label} (sen oynamıyorsun — kicker)"
+                _paired_note = ("🪤 " + ("Quads" if "quads" in label else "Trips") +
+                                " BOARD'da — sen sadece kicker oynuyorsun. Dolu yapan "
+                                "(cebinde çift) ya da üst-kicker'lı herkes geçer → DEĞER değil.")
         # ÇEKME (D201): _hand_strength draw'ı river-hayalet + combo-kör + street-eşit.
         # _draw_equity DOĞRU sayar (river=0, flop ×4/turn ×2, FD+düz additive).
         draws, draw_notes = _draw_equity(hero.hole_cards, board)

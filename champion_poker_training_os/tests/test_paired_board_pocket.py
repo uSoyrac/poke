@@ -69,3 +69,23 @@ def test_d235_real_two_pair_preserved():
     """KORUMA: gerçek top-two (K9 / K-9-7) → BET(value) KALMALI (regresyon yok)."""
     out = _spot(["Kh", "9d"], ["Ks", "9c", "7h", "2s"], 0.0)
     assert "BET" in out["action"], f"gerçek two-pair value kalmalı: {out['action']}"
+
+
+def test_d239_board_trips_play_not_value():
+    """D239: board'da trips (7-7-7) + hero o ranke sahip değil → kicker-only, value DEĞİL."""
+    out = _spot(["Kh", "Jd"], ["7h", "5d", "2c", "7s", "7d"], 0.0)
+    assert out["tier"] != "GÜÇLÜ", f"board-trips oynama GÜÇLÜ olmamalı: {out['tier']}"
+    assert "BET (value)" not in out["action"]
+
+
+def test_d239_board_quads_play_not_nut():
+    """D239: board'da quads (3-3-3-3) + hero kicker → NUT DEĞİL (raise spew kapandı)."""
+    out = _spot(["6h", "Tc"], ["3c", "3s", "3h", "3d", "5s"], 0.0)
+    assert out["tier"] != "NUT", f"board-quads oynama NUT olmamalı: {out['tier']}"
+    assert "RAISE" not in out["action"] and "BET (value)" not in out["action"]
+
+
+def test_d239_real_trips_preserved():
+    """KORUMA: hero gerçekten trips yapıyor (K7 / 7-7-2, hero'nun 7'si var) → BET value."""
+    out = _spot(["Kh", "7d"], ["7h", "7s", "2c"], 0.0)
+    assert "BET" in out["action"], f"gerçek trips value kalmalı: {out['action']}"
