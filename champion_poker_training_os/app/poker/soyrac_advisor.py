@@ -193,6 +193,34 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
     # açış-jam dalına atıp "JAM" döndürüyordu = all-in'e re-jam öğretmek (yanlış-eğitim).
     # call_vs_jam_pct: Nash call-off range (jam'den DAR — call'lamak daha çok equity ister).
     if stack_bb < 15 and _facing:
+        # RE-SHOVE (D243): AÇIŞA karşı (vs RFI, 3-bet/jam DEĞİL) sığ stack → re-jam
+        # (JAM/FOLD), CALL değil. Eski kod tüm <15bb facing'i call-vs-jam'e atıyordu =
+        # açışa karşı re-shove edge'ini (fold-equity'li 3bet-jam) KAÇIRIYORDU. 13bb BB
+        # vs BTN ~%22-28 (SnapShove). Sığ'da flat OOP -EV → jam-or-fold (Soyrac push/
+        # fold felsefesi). Re-shove range call-off'tan GENİŞ (fold-equity ek +EV) →
+        # eşik call-vs-jam'den −4 (daha çok el jam'ler). ADVICE-only (not bot_mode):
+        # bot eski davranışta kalır → fidelity 0-sapma (D184/D234/D236 emsali).
+        _vs_open = ("rfi" in sc or "açış" in sc) and "3-bet" not in sc and "3bet" not in sc
+        if _vs_open and not bot_mode:
+            if hu:
+                rs_thr = 9
+            else:
+                try:
+                    from app.poker.mtt_ranges import call_vs_jam_pct
+                    cp = call_vs_jam_pct(stack_bb) * 0.83
+                    if icm:
+                        from app.poker.icm import cube_pressure_factor
+                        cp *= cube_pressure_factor(stage or "bubble", stack_bb, avg_stack_bb)
+                    rs_thr = max(8, _jam_threshold_for_pct(cp) - 4)   # fold-equity → call-off'tan geniş
+                except Exception:
+                    rs_thr = 14
+            jam = score >= rs_thr
+            return {"score": score, "action": "JAM" if jam else "FOLD",
+                    "scenario": "Re-Jam (vs açış)", "threshold": rs_thr,
+                    "size": _preflop_size("JAM" if jam else "FOLD", pos, stack_bb, bool(tourney), hu),
+                    "line": f"🧮 SHCP {score} {'≥' if jam else '<'} re-jam eşik {rs_thr} ({pos})"
+                            f"{' HU' if hu else ''} → {'JAM (re-shove)' if jam else 'FOLD'}"
+                            f" (açışa re-jam, fold-equity)"}
         if hu:
             cj_thr = 12                            # HU: aksiyonu kapatıyorsun, fiyat var → geniş
         else:
@@ -585,6 +613,33 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
             f"{'≥' if action == 'JAM' else '<'} Puan {score} {'≥' if action == 'JAM' else '<'} {_jthr} → {action}",
         ]
         out["terms"] = ["SHCP", "push/fold", "Nash", "ICM"]
+    elif "Jam" in str(sc):                         # D243: RE-JAM (açışa) / CALL-vs-JAM (jam'e)
+        _rejam = "Re-Jam" in str(sc)
+        _jthr = base.get("threshold", 14)
+        out["threshold"] = _jthr
+        if _rejam:
+            out["scenario_label"] = f"Re-Jam · {pos} (vs açış)"
+            out["why"] = (f"Sığ ({stack_bb:.0f}bb) açışa karşı → flat OOP -EV, JAM-or-FOLD. "
+                          f"Puan {score} {'≥ re-jam eşiği → JAM (fold-equity)' if action == 'JAM' else '< eşik → FOLD'}")
+            out["chain_steps"] = [
+                f"🃏 {h}: {out['card_breakdown']}",
+                f"♟ {stack_bb:.0f}bb açışa karşı → re-shove ekseni (flat değil, sığ-OOP -EV)",
+                f"📍 re-jam eşiği {_jthr} (call-off'tan GENİŞ — fold-equity ek +EV)",
+                f"{'≥' if action == 'JAM' else '<'} Puan {score} → {action}",
+                "💡 Açış JAM DEĞİL → re-jam mümkün+kârlı (rakibi katlatma fold-equity'si)",
+            ]
+            out["terms"] = ["SHCP", "re-shove", "fold-equity", "ICM"]
+        else:
+            out["scenario_label"] = f"Call vs Jam · {pos}"
+            out["why"] = (f"Jam'e karşı re-jam imkânsız → CALL/FOLD ekseni. Puan {score} "
+                          f"{'≥ call-off eşiği → CALL' if action == 'CALL' else '< eşik → FOLD'}")
+            out["chain_steps"] = [
+                f"🃏 {h}: {out['card_breakdown']}",
+                f"♟ {stack_bb:.0f}bb jam'e karşı → call-off ekseni (Nash call-vs-jam)",
+                f"📍 call-off eşiği {_jthr} (jam range'inden DAR — call çok equity ister)",
+                f"{'≥' if action == 'CALL' else '<'} Puan {score} → {action}",
+            ]
+            out["terms"] = ["SHCP", "call-vs-jam", "Nash", "ICM"]
     elif "3-bet" in str(sc) or "3bet" in str(sc):  # vs 3-BET
         b4 = base.get("b4", 0)
         out["scenario_label"] = f"vs 3-bet · 3BP"

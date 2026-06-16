@@ -38,12 +38,17 @@ def test_count_raises_bb_vs_3bet():
 
 @pytest.mark.parametrize("scenario", ["vs RFI", "vs 3-bet"])
 def test_short_stack_facing_raise_not_rfi(scenario):
-    """KRİTİK regresyon: kısa-stack (9.4bb) BB raise'e karşı → RFI-açış DEĞİL,
-    Call-vs-Jam (Nash call-off) olmalı. Bug: RFI sanıp yanlış eşik veriyordu."""
+    """KRİTİK regresyon: kısa-stack (9.4bb) BB raise'e karşı → RFI-açış DEĞİL.
+    D243: AÇIŞA karşı → Re-Jam (JAM); 3-BET'e karşı → Call-vs-Jam (CALL). Eski bug:
+    RFI sanıp yanlış eşik veriyordu — facing-raise her zaman tespit edilmeli."""
     a = soyrac_advice("A4s", "BB", scenario=scenario, vs_position="SB",
                       stack_bb=9.4, tourney=True, n_active=12)
     assert a["scenario"] != "RFI", f"{scenario} spotu RFI'ye düşmemeli, {a['scenario']} çıktı"
     assert "Jam" in a["scenario"] or "vs" in a["scenario"].lower(), \
         f"facing-raise senaryosu bekleniyordu, {a['scenario']} çıktı"
-    # A4s 9.4bb iyi fiyatta → CALL (atılmamalı)
-    assert a["action"] == "CALL", f"A4s 9.4bb facing → CALL beklenir, {a['action']} çıktı"
+    if scenario == "vs RFI":
+        # D243: A4s 9.4bb AÇIŞA karşı → re-shove (JAM, fold-equity), flat değil
+        assert a["action"] == "JAM", f"A4s 9.4bb açışa → JAM (re-shove) beklenir, {a['action']} çıktı"
+    else:
+        # 3-BET'e karşı re-jam imkânsız → Call-vs-Jam (CALL/FOLD ekseni)
+        assert a["action"] == "CALL", f"A4s 9.4bb 3-bet'e → CALL beklenir, {a['action']} çıktı"
