@@ -356,6 +356,16 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                 _b4_blocker(hand_key) >= 2:
             act = "3-BET"
             bluff3 = " (blocker blöf)"
+        # RE-SHOVE devamı (D244): sığ-OOP (blind, 15-18bb) açışa karşı FLAT YOK →
+        # jam-or-fold. D243 <15bb OOP'yi jam-or-fold yapar; 15-18bb'de bu dal flat'e
+        # izin veriyordu = SÜREKSİZLİK (14bb jam-or-fold ama 16bb flat). Flat-OOP sığ
+        # equity-realize KÖTÜ → flat-worthy el (call_t'yi geçti, fold-equity'si var)
+        # JAM'e. IP flat DOKUNULMAZ (pozisyon equity-realize'ı haklı kılar). 3-BET zaten
+        # jam (sizing). ADVICE-only (not bot_mode → fidelity 0-sapma, D243 emsali).
+        if not bot_mode and tourney and not hu and act == "CALL" \
+                and pos in ("BB", "SB") and 15 <= stack_bb <= 18:
+            act = "JAM"
+            bluff3 = " (sığ-OOP re-shove, flat yok)"
         return {"score": score, "call_t": call_t, "raise_t": raise_t,
                 "action": act, "scenario": "vs RFI",
                 "size": _preflop_size(act, pos, stack_bb, bool(tourney), hu),

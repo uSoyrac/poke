@@ -54,3 +54,33 @@ def test_deep_stack_not_reshove():
     """Derin (40bb) açışa karşı → normal vs-RFI (3-BET/CALL/FOLD), re-jam dalına girmez."""
     r = _adv("A9s", "vs RFI", 40, pos="BTN", vs="CO")
     assert r["scenario"] == "vs RFI"
+
+
+# ── D244: sığ-OOP (15-18bb blind) flat YOK → jam-or-fold (D243 süreksizliği kapandı) ──
+
+def test_d244_oop_shallow_no_flat():
+    """16bb BB (OOP) açışa karşı flat-worthy el → JAM (flat değil, equity-realize kötü)."""
+    for hk in ("T9s", "JTs"):
+        r = _adv(hk, "vs RFI", 16, pos="BB", vs="BTN")
+        assert r["action"] == "JAM", f"{hk}: {r['action']}"
+
+
+def test_d244_continuity_with_d243():
+    """Süreksizlik kapandı: 14bb (re-shove dalı) ve 16bb (vs-RFI dalı) OOP aynı → JAM."""
+    a = _adv("T9s", "vs RFI", 14, pos="BB", vs="BTN")["action"]
+    b = _adv("T9s", "vs RFI", 16, pos="BB", vs="BTN")["action"]
+    assert a == b == "JAM", f"14bb={a} 16bb={b}"
+
+
+def test_d244_ip_flat_preserved():
+    """IP (BTN) flat DOKUNULMAZ — pozisyon equity-realize'ı haklı kılar."""
+    assert _adv("T9s", "vs RFI", 18, pos="BTN", vs="CO")["action"] == "CALL"
+
+
+def test_d244_cash_and_bot_untouched():
+    """Cash (tourney=False) + bot_mode → eski davranış (fidelity + format ayrımı)."""
+    from app.poker.soyrac_advisor import soyrac_advice
+    assert soyrac_advice("T9s", "BB", scenario="vs RFI", vs_position="BTN",
+                         stack_bb=16, tourney=False)["action"] == "CALL"
+    assert soyrac_advice("T9s", "BB", scenario="vs RFI", vs_position="BTN",
+                         stack_bb=16, tourney=True, bot_mode=True)["action"] == "CALL"
