@@ -945,8 +945,12 @@ class TournamentSimulatorScreen(QWidget):
     def _maybe_icm_coach(self, icm: float, alive: int, paid: int) -> None:
         """Faz değişiminde (bubble/ITM) hero'ya BİR KEZ ICM uyarısı gönder —
         spam yok; sadece eşik geçişinde. WSOP-seviye derin oyun disiplini."""
-        phase = ("bubble" if icm >= 0.85 else
-                 "itm" if (0.3 <= icm < 0.85) else "none")
+        # D242: kanonik evre TEK KAYNAK (gerçek-yer alive-vs-paid > icm); eski
+        # icm≥0.85 eşiği soyrac_explain'in icm≥0.6'sıyla çelişiyordu → birleştirildi.
+        from app.poker.mtt_playbook import mtt_stage
+        _st = mtt_stage(players_remaining=alive, paid_places=paid, icm_pressure=icm)["stage"]
+        phase = ("bubble" if _st == "bubble"
+                 else "itm" if _st in ("itm", "final table") else "none")
         if phase == getattr(self, "_icm_phase", None):
             return
         self._icm_phase = phase
@@ -1277,12 +1281,20 @@ class TournamentSimulatorScreen(QWidget):
                             _icmv = float(getattr(self, "_cur_icm", 0) or 0)
                             _fld = getattr(self, "mtt_field", None) or getattr(self, "tournament", None)
                             _rem = int(getattr(_fld, "players_remaining", 99) or 99)
+                            _paid = int(getattr(_fld, "paid_places", 0)
+                                        or getattr(getattr(_fld, "config", None), "paid_places", 0) or 0)
                             _bb = max(getattr(hand, "big_blind", 1) or 1, 1)
                             _alive = [p for p in hand.players if not getattr(p, "is_eliminated", False)]
                             _nact = max(2, len(_alive))   # D211d: GERÇEK masa-boyutu (koç kişi-sayısına duyarlı)
                             _avg_bb = round(sum(p.stack for p in _alive) / max(len(_alive), 1) / _bb, 1)
-                            _stage = ("final table" if _rem <= 9 else
-                                      ("bubble" if _icmv >= 0.6 else ""))
+                            # D242: kanonik evre TEK KAYNAK (eski çelişen icm 0.6/0.85 eşikleri kaldırıldı)
+                            from app.poker.mtt_playbook import mtt_stage
+                            _st = mtt_stage(players_remaining=_rem, paid_places=_paid,
+                                            icm_pressure=_icmv, avg_stack_bb=_avg_bb,
+                                            hero_stack_bb=stack_bb)["stage"]
+                            # bubble/FT → ICM rehberi + alan-exploit açılır (tüketicilerin
+                            # tam desteklediği evreler); diğerleri "" (derinlik-bazlı default).
+                            _stage = _st if _st in ("bubble", "final table") else ""
                         except Exception:
                             pass
                         # D216: SENARYO SAĞLAM tespit — _adv None/eksikse koç sessizce
