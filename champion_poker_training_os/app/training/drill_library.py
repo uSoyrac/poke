@@ -13,6 +13,40 @@ from PySide6.QtCore import QObject, Signal
 from app.db.seed_data import generate_spot_drills
 
 
+# D240: leak'e ÖZEL preflop drill reçeteleri — gerçek leak'in olduğu spot-tipi + eller.
+# best_action SABİT DEĞİL → soyrac_advice'tan hesaplanır (yoksa junk'a 'call' diye yanlış
+# öğretip leak'i pekiştiriyordu). name → (scenario, defender_pos, opener, [hands]).
+_LEAK_DRILL_SPEC = {
+    "Çöp/spekülatif over-defend": ("vs RFI", ["BB", "CO", "BTN"], "UTG",
+                                   ["K2s", "Q4s", "J6s", "K3o", "Q7o", "J2s", "T6o"]),
+    "Çok geniş açış (eşik-altı)": ("RFI", ["UTG", "UTG+1", "MP"], None,
+                                   ["K5o", "Q7o", "J6s", "95s", "T6s", "Q4o", "K3o"]),
+    "3-bet pot over-call": ("vs 3-bet", ["MP", "CO", "BTN"], "CO",
+                            ["33", "44", "55", "66", "A8s", "KJo"]),
+    "Aşırı 3-bet (non-premium)": ("vs RFI", ["MP", "CO", "BTN"], "UTG",
+                                  ["33", "44", "ATo", "KQo", "A9s", "QJo"]),
+    "Raise-yerine-flat ters çevirme": ("vs RFI", ["CO", "BTN", "SB"], "MP",
+                                       ["33", "44", "A5s", "T9s", "98s", "76s"]),
+}
+_ACT_TO_OPT = {"FOLD": "fold", "CALL": "call", "JAM": "jam"}
+
+
+def _correct_preflop_option(hk, pos, scenario, vs_pos, stack_bb):
+    """soyrac_advice → drill option (fold/call/raise/jam). Doğru cevap motordan, sabit değil."""
+    try:
+        from app.poker.soyrac_advisor import soyrac_advice
+        act = soyrac_advice(hk, pos, scenario=scenario, vs_position=vs_pos,
+                            stack_bb=stack_bb, tourney=True).get("action", "FOLD")
+    except Exception:
+        return "fold"
+    for key, opt in _ACT_TO_OPT.items():
+        if key in act:
+            return opt
+    if any(k in act for k in ("RAISE", "3-BET", "4-BET", "BET", "AÇ")):
+        return "raise"
+    return "fold"
+
+
 class DrillLibrary(QObject):
     """Singleton drill store.  Call ``DrillLibrary.instance()``."""
 
@@ -76,6 +110,11 @@ class DrillLibrary(QObject):
         for each one) and the list is returned for convenience.
         """
         count = max(1, int(count))
+        # D240: leak'e ÖZEL preflop drill (gerçek-veri leak'leri) — doğru cevap motordan.
+        _nm = leak.get("name", "")
+        for _key, _sp in _LEAK_DRILL_SPEC.items():
+            if _key in _nm:
+                return self._gen_leak_preflop_drills(leak, _sp, count)
         category = leak.get("category", "Preflop")
         street_map = {
             "Preflop": "preflop", "Flop": "flop", "Turn": "turn",
@@ -135,6 +174,52 @@ class DrillLibrary(QObject):
             self.drill_added.emit(d)
             new_drills.append(d)
 
+        return new_drills
+
+    @staticmethod
+    def _hk_to_cards(hk: str) -> str:
+        """Hand-key → görünür kart (K2s→Ks 2s, 33→3h 3d, ATo→Ah Td)."""
+        r1, r2 = hk[0], hk[1]
+        if r1 == r2:
+            return f"{r1}h {r2}d"
+        suited = hk.endswith("s")
+        return f"{r1}h {r2}h" if suited else f"{r1}h {r2}d"
+
+    def _gen_leak_preflop_drills(self, leak: dict, spec: tuple, count: int) -> list[dict]:
+        """D240: leak'e ÖZEL preflop drill — leak'in olduğu eller + DOĞRU cevap (soyrac_advice)."""
+        scenario, positions, opener, hands = spec
+        stacks = [40, 60, 100, 50, 80]
+        options = ("fold", "call", "raise", "jam")
+        fix_short = leak.get("fix", "")[:70]
+        leak_tag = leak["name"][:12].replace(" ", "")
+        new_drills: list[dict] = []
+        for i in range(count):
+            hk = hands[i % len(hands)]
+            pos = positions[i % len(positions)]
+            stack = stacks[i % len(stacks)]
+            best = _correct_preflop_option(hk, pos, scenario, opener, stack)
+            hist = f"{scenario}" + (f" — {opener} açtı, " if opener else " — ") + \
+                   f"sen {pos} ({stack}bb). Odak: {fix_short}"
+            d = {
+                "id": f"LEAK-{leak_tag}-{len(self._drills)+1}",
+                "title": f"{leak['name']} — spot {i+1} ({hk})",
+                "format": "MTT" if leak.get("category") in ("ICM", "MTT") else "cash",
+                "table": "6-max", "street": "preflop", "position": pos,
+                "stack_bb": stack, "pot_bb": round(2.5 + i * 1.5, 1),
+                "hero_cards": self._hk_to_cards(hk), "board": "",
+                "board_texture": "Preflop", "pot_type": "SRP",
+                "action_history": hist, "options": options,
+                "best_action": best,                      # ← MOTORDAN, sabit değil
+                "base_ev": round(0.8 + i * 0.1, 2),
+                "range_advantage": "—", "nut_advantage": "—", "icm": "off",
+                "source_confidence": "Soyrac engine (GTO-aligned)",
+                "source": "leak", "leak_name": leak["name"],
+                "leak_category": leak.get("category", "Preflop"),
+                "severity": leak.get("severity", "Medium"),
+            }
+            self._drills.append(d)
+            self.drill_added.emit(d)
+            new_drills.append(d)
         return new_drills
 
     # ── read ───────────────────────────────────────────────────────────
