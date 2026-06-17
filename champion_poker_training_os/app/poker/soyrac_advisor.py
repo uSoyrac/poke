@@ -1108,6 +1108,11 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
         to_call = hand.to_call(hero_idx)
         pot = max(getattr(hand, "pot", 0.0), 0.01)
         stack = max(getattr(hero, "stack", 0.0), 0.01)
+        # D269 (kullanıcı yakaladı: 0.x bb stack shove'a FOLD diyordu): to_call'dan AZ
+        # stack'le ancak ALL-IN call edilebilir → GERÇEK risk = min(to_call, stack). Pot-
+        # odds bu capped miktarla hesaplanır (eski kod tam-bahsi fiyatlayıp short-stack'i
+        # dev odds'a rağmen FOLD'latıyordu — örn. 0.3bb'yi 77bb pota call ≈ %0.4 gerekir).
+        _eff_call = min(to_call, stack)
         street = getattr(hand, "street", Street.FLOP)
         # BOARD-TEHDİT (D198): made-hand FACING-A-BET'te board-tehdidiyle (flush/eşli/
         # Ace-broadway) bluff-catcher'a düşer. eq_facing = eq − tehdit (sadece bahse
@@ -1141,7 +1146,7 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
         # "gereken-blöf eşiği (alpha=be) + rakip-tipi kaydırması" (blackjack Illustrious-18:
         # temel=MDF, sapma=rakip-tipi, yetersiz-sayım<25→temelde kal). GATED: villain_stats
         # yoksa marj=0.10 (mevcut davranış, fidelity 0-sapma). Taban=CALL; sapma tek-yönlü.
-        be = to_call / (pot + to_call) if to_call > 0 else 0.0
+        be = _eff_call / (pot + _eff_call) if to_call > 0 else 0.0   # D269: all-in-cap'li pot-odds
         _bc_margin = 0.10
         _read_word = "pasif/under-bluffer'a FOLD, agresife CALL"
         if to_call > 0 and villain_stats and not _multi:
@@ -1170,7 +1175,9 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
             eq_facing = max(eq_facing, eq - threat * 0.45)   # tehdidin ~yarısını geri ver
         # 3 ALTIN KURAL — ilk tetikleyen
         gr = None
-        if to_call > 0 and to_call / stack > 0.70 and strength < 0.60 and draws < 0.30:
+        if to_call > 0 and _eff_call / stack > 0.70 and be >= 0.18 and strength < 0.60 and draws < 0.30:
+            # D269: commit-gate yalnız GERÇEK fiyat ödenende (be≥%18). Priced-in short all-in
+            # (be küçük, dev odds) commit DEĞİL → gate tetiklenmez (yoksa "fold" çelişkisi).
             gr = "⛔ Commit-gate: yığının %70'i riskte — sadece GÜÇLÜ+/çekme ile devam"
         elif street == Street.FLOP and tex.label == "dry" and to_call <= 0.01:
             gr = "🎯 Kuru board + agresör → range-cbet (her şeyle küçük bas, 1/3)"
@@ -1242,7 +1249,13 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
         else:
             # FACING-A-BET: board-tehdit-ayarlı eq (eq_facing) vs gereken-blöf+okuma-marjı
             # (be ve _bc_margin yukarıda gr ile ORTAK hesaplandı → çelişki yok).
-            if tier == "NUT" and not _bluff_catch:
+            if to_call >= stack - 0.001:
+                # D269: ALL-IN call (hero stack'in tamamıyla, capped) → SHOWDOWN'a git.
+                # Gelecek sokak yok → tek soru: ham-ish equity ≥ pot-odds mu? Short-stack
+                # dev odds'la (be küçük) herhangi makul elle CALL; derin all-in'de gerçek
+                # eşik (KQ 30bb call: be %28 > eq → FOLD). eq_facing range-ayarlı kullanılır.
+                action = "CALL" if eq_facing >= be else "FOLD"
+            elif tier == "NUT" and not _bluff_catch:
                 action = "RAISE"
             elif eq_facing >= be + _bc_margin:
                 action = "CALL"
