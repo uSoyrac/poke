@@ -860,7 +860,12 @@ def _board_threat(board, label: str, hole=None) -> "tuple[float, list]":
                      "top two pair", "two pair"):
         bro = sum(1 for r in ranks if r in "AKQJT")
         if "A" in ranks:
-            h += 0.10; reasons.append("Ace board, açan-range vurur")
+            # D258 (+EV-max audit #8): Ace-board cezası SADECE hero A tutmuyorsa. Hero'da A
+            # varsa (top-pair-TOP-kicker + blocker) "açan-range Ax ile vurur" tehdidi TERS:
+            # aksine sen aces'i blokluyorsun, en iyi kicker'dasın → ceza yok (çifte-haircut
+            # önlenir; AKs 3-floş A-board'da bluff-catch'e düşürülüyordu).
+            if 12 not in hv:
+                h += 0.10; reasons.append("Ace board, açan-range vurur")
         elif bro >= 2:
             h += 0.07; reasons.append("broadway board")
     return min(0.52, h), reasons
