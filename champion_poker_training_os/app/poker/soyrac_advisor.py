@@ -1043,6 +1043,15 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
                 _read_word = ("sıkı/pasif rakip (az blöf) → FOLD" if _bc_margin > 0.06 else
                               ("agresif/çok-basan rakip (çok blöf) → CALL" if _bc_margin < 0 else
                                "dengeli rakip → saf matematik"))
+        # D251 (river over-fold leak): BİLİNEN BLÖFÇÜ (_bc_margin<0) + MADE bluff-catcher
+        # (strength≥0.30 = en az zayıf çift, hava DEĞİL) → board-tehdidinin bir kısmını
+        # GERİ VER. Sebep: eq_facing=eq−threat korkutucu board'da aşırı iskonto ediyor →
+        # gevşetilmiş eşik bile aşılamıyor, blöfçüye karşı bile over-fold. Ama blöfçü o
+        # korkutucu board'da DA basıyor → made-hand blöfleri geçer (gerçek eq ≈ blöf%).
+        # No-read/pasif baseline (_bc_margin≥0) DOKUNULMAZ → soft-field lean korunur.
+        # ADVICE-only (villain_stats yalnız advice'ta) → fidelity 0-sapma.
+        if to_call > 0 and _bc_margin < 0 and strength >= 0.30 and not _real_nut:
+            eq_facing = max(eq_facing, eq - threat * 0.45)   # tehdidin ~yarısını geri ver
         # 3 ALTIN KURAL — ilk tetikleyen
         gr = None
         if to_call > 0 and to_call / stack > 0.70 and strength < 0.60 and draws < 0.30:
