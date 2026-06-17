@@ -515,6 +515,20 @@ def _preflop_exploit(action: str, vs_position: str, villain_stats, hand_key: str
         return "CALL", ("rakip sıkı+pasif (az el oynar, agresyon düşük) → erken-açış range'i "
                         "güçlü/dar → QJs/KQ/AJ domine + fold-equity yok → değer-3bet yerine "
                         "FLAT (pozisyonda equity realize et)")
+    # D254 (+EV-max audit #5): WHEEL-ACE BLUFF-4BET'i VALUE-LOCKED 3-bet'çiye karşı İPTAL.
+    # A2s-A5s 4-bet (b4≥2 blocker BLÖF, premium DEĞİL) saf fold-equity'ye dayanır. Nit/
+    # value-locked 3-bet'çi (Mouse VEYA three_bet≤%4 yeterli örneklemle) ASLA fold etmez →
+    # ~%29 eq ile domine call'lanır (sığ 4bet-jam'de ICM felaketi). → 4-bet İPTAL: IP'de
+    # FLAT, OOP'ta FOLD. Premium value-4bet (QQ+/AKs) DOKUNULMAZ. No-read → GTO (A5s
+    # textbook bluff-4bet) korunur. Jackal/agresif (light-3bet) → DOKUNMA (fold-equity var).
+    if "4-BET" in action and not _is_premium_3bet(hand_key):
+        tb = float((villain_stats.get("three_bet", 0) if hasattr(villain_stats, "get") else 0) or 0)
+        _value_locked = (name == "Mouse") or (0 < tb <= 4 and (not obs or obs >= 60))
+        if _value_locked:
+            return ("FOLD",
+                    "rakibin 3-bet'i value-locked (nadiren/sadece-değer 3-bet'ler) → wheel-ace "
+                    "bluff-4bet'i ASLA fold ettiremezsin (fold-equity yok), ~%29 eq ile domine "
+                    "call'lanır → 4-bet İPTAL → FOLD (dominated, spew etme)")
     return action, None
 
 
