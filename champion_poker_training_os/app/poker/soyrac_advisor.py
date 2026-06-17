@@ -227,6 +227,14 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
             try:
                 from app.poker.mtt_ranges import call_vs_jam_pct
                 cp = call_vs_jam_pct(stack_bb) * 0.83
+                # D262 (+EV-max audit #16): call-vs-jam JAMMER-pozisyonunu yok sayıyordu.
+                # SB/BB Nash ~%42-72 GENİŞ jam'ler → call'ı GENİŞLET; UTG ~%5-10 DAR jam'ler
+                # → DARALT. Jammer range-genişliği call-off genişliğini belirler (pot-odds
+                # aynı ama gerçek-eq jammer'a göre değişir). vs_position = jammer.
+                _jm = {"SB": 1.5, "BB": 1.4, "BTN": 1.2, "CO": 1.0, "HJ": 0.95,
+                       "MP": 0.85, "LJ": 0.85, "UTG": 0.78, "UTG+1": 0.80
+                       }.get((vs_position or "").upper(), 1.0)
+                cp *= _jm
                 if icm:
                     from app.poker.icm import cube_pressure_factor
                     cp *= cube_pressure_factor(stage or "bubble", stack_bb, avg_stack_bb)  # tavla-cube ICM
