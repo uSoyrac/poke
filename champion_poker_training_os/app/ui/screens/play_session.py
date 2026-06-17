@@ -593,7 +593,21 @@ class PlaySessionScreen(QWidget):
         ctrl.addStretch(1)
         cl.addLayout(ctrl)
         cl.addStretch(1)
-        pl.addWidget(scroll, 1)
+        # D265: Soyrac kitap-koçu — CASH canlı oyunda (turnuva ekranıyla aynı panel).
+        # Masa scroll'unun yanına yan-kolon. Real-XP'de feed durur (ipucu yok).
+        self.soyrac_panel = None
+        try:
+            from app.ui.components.soyrac_coach_panel import SoyracCoachPanel
+            self.soyrac_panel = SoyracCoachPanel()
+        except Exception:
+            self.soyrac_panel = None
+        if self.soyrac_panel is not None:
+            _trow = QHBoxLayout(); _trow.setContentsMargins(0, 0, 0, 0); _trow.setSpacing(0)
+            _trow.addWidget(scroll, 1)
+            _trow.addWidget(self.soyrac_panel, 0)
+            pl.addLayout(_trow, 1)
+        else:
+            pl.addWidget(scroll, 1)
 
         # Action deck
         deck = QFrame()
@@ -992,6 +1006,12 @@ class PlaySessionScreen(QWidget):
         elif action_type == ActionType.ALL_IN:
             amount = hero.stack
         self._record_hero_decision(action_type, amount)
+        # D265: kitap-koçuna aksiyonu bildir (HINT flash / leak kaydı) — _refresh'ten ÖNCE
+        if getattr(self, "soyrac_panel", None) and getattr(self, "_last_soyrac_explain", None):
+            try:
+                self.soyrac_panel.on_hero_acted(action_type.name, snap=True)
+            except Exception:
+                pass
         self.game.hero_act(action_type, amount)
         self._refresh()
         if hand.is_complete:
@@ -1260,6 +1280,7 @@ class PlaySessionScreen(QWidget):
         # panelinde açıklanır. Burada sadece snapshot alıp koça veriyoruz.
         gto = self._gto_pct(hand, hero_idx, mode="cash")
         self._capture_decision(hand, gto, to_call)
+        self._feed_soyrac_decision(hand, hero_idx)   # D265: canlı kitap-koçu
 
         def lbl(base: str, atype) -> str:
             return base   # canlı oyunda cevabı sızdırma
@@ -1285,6 +1306,44 @@ class PlaySessionScreen(QWidget):
         if stack_meaningful and to_call < hero.stack:
             self.allin_btn.setText(lbl(f"ALL-IN  {hero.stack:.1f}", ActionType.ALL_IN))
             self.allin_btn.show()
+
+    def _feed_soyrac_decision(self, hand, hero_idx):
+        """D265: CASH canlı kitap-koçu — karar anında soyrac_explain → SoyracCoachPanel.
+        Senaryo hand'den türetilir (preflop RFI/vs-RFI/vs-3bet); postflop soyrac_explain
+        board'dan halleder. CASH = chipEV (tourney=False, ICM yok). Real-XP'de feed durur."""
+        panel = getattr(self, "soyrac_panel", None)
+        if panel is None:
+            return
+        if self.state is not None and bool(getattr(self.state, "real_experience", False)):
+            return
+        try:
+            from app.engine.bot_brain import hand_key as _hk
+            from app.poker.soyrac_advisor import soyrac_explain
+            hero = hand.players[hero_idx]
+            if not getattr(hero, "hole_cards", None) or len(hero.hole_cards) < 2:
+                return
+            hk = _hk(hero.hole_cards[0], hero.hole_cards[1])
+            pos = (getattr(hero, "position", "") or "BTN")
+            bb = max(getattr(hand, "big_blind", 1) or 1, 1)
+            stack_bb = round(hero.stack / bb, 1)
+            n_active = sum(1 for p in hand.players
+                           if not getattr(p, "is_folded", False)
+                           and not getattr(p, "is_eliminated", False)) or 2
+            _scn, _vp = "RFI", ""
+            try:
+                from app.poker.gto_live_advice import _count_preflop_raises_before_hero
+                _nr, _rp = _count_preflop_raises_before_hero(hand, hero_idx)
+                _scn = "RFI" if _nr == 0 else ("vs RFI" if _nr == 1 else "vs 3-bet")
+                _vp = _rp or ""
+            except Exception:
+                pass
+            _exp = soyrac_explain(hk, pos, scenario=_scn, vs_position=_vp,
+                                  stack_bb=stack_bb, icm=False, n_active=max(2, n_active),
+                                  tourney=False, hand=hand, hero_idx=hero_idx)
+            panel.on_decision_point(_exp)
+            self._last_soyrac_explain = _exp
+        except Exception:
+            pass
 
     def _gto_pct(self, hand, hero_idx, mode="cash"):
         """Canlı GTO advice (hata güvenli) + AI koç için state'e yaz."""
