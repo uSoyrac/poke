@@ -114,3 +114,31 @@ def test_d249_real_top_two_on_paired_board_preserved():
     out = _spot(["Kh", "9d"], ["Kc", "9s", "7h", "7d"], 0.0)
     assert out["tier"] in ("GÜÇLÜ", "NUT"), out["tier"]
     assert "BET" in out["action"]
+
+
+# ── D268: DÜZ ama board EŞLİ/TRIPS → DOLU geçer → NUT değil (value-audit residual) ──
+
+def test_d268_straight_on_trips_board_not_nut():
+    """Js9s / 8-Q-Q-T-Q: düz (8-9-T-J-Q) ama QQQ board → dolu/quads geçer (eq~%44).
+    NUT/RAISE DEĞİL (eski: NUT 0.85 spew)."""
+    out = _spot(["Js", "9s"], ["8d", "Qd", "Qh", "Th", "Qs"], 0.0)
+    assert out["tier"] not in ("NUT", "GÜÇLÜ"), out["tier"]
+    assert "RAISE" not in out["action"] and "BET (value)" not in out["action"]
+
+
+def test_d268_straight_unpaired_board_preserved():
+    """KORUMA: eşsiz board'da gerçek düz → NUT/GÜÇLÜ kalmalı (regresyon yok)."""
+    out = _spot(["Th", "9d"], ["Jc", "8s", "7h", "2d", "Kc"], 0.0)
+    assert out["tier"] in ("NUT", "GÜÇLÜ"), out["tier"]
+
+
+def test_d268_straight_paired_board_capped():
+    """Eşli board'da düz → dolu mümkün → NUT değil (cap ORTA/GÜÇLÜ)."""
+    out = _spot(["Th", "9d"], ["Jc", "8s", "7h", "7d"], 0.0)
+    assert out["tier"] != "NUT", out["tier"]
+
+
+def test_d268_flush_untouched():
+    """KORUMA: nut floş eşli board'da bile dokunulmaz (düz fix floş'u etkilemez)."""
+    out = _spot(["Ah", "Kh"], ["Qh", "7h", "2h", "2c"], 0.0)
+    assert out["tier"] in ("NUT", "GÜÇLÜ"), out["tier"]

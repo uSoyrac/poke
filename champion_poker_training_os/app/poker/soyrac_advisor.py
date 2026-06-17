@@ -1065,6 +1065,24 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
                 _paired_note = ("🪤 " + ("Quads" if "quads" in label else "Trips") +
                                 " BOARD'da — sen sadece kicker oynuyorsun. Dolu yapan "
                                 "(cebinde çift) ya da üst-kicker'lı herkes geçer → DEĞER değil.")
+        elif label == "straight":
+            # D268 (value-audit residual): DÜZ ama board EŞLİ/TRIPS → DOLU/quads mümkün →
+            # NUT DEĞİL. _hand_strength düz'ü ~NUT (0.85+) sayıp eşli board'da bile NUT/RAISE
+            # öneriyordu (Js9s / Q-Q-Q-T-8 düz → gerçek eq %44, dolu'lar geçer). Board trips/
+            # quads → bluff-catch (0.45, çok dolu mümkün); eşli → GÜÇLÜ-cap (0.60). Floş'a
+            # dokunulmaz (daha sağlam, audit flag'lemedi). Eşsiz board → düz NUT/güçlü kalır.
+            from collections import Counter as _Cs
+            _mx = max(_Cs(c.value for c in board).values()) if board else 1
+            if _mx >= 3:
+                strength = min(strength, 0.45)
+                label = "düz (board trips/quads — DOLU geçer)"
+                _paired_note = ("🪤 Board'da trips/quads → düz'ün DOLU/quads'a kaybeder. "
+                                "NUT sanma → pot-kontrol/bluff-catch.")
+            elif _mx == 2:
+                strength = min(strength, 0.60)
+                label = "düz (eşli board — dolu mümkün)"
+                _paired_note = ("🪤 Board EŞLİ → düz NUT DEĞİL (dolu mümkün). Ölçülü "
+                                "value; büyük raise'e/3-barrel'a dikkat.")
         # ÇEKME (D201): _hand_strength draw'ı river-hayalet + combo-kör + street-eşit.
         # _draw_equity DOĞRU sayar (river=0, flop ×4/turn ×2, FD+düz additive).
         draws, draw_notes = _draw_equity(hero.hole_cards, board)
