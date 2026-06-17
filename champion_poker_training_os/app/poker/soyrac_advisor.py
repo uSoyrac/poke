@@ -325,8 +325,20 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         call_t, raise_t = (2, 14) if hu else _VS_RFI.get(pos, (9, 16))
         call_t += icm_adj + tourney_adj
         raise_t += icm_adj
-        if tourney:   # D208: MTT facing over-call leak (sim: book BB CALL nerede ICM FOLD ×835)
-            call_t += 3   # disiplinli savunma — pre-empt geniş açışıyla DENGE (tek-yön sıkmak zarar)
+        if tourney:
+            if bot_mode:
+                call_t += 3   # D208 BOT: eski davranış KORUNUR (fidelity 0-sapma + sim-paired)
+            else:
+                # D257 (+EV-max audit #3): D208 statik +3 ADVICE'ta early/no-ICM'de BB-vs-geç-
+                # açış KAPANIŞ spotunu (~3.5:1 pure-CALL: Q8s/K8s/QTo/JTo/T8s/98s) imha
+                # ediyordu — orada chip-EV=cash, over-fold −chipEV (3913 over-fold vs 120
+                # over-call). Sıkıştırmayı ICM-GATE'le: ICM aktif (bubble/FT)→+2; blind-vs-
+                # ERKEN-açış (squeeze/dominate riski)→+1. Geç-açışa early/no-ICM EK-sıkma YOK.
+                # ICM-spotu açık birakmaz (D208 leak ×835 bubble/FT'ye özgüydü → orada +2 kalır).
+                if icm:
+                    call_t += 2
+                if pos in ("BB", "SB") and (vs_position or "").upper() in ("UTG", "UTG+1", "MP", "LJ"):
+                    call_t += 1
         # POZİSYON-DUYARLI SAVUNMA (D184): açan-pozisyonu (opener_adj) SADECE
         # OOP blind savunmasında önemli (squeeze riski + dominate). IP (BTN/CO/HJ)
         # flat'i açan-pozisyonundan AZ etkilenir → opener_adj UYGULANMAZ. Eski düz
