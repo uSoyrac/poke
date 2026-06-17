@@ -356,6 +356,13 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                     call_t += _OPENER_ADJ.get((vs_position or "").upper(), 1)
                 call_t += cd
                 raise_t += rd
+            # D259 (+EV-max audit #13): SIĞLAŞTIKÇA IP speculative FLAT bandını daralt —
+            # SPR çöker → suited-connector/offsuit-broadway implied-odds'u kaybolur, flat
+            # yerine 3bet-jam-or-fold doğru. YALNIZ IP defender (CO/BTN/HJ/LJ — flat=
+            # implied-odds spekülasyon); BB/SB (closing/blind, D257) DOKUNULMAZ. raise_t
+            # DOKUNULMAZ (3bet-jam range sığ'da daralmamalı). ADVICE-only → fidelity 0.
+            if not bot_mode and pos in ("CO", "BTN", "HJ", "LJ"):
+                call_t += (2 if stack_bb <= 25 else (1 if stack_bb <= 40 else 0))
         act = "3-BET" if score >= raise_t else ("CALL" if score >= call_t else "FOLD")
         # D234 (kullanıcı yakaladı + GTO-teyit): KÜÇÜK ÇİFT (22-44) açışa 3-BET DEĞİL FLAT.
         # SHCP pariteyi şişirir (33=18 ≥ 3bet-eşiği) → tüm çiftleri 3bet ettiriyordu. Ama
