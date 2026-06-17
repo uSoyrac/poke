@@ -848,7 +848,21 @@ class PlaySessionScreen(QWidget):
         ctrl.addStretch(1)
         cl.addLayout(ctrl)
         cl.addStretch(1)
-        pl.addWidget(scroll, 1)
+        # D266: Soyrac kitap-koçu — MTT modunda da (cash ile tutarlı; turnuva ekranıyla
+        # aynı panel, ICM/stage-aware). MTT view ayrı → kendi panel örneği.
+        self.soyrac_panel = None
+        try:
+            from app.ui.components.soyrac_coach_panel import SoyracCoachPanel
+            self.soyrac_panel = SoyracCoachPanel()
+        except Exception:
+            self.soyrac_panel = None
+        if self.soyrac_panel is not None:
+            _trow = QHBoxLayout(); _trow.setContentsMargins(0, 0, 0, 0); _trow.setSpacing(0)
+            _trow.addWidget(scroll, 1)
+            _trow.addWidget(self.soyrac_panel, 0)
+            pl.addLayout(_trow, 1)
+        else:
+            pl.addWidget(scroll, 1)
 
         # ── ACTION DECK (shared style with cash) ──────────────────
         deck = QFrame()
@@ -1307,10 +1321,11 @@ class PlaySessionScreen(QWidget):
             self.allin_btn.setText(lbl(f"ALL-IN  {hero.stack:.1f}", ActionType.ALL_IN))
             self.allin_btn.show()
 
-    def _feed_soyrac_decision(self, hand, hero_idx):
-        """D265: CASH canlı kitap-koçu — karar anında soyrac_explain → SoyracCoachPanel.
-        Senaryo hand'den türetilir (preflop RFI/vs-RFI/vs-3bet); postflop soyrac_explain
-        board'dan halleder. CASH = chipEV (tourney=False, ICM yok). Real-XP'de feed durur."""
+    def _feed_soyrac_decision(self, hand, hero_idx, tourney=False, stage="", avg_bb=0.0):
+        """D265/D266: canlı kitap-koçu — karar anında soyrac_explain → SoyracCoachPanel.
+        Senaryo hand'den türetilir (preflop RFI/vs-RFI/vs-3bet); postflop board'dan.
+        CASH (tourney=False) = chipEV/ICM yok. MTT (tourney=True) = ICM-sıkı + stage
+        (bubble/FT → icm). Real-XP'de feed durur (ipucu yok)."""
         panel = getattr(self, "soyrac_panel", None)
         if panel is None:
             return
@@ -1326,9 +1341,12 @@ class PlaySessionScreen(QWidget):
             pos = (getattr(hero, "position", "") or "BTN")
             bb = max(getattr(hand, "big_blind", 1) or 1, 1)
             stack_bb = round(hero.stack / bb, 1)
-            n_active = sum(1 for p in hand.players
-                           if not getattr(p, "is_folded", False)
-                           and not getattr(p, "is_eliminated", False)) or 2
+            _alive = [p for p in hand.players if not getattr(p, "is_folded", False)
+                      and not getattr(p, "is_eliminated", False)]
+            n_active = len(_alive) or 2
+            if tourney and not avg_bb:
+                avg_bb = round(sum(p.stack for p in _alive) / max(len(_alive), 1) / bb, 1)
+            _icm = bool(tourney and stage in ("bubble", "final table"))
             _scn, _vp = "RFI", ""
             try:
                 from app.poker.gto_live_advice import _count_preflop_raises_before_hero
@@ -1338,8 +1356,9 @@ class PlaySessionScreen(QWidget):
             except Exception:
                 pass
             _exp = soyrac_explain(hk, pos, scenario=_scn, vs_position=_vp,
-                                  stack_bb=stack_bb, icm=False, n_active=max(2, n_active),
-                                  tourney=False, hand=hand, hero_idx=hero_idx)
+                                  stack_bb=stack_bb, icm=_icm, n_active=max(2, n_active),
+                                  tourney=tourney, stage=stage, avg_stack_bb=avg_bb,
+                                  hand=hand, hero_idx=hero_idx)
             panel.on_decision_point(_exp)
             self._last_soyrac_explain = _exp
         except Exception:
@@ -1764,6 +1783,12 @@ class PlaySessionScreen(QWidget):
             amount = hero.stack if hero else 0.0
 
         self._record_hero_decision_mtt(action_type, amount)
+        # D266: kitap-koçuna aksiyonu bildir (HINT flash) — _refresh_mtt'ten ÖNCE
+        if getattr(self, "soyrac_panel", None) and getattr(self, "_last_soyrac_explain", None):
+            try:
+                self.soyrac_panel.on_hero_acted(action_type.name, snap=True)
+            except Exception:
+                pass
         self.tournament.hero_act(action_type, amount)
         self._refresh_mtt()
 
@@ -1952,6 +1977,10 @@ class PlaySessionScreen(QWidget):
         # GTO snapshot al (gösterme — el sonunda reveal'da açılacak)
         gto = self._gto_pct(hand, hero_idx, mode="MTT")
         self._capture_decision_mtt(hand, gto, to_call, bb)
+        try:                                  # D266: MTT canlı kitap-koçu (ICM/stage-aware)
+            self._feed_soyrac_decision(hand, hero_idx, tourney=True, stage=self._mtt_stage())
+        except Exception:
+            pass
 
         if ActionType.FOLD in valid_types:
             self.mtt_fold_btn.show()
