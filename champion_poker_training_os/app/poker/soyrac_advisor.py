@@ -282,6 +282,13 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         # blocker-gate (b4≥2 = QQ+/AKs); JJ-TT-99-88 CALL'a düşer. Sığ (≤45bb): GTO
         # merged, geniş value (TT+ jam) → eski eşik (23, gate yok). flat_t değişmez.
         flat_t = (10 if hu else 18) + icm_adj
+        # D252 (+EV-max audit): vs-3bet'te EARLY-OOP defender (UTG/MP) dominated broadway'i
+        # (QJs/KJs/AQo/ATs) ÇOK GENİŞ continue ediyordu. Soft pop 3-bet'i value-locked
+        # (az blöf) → dominated continue −EV (bluf yok ki yakalayasın). flat_t +2 = OOP
+        # equity-realize cezası. Deterministik: UTG %92.9→94.7, MP %95.3→95.9 (HJ/CO
+        # kötüleşir → SADECE UTG/MP). value4/bluff4 DEĞİŞMEZ. ADVICE-only (fidelity 0).
+        if not bot_mode and not hu and pos in ("UTG", "MP"):
+            flat_t += 2
         if bot_mode or stack_bb <= 45:
             # BOT (her stack) + sığ advice: geniş value-4bet. Bot için cash-optimal —
             # GTO-doğru daraltma (derin çift→CALL) botu −16bb/100 düşürdü (D184 emsali,
