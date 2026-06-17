@@ -30,6 +30,10 @@ class SoyracBrain:
         self.icm_pressure = 0.0
         self.tournament_mode = True
         self.adaptive = False
+        # D261 (kullanıcı kuralı: "bot da KİTAPLA simüle etsin"): VARSAYILAN pure_book.
+        # Sim ASLA ICM/GTO bot'una delege ETMEZ — preflop+postflop tamamen kitap
+        # (soyrac_advice + soyrac_postflop_advice). Eski hybrid (delege) = ölçüm sapması.
+        self.pure_book = True
 
     def set_opponent_read(self, *a, **k):
         pass

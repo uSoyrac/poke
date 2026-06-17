@@ -461,11 +461,14 @@ def advice_from_hand(hand, hero_idx: int, stack_bb: float = 100,
             n_active = sum(1 for pl in hand.players
                            if not getattr(pl, "is_folded", False)
                            and not getattr(pl, "is_eliminated", False))
+        # D261 (kullanıcı kuralı: "bot da KİTAPLA simüle etsin"): bot_mode=False → simüle
+        # edilen Soyrac botu GERÇEK kitabı oynar (+EV-max D252/257/259 dahil). Eski
+        # bot_mode=True sim-optimizasyonuydu (kitaptan saptırıyordu) — kaldırıldı.
         return soyrac_advice(hk, hero.position,
                              scenario=getattr(adv, "scenario_key", "RFI") or "RFI",
                              vs_position=getattr(adv, "vs_position", "") or "",
                              stack_bb=stack_bb, icm=icm, n_active=n_active or 9,
-                             tourney=tourney, bot_mode=True)
+                             tourney=tourney, bot_mode=False)
     except Exception:
         return None
 
