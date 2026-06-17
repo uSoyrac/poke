@@ -922,15 +922,38 @@ def _draw_equity(hole, board) -> "tuple[float, list]":
     if fd:
         outs += 9; notes.append("floş-çekme(9)")
     # DÜZ-çekme: açık-uçlu(8) / gutshot(4). Tekerlek için A=−1.
-    av = sorted(set(hv + bv))
-    if 12 in av:
-        av = sorted(set(av + [-1]))
-    oesd = any(av[i + 3] - av[i] == 3 for i in range(len(av) - 3))
-    gut = (not oesd) and any(av[i + 3] - av[i] == 4 for i in range(len(av) - 3))
+    # DÜZ-çekme — DOĞRU sayım (D267, kullanıcı yakaladı: KQ/7-8-9-T "HAVA" idi). Bir
+    # sonraki kart X hero'ya board-TEK-BAŞINA'dan DAHA İYİ bir düz veriyorsa OUT'tur.
+    # Board zaten 4-sıralıysa (7-8-9-T) düşük-uç (board-düzü = chop/domine) SAYILMAZ;
+    # yalnız hero'yu gerçekten ÖNE geçiren kartlar (KQ: yalnız J → K-yüksek düz). Eski
+    # span-tabanlı kod board-run'ı hero'nun OESD'si sanıp 8-out veriyor + 52o'ya domine
+    # gutshot sayıyordu.
+    def _best_straight_top(vals):
+        vs = sorted(set(vals))
+        if 12 in vs:
+            vs = sorted(set(vs + [-1]))
+        top = None
+        for i in range(len(vs) - 4):
+            if vs[i + 4] - vs[i] == 4:
+                top = vs[i + 4]
+        return top
+    _seen = Counter(hv + bv)
+    _board_top = _best_straight_top(bv)
+    _st_outs = 0
+    for _x in range(13):
+        _avail = 4 - _seen.get(_x, 0)
+        if _avail <= 0:
+            continue
+        _ht = _best_straight_top(hv + bv + [_x])
+        _bt = _best_straight_top(bv + [_x])
+        if _ht is not None and (_bt is None or _ht > _bt):   # hero board-only'dan iyi düz
+            _st_outs += _avail
+    oesd = _st_outs >= 7
+    gut = 0 < _st_outs < 7
     if oesd:
-        outs += 8; notes.append("açık-uçlu(8)")
+        outs += 8; notes.append("açık-uçlu(%d)" % _st_outs)
     elif gut:
-        outs += 4; notes.append("gutshot(4)")
+        outs += min(4, _st_outs); notes.append("gutshot(%d)" % min(4, _st_outs))
     # OVERCARD'lar (iki kart da board'un üstünde, başka çekme yoksa) → küçük kredi
     if not fd and not oesd and hv and bv and min(hv) > max(bv):
         outs += 3; notes.append("2 overcard(3)")
@@ -1048,6 +1071,14 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
         eq = min(1.0, strength + draws)
         tex = classify_board(board)
         tier = _tier_from(strength, draws)
+        # D267 (kullanıcı yakaladı): GERÇEK düz/floş çekmesi (gutshot dahil) varsa el HAVA
+        # DEĞİL → DRAW. Turn'de çekme equity'si yarıya iner (×2) → _tier_from'un flop-
+        # kalibreli 0.30 eşiğini geçemez, "HAVA" damgalanırdı (örn. KQ / 7-8-9-T gutshot).
+        # Öğretici: "çekmen var, odds'a göre oyna"; AKSİYON ayrıca eq-bazlı (zayıf çekme
+        # all-in'e yine fold). Salt-overcard (çekme değil) → HAVA kalır.
+        if tier == "HAVA" and any(("çekme" in _n or "açık-uçlu" in _n or "gutshot" in _n)
+                                  for _n in draw_notes):
+            tier = "DRAW"
         blab = _BOARD_TR.get(tex.label, tex.label.upper())
         # D220: classify_board "monotone"u 3+ aynı-suit sayıyor (flop mantığı). 5-kartlı
         # board'da 3-floş ≠ monotone (yanıltıcı "TEK-RENK"). Gerçek suit-sayısıyla düzelt.
