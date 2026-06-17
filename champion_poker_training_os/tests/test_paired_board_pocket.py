@@ -89,3 +89,28 @@ def test_d239_real_trips_preserved():
     """KORUMA: hero gerçekten trips yapıyor (K7 / 7-7-2, hero'nun 7'si var) → BET value."""
     out = _spot(["Kh", "7d"], ["7h", "7s", "2c"], 0.0)
     assert "BET" in out["action"], f"gerçek trips value kalmalı: {out['action']}"
+
+
+# ── D249: TEK-eşli board'da alt iki-çift (board çifti + hero düşük çift) over-value ──
+
+def test_d249_low_two_pair_single_paired_board_not_value():
+    """D249 (value-audit): non-pocket hero TEK-eşli board'da board-çifti + DÜŞÜK kendi
+    çifti yapıyor (5s8s / K-J-J-Q-8: 88+JJ, hp=8<bp=J, gerçek eq ~%29) → GÜÇLÜ DEĞİL,
+    value-bet ETMEMELİ (board-çift rank'ine sahip herkes trips yapar)."""
+    out = _spot(["5s", "8s"], ["Kc", "Jc", "Jd", "Qd", "8h"], 4.0)
+    assert out["tier"] != "GÜÇLÜ", f"alt iki-çift GÜÇLÜ olmamalı: {out['tier']}"
+    assert "BET (value)" not in out["action"]
+
+
+def test_d249_kings_up_preserved():
+    """KORUMA: hero çifti board-çiftinin ÜSTÜNDE (K8 / J-J-K-3, hp=K>bp=J) → KK+JJ
+    gerçek üst iki-çift → GÜÇLÜ kalmalı (regresyon yok)."""
+    out = _spot(["Kh", "8d"], ["Jc", "Js", "Kd", "3h"], 0.0)
+    assert out["tier"] in ("GÜÇLÜ", "NUT", "ORTA"), out["tier"]
+
+
+def test_d249_real_top_two_on_paired_board_preserved():
+    """KORUMA: iki board-TEKİLİNİ eşleyen gerçek top-two (K9 / K-9-7-7) → GÜÇLÜ kalmalı."""
+    out = _spot(["Kh", "9d"], ["Kc", "9s", "7h", "7d"], 0.0)
+    assert out["tier"] in ("GÜÇLÜ", "NUT"), out["tier"]
+    assert "BET" in out["action"]

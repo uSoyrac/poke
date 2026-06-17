@@ -945,6 +945,21 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
                 _paired_note = ("🪤 İki çift de BOARD'un — sen sadece kicker oynuyorsun "
                                 "(cebindeki kartlar el yapmadı). Board'u eşleyen ya da "
                                 "üst-pocket'i olan herkes geçer → DEĞER değil, çoğu zaman çöp.")
+            elif len(_board_pairs) == 1:
+                # D249 (value-audit yakaladı): TEK-eşli board'da non-pocket hero "iki çift" =
+                # board'un çifti (PAYLAŞILAN) + hero'nun bir board-TEKİLİNİ eşlemesi. Hero'nun
+                # kendi çifti board-çiftinin ALTINDAysa → board-çift rank'ine sahip herkes
+                # TRIPS yapıp ezer, üst iki-çiftler de geçer → bluff-catch, GÜÇLÜ değil.
+                # (5s8s / K-J-J-Q-8: hero 88 + board JJ, hp=8 < bp=J, gerçek eq ~%29.)
+                bp = _board_pairs[0]
+                _hpr = [c.value for c in _hc if _bv.count(c.value) == 1]   # board-tekili eşlemesi
+                if _hpr and max(_hpr) < bp:
+                    hp = max(_hpr)
+                    strength = min(0.42, 0.30 + max(0, hp) / 12 * 0.12)
+                    label = "alt iki-çift (board çifti üstte — trips/üst-iki-çift geçer)"
+                    _paired_note = ("🪤 'İki çift'in büyük yarısı BOARD'un çifti (paylaşılan); "
+                                    "senin kendi çiftin onun ALTINDA. Board-çifti rank'ine sahip "
+                                    "herkes trips yapar → DEĞER değil, bluff-catch.")
         elif label in ("trips", "quads") and len(_hc) >= 2:
             # D239 (value-audit residual): BOARD'da trips/quads var (örn. 7-7-7 / 3-3-3-3)
             # ve hero o ranke SAHİP DEĞİL → board'un elini oynuyor + kicker. _hand_strength
