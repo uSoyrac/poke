@@ -1137,6 +1137,25 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
                 action = "FOLD"
             if _bluff_catch:
                 tier = "BLUFF-CATCH"           # görünür tier'ı da düzelt (top-pair değil)
+        # D253 (+EV-max audit — EN BÜYÜK cash kayıp): VALUE-bet boyutu rakip-tipine kördü
+        # (size board-only). CALLING STATION'a karşı thin-value extraction = en büyük soft-
+        # field edge'i — station kötü eliyle öder → BÜYÜK bas (river nut'ta overbet). Read-
+        # gated: station (vpip≥55 & af≤1.2 & obs≥25) + VALUE-bet → size +0.30 (river _real_nut
+        # +0.45, ≤1.10). No-read → GTO 0.33/0.55/0.75 KORUNUR. MTT/ICM-fren. ADVICE-only
+        # (villain_stats yalnız advice; bot dokunulmaz → fidelity 0). sim-dogrulanamaz
+        # (human/exploit edge, D232 sizing≠range-widen → read-gate yeterli).
+        if to_call <= 0.01 and villain_stats and action == "BET (value)":
+            _svp = float((villain_stats.get("vpip", 0) if hasattr(villain_stats, "get")
+                          else getattr(villain_stats, "vpip", 0)) or 0)
+            _saf = float((villain_stats.get("aggression", villain_stats.get("af", 0))
+                          if hasattr(villain_stats, "get")
+                          else getattr(villain_stats, "aggression", 0)) or 0)
+            _sob = float((villain_stats.get("obs_hands", 0) if hasattr(villain_stats, "get")
+                          else getattr(villain_stats, "obs_hands", 0)) or 0)
+            if _svp >= 55 and _saf <= 1.2 and (not _sob or _sob >= 25):
+                _bump = 0.45 if (street == Street.RIVER and _real_nut) else 0.30
+                size = min(1.10, size + _bump)
+                action = "BET (value — station'a BÜYÜK bas)"
         # BOARD-TEHDİT NOTU (D198): birleşik haircut (flush/eşli/Ace-broadway) — eski
         # ayrı "range-aware" (sadece Ace/broadway + GÜÇLÜ hariç) bunu kaçırıyordu.
         range_note = None
