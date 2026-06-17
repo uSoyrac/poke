@@ -371,6 +371,17 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
             # DOKUNULMAZ (3bet-jam range sığ'da daralmamalı). ADVICE-only → fidelity 0.
             if not bot_mode and pos in ("CO", "BTN", "HJ", "LJ"):
                 call_t += (2 if stack_bb <= 25 else (1 if stack_bb <= 40 else 0))
+        # D263 (+EV-max audit #7): SHCP nut-flush/Kx-blocker primi A2s-A4s/K2s-K4s'i
+        # şişiriyor — bu prim vs-3bet 4-BET-BLUFF için doğru ama vs-RFI FLAT'te TERS:
+        # ERKEN (sıkı) açışa karşı bu weak-suited eller DOMİNE + fold-equity yok → flat
+        # −EV (nut-flush'u nadiren yapar, yaptığında bile dominated). Erken-opener'a karşı
+        # flat'te sıkılaştır (+2). A5s (wheel) ve geç-opener DOKUNULMAZ. raise_t değişmez.
+        if not hu and (vs_position or "").upper() in ("UTG", "UTG+1", "MP", "LJ") \
+                and len(hand_key) >= 3 and hand_key.endswith("s"):
+            _r1, _r2 = hand_key[0], hand_key[1]
+            _o = "23456789TJQKA"
+            if _r1 in ("A", "K") and _r2 in _o and _o.index(_r2) <= 2:   # A2s-A4s / K2s-K4s
+                call_t += 2
         act = "3-BET" if score >= raise_t else ("CALL" if score >= call_t else "FOLD")
         # D234 (kullanıcı yakaladı + GTO-teyit): KÜÇÜK ÇİFT (22-44) açışa 3-BET DEĞİL FLAT.
         # SHCP pariteyi şişirir (33=18 ≥ 3bet-eşiği) → tüm çiftleri 3bet ettiriyordu. Ama
