@@ -1237,7 +1237,16 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
                               "→ pot-kontrol CHECK (showdown'a ucuz git).")
                 tier = "BLUFF-CATCH"
             elif tier in ("NUT", "GÜÇLÜ"):
-                action = "BET (value)"
+                # D274 (multiway derinleştirme): 4+ YOLLU pot'ta tek-çift TOP-PAIR'i
+                # fat-value-bet ETME → pot-kontrol/CHECK. Kalabalıkta bir rakip top-pair'i
+                # sık geçer (set/iki-çift/üst-pair) → ince value buharlaşır, bet kendini
+                # daha-iyi-ele build eder. Overpair/iki-çift+/set/düz/floş ROBUST → value
+                # kalır. 3-yollu'da top-pair hâlâ basılır (vs 2 OK). İnsan-kuralı:
+                # "4 kişiye tek çiftle yağ basma; pot'u küçük tut, showdown'a ucuz git."
+                if _multi and n_active >= 4 and label == "top pair" and tier == "GÜÇLÜ":
+                    action = "CHECK (çok-yollu — tek çift ince value buharlaşır, pot-kontrol)"
+                else:
+                    action = "BET (value)"
             elif tier == "DRAW":
                 action = "BET (semi-blöf)"
             elif _range_cbet and tier in ("ORTA", "ZAYIF", "BLUFF-CATCH", "HAVA"):
