@@ -1250,11 +1250,13 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
             # FACING-A-BET: board-tehdit-ayarlı eq (eq_facing) vs gereken-blöf+okuma-marjı
             # (be ve _bc_margin yukarıda gr ile ORTAK hesaplandı → çelişki yok).
             if to_call >= stack - 0.001:
-                # D269: ALL-IN call (hero stack'in tamamıyla, capped) → SHOWDOWN'a git.
-                # Gelecek sokak yok → tek soru: ham-ish equity ≥ pot-odds mu? Short-stack
-                # dev odds'la (be küçük) herhangi makul elle CALL; derin all-in'de gerçek
-                # eşik (KQ 30bb call: be %28 > eq → FOLD). eq_facing range-ayarlı kullanılır.
-                action = "CALL" if eq_facing >= be else "FOLD"
+                # D269/D270: ALL-IN call (hero stack'in tamamıyla, capped) → SHOWDOWN'a git.
+                # Gelecek sokak YOK → threat-haircut (eq_facing) UYGULANMAZ (o, çok-sokaklı
+                # bluff-catch içindir). Tek soru: HAM equity ≥ pot-odds mu? Short-stack dev
+                # odds'la (be küçük) herhangi makul elle CALL; derin all-in'de gerçek eşik
+                # (KQ 40bb: be~%28 > eq → FOLD). D270: eq_facing'di → paired/scary board'da
+                # threat eq_facing'i be altına itip priced-in CALL'ları FOLD'latıyordu (69 vaka).
+                action = "CALL" if eq >= be else "FOLD"
             elif tier == "NUT" and not _bluff_catch:
                 action = "RAISE"
             elif eq_facing >= be + _bc_margin:

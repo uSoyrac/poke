@@ -37,3 +37,14 @@ def test_deep_strong_made_calls():
 def test_deep_trash_folds():
     """Çöp (72o/A-K-Q) derin all-in → FOLD."""
     assert _act(["7c", "2d"], 40.0, 30.5, ["Ah", "Kd", "Qs", "3h"]).startswith("FOLD")
+
+
+def test_d270_scary_board_priced_in_calls():
+    """D270: paired/scary board'da short all-in — threat-haircut UYGULANMAZ (showdown).
+    İki-çift (hero 9 + board QQ/9) 0.8bb shove'a karşı → CALL (be tiny, ham eq>>be).
+    Eski (eq_facing) threat'i be altına itip FOLD'latıyordu."""
+    h=[card_from_str('6h'),card_from_str('9s')]; b=[card_from_str(x) for x in ['2c','Qh','3d','9d','Qd']]
+    hero=types.SimpleNamespace(hole_cards=h,stack=0.8,is_folded=False,is_eliminated=False)
+    v=types.SimpleNamespace(hole_cards=[],stack=80.0,is_folded=False,is_eliminated=False)
+    hd=types.SimpleNamespace(players=[hero,v],community=b,street=Street.RIVER,pot=30.0,active_count=2,to_call=lambda i:30.0)
+    assert soyrac_postflop_advice(hd,0)['action'].startswith('CALL')
