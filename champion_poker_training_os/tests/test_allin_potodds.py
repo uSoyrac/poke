@@ -62,11 +62,12 @@ def test_d271_mc_equity_medium_allin_calls():
 
 
 def test_d271_deep_facing_bet_unaffected():
-    """D271 YALNIZ all-in: derin facing-bet (to_call<stack) proxy+threat+read katmanlarıyla
-    kalır (bluff-catch felsefesi korunur). K-high derin facing → FOLD (değişmez)."""
+    """D271 YALNIZ all-in: DERİN facing-bet (to_call<stack) proxy+threat+katmanlarıyla kalır.
+    Normal pot-odds'ta (be~%33) KQ gutshot (3:1, %18<%33) → FOLD (tuned proxy bluff-catch,
+    MC-all-in yolu DEĞİL). be küçükken (priced-in) CALL — o ayrı durum."""
     h = [card_from_str("Kh"), card_from_str("Qh")]; b = [card_from_str(x) for x in ["8d", "9c", "Th", "7d"]]
     hero = types.SimpleNamespace(hole_cards=h, stack=40.0, is_folded=False, is_eliminated=False)
     v = types.SimpleNamespace(hole_cards=[], stack=80.0, is_folded=False, is_eliminated=False)
     hd = types.SimpleNamespace(players=[hero, v], community=b, street=Street.TURN,
-                               pot=76.8, active_count=2, to_call=lambda i: 5.0)
+                               pot=10.0, active_count=2, to_call=lambda i: 5.0)   # be≈%33 normal
     assert soyrac_postflop_advice(hd, 0)["action"].startswith("FOLD")
