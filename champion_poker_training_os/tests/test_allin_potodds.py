@@ -48,3 +48,25 @@ def test_d270_scary_board_priced_in_calls():
     v=types.SimpleNamespace(hole_cards=[],stack=80.0,is_folded=False,is_eliminated=False)
     hd=types.SimpleNamespace(players=[hero,v],community=b,street=Street.RIVER,pot=30.0,active_count=2,to_call=lambda i:30.0)
     assert soyrac_postflop_advice(hd,0)['action'].startswith('CALL')
+
+
+def test_d271_mc_equity_medium_allin_calls():
+    """D271: orta-derin all-in'de GERÇEK-MC equity (proxy değil). A8 / 3-3-T-2 12bb all-in:
+    MC eq (~%53 vs devam-range) >> pot-odds → CALL. Eski proxy A-high'ı hafife alıp FOLD'du."""
+    h = [card_from_str("8s"), card_from_str("Ad")]; b = [card_from_str(x) for x in ["3c", "3h", "Ts", "2h"]]
+    hero = types.SimpleNamespace(hole_cards=h, stack=12.0, is_folded=False, is_eliminated=False)
+    v = types.SimpleNamespace(hole_cards=[], stack=80.0, is_folded=False, is_eliminated=False)
+    hd = types.SimpleNamespace(players=[hero, v], community=b, street=Street.TURN,
+                               pot=76.8, active_count=2, to_call=lambda i: 30.5)
+    assert soyrac_postflop_advice(hd, 0)["action"].startswith("CALL")
+
+
+def test_d271_deep_facing_bet_unaffected():
+    """D271 YALNIZ all-in: derin facing-bet (to_call<stack) proxy+threat+read katmanlarıyla
+    kalır (bluff-catch felsefesi korunur). K-high derin facing → FOLD (değişmez)."""
+    h = [card_from_str("Kh"), card_from_str("Qh")]; b = [card_from_str(x) for x in ["8d", "9c", "Th", "7d"]]
+    hero = types.SimpleNamespace(hole_cards=h, stack=40.0, is_folded=False, is_eliminated=False)
+    v = types.SimpleNamespace(hole_cards=[], stack=80.0, is_folded=False, is_eliminated=False)
+    hd = types.SimpleNamespace(players=[hero, v], community=b, street=Street.TURN,
+                               pot=76.8, active_count=2, to_call=lambda i: 5.0)
+    assert soyrac_postflop_advice(hd, 0)["action"].startswith("FOLD")
