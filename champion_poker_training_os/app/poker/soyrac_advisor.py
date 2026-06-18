@@ -981,45 +981,6 @@ def _draw_equity(hole, board) -> "tuple[float, list]":
     return min(0.72, outs * mult / 100.0), notes
 
 
-# ── GERÇEK-MC EQUITY (D271): facing-bet/all-in KARARI için strength+draws proxy yerine ──
-# Proxy (strength+draws) orta-derin all-in'de marjinal elleri (A-high/iki-çift) wide-range'e
-# karşı hafife alıyordu (D270 audit: 9 MISS-FOLD). Karar-anında hero'nun GERÇEK equity'sini
-# (devam-range'e karşı Monte-Carlo) hesapla → solver-yakın. Tier/display heuristik kalır.
-# Cache + sabit seed → deterministik + hızlı (180 iter ≈ 22ms; yalnız bahis-karşısı).
-_CONT_RANGE = None
-_MC_EQ_CACHE = {}
-
-
-def _continuing_range():
-    global _CONT_RANGE
-    if _CONT_RANGE is None:
-        try:
-            from app.poker.mtt_ranges import get_ranked_hands
-            _CONT_RANGE = get_ranked_hands()[:80]   # ~top %47 devam/bahis range'i
-        except Exception:
-            _CONT_RANGE = []
-    return _CONT_RANGE
-
-
-def _mc_facing_eq(hole, board, iters=180):
-    """Bahis-karşısı karar için gerçek-MC equity (hero vs devam-range). None → proxy'ye düş."""
-    rng = _continuing_range()
-    if not rng or not hole or len(hole) < 2 or len(board) < 3:
-        return None
-    key = (tuple(sorted((c.rank, c.suit) for c in hole)),
-           tuple(sorted((c.rank, c.suit) for c in board)))
-    if key in _MC_EQ_CACHE:
-        return _MC_EQ_CACHE[key]
-    try:
-        from app.poker.mc_equity import calculate_equity
-        eq = calculate_equity([(hole[0], hole[1])], rng, board=list(board),
-                              iterations=iters, seed=1).a_equity / 100.0
-    except Exception:
-        eq = None
-    _MC_EQ_CACHE[key] = eq
-    return eq
-
-
 def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "dict | None":
     """Postflop ÖĞRETİCİ — board-aware _hand_strength → 7-kademe + 3 altın kural
     + sizing. Saf (Qt'siz); postflop_gto/bot kararı DEĞİŞMEZ.
@@ -1152,15 +1113,11 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
         # odds bu capped miktarla hesaplanır (eski kod tam-bahsi fiyatlayıp short-stack'i
         # dev odds'a rağmen FOLD'latıyordu — örn. 0.3bb'yi 77bb pota call ≈ %0.4 gerekir).
         _eff_call = min(to_call, stack)
-        # D271: ALL-IN/SHOWDOWN kararında equity'yi GERÇEK-MC ile değiştir (strength+draws
-        # proxy orta-derin all-in'de marjinal elleri hafife alıyordu — D270 audit kalan 9).
-        # YALNIZ all-in (to_call≥stack): gelecek sokak YOK → equity-vs-range tek-belirleyici,
-        # bluff-catch/read/multiway/soft-field over-fold katmanları geçerli değil. DERİN
-        # facing-bet'te proxy+katmanlar (tuned, +EV-max felsefe) KORUNUR. None → proxy.
-        if to_call >= stack - 0.001:
-            _mceq = _mc_facing_eq(hero.hole_cards, board)
-            if _mceq is not None:
-                eq = _mceq
+        # D272 (kullanıcı kuralı: %100 insan-hesaplanabilir Soyrac KİTABI — bot=advisor=insan):
+        # D271'in Monte-Carlo equity'si GERİ ALINDI. MC masada insan-kafadan yapılamaz
+        # (kitap rule-of-2&4/tier ile TAHMİN eder) → kitaptan sapmaydı. Equity = strength+
+        # draws proxy (kitabın yöntemi) kalır. D269 (all-in pot-odds cap) + D270 (showdown
+        # ham eq, threat-haircut yok) İNSAN-HESAPLANABİLİR → korunur (ana bug çözüldü).
         street = getattr(hand, "street", Street.FLOP)
         # BOARD-TEHDİT (D198): made-hand FACING-A-BET'te board-tehdidiyle (flush/eşli/
         # Ace-broadway) bluff-catcher'a düşer. eq_facing = eq − tehdit (sadece bahse
