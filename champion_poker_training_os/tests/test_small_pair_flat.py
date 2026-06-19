@@ -15,9 +15,11 @@ def test_small_pairs_flat_not_3bet():
 
 
 def test_medium_pairs_still_3bet():
-    """55+ GTO-3bet korunur (regresyon yok)."""
-    for hk in ("55", "66", "77", "99", "JJ", "QQ"):
+    """66+ GTO-3bet korunur; 55 vs ERKEN-açış GTO-CALL (D285 fix — get_action teyit:
+    55 MP vs UTG r0/c90 = CALL; eski test 55→3bet ile eski bug'ı kilitlemişti)."""
+    for hk in ("66", "77", "99", "JJ", "QQ"):
         assert _act(hk, "MP", "UTG") == "3-BET", f"{hk} 3-BET kalmalı: {_act(hk,'MP','UTG')}"
+    assert _act("55", "MP", "UTG") == "CALL", f"55 vs UTG GTO-CALL olmalı: {_act('55','MP','UTG')}"
 
 
 def test_small_pair_flat_all_depths():

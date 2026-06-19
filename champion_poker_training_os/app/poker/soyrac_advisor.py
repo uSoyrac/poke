@@ -444,6 +444,21 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         if act == "3-BET" and len(hand_key) == 2 and hand_key[0] == hand_key[1] \
                 and "23456789TJQKA".index(hand_key[0]) <= 2 and score >= call_t:
             act = "CALL"
+        # D285 (eval-army yakaladı): vs-RFI 3-bet ekseni AÇAN-POZİSYONUNU yok sayıyordu →
+        # ERKEN-SIKI açışa (UTG/UTG+1) karşı dominated-flat eller (offsuit-broadway AQo/KQo,
+        # zayıf-suited A9s/KTs, küçük çift 55) PURE 3-bet ediyordu; GTO bunları FLAT'ler
+        # (dominated, fold-equity yok). GTO-teyitli value-3bet seti vs erken = 66+ ∪
+        # suited(SHCP≥18=QJs+) ∪ AKo → gerisi CALL (suited≥18 eşiği QJs/KJs/ATs/KQs/AJs'i
+        # TUTAR, KTs/QTs/A9s/A5s/JTs'i FLAT'ler — get_action ile birebir doğrulandı).
+        # ADVICE-only (bot_mode hariç → fidelity 0). raise_t-bump SUITED/OFFSUIT ayıramadığı
+        # için (QJs18=3bet vs AQo18=call) blunt eşik DEĞİL bu cerrahi set kullanıldı.
+        if not bot_mode and act == "3-BET" and (vs_position or "").upper() in ("UTG", "UTG+1"):
+            _ipair = len(hand_key) == 2 and hand_key[0] == hand_key[1]
+            _value3 = ((_ipair and "23456789TJQKA".index(hand_key[0]) >= 4)   # 66+
+                       or (hand_key.endswith("s") and score >= 18)            # suited QJs+
+                       or hand_key == "AKo")                                  # tek offsuit istisna
+            if not _value3:
+                act = "CALL"
         # 6-max AGRESYON (D148): geç açana karşı suited-wheel-As (A2s-A5s) 3-BET BLÖF.
         # Bu eller AA/AK'yı bloklar + nut-floş yedek-equity'si var. ADVICE'ta SADECE IP
         # defender (blind'da GTO flat/call'lar); bot_mode'da eski davranış (tüm pozisyon).
@@ -738,9 +753,15 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
     _hashand = (hand is not None and hero_idx is not None)
     _ncom = _committed_opponents(hand, hero_idx) if _hashand else 0
     _nlimp = _limpers_before_hero(hand, hero_idx) if _hashand else 0
+    # D285 (eval-army yakaladı): soyrac_explain stage/avg_stack_bb'yi guidance'a veriyordu
+    # ama base KARAR'a GEÇMİYORDU → push/fold & jam dalları cube_pressure'ı stage=''→'bubble'
+    # ile hesaplıyor → FT/satellite'te panel "take-point yükseldi" der ama eşik bubble-seviyesi
+    # (guidance≠karar çelişkisi). stage/avg_stack_bb'yi karara da geçir. Cash/non-ICM dokunulmaz
+    # (cube_pressure yalnız tourney+icm push/fold/jam dallarında çağrılır).
     base = soyrac_advice(hand_key, position, scenario=scenario, vs_position=vs_position,
                          stack_bb=stack_bb, icm=icm, n_active=n_active, tourney=tourney,
-                         n_committed=_ncom, n_limpers=_nlimp)
+                         n_committed=_ncom, n_limpers=_nlimp,
+                         stage=stage, avg_stack_bb=avg_stack_bb)
     action = base.get("action", "FOLD")
     score = base.get("score")
     pos = (position or "BTN").upper()
@@ -1055,8 +1076,13 @@ def _draw_equity(hole, board) -> "tuple[float, list]":
         outs += 8; notes.append("açık-uçlu(%d)" % _st_outs)
     elif gut:
         outs += min(4, _st_outs); notes.append("gutshot(%d)" % min(4, _st_outs))
-    # OVERCARD'lar (iki kart da board'un üstünde, başka çekme yoksa) → küçük kredi
-    if not fd and not oesd and hv and bv and min(hv) > max(bv):
+    # OVERCARD'lar (iki kart da board'un üstünde, başka çekme yoksa) → küçük kredi.
+    # D285 (eval-army yakaladı): CEP-ÇİFTİ HARİÇ — overpair zaten MADE-hand (tek-çifti
+    # geçiyor), ona hayalet "2 overcard" çekme-equity'si vermek eq'yi şişiriyordu
+    # (AA/K72 str 0.62 ama eq 0.74) → marjinal turn/all-in'de FOLD'u CALL'a çevirebilir
+    # + gösterilen equity% yanlış. Overcard kredisi yalnız EL-YAPMAMIŞ (HAVA) eller için.
+    if not fd and not oesd and hv and bv and min(hv) > max(bv) \
+            and not (len(hv) == 2 and hv[0] == hv[1]):
         outs += 3; notes.append("2 overcard(3)")
     # OUT-DISCOUNTING (D227, kanon — "dirty outs"): rakibin DAHA İYİ elini tamamlayan
     # out'ları ÇIKAR. (a) EŞLİ board → floş/düz hit etse bile DOLU'ya kaybedebilir;
