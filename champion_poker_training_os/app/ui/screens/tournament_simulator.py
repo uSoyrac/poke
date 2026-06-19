@@ -389,6 +389,7 @@ class TournamentSimulatorScreen(QWidget):
             hero_table_size=size,
             tier=getattr(self, "_field_tier", None),
             hero_archetypes=archetypes,   # eklenen elit oyuncular zorluğa yansısın
+            starting_chips=float(self.chips_input.value()),  # D280: avg/refill GERÇEK ölçek
         )
         self.mtt_field.update_hero_table(size)  # hero table starts full
 

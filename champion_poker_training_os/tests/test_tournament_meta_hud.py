@@ -58,22 +58,28 @@ def test_avg_stack_is_in_bb_and_sensible():
     s._end_and_restart()
 
 
-def test_avg_stack_matches_field_model_late_stage():
-    """D277 (kullanıcı yakaladı: 10/200 BB3000'de avg '13bb' ama hero 52bb): çok-masa
-    avg, saha-modeli mtt_field.avg_stack_chips (10.000/oyuncu, refill de bunu kullanır)
-    ile TUTARLI olmalı — config.starting_chips (UI default 2000) ile ÇELİŞİP 13bb verme."""
+def test_avg_stack_uses_real_starting_chips():
+    """D280 (kullanıcı yakaladı: erkende avg '470bb' ama hero 73bb): çok-masa avg, saha
+    çip-ölçeği = GERÇEK config.starting_chips (hero masasının dağıtıldığı değer). Eski
+    mtt_field 10.000 SABİTİ kullanıyordu → 2000-chip turnuvada avg 5× şişiyordu.
+    BAŞTA (kimse elenmedi) avg ≈ hero başlangıç-derinliği (config.starting_chips/bb)
+    olmalı — 5× DEĞİL. Ayrıca geç-aşamada çip-koruma formülüyle TUTARLI olmalı."""
     s = _started_screen()
     mf = s.mtt_field
-    mf._bg = {"weak": 0, "mid": 1, "strong": 1}   # arka plan 2
-    mf._hero_table_remaining = 8                    # → 10 kaldı
-    st = s.tournament.state
-    st.level_idx = min(13, len(st.levels) - 1)      # ~L14 (BB yüksek)
+    bb0 = s.tournament.state.current_level.bb
+    hero_start_bb = mf.starting_chips / bb0
+    s._refresh_table()
+    shown0 = float(s.meta_cells["AVG"]._value_label.text().replace("bb", "").strip())
+    # başta avg ≈ hero start derinliği (kimse elenmedi → field-avg = start). 5× bug'ı yakala.
+    assert abs(shown0 - hero_start_bb) <= 2, f"START avg {shown0}bb ≠ hero start {hero_start_bb}bb (ölçek bug)"
+    # geç-aşama: çip-koruma formülüyle tutarlı (starting_chips × field / remaining / bb)
+    mf._bg = {"weak": 0, "mid": 1, "strong": 1}; mf._hero_table_remaining = 8   # → 10 kaldı
+    st = s.tournament.state; st.level_idx = min(13, len(st.levels) - 1)
     s._refresh_table()
     bb = st.current_level.bb
-    expected = round(mf.avg_stack_chips / bb)
+    expected = round(mf.field_size * mf.starting_chips / mf.players_remaining / bb)
     shown = round(float(s.meta_cells["AVG"]._value_label.text().replace("bb", "").strip()))
-    assert shown == expected, f"avg {shown}bb ≠ saha-modeli {expected}bb (çip-ölçek tutarsız)"
-    assert shown > 13, f"avg {shown}bb — eski config.starting_chips bug'ı (13bb) geri geldi"
+    assert shown == expected, f"geç-aşama avg {shown}bb ≠ çip-koruma {expected}bb"
     s._end_and_restart()
 
 

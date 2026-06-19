@@ -136,12 +136,17 @@ class MTTField:
         hero_table_size: int = 9,
         tier: "str | None" = None,    # stake tier → gerçekçi skill kompozisyonu
         hero_archetypes: "list[str] | None" = None,  # hero masasındaki gerçek botlar
+        starting_chips: float = 10000.0,  # GERÇEK başlangıç yığını (hero masasıyla AYNI ölçek)
     ) -> None:
         self.field_size      = field_size
         self.buyin           = buyin
         self.structure       = structure
         self.hero_table_size = hero_table_size
         self.tier            = tier
+        # Saha geneli çip-ölçeği: hero masası bununla dağıtılır (config.starting_chips).
+        # Eski 10.000 SABİTİ avg_stack_chips'teydi → starting_chips≠10000 (örn. 2000)
+        # olunca avg_stack ve refill 5× şişiyordu (kullanıcı yakaladı). Artık gerçek değer.
+        self.starting_chips  = float(starting_chips or 10000.0)
 
         # Hero masasındaki gerçek arketiplerin 'strong' (elit) oranı. Kullanıcı
         # GTO/ICM expert, Negreanu gibi oyuncular eklediğinde zorluk bunu
@@ -385,12 +390,12 @@ class MTTField:
 
     @property
     def avg_stack_chips(self) -> float:
-        """Sahadaki ortalama stack (chip). Yeni oturan oyuncuların stack'i
-        için — toplam chip = field_size * starting_chips (≈100bb varsayımı yok;
-        chip değeri çağıran tarafından ölçeklenebilir)."""
+        """Sahadaki ortalama stack (chip). Çip korunur → toplam = field_size ×
+        starting_chips (hero masasının dağıtıldığı GERÇEK ölçek; eski 10.000 sabiti
+        2000-chip turnuvada 5× şişiriyordu — D280 fix). Yeni oturan oyuncu + AVG STACK
+        göstergesi ikisi de bunu okur."""
         rem = max(1, self.players_remaining)
-        # field başına 100bb başlangıç kabulü → toplam chip sabit
-        total_chips = self.field_size * 10000.0
+        total_chips = self.field_size * self.starting_chips
         return total_chips / rem
 
     def move_into_hero_table(self, n: int) -> int:
