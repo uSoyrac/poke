@@ -174,11 +174,34 @@ def _committed_opponents(hand, hero_idx) -> int:
         return 0
 
 
+def _limpers_before_hero(hand, hero_idx) -> int:
+    """Limp-farkındalık (D283, kullanıcı yakaladı: MP limp etti ama 'RFI/açış' diyordu):
+    hero'dan ÖNCE preflop'ta gönüllü LIMP (call) eden oyuncu sayısı. Önünde RAISE varsa 0
+    döner (o zaman senaryo 'vs RFI' — limp değil). Sistem eskiden limp'i HİÇ saymıyordu →
+    pota giren olsa bile açış sanıyordu (steal değilken steal gibi davranıyordu)."""
+    try:
+        from app.engine.hand_state import ActionType, Street
+        n = 0
+        for a in getattr(hand, "actions", []) or []:
+            if getattr(a, "street", None) != Street.PREFLOP:
+                continue
+            if a.player_idx == hero_idx:
+                break                                    # hero'ya kadar olanlar
+            if a.action_type in (ActionType.RAISE, ActionType.ALL_IN, ActionType.BET):
+                return 0                                 # raise oldu → limp senaryosu değil
+            if a.action_type == ActionType.CALL:
+                n += 1                                   # gönüllü limp
+        return n
+    except Exception:
+        return 0
+
+
 def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                   vs_position: str = "", stack_bb: float = 100,
                   icm: bool = False, n_active: int = 9, tourney: bool = False,
                   bot_mode: bool = False, stage: str = "",
-                  avg_stack_bb: float = 0.0, n_committed: int = 0) -> dict:
+                  avg_stack_bb: float = 0.0, n_committed: int = 0,
+                  n_limpers: int = 0) -> dict:
     """SENİN elin için masada-yapılabilir değerlendirme → {score, action, line, ...}.
 
     n_active<=2 → HEADS-UP modu: range'ler çok genişler (HU'da BTN/SB ~%85 açar,
@@ -493,17 +516,32 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         act = "RAISE (AÇ)" if score >= thr else "CHECK (bedava flop — opsiyon)"
     else:
         act = "RAISE (AÇ)" if score >= thr else "FOLD"
+    # LIMP-FARKINDALIK (D283, kullanıcı yakaladı: MP limp etti ama "RFI/açış·raise" diyordu):
+    # önünde limper varsa bu STEAL DEĞİL → iso-raise. ÇOK limper (2+) = çok-yollu → marjinal
+    # iso'yu bırak (dominated + multiway, D278 felsefesi: orta elle 3-4 kişiye yağ basma);
+    # tek limp value-iso kalır (QJs/KQ/QTs limper'ı izole eder — standart +EV). ADVICE-only
+    # (n_limpers default 0 → bot + mevcut testler birebir aynı; fidelity 0-sapma).
+    _limp_note = ""
+    if n_limpers >= 1 and not hu and pos != "BB":
+        if "RAISE" in act and n_limpers >= 2 and score < thr + 2:
+            act = "FOLD"
+            _limp_note = f" · {n_limpers} limper (çok-yollu — marjinal iso bırak; over-limp/fold)"
+        elif "RAISE" in act:
+            _limp_note = f" · {n_limpers} limper'ı İZOLE et (steal değil; value-iso, sızma yok)"
+        elif act == "FOLD":
+            _limp_note = f" · {n_limpers} limper var (eşik-altı → over-limp/fold, iso etme)"
     # TRUE-COUNT göstergesi (D186): eşik bir DENKLEM (base + düzeltmeler). Blackjack
     # true-count gibi açığa çıkar → kullanıcı "neden bu eşik" görür (davranış DEĞİŞMEZ,
     # sadece şeffaflık). Coach paneli/Akademi bunu çubuk olarak çizebilir.
     breakdown = {"base": base_thr, "icm_adj": icm_adj, "deep_adj": deep_adj,
                  "tourney_adj": tourney_adj, "table_adj": table_adj,
                  "preempt_adj": preempt_adj, "effective": thr}
-    return {"score": score, "threshold": thr, "action": act, "scenario": "RFI",
-            "threshold_breakdown": breakdown,
+    return {"score": score, "threshold": thr, "action": act,
+            "scenario": "RFI" if not _limp_note else f"RFI · {n_limpers} limp",
+            "threshold_breakdown": breakdown, "limp_note": _limp_note,
             "size": _preflop_size(act, pos, stack_bb, bool(tourney), hu),
             "count_line": _threshold_count_line(breakdown),
-            "line": f"🧮 SHCP {score} {rel} {pos}{' HU' if hu else ''} eşik {thr} → {act}"}
+            "line": f"🧮 SHCP {score} {rel} {pos}{' HU' if hu else ''} eşik {thr} → {act}{_limp_note}"}
 
 
 def advice_from_hand(hand, hero_idx: int, stack_bb: float = 100,
@@ -531,7 +569,8 @@ def advice_from_hand(hand, hero_idx: int, stack_bb: float = 100,
                              vs_position=getattr(adv, "vs_position", "") or "",
                              stack_bb=stack_bb, icm=icm, n_active=n_active or 9,
                              tourney=tourney, bot_mode=False,
-                             n_committed=_committed_opponents(hand, hero_idx))
+                             n_committed=_committed_opponents(hand, hero_idx),
+                             n_limpers=_limpers_before_hero(hand, hero_idx))
     except Exception:
         return None
 
@@ -696,10 +735,12 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
                     "icm_guidance": _ftg,
                     "field_exploit": _fexp,
                 }
-    _ncom = _committed_opponents(hand, hero_idx) if (hand is not None and hero_idx is not None) else 0
+    _hashand = (hand is not None and hero_idx is not None)
+    _ncom = _committed_opponents(hand, hero_idx) if _hashand else 0
+    _nlimp = _limpers_before_hero(hand, hero_idx) if _hashand else 0
     base = soyrac_advice(hand_key, position, scenario=scenario, vs_position=vs_position,
                          stack_bb=stack_bb, icm=icm, n_active=n_active, tourney=tourney,
-                         n_committed=_ncom)
+                         n_committed=_ncom, n_limpers=_nlimp)
     action = base.get("action", "FOLD")
     score = base.get("score")
     pos = (position or "BTN").upper()
