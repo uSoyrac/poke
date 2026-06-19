@@ -660,7 +660,21 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
     if hand is not None and hero_idx is not None:
         comm = getattr(hand, "community", None)
         if comm and len(comm) >= 3:
-            pf = soyrac_postflop_advice(hand, hero_idx, advice, villain_stats=villain_stats)
+            # D282: river + HU'da villain devam-range'i türet → 🎴 combo/blocker satırını
+            # AKTİF eder (salt-display, action değişmez). Diğer sokak/multiway → None (identity).
+            _vr = None
+            try:
+                _na = getattr(hand, "active_count", 0) or sum(
+                    1 for pl in hand.players if not getattr(pl, "is_folded", False)
+                    and not getattr(pl, "is_eliminated", False)) or 2
+                if len(comm) == 5 and _na <= 2:
+                    from app.poker.gto_live_advice import _villain_continuing_range
+                    _tc = hand.to_call(hero_idx); _pt = getattr(hand, "pot", 0) or 0
+                    _vr = _villain_continuing_range(2, bet_frac=(_tc / _pt if _pt > 0 else 0.0))
+            except Exception:
+                _vr = None
+            pf = soyrac_postflop_advice(hand, hero_idx, advice, villain_stats=villain_stats,
+                                        villain_range=_vr)
             if pf:
                 stn = {1: "Flop", 2: "Turn", 3: "River"}.get(len(comm) - 2, "Postflop")
                 return {
@@ -1027,7 +1041,8 @@ def _draw_equity(hole, board) -> "tuple[float, list]":
     return min(0.72, outs * mult / 100.0), notes
 
 
-def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "dict | None":
+def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None,
+                           villain_range=None) -> "dict | None":
     """Postflop ÖĞRETİCİ — board-aware _hand_strength → 7-kademe + 3 altın kural
     + sizing. Saf (Qt'siz); postflop_gto/bot kararı DEĞİŞMEZ.
 
@@ -1399,6 +1414,39 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None) -> "
                 chain.append("📏 Sizing: düşük SPR + güçlü → jam/commit (küçük bahis yok)")
             else:
                 chain.append(f"📏 Sizing: pot×{size:.2f} ({'kuru→küçük' if wet < 0.35 else 'ıslak→büyük'})")
+        # ── D282 (ultracode workflow): GÜVENİLİR kaldıraçları GÖRÜNÜR kıl. Hepsi SALT-DISPLAY
+        # (action/tier/eq/gr/size_frac DEĞİŞMEZ → fidelity 0-sapma garantili). Hesaplanan ama
+        # gizli olan out/set-mine/combo bilgisini öğretici satıra çevirir; insan masada birebir
+        # tekrarlar (kalibrasyon: yalnız GÜVENİLİR kaldıraçlar — outs×2/4, set-mine, KENDİ-blocker;
+        # deste-yeniden-hesaplama GÜRÜLTÜSÜ YOK).
+        # 🎲 ÇEKME: tip + NET-out × çarpan = equity (net×mult == gösterilen %, self-tutarlı).
+        if draws > 0.01 and len(board) < 5:
+            _dmult = 4 if street == Street.FLOP else 2
+            _dnet = max(1, round(draws * 100 / _dmult))
+            _dnames = ", ".join(_n.split("(")[0].strip() for _n in draw_notes if "kirli" not in _n)[:40]
+            _dneed = f" (gereken %{be*100:.0f})" if to_call > 0 else ""
+            chain.append(f"🎲 Çekme: {_dnames} ≈{_dnet} temiz-out ×{_dmult} = %{_dnet*_dmult}{_dneed}")
+        # 🎰 SET-MINE implied-odds: küçük bahis yiyen UNDER-çift (set yapmadın) → kalan÷ödeme.
+        # GATE: label=='underpair' (overpair/made-pair HARİÇ — AA/TT yanlış damga önlenir);
+        # çekme yok; HU. Postflop set ~%4-8 → eşik ≥20× (preflop 15×'ten YÜKSEK, Böl.9.6.5b).
+        if (to_call > 0 and len(_hc) >= 2 and _hc[0].value == _hc[1].value
+                and label == "underpair" and draws < 0.01 and not _multi):
+            _imp = stack / max(_eff_call, 0.01)
+            _itxt = "≥20× ✓ ucuz set-ara (set ~%4-8)" if _imp >= 20 else "sığ ✗ implied yok → bırak"
+            chain.append(f"🎰 Set-mine: kalan÷ödeme={_imp:.0f}× ({_itxt})")
+        # 🎴 RIVER COMBO/BLOCKER (yalnız HU + villain_range verildiyse): value/bluff combo +
+        # KENDİ-blocker (kesin bilgi). SALT-DISPLAY — _bc_margin/action/eq'ye DOKUNMAZ.
+        # villain_range=None (mevcut tüm çağrılar) → satır eklenmez → byte-identical davranış.
+        if (to_call > 0 and street == Street.RIVER and len(board) == 5
+                and not _multi and not _real_nut and villain_range):
+            try:
+                from app.poker.combinatorics import bluff_catch_analysis as _bca
+                _ca = _bca(hero.hole_cards, board, villain_range, pot, to_call)
+                if _ca.get("total_combos", 0) > 0:   # boş combo satırı gösterme
+                    chain.append(f"🃏 Combo: {_ca['value_combos']}V/{_ca['bluff_combos']}B, "
+                                 f"blocker −{_ca['blocked_value']}V/−{_ca['blocked_bluff']}B")
+            except Exception:
+                pass
         flow = [("Board", blab, True), ("El", tier, True),
                 ("Karar", action.split()[0], True)]
         return {"tier": tier, "board_label": blab, "wetness": round(wet, 2),

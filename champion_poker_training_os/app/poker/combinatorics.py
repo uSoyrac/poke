@@ -23,7 +23,10 @@ _SUITS = "cdhs"
 def parse_cards(s) -> List[Card]:
     """'Ah Kd' / 'AhKd' / ['Ah','Kd'] → [Card, ...]. Geçersizleri atlar."""
     if isinstance(s, (list, tuple)):
-        toks = [str(c) for c in s]
+        # str(Card) unicode suit ('A♥') verir → liste dalında da normalize et (yoksa
+        # Card-objesi listesi parse edilemez; D282 river-combo entegrasyonu yakaladı).
+        toks = [str(c).replace("♠", "s").replace("♥", "h").replace("♦", "d").replace("♣", "c")
+                for c in s]
     else:
         cleaned = (str(s).replace("♠", "s").replace("♥", "h")
                    .replace("♦", "d").replace("♣", "c"))

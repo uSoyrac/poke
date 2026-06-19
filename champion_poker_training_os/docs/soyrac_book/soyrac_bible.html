@@ -1726,6 +1726,11 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 </table>
 <p class="why">Okuma: ✓ = set-mine/spekülatif call'a implied-odds yeter; ✗ = yetmez, bırak. 40bb'de 5bb'lik açışa küçük çiftle set-mine etme (7× &lt; 15×, derinlik yok). 100bb+'da 3bb açışa bol bol uygundur. Bu, "büyük raise = tighter" kuralının somut tablosudur.</p>
 
+<h3>9.6.5b Postflop Set-Mine: Küçük Bahse Karşı UNDER-Çiftle — ama Eşik Daha YÜKSEK</h3>
+<p>Yukarıdaki 15-20× <b>preflop</b> içindir (orada set ~%12 çünkü iki kart daha gelecek). <b>Flop'ta küçük bahis yiyen UNDER-çift</b> (board'da üstün var, set yapmadın) için durum farklı: set tamamlama olasılığı artık <b>~%4 (yalnız turn)</b> – <b>~%8 (turn+river görürsen)</b> kadar küçük. Bu yüzden postflop set-mine eşiği daha yüksek:</p>
+<div class="keyrule">Altın kural (postflop set-mine): UNDER-çiftle küçük bahse karşı <b>"kalan ÷ ödeyeceğin ≥ ~20×"</b> ise ucuz set-ara (call), değilse bırak. Reveal'de <b>🎰 satırı</b> bu oranı verir: <code>kalan÷ödeme=38× (≥20× ✓ ucuz set-ara)</code>. Yalnız UNDER-çift (overpair/yapılı çift değil — onlar zaten değerli) + çekme yok + heads-up'ta gösterilir.</div>
+<div class="why">Neden postflop'ta ≥20 (preflop 15'ten yüksek)? Çünkü preflop iki kart gelecekti (~%12 set); flop'ta artık yalnız 1-2 kart kaldı (~%4-8). Daha az tamamlama şansı = yığını alman için daha derin olman şart. Büyük bahse karşı oran düşerse (örn. 6×) implied-odds yok → 🎰 satırı "sığ ✗ → bırak" der. NOT: bu satır salt öğreticidir; kararı 7-kademe + pot-odds verir, 🎰 yalnız "neden" der.</div>
+
 <h3>9.7 Bölüm Özeti</h3>
 
 <ul>
@@ -1832,6 +1837,15 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 <div class="example">Örnek: Flush draw, flop'ta. 9 out × 4 = <b>%36</b> kazanma şansı (river'a kadar). Turn geldi, hâlâ tamamlanmadı: 9 out × 2 = <b>%18</b>. Kodun draws değerleri (0.35 ve 0.18) bu hesabın tam karşılığıdır — uydurma değil, 2&4 kuralının kendisi.</div>
 
 <div class="example">Örnek: OESD (örn. elinde 8♠7♠, board 9♣6♥2♦). 5 veya T tamamlar = 8 out. Flop'ta 8 × 4 = <b>%32</b>; turn'de 8 × 2 = <b>%16–18</b>. Gutshot (sadece bir rank tamamlar, örn. iç boşluk) 4 out → flop'ta 4 × 4 = <b>%16</b>.</div>
+
+<h3>10.4.1 Reveal'de Görünür Kaldıraçlar: 🎲 Çekme · 🃏 Combo — ve Hangi "Kart-Eleme" Güvenilir</h3>
+<p>Canlı koç reveal'i artık masada kafadan yaptığın <b>güvenilir kaldıraçları</b> satır olarak gösterir — gizli hesabı görünür kılar ki sen de aynısını tekrarlayabilesin (kararı değiştirmez, öğretir):</p>
+<ul>
+<li><b>🎲 Çekme satırı:</b> tuttuğun çekmeyi <i>tip + NET-out × çarpan = equity</i> olarak verir, örn. <code>floş-çekme, açık-uçlu ≈16 temiz-out ×4 = %64</code>. <b>KRİTİK:</b> gösterilen out sayısı <b>kirli-out indirimli NET</b> out'tur (eşli board / üst-floş riski düşülmüş) — ham 9+8 değil. Ekrandaki sayı × çarpan = ekrandaki % her zaman; masada birebir tekrarla.</li>
+<li><b>🃏 Combo satırı (yalnız river + heads-up):</b> villain'ın devam-range'inde kaç <b>value</b> / kaç <b>bluff</b> combo var + <b>senin 2 kartının sildiği</b> value/bluff combo, örn. <code>89V/332B, blocker −34V/−7B</code>. Value bloklamak call'a yarar, bluff bloklamak fold'a.</li>
+</ul>
+<div class="keyrule">Hangi "kart-eleme" GÜVENİLİR (kafadan +EV), hangisi GÜRÜLTÜ: <b>Güvenilir →</b> (1) out × 2/4, (2) pot-odds, (3) set-mine implied-odds (≥15-20×), (4) <b>KENDİ 2 kartının</b> blocker etkisi (kesin bilgi), (5) range-okuma ("bu hattı ne oynar"). <b>Gürültü (üzerine EV kurma) →</b> "rakipleri sayıp desteyi yeniden hesaplama / K gelmez çünkü onlarda Kx var": efekt küçük + kartlarını bilmiyorsun. Düşük kartlı out'unun (örn. set için 4'lerin) canlı olduğunu sezmek doğru; ama desteyi ince-hesaplamak dikkatini asıl kaldıraçlardan çalar.</div>
+<div class="why">Neden 🃏 yalnız heads-up + river? Combo/blocker sayımı tek rakibe karşı (devam-range netken) güvenilir; çok-yollu pottta her rakibin ayrı range'i + kartların çakışması sayımı güvenilmez yapar — o yüzden sistem multiway'de bu satırı gizler. Blocker'ın kesinliği de range-okumana KOŞULLU: range yanlışsa V/B sayısı yanıltır.</div>
 
 <h3>10.5 Tek Sayı: eq = strength + 0.45 × draws</h3>
 
@@ -1983,6 +1997,8 @@ Made: sadece ace-high. Ama nut flush draw (9 out) → draws = 0.35. eq = 0.12 + 
 
 
 <p>Dikkat: COMMIT-GATE her zaman <b>en sonda</b>, hamleyi göndermeden hemen önce çalışan son güvenlik kapısıdır. Diğer kurallar "ne yapmak istediğini" söyler; COMMIT-GATE "bu kadar parayı riske atmaya iznin var mı?" diye son kez sorar ve gerekirse hamleyi check/call'a indirir.</p>
+
+<div class="keyrule">Altın kural (river bluff-catch — gereken-blöf% ↔ combo): Pot-odds sana bir <b>gereken-blöf eşiği</b> verir: <b>α = ödeyeceğin ÷ (pot + ödeyeceğin)</b>. Saf matematik "call" dese bile, rakibin devam-range'inde <b>en az %α kadar bluff combo</b> YOKSA call −EV'dir. Yani iki soruyu birlikte sor: (1) pot-odds yüzdem kaç (α)? (2) rakip bu hattı <i>o kadar</i> blöfle oynar mı (range'inde ≥%α bluff var mı)? Reveal'de 🎯 (gereken-blöf%) + 🃏 (gerçek value/bluff combo) satırları tam bunu yan yana koyar — kendi blocker'ın bluff'ları siliyorsa (🃏 −B yüksek) eşik daha da zorlaşır, fold'a yaklaş.</div>
 
 <h3>11.6 Dört Gerçek El: Akışı Baştan Sona Yürütmek</h3>
 
