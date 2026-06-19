@@ -1167,15 +1167,15 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 
 
 <ol>
-  <li><b>Puanı hesapla:</b> İki kartı topla (SHCP). Suited/connector/pair primlerini ekle. Örneğin A9s = A(10)+9(3)+suited(4)+As-flush-blocker(2)+gap... → bir sayı çıkar.</li>
+  <li><b>Puanı hesapla:</b> İki kartı topla (SHCP). Suited/connector/pair primlerini <i>ve gap cezasını</i> ekle. Örneğin A9s = A(10)+9(3)+suited(4)+As-flush-blocker(2)−gap(2) = <b>17</b> → bir sayı çıkar. (Dikkat: A ile 9 arası geniş olduğu için −2 gap cezası var; As-blocker +2'yi tam götürür.)</li>
   <li><b>Pozisyon eşiğini bul:</b> Hangi koltuktasın? UTG=15, MP=14, CO=11, BTN=8... Bu tablo ezberin olmalı.</li>
   <li><b>Eşiği düzelt (varsa):</b> Stack ≤40bb ise eşik +1 (biraz daha sıkı). ICM baskısı (turnuva, elenme pahalı) varsa eşik +1.</li>
   <li><b>Karşılaştır:</b> Puan ≥ düzeltilmiş eşik → <b>AÇ</b>. Puan < eşik → <b>FOLD</b>.</li>
 </ol>
 
-<div class="example">Örnek (tam zincir): Elin A9s, pozisyon CO, stack 100bb, cash oyun. Puan ≈ 10+3+4+2 = 19 (suited As primi dahil). CO eşiği 11. Düzeltme yok (derin stack, ICM yok). 19 ≥ 11 → AÇ. Şimdi aynı el, aynı CO, ama 30bb turnuva, bubble baskısı var: eşik 11 + derinlik(1) + ICM(1) = 13. 19 ≥ 13 → yine AÇ. El güçlü olduğu için her iki durumda da geçer; ama sınırdaki bir el (puanı 12 olan) cash'te açılırken (12≥11), bubble'da fold'a düşerdi (12 < 13). Eşiğin kayması kararı tam burada değiştirir.</div>
+<div class="example">Örnek (tam zincir): Elin A9s, pozisyon CO, stack 100bb, cash oyun. Puan = 10+3+4+2−2 = 17 (suited As primi +2, ama A-9 arası geniş → gap cezası −2; ikisi birbirini götürür). CO eşiği 11. Düzeltme yok (derin stack, ICM yok). 17 ≥ 11 → AÇ. Şimdi aynı el, aynı CO, ama 30bb turnuva, bubble baskısı var: eşik 11 + derinlik(1) + ICM(1) = 13. 17 ≥ 13 → yine AÇ. El güçlü olduğu için her iki durumda da geçer; ama sınırdaki bir el (puanı 12 olan) cash'te açılırken (12≥11), bubble'da fold'a düşerdi (12 < 13). Eşiğin kayması kararı tam burada değiştirir.</div>
 
-<div class="icm">ICM karşılığı: <span class="term"><b>ICM</b> (Independent Chip Model — bağımsız çip modeli)</span> baskısı altında eşiği +1 kaydırmak, "elenmenin pahalı olduğu yerde daha az el oyna" demektir. Burada da puana hiçbir şey eklenmez; A9s yine 19'dur. Sadece o 19'u aşması gereken çizgi yukarı kayar. Bu, sistemin tutarlılığını korur: equity ekseni dokunulmazdır, ICM yalnızca eşiği iter.</div>
+<div class="icm">ICM karşılığı: <span class="term"><b>ICM</b> (Independent Chip Model — bağımsız çip modeli)</span> baskısı altında eşiği +1 kaydırmak, "elenmenin pahalı olduğu yerde daha az el oyna" demektir. Burada da puana hiçbir şey eklenmez; A9s yine 17'dir. Sadece o 17'yi aşması gereken çizgi yukarı kayar. Bu, sistemin tutarlılığını korur: equity ekseni dokunulmazdır, ICM yalnızca eşiği iter.</div>
 
 <h3>6.8. Özet: Tek Cümlede Pozisyon</h3>
 
@@ -1335,6 +1335,8 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 <div class="example">El 3 — <code>22</code> (puan 16), CO, önünde MP açtı. CO eşikleri call 10, 3-bet 16. 16 ≥ 16 → eşiğe değiyor. Burada dikkat: küçük çiftlerin asıl kârı <span class="term"><b>set-mining</b> (ucuza flop görüp set/üçlü yapma umudu)</span> — value 3-bet edip 4-bet yerseniz set yapma şansını kaybedersiniz. Pratikte 22'yi çoğu spotta CALL şeridinde tutarsın; sınır eli olduğu için derin stack'te call, sığ stack'te (set-mining odds bozulunca) fold daha doğru. Sistem ham puanla 3-bet eşiğine taşısa da, set-mining sezgisi bu sınır elini call'a çeker.</div>
 
 <div class="example">El 4 — <code>87s</code> (puan 10), UTG, önünde UTG+1 açtı. UTG eşikleri call 13, 3-bet 18. 10 &lt; 13 → <b>FOLD</b>. Aynı 87s BB'de (call eşiği 6) call edilirdi — 10 ≥ 6. AYNI EL, en erken pozisyonda çöp, BB'de savunulabilir. Puan sabit (10), eşik pozisyonla uçuyor.</div>
+
+<div class="keyrule">Altın kural (spekülatif el vs-açış, pozisyon overlay): Suited-connector (98s), küçük çift, suited-Ax gibi spekülatif eller önünde açış varken <b>ASLA 3-bet etmez</b> (puan&lt;16 + blocker yok → ne value ne temiz-blöf). Karar yalnız <b>CALL mı FOLD mu</b>: <b>IP (CO/BTN)</b> → call (pozisyonda equity-realize + set/floş implied-odds), <b>OOP (özellikle SB)</b> → fold (OOP realize kötü, dominate/squeeze riski). Aynı el BB'de bedava-flop opsiyonuyla daha geniş savunulur. Üç filtre sırayla: (1) puan ≥ 3bet eşiği? hayır → (2) puan ≥ call eşiği? hayır → fold; evet → (3) pozisyon IP mi? evet → call, OOP → çoğu spotta fold.</div>
 
 <h3>7.6 Stack ve ICM Düzeltmeleri</h3>
 
@@ -1703,6 +1705,26 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 <div class="note">Not: İki örnek de aynı dersi farklı açıdan veriyor — <b>el gücü sabittir, stack derinliği yalnızca karar eşiğini ve oyun modunu seçer.</b> 22'yi "set-mine et / all-in git" diye, A5s'i "aç / it" diye değiştiren tek şey önündeki çip yüksekliğidir. Bu, masada her el başında kafanda yapacağın iki-saniyelik bir kontroldür: (1) puanım kaç? (2) hangi derinlik bölgesindeyim? — sonra doğru eşik/mod kendiliğinden gelir.</div>
 
 
+
+<h3>9.6 Çok-Derin Stack (150bb+): Ters Yön</h3>
+<p>Sistem 100bb'ye kalibre; sığlaştıkça eşik +1/+2 (yukarıda). Peki <b>çok-derin</b> (150-300bb, derin cash) tarafta ne olur? Kural simetrik değil — derinde implied-odds <b>artar</b> ama reverse-implied-odds da artar. İki ayar:</p>
+<ul>
+<li><b>Spekülatif elleri POZİSYONDA biraz daha geniş oyna.</b> Suited-connector, küçük çift, suited-Ace gibi "set/floş/düz yaparsam koca pot kazanırım" elleri derinde daha değerli (ödül büyür). Eşiği IP'de hafifçe gevşet — ucuza çok flop gör.</li>
+<li><b>Koca potu SADECE nut/premium ile kur.</b> Top-pair / tek-overpair derinde <b>reverse-implied-odds</b> kaybeder: 200bb'yi top-pair'le ortaya koyarsan rakip ancak seni döven elle (set/two-pair/üst-kicker) yığını şişirir. Derinde büyük potlar nut'a doğru polarize olmalı.</li>
+</ul>
+<div class="keyrule">Altın kural (çok-derin): <b>"Ucuza çok flop gör, koca potu sadece nut'la kur."</b> Derinlik spekülatif elin <i>girişini</i> ucuzlatır (implied-odds), ama marjinal made-hand'in <i>büyük-pot değerini</i> düşürür (reverse-implied). Sığda tam tersi: az flop gör, made-hand'le hızlı commit et.</div>
+
+<h3>9.6.5 Raise-Boyutu → Eşik Kayar (implied-odds kuralı)</h3>
+<p>Önündeki raise ne kadar BÜYÜKSE, devam etmen o kadar SIKILAŞMALI. Sebep: spekülatif eller (suited-connector, küçük çift) <b>direkt pot-odds'a hiç sahip değildir</b> — bunları yalnızca <b>implied odds</b> (sonra kazanacağın) + pozisyon için ödersin. Büyük raise hem hemen daha pahalıdır hem de arkadaki implied-odds tabanını küçültür.</p>
+<div class="keyrule">Altın kural (set-mine/spekülatif call): <b>"Kalan stack ÷ ödeyeceğin ≥ ~15-20× olsun"</b> — yoksa spekülatif eli bırak. (Set ~%12 gelir; yığını alabilmen için bu kat şart.) Büyük raise → call eşiğini ~1 yukarı it.</div>
+<table class="tbl">
+  <thead><tr><th>Raise / Stack</th><th>40bb</th><th>60bb</th><th>100bb</th><th>200bb</th></tr></thead>
+  <tbody>
+    <tr><td><b>3bb açış</b> (kalan ÷ 3)</td><td>~12× sınırda</td><td>~19× ✓</td><td>~32× ✓✓</td><td>~65× ✓✓</td></tr>
+    <tr><td><b>5bb açış</b> (kalan ÷ 5)</td><td>~7× ✗</td><td>~11× sınırda</td><td>~19× ✓</td><td>~39× ✓✓</td></tr>
+  </tbody>
+</table>
+<p class="why">Okuma: ✓ = set-mine/spekülatif call'a implied-odds yeter; ✗ = yetmez, bırak. 40bb'de 5bb'lik açışa küçük çiftle set-mine etme (7× &lt; 15×, derinlik yok). 100bb+'da 3bb açışa bol bol uygundur. Bu, "büyük raise = tighter" kuralının somut tablosudur.</p>
 
 <h3>9.7 Bölüm Özeti</h3>
 
@@ -2428,6 +2450,17 @@ Made: sadece ace-high. Ama nut flush draw (9 out) → draws = 0.35. eq = 0.12 + 
 <tr><td>Yüksek (8+)</td><td>Derin cash</td><td>Çok sokak, set/nut avı</td><td>Spekülatif eller değerli; üst-eşik gücü gerekir</td></tr>
 </tbody>
 </table>
+
+<p><b>Dikkat — SPR yalnız pot-tipine değil, DERİNLİĞE de bağlıdır.</b> Yukarıdaki "4-6 = standart tek-raise pot" satırı ~40bb (turnuva ortası) içindir. 100bb derin cash'te <i>aynı</i> tek-raise pot SPR ~14-16'dır (yüksek!). Yani "tek-raise pot = SPR 5" ezberi yanlış; doğru hesap derinlik × pot-tipidir:</p>
+<table class="tbl">
+<thead><tr><th>Pot tipi (flop SPR)</th><th>40bb</th><th>100bb</th><th>200bb</th></tr></thead>
+<tbody>
+<tr><td><b>Tek-raise (SRP)</b></td><td>~5-6</td><td>~14-16</td><td>~30</td></tr>
+<tr><td><b>3-bet pot</b></td><td>~1.5-2</td><td>~5</td><td>~10</td></tr>
+<tr><td><b>4-bet pot</b></td><td>commit (≈0)</td><td>~2</td><td>~4</td></tr>
+</tbody>
+</table>
+<div class="why">Hesap (kafadan, flop anında BİR KEZ): <b>SPR = arkandaki yığın ÷ ortadaki pot.</b> Aynı 3-bet pot 40bb'de SPR ~2 (top-pair'le commit), 200bb'de SPR ~10 (top-pair'le commit ETME) — pot-tipi aynı, derinlik kararı çevirir. Bu yüzden masada önce "hangi pot tipindeyim + ne derindeyim?" diye sor, SPR'yi oradan oku; sonra commit-gate'i uygula.</div>
 
 <div class="keyrule">Altın kural — COMMIT-GATE (_COMMIT_FRAC=0.70): Yığınının %70'ini riske atan bir bahse/raise'e SADECE el-gücü ≥ 0.60 (top-2/iyi overpair+) VEYA çekiş ≥ 0.30 (flush/OESD) ile gir. Düşük SPR'de bu eşik daha kolay tetiklenir (pot zaten büyük); yüksek SPR'de aynı kural seni çöple stack-off etmekten korur. Bu kural sistemin en çok kazandıran tek kuralıdır.</div>
 
