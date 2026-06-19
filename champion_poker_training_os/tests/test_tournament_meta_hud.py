@@ -58,6 +58,25 @@ def test_avg_stack_is_in_bb_and_sensible():
     s._end_and_restart()
 
 
+def test_avg_stack_matches_field_model_late_stage():
+    """D277 (kullanıcı yakaladı: 10/200 BB3000'de avg '13bb' ama hero 52bb): çok-masa
+    avg, saha-modeli mtt_field.avg_stack_chips (10.000/oyuncu, refill de bunu kullanır)
+    ile TUTARLI olmalı — config.starting_chips (UI default 2000) ile ÇELİŞİP 13bb verme."""
+    s = _started_screen()
+    mf = s.mtt_field
+    mf._bg = {"weak": 0, "mid": 1, "strong": 1}   # arka plan 2
+    mf._hero_table_remaining = 8                    # → 10 kaldı
+    st = s.tournament.state
+    st.level_idx = min(13, len(st.levels) - 1)      # ~L14 (BB yüksek)
+    s._refresh_table()
+    bb = st.current_level.bb
+    expected = round(mf.avg_stack_chips / bb)
+    shown = round(float(s.meta_cells["AVG"]._value_label.text().replace("bb", "").strip()))
+    assert shown == expected, f"avg {shown}bb ≠ saha-modeli {expected}bb (çip-ölçek tutarsız)"
+    assert shown > 13, f"avg {shown}bb — eski config.starting_chips bug'ı (13bb) geri geldi"
+    s._end_and_restart()
+
+
 def test_field_strip_shows_table_playstyle():
     s = _started_screen()
     strip = s._fs_label.text()

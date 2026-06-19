@@ -1134,10 +1134,14 @@ class TournamentSimulatorScreen(QWidget):
         self.meta_cells["NEXT_LVL"]._sub_label.setText("hands to next level")
 
         # Ortalama stack: MTT'de = oyundaki TOPLAM çip / kalan oyuncu (çip korunur,
-        # alan küçüldükçe avg yükselir). Eskiden hero MASASININ çiplerini tüm SAHA
-        # sayısına bölüyordu → 4bb gibi saçma değer. Tek-masa modunda gerçek masa.
+        # alan küçüldükçe avg yükselir). Tek-masa modunda gerçek masa.
+        # FIX (kullanıcı yakaladı: avg 13bb ama hero 52bb): saha SAHNESİ mtt_field'ın
+        # 10.000/oyuncu ölçeğinde dağıtılır (avg_stack_chips — refill/rebalance de bunu
+        # kullanır, satır ~1676). config.starting_chips (UI default 2000) bu ölçekle
+        # ÇELİŞİYOR → avg'ı saha-modeli yerine 2000-bazlı 13bb gösteriyordu. Tek otoriter
+        # kaynak = mtt_field.avg_stack_chips (blind yapısı + dağıtılan yığınlarla tutarlı).
         if self.mtt_field and self.mtt_field.field_size > 9:
-            avg = int(config.starting_chips * total / max(remaining, 1))
+            avg = int(self.mtt_field.avg_stack_chips)
         else:
             avg = int(sum(p.stack for p in game.players if not p.is_eliminated)
                       / max(remaining, 1))
