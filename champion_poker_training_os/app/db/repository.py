@@ -1072,6 +1072,11 @@ _SOYRAC_LEAK_META = {
     "Sapma: sen R, Soyrac C": {
         "name": "Raise-yerine-flat ters çevirme", "category": "Preflop",
         "fix": "Set-miner/connector'ı raise'e çevirme → flat (ucuz flop). Agresyon value-3bet + steal'de. (Böl.26.1)"},
+    # NOT (D281 değerlendirme): "sen C, Soyrac R/F" (call-yerine-raise / gevşek-call),
+    # "sen F, Soyrac C" ve "çok sıkı" KASITLI eşlenmedi — bunlar en DÜŞÜK bust-paylı
+    # (%15-22) +EV DOKUNUŞLAR (D238), leak DEĞİL. Soft sahada call'a sapmak +EV-max'tır
+    # (Soyrac = referans, hedef değil). Gerçek -EV leak'ler yüksek-bust olanlar: over-defend
+    # / geniş-açış / R→C-spew / 3bet-over-call (yukarıda eşli → Leak Finder zaten gösteriyor).
 }
 
 
