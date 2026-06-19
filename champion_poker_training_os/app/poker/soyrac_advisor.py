@@ -297,19 +297,26 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         # kötüleşir → SADECE UTG/MP). value4/bluff4 DEĞİŞMEZ. ADVICE-only (fidelity 0).
         if not bot_mode and not hu and pos in ("UTG", "MP"):
             flat_t += 2
-        if bot_mode or stack_bb <= 45:
-            # BOT (her stack) + sığ advice: geniş value-4bet. Bot için cash-optimal —
-            # GTO-doğru daraltma (derin çift→CALL) botu −16bb/100 düşürdü (D184 emsali,
-            # paired); zayıf sahada agresif 4-bet +EV. Sığ'da GTO de geniş (merged).
-            v4_t = 23 + icm_adj
+        if bot_mode:
+            # BOT (her stack): geniş value-4bet — cash-optimal, GTO-doğru daraltma botu
+            # −16bb/100 düşürdü (D184 emsali). DOKUNMA (fidelity 0 + sim-paired).
             # D209 Fix4: premium blocker (QQ+/AK, b4≥2) sığda KOŞULSUZ value-4bet.
-            # AKo skor 21 < 23 idi → CALL'a düşüyordu (bug); sığ 3bet'e karşı AKo jam'dir.
+            v4_t = 23 + icm_adj
             value4 = (score >= v4_t) or (b4 >= 2 and stack_bb <= 45)
+        elif stack_bb <= 25:
+            # ADVICE çok-sığ (≤25bb, jam-or-fold): 4-bet = JAM, post-flop yok → GTO merged
+            # geniş value-jam. 88+/AQs/AKo/wheel-ace fold-equity+caller'a-equity ile +EV jam.
+            v4_t = 23 + icm_adj
+            value4 = (score >= v4_t) or (b4 >= 2)
         else:
-            # ADVICE + derin (>45bb): GTO polarize → SADECE QQ+/AKs value-4bet (b4≥2);
-            # JJ-TT-99-88 set-mine için CALL (pair-ladder spew'ünü kapat, A2/A7).
+            # D276 (kullanıcı 88'i 39bb'de yakaladı): ADVICE orta-derin (>25bb) — 4bet-call vs
+            # call AYRIMI VAR → polarize. Pair-ladder (16+2×rank) orta çiftleri (66-TT skor
+            # 24-32) + AQs'i şişirip GATE'siz 4bet-JAM ettiriyordu = DOMINATED spew. vs-3bet
+            # ekseni EQ DEĞİL, BLOKER+DOMİNASYON (verify_blocker_vs3bet) → GTO-teyit: 88/99/
+            # AQs raise%0-call%50-85, TT/JJ call-lean. GATE b4≥2 (=QQ+/AK + wheel-ace blöf);
+            # 66-TT/JJ/AQs → CALL (set-mine/realize). v4_t derin'de yüksek (27) kalır.
             v4_t = 27 + icm_adj
-            value4 = (score >= v4_t) and (b4 >= 2)
+            value4 = (b4 >= 2)
         bluff4 = (b4 >= 2 and stack_bb >= 46)   # D209 Fix13: 46-59bb ölü-bölge kapat (AKo/wheel)
         if value4 or bluff4:
             act = "4-BET"
