@@ -228,6 +228,7 @@ def _play_hand(stacks, archs, sb, bb, button, soyrac_seat=0):
 # ── SNG (9-max tek masa turnuva) ─────────────────────────────────────
 # FIX: TEK kalıcı oyun → buton doğal döner + eleme oyun-içi (is_eliminated).
 def run_sng(opponents, seed):
+    import random as _rnd; _rnd.seed(seed)      # D286: deck deterministik (eski: seed ölüydü)
     names = ["Soyrac"] + list(opponents)        # seat0 = Soyrac
     n = len(names)
     gl = PokerGame(num_players=n, starting_stack=1500, small_blind=10, big_blind=20,
@@ -276,6 +277,7 @@ def run_sng(opponents, seed):
 # rotasyon yapar). Eskiden her el fresh oyun = hep "hand 1" = dealer hep seat0
 # = Soyrac hep BTN sanılıyordu → erken pozisyonda aşırı geniş oynayıp spew.
 def run_cash(opponents, hands_n, seed=0):
+    import random as _rnd; _rnd.seed(seed)      # D286: deck deterministik (eski: seed ölüydü)
     names = ["Soyrac"] + list(opponents)
     n = len(names)
     sb, bb, stack = 0.5, 1.0, 100.0

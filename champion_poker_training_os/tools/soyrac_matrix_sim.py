@@ -38,6 +38,7 @@ def field_strong_frac(field: list) -> float:
 
 def cash_table(opponents, hands_n, seed, stack_bb):
     """run_cash'in stack-parametreli hali (masa-boyutu = 1+len(opponents))."""
+    random.seed(seed)   # D286: deck shuffle global random kullanır → seed'le DETERMİNİSTİK
     names = ["Soyrac"] + list(opponents)
     n = len(names)
     sb, bb, stack = 0.5, 1.0, float(stack_bb)
@@ -72,9 +73,9 @@ def cash_table(opponents, hands_n, seed, stack_bb):
 
 def main():
     t0 = time.time()
-    hands = 250 if FAST else 500
-    seeds = 3 if FAST else 5
-    sng_n = 10 if FAST else 20
+    hands = 250 if FAST else 800
+    seeds = 3 if FAST else 8
+    sng_n = 10 if FAST else 40
     table_sizes = {"HU(2)": 1, "6-max(6)": 5, "9-max(9)": 8}
     stacks = [40, 100, 200]
     results = {"meta": {"hands_per_cell": hands, "seeds": seeds, "sng_per_cell": sng_n,
