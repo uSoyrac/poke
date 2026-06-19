@@ -155,11 +155,30 @@ def _threshold_count_line(b: dict) -> str:
     return " · ".join(parts) + f" → efektif eşik {b.get('effective', 0)}"
 
 
+def _committed_opponents(hand, hero_idx) -> int:
+    """Çok-yollu pot sinyali (kullanıcı içgörüsü D278): açış raise-level'ini MATCHLEMİŞ
+    (gönüllü giren = açan + call'layanlar) foldlanmamış RAKİP sayısı. ≥2 → zaten çok-yollu
+    (hero girince 3-4 yollu). Henüz aksiyon almamış FORCED körler max_bet>bb şartıyla elenir
+    (n_active onları sayıyordu → temiz değildi). 3-bet pot'ta 3bet'i matchlemeyen açan da
+    sayılmaz → sadece gerçekten o seviyede DEVAM EDEN rakipler."""
+    try:
+        bb = float(getattr(hand, "big_blind", 1.0) or 1.0)
+        live = [(i, p) for i, p in enumerate(hand.players)
+                if not getattr(p, "is_folded", False) and not getattr(p, "is_eliminated", False)]
+        max_bet = max((float(getattr(p, "current_bet", 0) or 0) for _, p in live), default=0.0)
+        if max_bet <= bb:        # raise yok (limp/walk) → pot-şişirme riski yok
+            return 0
+        return sum(1 for i, p in live
+                   if i != hero_idx and float(getattr(p, "current_bet", 0) or 0) >= max_bet - 1e-9)
+    except Exception:
+        return 0
+
+
 def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                   vs_position: str = "", stack_bb: float = 100,
                   icm: bool = False, n_active: int = 9, tourney: bool = False,
                   bot_mode: bool = False, stage: str = "",
-                  avg_stack_bb: float = 0.0) -> dict:
+                  avg_stack_bb: float = 0.0, n_committed: int = 0) -> dict:
     """SENİN elin için masada-yapılabilir değerlendirme → {score, action, line, ...}.
 
     n_active<=2 → HEADS-UP modu: range'ler çok genişler (HU'da BTN/SB ~%85 açar,
@@ -179,6 +198,10 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
     # (ayrı dal, D177 Nash). İNSAN-DENKLEMİ: derin=baz, sığlaştıkça +1/+2.
     deep_adj = 2 if stack_bb <= 25 else (1 if stack_bb <= 40 else 0)
     hu = n_active <= 2
+    # ÇOK-YOLLU POT-ŞİŞİRME (D278, kullanıcı içgörüsü): açan + ≥1 call (n_committed≥2)
+    # → hero girince 3-4 yollu. Orta/küçük çiftle set olmadan kazanmak çok-yollu çok zor
+    # (biri broadway tutar, ortak kartlarda yakalar) + blöf fold-equity'si çöker.
+    _multiway_pre = n_committed >= 2
     # TURNUVA SIKILAŞTIRMA (D173 POZİSYON-DUYARLI): erken pozisyon SIKI (survival,
     # reload yok), GEÇ pozisyon (CO/BTN/SB) SIKMA — turnuvada steal +EV (blind'lar
     # değerli). Eski düz +2 over-tight'tı (gerçek-oyun post-mortem: VPIP %13.6, steal
@@ -408,6 +431,19 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                 _b4_blocker(hand_key) >= 2:
             act = "3-BET"
             bluff3 = " (blocker blöf)"
+        # ÇOK-YOLLU DİSİPLİN (D278, kullanıcı içgörüsü: "3-4 kişi pota girince QQ/JJ-altı
+        # çiftle set olmadan kazanmak çok zor → büyük call/3-4bet olmamalı"). Açan+≥1 call
+        # (multiway) → ORTA/KÜÇÜK ÇİFT (≤TT) ile pot ŞİŞİRME: 3-BET → ucuz set-mine FLAT
+        # (çok-yollu implied-odds İYİ — çok ödeyen var; isole edip OOP pot şişirmek -EV).
+        # Blöf-3bet (blocker) → İPTAL (çok-yollu fold-equity yok). JJ+/QQ+ (index≥9) DOKUNULMAZ.
+        if _multiway_pre and act == "3-BET":
+            _is_pair = len(hand_key) == 2 and hand_key[0] == hand_key[1]
+            if _is_pair and "23456789TJQKA".index(hand_key[0]) <= 8:
+                act = "CALL"
+                bluff3 = " (çok-yollu — set-mine, pot şişirme yok)"
+            elif bluff3 == " (blocker blöf)":
+                act = "CALL" if score >= call_t else "FOLD"
+                bluff3 = " (çok-yollu — blöf-3bet iptal, fold-equity yok)"
         # RE-SHOVE devamı (D244): sığ-OOP (blind, 15-18bb) açışa karşı FLAT YOK →
         # jam-or-fold. D243 <15bb OOP'yi jam-or-fold yapar; 15-18bb'de bu dal flat'e
         # izin veriyordu = SÜREKSİZLİK (14bb jam-or-fold ama 16bb flat). Flat-OOP sığ
@@ -494,7 +530,8 @@ def advice_from_hand(hand, hero_idx: int, stack_bb: float = 100,
                              scenario=getattr(adv, "scenario_key", "RFI") or "RFI",
                              vs_position=getattr(adv, "vs_position", "") or "",
                              stack_bb=stack_bb, icm=icm, n_active=n_active or 9,
-                             tourney=tourney, bot_mode=False)
+                             tourney=tourney, bot_mode=False,
+                             n_committed=_committed_opponents(hand, hero_idx))
     except Exception:
         return None
 
@@ -645,8 +682,10 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
                     "icm_guidance": _ftg,
                     "field_exploit": _fexp,
                 }
+    _ncom = _committed_opponents(hand, hero_idx) if (hand is not None and hero_idx is not None) else 0
     base = soyrac_advice(hand_key, position, scenario=scenario, vs_position=vs_position,
-                         stack_bb=stack_bb, icm=icm, n_active=n_active, tourney=tourney)
+                         stack_bb=stack_bb, icm=icm, n_active=n_active, tourney=tourney,
+                         n_committed=_ncom)
     action = base.get("action", "FOLD")
     score = base.get("score")
     pos = (position or "BTN").upper()
