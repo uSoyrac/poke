@@ -196,12 +196,34 @@ def _limpers_before_hero(hand, hero_idx) -> int:
         return 0
 
 
+def _limpers_before_raiser(hand, hero_idx) -> int:
+    """Squeeze-farkındalık (D298): hero'dan önce İLK RAISE'den ÖNCE gönüllü LIMP (call) sayısı =
+    pottaki ölü-para. vs-RFI branch'inde n_squeeze≥1 → SQUEEZE spot'u (limper(ler)+açan+hero):
+    cold-call flat multiway/inisiyatifsiz/çoğu OOP → −EV → squeeze-or-fold lean (flat sıkılaştır).
+    _limpers_before_hero'dan FARK: raise olsa bile raise-ÖNCESİ limp'leri sayar (ölü-para)."""
+    try:
+        from app.engine.hand_state import ActionType, Street
+        n = 0
+        for a in getattr(hand, "actions", []) or []:
+            if getattr(a, "street", None) != Street.PREFLOP:
+                continue
+            if a.player_idx == hero_idx:
+                break                                    # hero'ya kadar
+            if a.action_type in (ActionType.RAISE, ActionType.ALL_IN, ActionType.BET):
+                break                                    # ilk raise → limp sayımı biter
+            if a.action_type == ActionType.CALL:
+                n += 1                                   # raise-öncesi gönüllü limp (ölü-para)
+        return n
+    except Exception:
+        return 0
+
+
 def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                   vs_position: str = "", stack_bb: float = 100,
                   icm: bool = False, n_active: int = 9, tourney: bool = False,
                   bot_mode: bool = False, stage: str = "",
                   avg_stack_bb: float = 0.0, n_committed: int = 0,
-                  n_limpers: int = 0) -> dict:
+                  n_limpers: int = 0, n_squeeze: int = 0) -> dict:
     """SENİN elin için masada-yapılabilir değerlendirme → {score, action, line, ...}.
 
     n_active<=2 → HEADS-UP modu: range'ler çok genişler (HU'da BTN/SB ~%85 açar,
@@ -449,6 +471,19 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
             _o = "23456789TJQKA"
             if _r1 in ("A", "K") and _r2 in _o and _o.index(_r2) <= 2:   # A2s-A4s / K2s-K4s
                 call_t += 2
+        # D298 (audit yakaladı: squeeze spot'u "vs RFI" sanılıyordu, ölü-para kör): limper(ler)
+        # + açan varken hero (n_squeeze≥1, bu branch = raise var) = SQUEEZE. Cold-call flat
+        # multiway + inisiyatifsiz + sık-OOP + arkadaki limper'lar uyanabilir → −EV. Squeeze-or-
+        # fold lean: FLAT'i sıkılaştır (call_t+2 → marjinal flat'ler FOLD), value-3bet (squeeze)
+        # ölü-parayla zaten kârlı → KALIR (daha büyük sizing'le). Multiway-disiplini (D278) +
+        # kullanıcı tezi ("multiway büyük call olmamalı") ile tutarlı. ADVICE-only (fidelity 0).
+        # STACK-GATE (A/B kanıtı): squeeze-fold yalnız SIĞ (≤50bb) +EV (40bb orta +5/soft +15).
+        # DERİN'de (100bb) IP spekülatif cold-call implied-odds'a sahip (set/pozisyon) → flat-fold
+        # −EV (orta −13) → derin'de DOKUNMA. (Thread-A set-mine emsali: disiplin sığ'da, derin'de
+        # implied-odds flati haklı kılar.) D259 sığ-flat-daraltmasına EK (squeeze daha kötü spot).
+        _squeeze = (not bot_mode and not hu and n_squeeze >= 1 and stack_bb <= 50)
+        if _squeeze:
+            call_t += 2
         act = "3-BET" if score >= raise_t else ("CALL" if score >= call_t else "FOLD")
         # D234 (kullanıcı yakaladı + GTO-teyit): KÜÇÜK ÇİFT (22-44) açışa 3-BET DEĞİL FLAT.
         # SHCP pariteyi şişirir (33=18 ≥ 3bet-eşiği) → tüm çiftleri 3bet ettiriyordu. Ama
@@ -506,10 +541,12 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                 and pos in ("BB", "SB") and 15 <= stack_bb <= 18:
             act = "JAM"
             bluff3 = " (sığ-OOP re-shove, flat yok)"
+        _sq = (f" · 🎯 SQUEEZE ({n_squeeze} limper+açan: ölü-para → 3bet-or-fold, flat sıkı +2)"
+               if _squeeze else "")
         return {"score": score, "call_t": call_t, "raise_t": raise_t,
                 "action": act, "scenario": "vs RFI",
                 "size": _preflop_size(act, pos, stack_bb, bool(tourney), hu),
-                "line": f"🧮 SHCP {score} · {pos}{' HU' if hu else ''} call≥{call_t}/3bet≥{raise_t} → {act}{bluff3}"}
+                "line": f"🧮 SHCP {score} · {pos}{' HU' if hu else ''} call≥{call_t}/3bet≥{raise_t} → {act}{bluff3}{_sq}"}
 
     # RFI (açış) — pozisyon eşiği (puana eklenmez); HU'da çok düşük (geniş aç)
     # MASA-BOYUTU (D180): kısa masada ERKEN pozisyonlar daha az kişiyle karşılaşır →
@@ -599,7 +636,8 @@ def advice_from_hand(hand, hero_idx: int, stack_bb: float = 100,
                              stack_bb=stack_bb, icm=icm, n_active=n_active or 9,
                              tourney=tourney, bot_mode=False,
                              n_committed=_committed_opponents(hand, hero_idx),
-                             n_limpers=_limpers_before_hero(hand, hero_idx))
+                             n_limpers=_limpers_before_hero(hand, hero_idx),
+                             n_squeeze=_limpers_before_raiser(hand, hero_idx))
     except Exception:
         return None
 
@@ -807,6 +845,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
     _hashand = (hand is not None and hero_idx is not None)
     _ncom = _committed_opponents(hand, hero_idx) if _hashand else 0
     _nlimp = _limpers_before_hero(hand, hero_idx) if _hashand else 0
+    _nsq = _limpers_before_raiser(hand, hero_idx) if _hashand else 0
     # D285 (eval-army yakaladı): soyrac_explain stage/avg_stack_bb'yi guidance'a veriyordu
     # ama base KARAR'a GEÇMİYORDU → push/fold & jam dalları cube_pressure'ı stage=''→'bubble'
     # ile hesaplıyor → FT/satellite'te panel "take-point yükseldi" der ama eşik bubble-seviyesi
@@ -814,7 +853,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
     # (cube_pressure yalnız tourney+icm push/fold/jam dallarında çağrılır).
     base = soyrac_advice(hand_key, position, scenario=scenario, vs_position=vs_position,
                          stack_bb=stack_bb, icm=icm, n_active=n_active, tourney=tourney,
-                         n_committed=_ncom, n_limpers=_nlimp,
+                         n_committed=_ncom, n_limpers=_nlimp, n_squeeze=_nsq,
                          stage=stage, avg_stack_bb=avg_stack_bb)
     action = base.get("action", "FOLD")
     score = base.get("score")
