@@ -1315,6 +1315,11 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 
 <div class="keyrule">Altın kural: Orta-güçlü elleri (call ve 3-bet eşiği arasındakileri) CALL et, 3-BET'leme. 3-bet, ya çok güçlü (value) ya stratejik blocker'lı (bluff) ellere ayrılmıştır. Ortayı 3-bet'lemek "ters seçim"dir — sadece seni döven eller call eder, dövdüklerin fold eder.</div>
 
+<h4>7.4.1 AÇAN-pozisyonu da önemli: ERKEN-sıkı açışa karşı 3-bet'i DARALT</h4>
+<p>Tek bir SHCP puanı, açışa karşı 3-bet kararı için yeterli değildir — çünkü <b>kime karşı</b> 3-bet ettiğin de equity'ni belirler. SHCP <code>QJs</code> (18) ile <code>AQo</code> (18) aynı puanı verir; ama bir <b>UTG/UTG+1 (erken, sıkı)</b> açışına karşı QJs değer-3-bet'idir, AQo ise <b>dominated FLAT</b>tır (rakibin range'i AK/AQ/QQ+ ağırlıklı → AQo'yu döver, fold-equity de yok). Puan-eşiği bu suited/offsuit farkını göremez → erken-açışa karşı 3-bet'i puana değil <b>değer-setine</b> kilitle:</p>
+<div class="keyrule">Altın kural (vs ERKEN açış — UTG/UTG+1): 3-BET yalnız <b>değer-seti</b> = (a) <b>66+</b> çift, (b) <b>suited & SHCP≥18</b> (= QJs, KJs, ATs, KQs, AJs, AQs, AKs), (c) <b>AKo</b>. Gerisi — offsuit-broadway (AQo/KQo/AJo), zayıf-suited (KTs/A9s/QTs/JTs), küçük çift (55) — puanı eşiği geçse bile <b>CALL</b> (dominated, set-mine/realize). Wheel-As (A5s-A2s) erken-açışa karşı 3-bet-blöf DEĞİL (GTO call). <i>Geç açışa</i> (CO/BTN/SB) karşı 3-bet geri genişler (blocker-blöf dahil). Bu ayrım gerçek GTO motoruyla birebir doğrulandı.</div>
+<div class="why">Neden? Erken pozisyon dar/güçlü açar → ona karşı flat-3bet bandın (AQo/KQo gibi) dominated: 3-bet'lersen yalnız seni döven eller (AK/AQ/QQ+) devam eder, dövdüklerin atar = ters seçim + fold-equity yok = para yakar. QJs/suited-broadway ise tutunca daha temiz (düz/floş + dominate kırma) → değer-3bet kalır. Geç açana karşı range zayıflar → 3-bet (value+blöf) yeniden açılır.</div>
+
 
 
 <h4>3-BET neyle yapılır? value + blocker-bluff</h4>
