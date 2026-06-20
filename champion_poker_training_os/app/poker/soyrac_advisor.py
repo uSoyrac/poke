@@ -248,6 +248,10 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         # bot eski davranışta kalır → fidelity 0-sapma (D184/D234/D236 emsali).
         _vs_open = ("rfi" in sc or "açış" in sc) and "3-bet" not in sc and "3bet" not in sc
         if _vs_open and not bot_mode:
+            # RE-SHOVE: SHCP-eşiği KORUNDU. D288'de membership (call_vs_jam×1.5) denendi →
+            # deterministik SNG A/B'de soft-saha ITM %55→%50 düştü (1.5× widen aggression'ı
+            # bozdu) → "kazanmazsa geri al" → orijinal −4-puan heuristik geri alındı. (Open-jam
+            # ve call-vs-jam membership KALDI — onlar A/B'de regresyonsuz.)
             if hu:
                 rs_thr = 9
             else:
@@ -257,7 +261,7 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                     if icm:
                         from app.poker.icm import cube_pressure_factor
                         cp *= cube_pressure_factor(stage or "bubble", stack_bb, avg_stack_bb)
-                    rs_thr = max(8, _jam_threshold_for_pct(cp) - 4)   # fold-equity → call-off'tan geniş
+                    rs_thr = max(8, _jam_threshold_for_pct(cp) - 4)
                 except Exception:
                     rs_thr = 14
             jam = score >= rs_thr
@@ -265,18 +269,17 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                     "scenario": "Re-Jam (vs açış)", "threshold": rs_thr,
                     "size": _preflop_size("JAM" if jam else "FOLD", pos, stack_bb, bool(tourney), hu),
                     "line": f"🧮 SHCP {score} {'≥' if jam else '<'} re-jam eşik {rs_thr} ({pos})"
-                            f"{' HU' if hu else ''} → {'JAM (re-shove)' if jam else 'FOLD'}"
-                            f" (açışa re-jam, fold-equity)"}
+                            f"{' HU' if hu else ''} → {'JAM (re-shove)' if jam else 'FOLD'} (açışa re-jam, fold-equity)"}
         if hu:
             cj_thr = 12                            # HU: aksiyonu kapatıyorsun, fiyat var → geniş
         else:
             try:
-                from app.poker.mtt_ranges import call_vs_jam_pct
-                cp = call_vs_jam_pct(stack_bb) * 0.83
-                # D262 (+EV-max audit #16): call-vs-jam JAMMER-pozisyonunu yok sayıyordu.
-                # SB/BB Nash ~%42-72 GENİŞ jam'ler → call'ı GENİŞLET; UTG ~%5-10 DAR jam'ler
-                # → DARALT. Jammer range-genişliği call-off genişliğini belirler (pot-odds
-                # aynı ama gerçek-eq jammer'a göre değişir). vs_position = jammer.
+                from app.poker.mtt_ranges import call_vs_jam_pct, _fill_top_pct
+                # D288: call-vs-jam = ALL-IN (postflop yok) → SHCP-eşiği YERİNE doğrudan Nash
+                # call-off range membership (_fill_top_pct, equity-sıralı → connector-mis-weight
+                # YOK; D287 open-jam emsali). *0.83 (eşik-aşım telafisi) GEREKSİZ → kaldırıldı.
+                cp = call_vs_jam_pct(stack_bb)
+                # D262 (+EV-max #16): JAMMER-pozisyon → SB/BB geniş jam → call genişlet; UTG dar.
                 _jm = {"SB": 1.5, "BB": 1.4, "BTN": 1.2, "CO": 1.0, "HJ": 0.95,
                        "MP": 0.85, "LJ": 0.85, "UTG": 0.78, "UTG+1": 0.80
                        }.get((vs_position or "").upper(), 1.0)
@@ -284,14 +287,16 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                 if icm:
                     from app.poker.icm import cube_pressure_factor
                     cp *= cube_pressure_factor(stage or "bubble", stack_bb, avg_stack_bb)  # tavla-cube ICM
-                cj_thr = _jam_threshold_for_pct(cp)
+                cj_thr = round(cp)
+                callit = hand_key in _fill_top_pct(cp)
             except Exception:
                 cj_thr = 18
-        callit = score >= cj_thr
+                callit = score >= cj_thr
         return {"score": score, "action": "CALL" if callit else "FOLD",
                 "scenario": "Call vs Jam", "threshold": cj_thr,
-                "line": f"🧮 SHCP {score} {'≥' if callit else '<'} call-vs-jam eşik {cj_thr}"
-                        f" ({pos}){' HU' if hu else ''} → {'CALL' if callit else 'FOLD'} (jam'e karşı)"}
+                "line": (f"🃏 Nash call-off %{cj_thr} ({pos}) → {'CALL' if callit else 'FOLD'} (jam'e karşı)"
+                         if not hu else
+                         f"🧮 SHCP {score} {'≥' if callit else '<'} call-vs-jam eşik {cj_thr} (HU) → {'CALL' if callit else 'FOLD'}")}
 
     if "push" in sc or (stack_bb < 15 and not _facing):    # AÇIŞ-jam (önünde raise yok)
         # POZİSYON-AWARE NASH (D177): jam eşiği pozisyon+stack'e göre (mtt_jam_pct,
