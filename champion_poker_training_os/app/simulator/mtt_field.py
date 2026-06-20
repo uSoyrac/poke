@@ -198,6 +198,28 @@ class MTTField:
         _rates = {"regular": 0.025, "turbo": 0.048, "hyper": 0.095}
         self._base_rate = _rates.get(structure, 0.025)
 
+    # ── RESUME (D295): snapshot/restore (alan-state'i diske yazılıp geri yüklenir) ──
+    def to_dict(self) -> dict:
+        return {"field_size": self.field_size, "buyin": self.buyin, "structure": self.structure,
+                "hero_table_size": self.hero_table_size, "tier": self.tier,
+                "starting_chips": self.starting_chips, "_bg": dict(self._bg),
+                "_hero_table_remaining": self._hero_table_remaining,
+                "_hand_count": self._hand_count, "_total_bg_eliminated": self._total_bg_eliminated}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "MTTField":
+        f = cls(field_size=int(d["field_size"]), buyin=float(d.get("buyin", 22.0)),
+                structure=d.get("structure", "regular"),
+                hero_table_size=int(d.get("hero_table_size", 9)), tier=d.get("tier"),
+                starting_chips=float(d.get("starting_chips", 10000.0)))
+        if isinstance(d.get("_bg"), dict):
+            f._bg = {"weak": int(d["_bg"].get("weak", 0)), "mid": int(d["_bg"].get("mid", 0)),
+                     "strong": int(d["_bg"].get("strong", 0))}
+        f._hero_table_remaining = int(d.get("_hero_table_remaining", f._hero_table_remaining))
+        f._hand_count = int(d.get("_hand_count", 0))
+        f._total_bg_eliminated = int(d.get("_total_bg_eliminated", 0))
+        return f
+
     # Kovaların per-capita kırılganlığı (bust olasılığı çarpanı) — sınıf sabiti.
     _FRAGILITY = {"weak": 1.5, "mid": 1.0, "strong": 0.55}
 

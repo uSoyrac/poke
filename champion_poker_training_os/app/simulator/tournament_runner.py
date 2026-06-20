@@ -210,6 +210,77 @@ class Tournament:
         )
         self.hand_log: List[HandResult] = []
 
+    # ── RESUME (D295): hand-boundary snapshot/restore (donma/çökme/kapanmada kayıp YOK) ──
+    def to_dict(self) -> dict:
+        """El-arası temiz state → resume için serileştir (mid-hand fragile kısım hariç)."""
+        cfg = self.config
+        hrf = cfg.hero_range_filter
+        if isinstance(hrf, (set, frozenset)):
+            hrf = sorted(str(x) for x in hrf)
+        return {
+            "config": {
+                "name": cfg.name, "field_size": cfg.field_size,
+                "starting_chips": cfg.starting_chips, "structure": cfg.structure,
+                "buyin": cfg.buyin, "payout_key": cfg.payout_key,
+                "hands_per_level": cfg.hands_per_level, "bot_mix": list(cfg.bot_mix),
+                "hero_range_filter": hrf,
+            },
+            "state": {
+                "level_idx": self.state.level_idx, "hands_this_level": self.state.hands_this_level,
+                "hands_total": self.state.hands_total, "players_left": self.state.players_left,
+                "is_complete": self.state.is_complete, "finish_position": self.state.finish_position,
+                "prize_won": self.state.prize_won, "eliminated_order": list(self.state.eliminated_order),
+            },
+            "dealer_idx": self.game.dealer_idx,
+            "seats": [{"stack": float(p.stack), "position": p.position,
+                       "is_eliminated": bool(p.is_eliminated), "name": p.name,
+                       "archetype": (self.game.bots[i].profile.name
+                                     if i in self.game.bots and getattr(self.game.bots[i], "profile", None)
+                                     else None)}
+                      for i, p in enumerate(self.game.players)],
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Tournament":
+        """Snapshot'tan turnuvayı yeniden kur (stack'ler/blind-level/seat'ler aynı)."""
+        c = d["config"]
+        hrf = c.get("hero_range_filter", "")
+        if isinstance(hrf, list):
+            hrf = set(hrf) if hrf else ""
+        config = TournamentConfig(
+            name=c["name"], field_size=c["field_size"], starting_chips=c["starting_chips"],
+            structure=c["structure"], buyin=c["buyin"], payout_key=c["payout_key"],
+            hands_per_level=c["hands_per_level"], bot_mix=list(c["bot_mix"]),
+            hero_range_filter=hrf,
+        )
+        t = cls(config)
+        s = d["state"]
+        t.state.level_idx = int(s["level_idx"]); t.state.hands_this_level = int(s["hands_this_level"])
+        t.state.hands_total = int(s["hands_total"]); t.state.players_left = int(s["players_left"])
+        t.state.is_complete = bool(s.get("is_complete", False))
+        t.state.finish_position = s.get("finish_position")
+        t.state.prize_won = float(s.get("prize_won", 0.0))
+        t.state.eliminated_order = list(s.get("eliminated_order", []))
+        t.game.dealer_idx = int(d.get("dealer_idx", 0))
+        lvl = t.state.current_level
+        t.game.set_blinds(float(lvl.sb), float(lvl.bb), float(lvl.ante))
+        # Seat stack/eliminated geri yükle; refilled-seat arketipini de geri ver (sadık bot)
+        from app.engine.bot_brain import BOT_ARCHETYPES, BotBrain
+        for i, sd in enumerate(d.get("seats", [])):
+            if i >= len(t.game.players):
+                break
+            p = t.game.players[i]
+            p.stack = float(sd["stack"]); p.is_eliminated = bool(sd.get("is_eliminated", False))
+            if sd.get("position"):
+                p.position = sd["position"]
+            arch = sd.get("archetype")
+            if arch and i in t.game.bots and arch in BOT_ARCHETYPES:
+                try:
+                    t.game.bots[i] = BotBrain(BOT_ARCHETYPES[arch])
+                except Exception:
+                    pass
+        return t
+
     # ── PUBLIC API ─────────────────────────────────────────────────
 
     @property

@@ -108,6 +108,37 @@ class TournamentSimulatorScreen(QWidget):
         sep.setStyleSheet("background: #23271f; border: none; max-height: 1px;")
         l.addWidget(sep)
 
+        # D295: DEVAM-EDEN turnuva snapshot'ı varsa → en üstte "Devam Et" banner'ı
+        # (donma/çökme/kapanmadan kurtulan turnuvayı son elden sürdür).
+        try:
+            from app.simulator.tournament_save import load_snapshot
+            _snap = load_snapshot()
+        except Exception:
+            _snap = None
+        if _snap and _snap.get("tournament"):
+            try:
+                _st = _snap["tournament"]["state"]; _cfg = _snap["tournament"]["config"]
+                _alive = sum(1 for s in _snap["tournament"].get("seats", []) if not s.get("is_eliminated"))
+                _mf = _snap.get("mtt_field") or {}
+                _rem = _mf.get("field_size", _cfg.get("field_size"))
+                _rcard = QFrame(); _rcard.setObjectName("Card")
+                _rl = QVBoxLayout(_rcard); _rl.setContentsMargins(22, 18, 22, 18); _rl.setSpacing(10)
+                _rt = QLabel("▶  KAYDEDİLMİŞ TURNUVA — DEVAM ET")
+                _rt.setStyleSheet("font-size: 14px; font-weight: 600; color: #5DCAA5;")
+                _rd = QLabel(f"{_cfg.get('name','Turnuva')} · {_cfg.get('field_size')}-kişi masa · "
+                             f"{_st.get('hands_total',0)} el oynandı · Seviye {_st.get('level_idx',0)+1} · "
+                             f"masada {_alive} canlı  —  son elden kaldığın yerden sürer.")
+                _rd.setObjectName("Muted"); _rd.setWordWrap(True); _rd.setStyleSheet("font-size: 12px;")
+                _rbtn = QPushButton("▶  Turnuvaya Devam Et")
+                _rbtn.setObjectName("PrimaryButton")
+                _rbtn.setMinimumHeight(44)
+                _rbtn.setStyleSheet("padding: 10px 28px; font-size: 14px;")
+                _rbtn.clicked.connect(self._resume_tournament)
+                _rl.addWidget(_rt); _rl.addWidget(_rd); _rl.addWidget(_rbtn)
+                l.addWidget(_rcard)
+            except Exception:
+                pass
+
         # CONFIG CARD
         card = QFrame()
         card.setObjectName("Card")
@@ -400,6 +431,50 @@ class TournamentSimulatorScreen(QWidget):
         # Turnuva başında bir kerelik açılış briefing'i (strateji + ICM landmark).
         self._emit_opening_briefing(config)
 
+    def _resume_tournament(self):
+        """D295: kaydedilmiş (donma/çökme/kapanmadan kurtulan) turnuvayı son elden sürdür.
+        _start_tournament'ın runtime-kurulumunu aynalar; Tournament/MTTField snapshot'tan kurulur."""
+        from app.simulator.tournament_save import load_snapshot, clear_snapshot
+        from app.simulator.tournament_runner import Tournament
+        snap = load_snapshot()
+        if not snap or not snap.get("tournament"):
+            self.coach_message.emit("Kaydedilmiş turnuva bulunamadı.")
+            return
+        try:
+            self.tournament = Tournament.from_dict(snap["tournament"])
+            if snap.get("mtt_field"):
+                self.mtt_field = MTTField.from_dict(snap["mtt_field"])
+            else:
+                self.mtt_field = None
+        except Exception:
+            clear_snapshot()
+            self.coach_message.emit("Turnuva geri yüklenemedi (snapshot bozuk) — temizlendi.")
+            self._build_setup()
+            return
+        self._soyrac_tno = snap.get("soyrac_tno") or getattr(self, "_soyrac_tno", 1)
+        self._field_tier = snap.get("field_tier")
+        # ── runtime kurulumu (_start_tournament ile aynı) ──
+        self.tournament.game.paced_bots = True
+        self._bot_timer = QTimer(self)
+        self._bot_timer.setInterval(450)
+        self._bot_timer.timeout.connect(self._tick_bot)
+        self._between_hands = False
+        self._recorder = DecisionRecorder()
+        self._reveal_pinned = False
+        self._last_review = None
+        self._review_history = []
+        self._review_idx = -1
+        self._bg_timer = QTimer(self)
+        self._bg_timer.setInterval(250)
+        self._bg_timer.timeout.connect(self._bg_tick)
+        self._bg_timer.start()
+        self._build_play()
+        self._install_shortcuts()
+        self._deal_next_hand()        # kaldığın stack/seviye/alan ile yeni el
+        self.coach_message.emit(
+            f"Turnuvaya devam ediliyor — {self.tournament.state.hands_total} el oynanmıştı, "
+            "stack'ler ve seviye korundu. (D294 fix: artık 0bb/all-in elinde donmaz.)")
+
     def _emit_opening_briefing(self, config) -> None:
         """Turnuva başlarken bir kerelik açılış briefing prompt'u yayınla.
 
@@ -523,6 +598,13 @@ class TournamentSimulatorScreen(QWidget):
         if (t is not None and not getattr(t, "is_complete", False)
                 and not self._confirm_abort()):
             return
+        # D295: kullanıcı turnuvayı BİLEREK bitirdi → resume snapshot'ını temizle
+        # (yalnız çökme/donma/kapanmada resume kalsın; deliberate-abort'ta stale öneri yok).
+        try:
+            from app.simulator.tournament_save import clear_snapshot
+            clear_snapshot()
+        except Exception:
+            pass
         # Stop any pending bot ticks
         timer = getattr(self, "_bot_timer", None)
         if timer is not None:
@@ -897,12 +979,33 @@ class TournamentSimulatorScreen(QWidget):
 
     # ── GAME LOOP ─────────────────────────────────────────────────
 
+    def _autosave_resume(self):
+        """D295: el-arası temiz state'i diske yaz → donma/çökme/kapanmada turnuva kaybolmaz."""
+        if not self.tournament:
+            return
+        try:
+            from app.simulator.tournament_save import save_snapshot
+            save_snapshot({
+                "tournament": self.tournament.to_dict(),
+                "mtt_field": self.mtt_field.to_dict() if self.mtt_field else None,
+                "soyrac_tno": getattr(self, "_soyrac_tno", None),
+                "field_tier": getattr(self, "_field_tier", None),
+            })
+        except Exception:
+            pass
+
     def _deal_next_hand(self):
         if not self.tournament:
             return
         if self.tournament.is_complete:
+            try:
+                from app.simulator.tournament_save import clear_snapshot
+                clear_snapshot()   # turnuva bitti → resume önerme
+            except Exception:
+                pass
             self._build_report()
             return
+        self._autosave_resume()    # el-arası temiz state → autosave
         self._recorder.reset()
         self._await_space = False
         self._reveal_pinned = False          # D133: yeni el → panel kapansın (akış)
