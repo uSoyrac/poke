@@ -642,7 +642,8 @@ def _is_premium_3bet(hand_key: str) -> bool:
     return hand_key in ("AKs", "AKo", "AQs")
 
 
-def _preflop_exploit(action: str, vs_position: str, villain_stats, hand_key: str):
+def _preflop_exploit(action: str, vs_position: str, villain_stats, hand_key: str,
+                     scenario: str = ""):
     """D217: GTO-baz preflop aksiyonu rakip-okumasıyla ŞEFFAF ayarla (öğretici sentez).
     Döner (final_action, exploit_note). villain_stats yoksa/yetersizse → değişiklik yok.
     Konservatif: yalnız net-kanıtlı exploit kararları (nit erken-açışa thin-3bet → flat)."""
@@ -653,10 +654,11 @@ def _preflop_exploit(action: str, vs_position: str, villain_stats, hand_key: str
         obs = float((villain_stats.get("obs_hands", 0) if hasattr(villain_stats, "get") else 0) or 0)
         if vp <= 0 or (obs and obs < 25):
             return action, None
+        agg = float((villain_stats.get("aggression", villain_stats.get("af", 0))) or 0)
+        tb = float((villain_stats.get("three_bet", 0) if hasattr(villain_stats, "get") else 0) or 0)
         from app.poker.opponent_typology import classify_hellmuth
         name = classify_hellmuth(
-            vp, float(villain_stats.get("pfr", 0) or 0),
-            float((villain_stats.get("aggression", villain_stats.get("af", 0))) or 0),
+            vp, float(villain_stats.get("pfr", 0) or 0), agg,
             float(villain_stats.get("river_bluff", 0) or 0))[1]
     except Exception:
         return action, None
@@ -675,7 +677,6 @@ def _preflop_exploit(action: str, vs_position: str, villain_stats, hand_key: str
     # FLAT, OOP'ta FOLD. Premium value-4bet (QQ+/AKs) DOKUNULMAZ. No-read → GTO (A5s
     # textbook bluff-4bet) korunur. Jackal/agresif (light-3bet) → DOKUNMA (fold-equity var).
     if "4-BET" in action and not _is_premium_3bet(hand_key):
-        tb = float((villain_stats.get("three_bet", 0) if hasattr(villain_stats, "get") else 0) or 0)
         _value_locked = (name == "Mouse") or (0 < tb <= 4 and (not obs or obs >= 60))
         if _value_locked:
             # D293 (kullanıcı içgörüsü — "küçük çiftlere fazla değer yüklüyoruz"): non-premium
@@ -692,6 +693,22 @@ def _preflop_exploit(action: str, vs_position: str, villain_stats, hand_key: str
                          "ettiremezsin (fold-equity yok), ~%29 eq ile domine call'lanır → "
                          "4-bet İPTAL → FOLD (dominated, spew etme)")
             return "FOLD", _note
+    # D296 (kullanıcı tezi "küçük çift büyük call olmamalı"): set-mine implied-odds GEREKTİRİR
+    # (~10:1) = rakip set'i ÖDEMELİ. TEORİ (Janda/Tipton): YETKİN-AGRESİF (Lion=TAG/Reg,
+    # Eagle=pro/elite) rakip set'i ödemez (light stack-off etmez) + postflop barrel'le seni atar
+    # → set-mine −EV. Spewy-agresif (Jackal/Maniac) ve pasif (Elephant/Mouse) set'i ÖDER → CALL
+    # korunur. NOT: bu READ-GATED canlı-koç katmanı (sim KARAR-yolunu etkilemez; D254/D293
+    # statüsü). Field-split A/B (orta fold +79.6 vs call −75.5; soft call +65.8) yön-UYUMLU ama
+    # gürültülü (deck-dekorelasyon) → KANIT değil, TEORİ birincil. küçük/orta-çift (77-99) vs-3bet
+    # set-mine CALL'ı, rakip Lion/Eagle ise → FOLD. TT+ (eq daha iyi) ve 33-66 (D236) etkilenmez.
+    _is_vs3 = any(k in (scenario or "").lower() for k in ("3-bet", "3bet", "vs 3"))
+    if _is_vs3 and action == "CALL" and len(hand_key) == 2 and hand_key[0] == hand_key[1]:
+        _pi = _ORD.index(hand_key[0])
+        if 5 <= _pi <= 7 and name in ("Lion", "Eagle"):
+            return "FOLD", ("rakip yetkin-agresif (sıkı-güçlü 3-bet range, postflop disiplinli) → "
+                            "set-mine implied-odds'unu realize ETMEZ: seti light ödemez + barrel'le "
+                            "seni atar → küçük/orta-çift set-mine call −EV → FOLD (pasif/fish/spewy "
+                            "rakipte CALL kalır; onlar seti öder)")
     return action, None
 
 
@@ -795,7 +812,8 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
     # EXPLOIT SENTEZİ (D217): GTO-baz aksiyonu rakip-okumasıyla ayarla. Headline =
     # sentezlenmiş final; kırılım GTO-baz→exploit→karar gösterir (şeffaf, öğretici).
     _gto_action = action
-    _final_action, _exploit_note = _preflop_exploit(action, vp, villain_stats, hand_key)
+    _final_action, _exploit_note = _preflop_exploit(action, vp, villain_stats, hand_key,
+                                                    scenario=scenario)
     if not tourney:
         fmt = "🎯 Cash: loose-aggressive — balığı ez"
     elif _pa:                                  # pre-empt aktif: çelişki önle
