@@ -643,7 +643,7 @@ def _is_premium_3bet(hand_key: str) -> bool:
 
 
 def _preflop_exploit(action: str, vs_position: str, villain_stats, hand_key: str,
-                     scenario: str = ""):
+                     scenario: str = "", stack_bb: float = 100):
     """D217: GTO-baz preflop aksiyonu rakip-okumasıyla ŞEFFAF ayarla (öğretici sentez).
     Döner (final_action, exploit_note). villain_stats yoksa/yetersizse → değişiklik yok.
     Konservatif: yalnız net-kanıtlı exploit kararları (nit erken-açışa thin-3bet → flat)."""
@@ -709,6 +709,19 @@ def _preflop_exploit(action: str, vs_position: str, villain_stats, hand_key: str
                             "set-mine implied-odds'unu realize ETMEZ: seti light ödemez + barrel'le "
                             "seni atar → küçük/orta-çift set-mine call −EV → FOLD (pasif/fish/spewy "
                             "rakipte CALL kalır; onlar seti öder)")
+    # D297 (B1, jackal-field A/B-DOĞRULANDI): SPEWY-AGRESİF (Jackal/Maniac, bluff-ağır geniş 3-bet)
+    # rakibe karşı orta-çift (88-TT) vs-3bet'te CALL yerine JAM (4-BET) — AMA yalnız MID-STACK.
+    # Base-toggle A/B (jackal field, 8-seed): 45bb Δ+44.3, 35bb +10.2 (+EV), 60bb −11.9 / 100bb −3.2
+    # (derin jam = aşırı over-bet, edge yok). Mantık: jackal'ın geniş/bluff-ağır range'ine jam
+    # fold-equity kazanır + call'lanınca domine değil; mid-stack'te jam-boyutu makul. Read-gated
+    # canlı-koç (sim KARAR-yolunu etkilemez; B1 base'de DEĞİL — premise base-toggle ile doğrulandı).
+    if _is_vs3 and action == "CALL" and len(hand_key) == 2 and hand_key[0] == hand_key[1] \
+            and name == "Jackal" and 25 < float(stack_bb or 0) <= 50:
+        _pi = _ORD.index(hand_key[0])
+        if 6 <= _pi <= 8:   # 88-TT
+            return "4-BET", ("rakip spewy-agresif (bluff-ağır geniş 3-bet) → orta-çift CALL yerine "
+                             "JAM: jam fold-equity kazanır + call'lanınca geniş-range'e domine değil; "
+                             "mid-stack'te jam-boyutu makul (derin'de over-bet olur, CALL kalır)")
     return action, None
 
 
@@ -813,7 +826,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
     # sentezlenmiş final; kırılım GTO-baz→exploit→karar gösterir (şeffaf, öğretici).
     _gto_action = action
     _final_action, _exploit_note = _preflop_exploit(action, vp, villain_stats, hand_key,
-                                                    scenario=scenario)
+                                                    scenario=scenario, stack_bb=stack_bb)
     if not tourney:
         fmt = "🎯 Cash: loose-aggressive — balığı ez"
     elif _pa:                                  # pre-empt aktif: çelişki önle

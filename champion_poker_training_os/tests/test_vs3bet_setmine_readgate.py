@@ -29,12 +29,34 @@ def test_tough_aggressor_folds_setmine():
         assert "set-mine" in note and "barrel" in note
 
 
-def test_jackal_keeps_setmine_call():
-    """SPEWY-agresif (Jackal/Maniac, bluff-ağır 3-bet) → set-mine CALL KORUNUR (set'i öder,
-    bluff-range'e over-fold etme) — D296 gate'i Jackal'ı KAPSAMAMALI."""
+def test_jackal_deep_keeps_setmine_call():
+    """SPEWY-agresif (Jackal) DERİN (>50bb) → B2 (fold) KAPSAMAZ + B1 (jam) mid-stack-gated →
+    CALL KORUNUR (set'i öder, bluff-range'e over-fold etme; derin jam over-bet)."""
     for hk in ("77", "88", "99"):
-        fa, note = _preflop_exploit("CALL", "BTN", _JACKAL, hk, scenario="vs 3-bet")
-        assert fa == "CALL" and note is None, f"{hk} vs Jackal CALL kalmalı (set'i öder): {fa}"
+        fa, note = _preflop_exploit("CALL", "BTN", _JACKAL, hk, scenario="vs 3-bet", stack_bb=100)
+        assert fa == "CALL" and note is None, f"{hk} vs Jackal derin CALL kalmalı: {fa}"
+
+
+def test_jackal_midstack_jams_midpair():
+    """D297 (B1, jackal-field A/B-doğrulandı): SPEWY-agresif (Jackal) MID-STACK (26-50bb) →
+    88-TT set-mine CALL yerine JAM (4-BET) — fold-equity + geniş-range'e domine değil."""
+    for hk in ("88", "99", "TT"):
+        fa, note = _preflop_exploit("CALL", "BTN", _JACKAL, hk, scenario="vs 3-bet", stack_bb=40)
+        assert fa == "4-BET", f"{hk} vs jackal mid-stack JAM olmalı: {fa}"
+        assert "jam" in note.lower()
+
+
+def test_jackal_77_not_jammed():
+    """77 B1 kapsamı (88-TT) DIŞINDA → jackal mid-stack'te de CALL kalır."""
+    fa, _ = _preflop_exploit("CALL", "BTN", _JACKAL, "77", scenario="vs 3-bet", stack_bb=40)
+    assert fa == "CALL"
+
+
+def test_lion_midstack_still_folds_b2_b1_no_conflict():
+    """B1/B2 çakışmaz: aynı el (88) Lion/Eagle'a karşı mid-stack'te de FOLD (B2), Jackal'a JAM (B1)."""
+    fa_lion, _ = _preflop_exploit("CALL", "BTN", _TOUGH, "88", scenario="vs 3-bet", stack_bb=40)
+    fa_jackal, _ = _preflop_exploit("CALL", "BTN", _JACKAL, "88", scenario="vs 3-bet", stack_bb=40)
+    assert fa_lion == "FOLD" and fa_jackal == "4-BET"
 
 
 def test_station_keeps_setmine_call():
