@@ -57,10 +57,12 @@ def _mk(hole, n=4):
 
 
 def test_stage_flows_to_decision():
-    """soyrac_explain stage'i base karara geçirir → satellite eşik > bubble (cube_pressure)."""
-    th = {}
+    """soyrac_explain stage'i base KARARA geçirir → DAVRANIŞSAL: marjinal el (K6s) BTN 11bb
+    bubble'da JAM, satellite'te FOLD (D287 Nash-range; ICM cube_pressure daraltır). Stage
+    karara akmasaydı ikisi de aynı olurdu."""
+    act = {}
     for stg in ("bubble", "satellite"):
-        e = soyrac_explain("A7o", "BTN", "RFI", stack_bb=10, icm=True, n_active=4,
-                           tourney=True, stage=stg, avg_stack_bb=12, hand=_mk(["Ah", "7c"]), hero_idx=0)
-        th[stg] = e.get("threshold")
-    assert th["satellite"] > th["bubble"], f"satellite eşik bubble'dan yüksek olmalı: {th}"
+        e = soyrac_explain("K6s", "BTN", "push", stack_bb=11, icm=True, n_active=4,
+                           tourney=True, stage=stg, avg_stack_bb=20, hand=_mk(["Kh", "6h"]), hero_idx=0)
+        act[stg] = e["action"]
+    assert "JAM" in act["bubble"] and "JAM" not in act["satellite"], f"stage karara akmalı: {act}"

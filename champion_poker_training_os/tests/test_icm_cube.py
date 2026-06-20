@@ -31,12 +31,15 @@ def test_cube_take_point_rises_with_pressure():
 
 
 def test_advice_stage_tightens_marginal_jam():
-    # Marjinal jam: satellite bubble'dan daha sıkı (eşik yükselir / JAM→FOLD).
-    bub = soyrac_advice("K8s", "BTN", "push", stack_bb=11, icm=True,
+    # D287 (Nash-range push/fold): "threshold" artık jam% (düşük=sıkı, eski SHCP-eşiği değil)
+    # → DAVRANIŞSAL test: marjinal el (K6s) bubble'da JAM, satellite'te FOLD (ICM cube_pressure
+    # Nash range'i daraltır; aynı el premium değil → ICM-baskısında düşer).
+    bub = soyrac_advice("K6s", "BTN", "push", stack_bb=11, icm=True,
                         stage="bubble", avg_stack_bb=20)
-    sat = soyrac_advice("K8s", "BTN", "push", stack_bb=11, icm=True,
+    sat = soyrac_advice("K6s", "BTN", "push", stack_bb=11, icm=True,
                         stage="satellite", avg_stack_bb=20)
-    assert sat["threshold"] >= bub["threshold"]
+    assert "JAM" in bub["action"] and "JAM" not in sat["action"]
+    assert sat["threshold"] <= bub["threshold"]   # jam% daraldı (düşük=sıkı)
 
 
 def test_advice_premium_jam_unaffected_by_stage():

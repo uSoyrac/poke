@@ -1601,7 +1601,12 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 
 <p>Bu, ünlü <span class="term"><b>Nash push/fold</b> (oyun-teorisi dengesi: hem iten hem call eden için optimal jam/call eşikleri)</span> mantığının kafadan-yapılabilir halidir. Gerçek Nash tabloları el-el ezberlenir; bizim sistemimiz bunu tek bir SHCP eşiğiyle (&ge;16) yaklaşık olarak verir.</p>
 
-<p>Neden tam 16? Çünkü 16, çift tabanımızın (en zayıf çift olan 22) başladığı puandır: <code>22 = 16 + 2&times;0 = 16</code>. Yani "jam eşiği 16" demek, kabaca "tüm çiftler + tüm güçlü broadway elleri + güçlü Ax eller" demektir. Bu, 12-15 bb derinlikte itilebilecek sağlam, equity'si yüksek bir range'dir.</p>
+<p>Neden tam 16? Çünkü 16, çift tabanımızın (en zayıf çift olan 22) başladığı puandır: <code>22 = 16 + 2&times;0 = 16</code>. Yani "jam eşiği 16" demek, kabaca "tüm çiftler + tüm güçlü broadway elleri + güçlü Ax eller" demektir. Bu, 12-15 bb derinlikte itilebilecek sağlam, equity'si yüksek bir range'dir. (≥16, full-ring-UTG için kaba bir TABAN'dır; gerçek jam-range pozisyona göre çok genişler — BTN 8bb Nash ~%54 jam'ler.)</p>
+
+<h4>9.3.1 KRİTİK: All-in'de SHCP-skoru DEĞİL, Nash-chart (yüksek-kart/Ax — connector DEĞİL)</h4>
+<p>Push/fold'daki en önemli incelik şudur: <b>all-in olduğunda POSTFLOP YOKTUR.</b> SHCP puanı suited-connector'lara (54s, 76s) ve implied-odds'a prim verir — çünkü onlar <i>flop görürsen</i> değerlidir. Ama jam'de flop "implied" değildir; ya tutar ya tutmaz. Bu yüzden <b>jam-range SHCP-skoruyla DEĞİL, ham-equity + fold-equity ile (= Nash chart) belirlenir</b>; bu chart <b>yüksek-kart / Ax / Kx / blocker</b> ağırlıklı (linear), suited-connector ağırlıklı değil.</p>
+<div class="keyrule">Altın kural (push/fold el-seçimi): All-in'de <b>54s/64s gibi küçük suited-connector'ı jam'leme</b> (showdown'da zayıf, postflop yok) — ama <b>K8s/Q9s/A9o gibi yüksek-kart/Ax-Kx ellerini jam'le</b> (showdown-equity + blocker). Yani push/fold range'i SHCP-sıralamandan farklıdır: kafanda "şu el all-in'de showdown'u kazanır mı + bir As/Kx bloklar mı?" diye sor, "flop'ta ne yapar" diye DEĞİL. Sistem bunu pozisyon-duyarlı Nash chart ile birebir verir (canlı koç: "🃏 Nash jam-range %X").</div>
+<div class="why">Neden bu fark +EV? Çünkü küçük connector'ı jam'lemek call-lanınca neredeyse hep gerideyken yığını riske atar (fold-equity'siz spot'larda −chipEV); K8s/Q9s ise hem daha çok fold alır (yüksek-kartlar baskı kurar) hem call-lanınca daha iyi showdown-equity'si vardır. ICM baskısı (bubble/FT/satellite) bu Nash range'i daraltır (cube_pressure); satellite'te en sıkı.</div>
 
 <table class="tbl">
 <thead><tr><th>El</th><th>SHCP</th><th>&ge;16?</th><th>Çok sığ karar (&lt;15bb)</th></tr></thead>

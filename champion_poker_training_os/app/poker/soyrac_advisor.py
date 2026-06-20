@@ -297,24 +297,33 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         # POZİSYON-AWARE NASH (D177): jam eşiği pozisyon+stack'e göre (mtt_jam_pct,
         # HRC/SnapShove-kalibre). Eski sabit-16 her yerden %17 jam'liyordu — BTN
         # 7bb Nash ~%54! Geç pozisyon ÇOK daha geniş jam'lemeli (arkanda az kişi).
+        # D287 (eval-army + push/fold↔Nash denetimi): all-in'de POSTFLOP YOK → SHCP'nin
+        # suited-connector/implied-odds primi YANLIŞ (54s/64s'i over-jam, Kx/Qx-suited +
+        # offsuit-broadway'i miss-jam ediyordu; SHCP-eşiği SB %85/BTN %86 Nash-uyumu).
+        # FIX: lossy SHCP-eşiği YERİNE doğrudan Nash-range membership (build_mtt_push_fold =
+        # _fill_top_pct(mtt_jam_pct) — get_ranked_hands equity-sıralı; ezberlenebilir Nash
+        # chart = insan-hesaplanabilir). ICM: cube_pressure pct'yi daraltır. → push/fold
+        # ~%100 Nash-doğru, chip-EV-max. _jam_threshold_for_pct fallback'te korunur.
+        jam_thr = 10
         if hu:
-            jam_thr = 10
+            jam = score >= jam_thr
         else:
             try:
-                from app.poker.mtt_ranges import mtt_jam_pct
-                jp = mtt_jam_pct(pos, stack_bb) * 0.83   # puan-kova dönüşüm-aşımını telafi
+                from app.poker.mtt_ranges import mtt_jam_pct, _fill_top_pct
+                pct = mtt_jam_pct(pos, stack_bb)
                 if icm:
                     from app.poker.icm import cube_pressure_factor
-                    jp *= cube_pressure_factor(stage or "bubble", stack_bb, avg_stack_bb)  # tavla-cube ICM
-                jam_thr = _jam_threshold_for_pct(jp)
+                    pct *= cube_pressure_factor(stage or "bubble", stack_bb, avg_stack_bb)
+                jam_thr = round(pct)                     # gösterim: jam% (Nash)
+                jam = hand_key in _fill_top_pct(pct)     # doğrudan Nash-range membership
             except Exception:
                 jam_thr = 16
-        jam = score >= jam_thr
+                jam = score >= jam_thr
         return {"score": score, "action": "JAM" if jam else "FOLD",
                 "scenario": "Push/Fold", "threshold": jam_thr,
                 "size": _preflop_size("JAM" if jam else "FOLD", pos, stack_bb, bool(tourney), hu),
-                "line": f"🧮 SHCP {score} ≥ jam-eşik {jam_thr} ({pos})"
-                        f"{' HU' if hu else ''} → {'JAM' if jam else 'FOLD'}"
+                "line": (f"🃏 Nash jam-range %{jam_thr} ({pos}) → {'JAM' if jam else 'FOLD'}"
+                         if not hu else f"🧮 SHCP {score} ≥ jam-eşik {jam_thr} (HU) → {'JAM' if jam else 'FOLD'}")
                         if jam else
                         f"🧮 SHCP {score} < jam-eşik {jam_thr} ({pos}) → FOLD"}
 
