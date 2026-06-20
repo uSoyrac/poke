@@ -578,6 +578,15 @@ class PokerGame:
         if not player.is_active:
             self._action_queue.pop(0)
             return True
+        # D294 (kullanıcı yakaladı: hero 0bb → UI yalnız FOLD sunup turnuvayı öldürüyor):
+        # ALL-IN / 0-çip oyuncu aksiyon ALAMAZ. is_all_in bayrağı bir yolda kaçmış olabilir
+        # (stack 0 ama is_active hâlâ True) → burada yakala: all-in işaretle, kuyruktan çıkar
+        # (board açılır → showdown). Hero ASLA 0bb'de prompt almasın (yalnız-FOLD = forfeit =
+        # yanlış bust). Savunma-guard: kökü ne olursa olsun 0-çip oyuncu prompt almaz.
+        if player.stack <= 1e-9:
+            player.is_all_in = True
+            self._action_queue.pop(0)
+            return True
 
         if player.is_hero:
             self._waiting_for_hero = True
