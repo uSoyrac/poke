@@ -678,10 +678,20 @@ def _preflop_exploit(action: str, vs_position: str, villain_stats, hand_key: str
         tb = float((villain_stats.get("three_bet", 0) if hasattr(villain_stats, "get") else 0) or 0)
         _value_locked = (name == "Mouse") or (0 < tb <= 4 and (not obs or obs >= 60))
         if _value_locked:
-            return ("FOLD",
-                    "rakibin 3-bet'i value-locked (nadiren/sadece-değer 3-bet'ler) → wheel-ace "
-                    "bluff-4bet'i ASLA fold ettiremezsin (fold-equity yok), ~%29 eq ile domine "
-                    "call'lanır → 4-bet İPTAL → FOLD (dominated, spew etme)")
+            # D293 (kullanıcı içgörüsü — "küçük çiftlere fazla değer yüklüyoruz"): non-premium
+            # 4-bet-jam'in value-locked'e karşı İPTALİ İKİ EL-SINIFINI kapsar; açıklama el-sınıfı-
+            # duyarlı olsun (gerekçe farklı, sonuç aynı=FOLD). Davranış DEĞİŞMEZ (D254'ten beri
+            # zaten FOLD); yalnız öğretici-not düzeldi. No-read/loose → JAM (baseline korunur).
+            _is_pair = len(hand_key) == 2 and hand_key[0] == hand_key[1]
+            if _is_pair:
+                _note = ("rakibin 3-bet'i value-locked (nadiren/sadece-değer) → orta-çift kısa-stack "
+                         "value-jam'i fold-equity ALMAZ + call'lanınca overpair'e DOMINATED (~%35) → "
+                         "set-mine implied-odds da yok (düşük-SPR) → jam İPTAL → FOLD (spew etme)")
+            else:
+                _note = ("rakibin 3-bet'i value-locked → wheel-ace bluff-4bet'i ASLA fold "
+                         "ettiremezsin (fold-equity yok), ~%29 eq ile domine call'lanır → "
+                         "4-bet İPTAL → FOLD (dominated, spew etme)")
+            return "FOLD", _note
     return action, None
 
 
