@@ -9,7 +9,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QComboBox, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
+    QCheckBox, QComboBox, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
     QPushButton, QScrollArea, QSizePolicy, QSlider, QSpinBox,
     QStackedWidget, QVBoxLayout, QWidget,
 )
@@ -590,6 +590,15 @@ class PlaySessionScreen(QWidget):
         for b in (self.review_btn, end_btn, next_btn):
             b.setMinimumHeight(38)
             ctrl.addWidget(b)
+        # OTO-AKIŞ (kullanıcı: "her eli boşlukla geçmek zorundayım"): el bitince sonraki el
+        # otomatik dağıtılır (turnuva D133 emsali). Çalışma için işaretli; el-el çalışmak/
+        # incelemek için kapat (SPACE/Next manuel). Real-XP'de kapalı (notlandırılmış inceleme).
+        self.autoflow_chk = QCheckBox("Oto-akış")
+        self.autoflow_chk.setToolTip("El bitince sonraki eli otomatik dağıt (her el SPACE'e basma)")
+        self.autoflow_chk.setChecked(True)
+        self._auto_flow = True
+        self.autoflow_chk.toggled.connect(self._set_auto_flow)
+        ctrl.addWidget(self.autoflow_chk)
         ctrl.addStretch(1)
         cl.addLayout(ctrl)
         cl.addStretch(1)
@@ -1636,6 +1645,30 @@ class PlaySessionScreen(QWidget):
         }
         self.hand_completed.emit(hand_data)
         self.next_btn.show()
+        self._maybe_auto_flow(_real_xp, self._deal_next, self.next_btn)
+
+    def _set_auto_flow(self, on: bool) -> None:
+        self._auto_flow = bool(on)
+        rx = bool(getattr(self.state, "real_experience", False)) if self.state else False
+        if on:                                  # açıldıysa el-arasındaysak hemen akışı tetikle
+            if getattr(self, "next_btn", None) and not self.next_btn.isHidden():
+                self._maybe_auto_flow(rx, self._deal_next, self.next_btn)
+            elif getattr(self, "mtt_next_btn", None) and not self.mtt_next_btn.isHidden():
+                self._maybe_auto_flow(rx, self._deal_next_mtt, self.mtt_next_btn)
+
+    def _maybe_auto_flow(self, real_xp: bool, deal_fn, btn) -> None:
+        """Oto-akış: el bitince kısa gecikmeyle sonraki eli dağıt (her el SPACE'e basma derdi yok;
+        turnuva D133 emsali). Real-XP'de KAPALI (notlandırılmış inceleme) + toggle kapalıysa manuel."""
+        if not getattr(self, "_auto_flow", False) or real_xp:
+            return
+        QTimer.singleShot(1500, lambda: self._auto_deal_guarded(deal_fn, btn))
+
+    def _auto_deal_guarded(self, deal_fn, btn) -> None:
+        # Hâlâ el-arası mı (kullanıcı zaten yeni el başlatmadı) ve oto-akış açık mı?
+        if not getattr(self, "_auto_flow", False):
+            return
+        if btn and not btn.isHidden():          # hâlâ el-arası (yeni el dağıtılmadı)
+            deal_fn()
 
     def _review_last(self):
         if not self.game or not self.game.hand_history:
@@ -2091,6 +2124,7 @@ class PlaySessionScreen(QWidget):
             return
 
         self.mtt_next_btn.show()
+        self._maybe_auto_flow(_real_xp, self._deal_next_mtt, self.mtt_next_btn)
 
     def _mtt_tournament_over(self):
         if not self.tournament:
