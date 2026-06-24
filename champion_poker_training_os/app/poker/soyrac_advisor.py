@@ -825,6 +825,30 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
                                         villain_range=_vr)
             if pf:
                 stn = {1: "Flop", 2: "Turn", 3: "River"}.get(len(comm) - 2, "Postflop")
+                # SAYIM-MVP (D314): rakip OKUMA-SAYACI R + el-gücü-gate'li sapma (ADVICE-ONLY,
+                # read-gated). villain_stats varsa tip→prior + hand.actions'tan dizi → R.
+                # pf['action'] DEĞİŞMEZ (panel okur) → fidelity 0-sapma. D313-validated kurallar.
+                _rc = None
+                if villain_stats:
+                    try:
+                        from app.poker.read_count import (read_count, read_deviation,
+                                                          villain_sequence)
+                        from app.poker.opponent_typology import classify_hellmuth
+                        _vp = villain_stats
+                        _vt = classify_hellmuth(_vp.get("vpip", 0), _vp.get("pfr", 0),
+                                                _vp.get("aggression", 0))[1].lower()
+                        _vidx, _fa, _evs = villain_sequence(hand, hero_idx)
+                        _rcount = read_count(_vt, _evs, first_action=_fa)
+                        _tc = hand.to_call(hero_idx)
+                        _ch, _da, _dn = read_deviation(_rcount.R, pf["tier"],
+                                                       facing_bet=(_tc > 0),
+                                                       eq=pf.get("eq", 0.0) or 0.0)
+                        _rc = {"R": _rcount.R, "prior": _rcount.prior, "shape": _rcount.shape,
+                               "confidence": _rcount.confidence, "read": _rcount.read,
+                               "steps": _rcount.steps, "deviation_changed": _ch,
+                               "deviation_action": _da, "deviation_note": _dn}
+                    except Exception:
+                        _rc = None
                 return {
                     "phase": "postflop", "scenario": "Postflop",
                     "scenario_label": f"{stn} · {pf['board_label']}",
@@ -843,6 +867,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
                     "quiz_options": ["FOLD", "CHECK/CALL", "BET/RAISE"],
                     "icm_guidance": _ftg,
                     "field_exploit": _fexp,
+                    "read_count": _rc,
                 }
     _hashand = (hand is not None and hero_idx is not None)
     _ncom = _committed_opponents(hand, hero_idx) if _hashand else 0

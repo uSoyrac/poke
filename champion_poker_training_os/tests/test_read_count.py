@@ -2,7 +2,7 @@
 READ-GATED identity + prior-tek-başına-sapma-yok (bot fidelity güvenliği)."""
 from app.poker.opponent_typology import HELLMUTH_PRIOR, type_prior
 from app.poker.range_narrowing import narrow
-from app.poker.read_count import read_count
+from app.poker.read_count import read_count, read_deviation
 
 
 def test_prior_table():
@@ -45,3 +45,46 @@ def test_scale_single_source():
     rc = read_count("jackal", evs, first_action="open")
     assert rc.R == type_prior("jackal") + nr.running_count
     assert rc.steps == list(nr.rc_steps)
+
+
+# ── read_deviation: D313-validated el-gücü-gate'li sapma ──
+def test_deviation_neutral_below_threshold():
+    changed, act, _ = read_deviation(1, "HAVA", facing_bet=True)
+    assert not changed and act == ""
+
+
+def test_deviation_value_folds_marginal_keeps_value():
+    """R≥+2: MARJİNAL bluff-catch fold, ama VALUE (GÜÇLÜ/NUT) KORU (çift-kritik fidelity dersi)."""
+    ch, act, _ = read_deviation(2, "BLUFF-CATCH", facing_bet=True)
+    assert ch and act == "FOLD"
+    ch2, act2, _ = read_deviation(2, "NUT", facing_bet=True)        # value korunur
+    assert not ch2, "value el R≥+2'de bile fold'lanmamalı"
+    ch3, _, _ = read_deviation(2, "GÜÇLÜ", facing_bet=True)
+    assert not ch3
+
+
+def test_deviation_value_cuts_own_bluff():
+    ch, act, _ = read_deviation(3, "HAVA", facing_bet=False)
+    assert ch and act == "CHECK"
+
+
+def test_deviation_capped_attacks_not_trash():
+    """R≤−2: capped'e karşı ince value BET + hafif CALL; ama ÇÖPLE call YOK."""
+    ch, act, _ = read_deviation(-2, "ORTA", facing_bet=False)
+    assert ch and act == "BET"
+    ch2, act2, _ = read_deviation(-2, "BLUFF-CATCH", facing_bet=True, eq=0.40)
+    assert ch2 and act2 == "CALL"
+    ch3, _, _ = read_deviation(-2, "HAVA", facing_bet=True, eq=0.10)   # çöp → call YOK
+    assert not ch3
+    ch4, _, _ = read_deviation(-2, "BLUFF-CATCH", facing_bet=True, eq=0.20)  # eq düşük → call YOK
+    assert not ch4
+
+
+def test_dizi_kilit_floor_optin():
+    """Dizi-kilidi floor OPT-IN (A/B EV-nötr → default kapalı): flat(−2)+check-raise(+2)
+    naive → R≈0 (trap kaçar); dizi_kilit=True → value-lock floor R≥+2."""
+    evs = [("preflop", "facing_raise", "call"), ("flop", "caller", "check_raise")]
+    naive = read_count("lion", evs, first_action="flat")              # default KAPALI
+    floor = read_count("lion", evs, first_action="flat", dizi_kilit=True)
+    assert naive.R < 2, f"naive flat+XR sıfırlanır: {naive.R}"
+    assert floor.R >= 2, f"floor value-lock: {floor.R}"

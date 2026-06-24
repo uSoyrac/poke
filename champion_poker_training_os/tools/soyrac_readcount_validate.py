@@ -28,102 +28,39 @@ def _hellmuth_key(profile):
         return None
 
 
-def _preflop_raiser(hand):
-    """İlk RAISE/BET eden (preflop aggressor / PFR) seat idx."""
-    for a in hand.actions:
-        if a.street == Street.PREFLOP and a.action_type in (ActionType.RAISE, ActionType.BET, ActionType.ALL_IN):
-            return a.player_idx
-    return None
-
-
-def _main_villain(hand, hero_idx):
-    """Hero'nun karşı karşıya olduğu villain: en son agresif aksiyonu yapan non-fold opp;
-    yoksa aktif (non-fold) tek opp. Çoklu-pot'ta basitleştirme: son agresör."""
-    folded = {a.player_idx for a in hand.actions if a.action_type == ActionType.FOLD}
-    active = [i for i, p in enumerate(hand.players)
-              if i != hero_idx and i not in folded and not getattr(p, "is_folded", False)]
-    if not active:
-        return None
-    for a in reversed(hand.actions):
-        if a.player_idx in active and a.action_type in (ActionType.BET, ActionType.RAISE, ActionType.ALL_IN):
-            return a.player_idx
-    return active[0]
-
-
-def _events(hand, vidx):
-    """Villain aksiyon dizisi → (first_action, [(street, role, action)]) range_narrowing formatı."""
-    pfr = _preflop_raiser(hand)
-    role = "aggressor" if vidx == pfr else "caller"
-    vacts = [a for a in hand.actions if a.player_idx == vidx]
-    first_action = "open"
-    events = []
-    seen_pre = False
-    for a in vacts:
-        stn = _ST.get(a.street, "flop")
-        at = a.action_type
-        if a.street == Street.PREFLOP:
-            if not seen_pre:
-                seen_pre = True
-                if at in (ActionType.RAISE, ActionType.ALL_IN):
-                    first_action = "3bet" if vidx != pfr else "open"
-                elif at == ActionType.CALL:
-                    first_action = "flat"
-                    events.append(("preflop", "facing_raise", "call"))   # −2 (capped)
-            continue
-        # postflop
-        if role == "aggressor":
-            if at == ActionType.CHECK:
-                events.append((stn, "aggressor", "check"))
-            elif at in (ActionType.BET, ActionType.ALL_IN):
-                events.append((stn, "aggressor", "barrel" if a.street in (Street.TURN, Street.RIVER) else "cbet"))
-            elif at == ActionType.RAISE:
-                events.append((stn, "aggressor", "barrel"))
-            elif at == ActionType.CALL:
-                events.append((stn, "aggressor", "call"))
-        else:
-            if at == ActionType.CHECK:
-                events.append((stn, "caller", "check"))
-            elif at == ActionType.RAISE:
-                events.append((stn, "caller", "check_raise"))     # +2 (dizi-kilit)
-            elif at == ActionType.CALL:
-                events.append((stn, "caller", "check_call"))
-            elif at in (ActionType.BET, ActionType.ALL_IN):
-                events.append((stn, "caller", "donk"))
-    return first_action, events
-
-
 def _compute_R(hand, hero_idx, gl):
-    vidx = _main_villain(hand, hero_idx)
+    """TEK-KAYNAK: read_count.villain_sequence (canlı koç ile aynı çıkarım)."""
+    from app.poker.read_count import villain_sequence
+    vidx, fa, events = villain_sequence(hand, hero_idx)
     if vidx is None or vidx not in gl.bots:
         return 0, None
     vtype = _hellmuth_key(gl.bots[vidx].profile)
-    fa, events = _events(hand, vidx)
-    pos = "BTN"
-    rc = read_count(vtype, events, villain_pos=pos, first_action=fa)
+    rc = read_count(vtype, events, villain_pos="BTN", first_action=fa,
+                    dizi_kilit=(os.environ.get("DIZI", "1") == "1"))
     return rc.R, rc
 
 
 def _overlay(at, amt, R, hand, hero_idx, pf):
-    """|R|≥2 → R-sapması uygula — EL-GÜCÜYLE GATE'li (tasarım: 'MARJİNAL fold, İNCE value';
-    value'yu KORU, çöple call ETME). Sadece postflop + gözlenen dizi."""
+    """TEK-KAYNAK read_count.read_deviation (canlı koç ile aynı VALIDATED kurallar).
+    read_deviation R+tier→sapma-aksiyonu verir; biz yalnız base-aksiyon yönle uyumluysa uygularız."""
+    from app.poker.read_count import read_deviation
     if abs(R) < 2 or hand.street == Street.PREFLOP or not pf:
         return at, amt
     tier = pf.get("tier", "") or ""
     eq = pf.get("eq", 0.0) or 0.0
     to_call = hand.to_call(hero_idx)
-    pot = getattr(hand, "pot", 0.0) or 0.0
-    marginal = tier in ("BLUFF-CATCH", "ZAYIF", "ORTA", "HAVA")
-    value = tier in ("GÜÇLÜ", "NUT")
-    if R >= 2:   # value-ağır → marjinal bluff-catch'i FOLD + blöf KES (value'yu koru)
-        if at == ActionType.CALL and to_call > 0 and marginal and not value:
-            return ActionType.FOLD, 0.0
-        if at in (ActionType.BET, ActionType.RAISE) and to_call <= 0.01 and tier in ("HAVA", "ZAYIF"):
-            return ActionType.CHECK, 0.0
-    else:        # R≤−2 capped → saldır: ince value-bet + HAFİF call (çöp DEĞİL)
-        if at == ActionType.CHECK and to_call <= 0.01 and tier in ("ORTA", "BLUFF-CATCH", "GÜÇLÜ"):
-            return ActionType.BET, max(hand.big_blind, round(0.5 * pot, 1))
-        if at == ActionType.FOLD and to_call > 0 and tier in ("BLUFF-CATCH", "ORTA") and eq >= 0.30:
-            return ActionType.CALL, to_call
+    changed, action, _ = read_deviation(R, tier, facing_bet=(to_call > 0), eq=eq)
+    if not changed:
+        return at, amt
+    if action == "FOLD" and at == ActionType.CALL:
+        return ActionType.FOLD, 0.0
+    if action == "CHECK" and at in (ActionType.BET, ActionType.RAISE):
+        return ActionType.CHECK, 0.0
+    if action == "BET" and at == ActionType.CHECK:
+        pot = getattr(hand, "pot", 0.0) or 0.0
+        return ActionType.BET, max(hand.big_blind, round(0.5 * pot, 1))
+    if action == "CALL" and at == ActionType.FOLD:
+        return ActionType.CALL, to_call
     return at, amt
 
 
