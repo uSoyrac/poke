@@ -1086,6 +1086,8 @@ class TournamentSimulatorScreen(QWidget):
             return
         if not self.tournament.game.is_waiting_for_hero:
             return
+        if not self._discipline_ok(action_type):     # D309 Disiplin-Kalkanı (sert-onay)
+            return
 
         hand = self.tournament.game.current_hand
         hero = hand.hero
@@ -1112,6 +1114,31 @@ class TournamentSimulatorScreen(QWidget):
                 pass
         self.tournament.hero_act(action_type, amount)
         self._refresh_table()
+
+    def _discipline_ok(self, action_type) -> bool:
+        """D309 Disiplin-Kalkanı: advisor FOLD/CHECK/CALL derken kullanıcı DAHA agresife
+        (over-action = ölçülen leak yönü) gidiyorsa SERT-ONAY iste. Real-XP'de kapalı (hint-yok
+        modu) + advisor yoksa geç. Vazgeçilirse False (aksiyon iptal); onaylanırsa True + leak-say."""
+        if getattr(self.state, "real_experience", False):
+            return True
+        adv = (self._last_soyrac_explain or {}).get("action") if getattr(self, "_last_soyrac_explain", None) else None
+        from app.poker.discipline_guard import override_warning, override_message
+        is_over, disp = override_warning(action_type.name, adv)
+        if not is_over:
+            return True
+        from PySide6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setWindowTitle("🛡️ Disiplin-Kalkanı")
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setText(override_message(action_type.name, disp))
+        b_cancel = box.addButton("Vazgeç (advisor'ı izle)", QMessageBox.ButtonRole.RejectRole)
+        b_go = box.addButton("Eminim, yine de", QMessageBox.ButtonRole.AcceptRole)
+        box.setDefaultButton(b_cancel)
+        box.exec()
+        if box.clickedButton() is b_go:
+            self._override_count = getattr(self, "_override_count", 0) + 1
+            return True
+        return False
 
         if hand.is_complete:
             self.tournament.advance_after_hand_complete()
