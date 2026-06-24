@@ -92,3 +92,26 @@ classify_hellmuth (Mouse/Lion/Jackal/Elephant/Eagle) TEK-KAYNAK tipleme çekirde
 - İkili confidence ('dizi gözlendi mi') yeterince ayrıştırıcı mı, yoksa 'kaç dizi-sinyali' (1 vs 2+) üç-kademeli mi olmalı? Tek dizi-sinyalinden sapma bazı spotlarda hâlâ riskli olabilir — masa-simiyle test et.
 - Timing varsayılan-OFF doğru ama kullanıcı gerçekten tek-masa oynadığında değerli sinyal kaybı var; tek-masa modu otomatik algılanabilir mi (aktif-masa sayısı) yoksa manuel beyan mı?
 - Post-session frekans katmanının tip-prior'u bir sonraki oturuma taşıması (showdown-Bayes) gerçek HUD veri-yoğunluğunda anlamlı kalibrasyon sağlıyor mu, yoksa mikro-örneklemde gürültü mü — gerçek oturum verisiyle doğrulanmalı.
+## +EV DOĞRULAMA (D313, 2026-06-24) — VALIDATED
+
+Kullanıcı "önce +EV doğrula" dedi (disiplin: kazanmazsa geri al). `tools/soyrac_readcount_validate.py`:
+hero soyrac-baz oynar, postflop |R|≥2'de R-overlay uygulanır, ON vs OFF aynı seed (10 seed × 4000 el/hücre).
+
+**KRİTİK BULGU:** ham overlay (gating'siz: TÜM call→fold, TÜM fold→call) MASİF −EV (−153/−91/−52 bb/100)
+— çöple call + value-call'ları fold felaketi. **EL-GÜCÜYLE GATE'lenince** (tasarım: "MARJİNAL fold, value KORU,
+çöple call ETME") POZİTİF:
+
+| Alan | OFF bb/100 | ON bb/100 | Δ |
+|------|-----------|----------|---|
+| soft  | +159.2 | +187.2 | **+28.0** |
+| orta  | +61.7  | +74.3  | **+12.6** |
+| tough | +35.7  | +40.0  | **+4.3** |
+
+Δ alan yumuşadıkça büyür (soft>orta>tough) — okumalar exploit-edilebilir rakipte daha değerli (teorik-tutarlı).
+
+**ÇIKARSANAN TASARIM ŞARTI (D-D/D-E için):** R-sapması EL-GÜCÜYLE GATE'lenMELİ. Overlay kuralları (validated):
+- R≥+2: base==CALL(facing bet) & tier∈{BLUFF-CATCH,ZAYIF,ORTA,HAVA} & tier∉{GÜÇLÜ,NUT} → FOLD; bluff-BET(HAVA/ZAYIF)→CHECK
+- R≤−2: base==CHECK & tier∈{ORTA,BLUFF-CATCH,GÜÇLÜ} → BET(0.5pot); base==FOLD & tier∈{BLUFF-CATCH,ORTA} & eq≥0.30 → CALL
+
+CAVEAT (dürüst): bu SİM (bot saha), gerçek-insan değil — botların hatları mekanik, gerçek EV ≤ sim EV.
+Canlı koçta sapmayı İNSAN uygular (hata payı) → gerçek edge daha düşük. Yine de yön + işaret VALIDATED.
