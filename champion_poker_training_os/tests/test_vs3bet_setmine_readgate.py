@@ -7,7 +7,7 @@ Thread-A universal/stack-gated fold VERİYLE DESTEKLENMEDİ (gürültülü, fiel
 geri alındı; doğru yer = read-gated katman (sim karar-yolunda exploit YOK → D254/D293 statüsü).
 TT+ (eq daha iyi) ve 33-66 (zaten D236 fold) etkilenmez; no-read → identity."""
 from app.poker.opponent_typology import classify_hellmuth
-from app.poker.soyrac_advisor import _preflop_exploit
+from app.poker.soyrac_advisor import _preflop_exploit, soyrac_advice
 
 _TOUGH = {"vpip": 26, "pfr": 22, "aggression": 2.8, "three_bet": 9, "obs_hands": 80}   # Lion (TAG)
 _STATION = {"vpip": 46, "pfr": 9, "aggression": 0.8, "three_bet": 3, "obs_hands": 80}  # Elephant/öder
