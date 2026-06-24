@@ -182,3 +182,45 @@ def score_inference(choice_label: str, drill: InferenceDrill) -> dict:
     correct = (choice_label == _SHAPE_LABELS[drill.correct_shape])
     return {"correct": correct, "chain": drill.chain, "summary": drill.summary,
             "correct_label": _SHAPE_LABELS[drill.correct_shape]}
+
+
+# ── SAYIM-MVP 'R tahmin et' drill'i (D315): tek-sayı okuma-sayacını öğret ──
+_RC_TYPE_LABEL = {
+    "mouse": "🐭 Mouse (tight-passive, prior +1)",
+    "lion": "🦁 Lion (TAG, prior 0)",
+    "jackal": "🐺 Jackal (LAG/blöfçü, prior −1)",
+    "elephant": "🐘 Elephant (station, prior +1)",
+    "eagle": "🦅 Eagle (elit, prior +1)",
+}
+
+
+@dataclass
+class ReadCountDrill:
+    villain_pos: str
+    villain_type: str          # hellmuth anahtarı
+    headline: str
+    correct_R: int
+    steps: List[str]           # rc tally (reveal — kafadan doğrula)
+    read: str
+    choices: List[int]
+
+
+def generate_read_count_drill(rng: Optional[random.Random] = None) -> ReadCountDrill:
+    """Aksiyon-dizisi + villain tipi ver → kullanıcı tek-sayı R'yi hesaplar (SAYIM-MVP).
+    Reveal = tally adımları (prior + dizi → R)."""
+    rng = rng or random
+    pos, fa, events, headline = rng.choice(_INFERENCE_SCENARIOS)
+    vtype = rng.choice(list(_RC_TYPE_LABEL))
+    from app.poker.read_count import read_count
+    rc = read_count(vtype, events, villain_pos=pos, first_action=fa)
+    choices = list(range(rc.R - 2, rc.R + 3))     # 5 ardışık tamsayı (doğru ortada)
+    return ReadCountDrill(
+        villain_pos=pos, villain_type=vtype,
+        headline=f"{_RC_TYPE_LABEL[vtype]}\n{headline}",
+        correct_R=rc.R, steps=rc.steps, read=rc.read, choices=choices)
+
+
+def score_read_count(choice_R: int, drill: ReadCountDrill) -> dict:
+    """R tahminini skorla → {correct, correct_R, steps, read}."""
+    return {"correct": (choice_R == drill.correct_R), "correct_R": drill.correct_R,
+            "steps": drill.steps, "read": drill.read}

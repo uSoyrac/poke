@@ -88,3 +88,14 @@ def test_dizi_kilit_floor_optin():
     floor = read_count("lion", evs, first_action="flat", dizi_kilit=True)
     assert naive.R < 2, f"naive flat+XR sıfırlanır: {naive.R}"
     assert floor.R >= 2, f"floor value-lock: {floor.R}"
+
+
+def test_read_count_drill():
+    """'R tahmin et' drill: doğru R seçeneklerde + skorlama + reveal tally."""
+    import random as _r
+    from app.poker.read_trainer import generate_read_count_drill, score_read_count
+    d = generate_read_count_drill(_r.Random(7))
+    assert d.correct_R in d.choices and len(d.choices) == 5
+    ok = score_read_count(d.correct_R, d)
+    assert ok["correct"] and ok["correct_R"] == d.correct_R and ok["steps"]
+    assert not score_read_count(d.correct_R + 1, d)["correct"]

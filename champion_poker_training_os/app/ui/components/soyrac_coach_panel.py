@@ -171,6 +171,13 @@ class SoyracCoachPanel(QFrame):
                                      "background:#102a26; border-left:3px solid #3fb9a0; "
                                      "border-radius:4px; padding:5px 7px; margin:2px 0;")
         self.field_lbl.setVisible(False); vb.addWidget(self.field_lbl)
+        # SAYIM-MVP (D315): rakip OKUMA-SAYACI R — masada tek-sayı + el-gücü-gate'li sapma.
+        self.read_lbl = QLabel(""); self.read_lbl.setObjectName("SoyracReadCount")
+        self.read_lbl.setWordWrap(True)
+        self.read_lbl.setStyleSheet("color:#c9a6ff; font-size:11px; font-weight:bold; "
+                                    "background:#1d1530; border-left:3px solid #8b5cf6; "
+                                    "border-radius:4px; padding:5px 7px; margin:2px 0;")
+        self.read_lbl.setVisible(False); vb.addWidget(self.read_lbl)
         self.decision_lbl = QLabel("—"); self.decision_lbl.setObjectName("SoyracDecision")
         vb.addWidget(self.decision_lbl)
         self.reason_lbl = QLabel(""); self.reason_lbl.setObjectName("SoyracReason")
@@ -316,15 +323,41 @@ class SoyracCoachPanel(QFrame):
         if show_field:
             self.field_lbl.setText(fexp["headline"] + "\n" + "\n".join(fexp["lines"]))
 
+        # SAYIM-MVP (D315): rakip OKUMA-SAYACI R (advice-only). 🟢 dizi gözlendi / ⚪ GTO-baz.
+        # Sapma-aksiyonu (FOLD/CALL) cevabı sızdırır → quiz'de GİZLE; R+shape+güven hep göster.
+        rc = explain.get("read_count")
+        show_rc = bool(rc and rc.get("confidence"))
+        self.read_lbl.setVisible(show_rc)
+        if show_rc:
+            conf = "🟢 dizi gözlendi" if rc.get("confidence") == "high" else "⚪ GTO-baz (belirsiz)"
+            line = f"🎰 OKUMA-SAYACI  R={rc.get('R', 0):+d} · {(rc.get('shape') or '').upper()} · {conf}"
+            steps = rc.get("steps") or []
+            if steps:
+                line += "\n  " + "  ".join(steps[-3:])
+            self.read_lbl.setText(line)
+
         if quiz:
             self.decision_lbl.setText("?  (sen ne yapardın?)")
             self._set_tone(self.decision_lbl, "hidden")
             self.reason_lbl.setText("Karar ver — sonra Soyrac'ın cevabını göstereceğim.")
             self.chain.setVisible(False)
         else:
-            self.decision_lbl.setText(explain.get("action", "—"))
-            self._set_tone(self.decision_lbl, tone)
-            self.reason_lbl.setText(explain.get("why", ""))
+            base_act = explain.get("action", "—")
+            # SAYIM-MVP (D315): okuma sapması AKTİF (yüksek-güven + el-gücü-gate'li) ise BASKIN
+            # öneri = sapma (amaç okumayı UYGULATMAK; CALL baskınsa user leak yapar). ŞEFFAF:
+            # GTO-baz da gösterilir. Sapma yoksa normal GTO-baz aksiyonu.
+            _dev = bool(rc and rc.get("deviation_changed") and rc.get("deviation_action"))
+            if _dev:
+                _da = rc["deviation_action"]
+                _dtone = {"FOLD": "stop", "CHECK": "caution", "BET": "go", "CALL": "caution"}.get(_da, tone)
+                self.decision_lbl.setText(f"{_da}  🎰 okuma")
+                self._set_tone(self.decision_lbl, _dtone)
+                self.reason_lbl.setText(
+                    f"R={rc.get('R', 0):+d} → {rc.get('deviation_note', '')}   ·   (GTO-baz: {base_act})")
+            else:
+                self.decision_lbl.setText(base_act)
+                self._set_tone(self.decision_lbl, tone)
+                self.reason_lbl.setText(explain.get("why", ""))
             if self._chain_open:
                 self._render_chain(explain)
                 self.chain.setVisible(True)
