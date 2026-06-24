@@ -1114,6 +1114,14 @@ class TournamentSimulatorScreen(QWidget):
                 pass
         self.tournament.hero_act(action_type, amount)
         self._refresh_table()
+        # D311-fix (KRİTİK): bu kuyruk D309'da yanlışlıkla _discipline_ok'tan SONRA orphan
+        # kalmıştı → hero aksiyonu eli bitirince _on_hand_complete çağrılmıyordu → auto-deal
+        # YOK → "ilk elden sonra takıldı". Geri _hero_action'a alındı.
+        if hand.is_complete:
+            self.tournament.advance_after_hand_complete()
+            self._on_hand_complete()
+        else:
+            self._bot_timer.start()
 
     def _discipline_ok(self, action_type) -> bool:
         """D309 Disiplin-Kalkanı: advisor FOLD/CHECK/CALL derken kullanıcı DAHA agresife
