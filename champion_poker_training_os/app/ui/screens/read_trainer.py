@@ -12,7 +12,8 @@ from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QPushButton,
                                QScrollArea, QVBoxLayout, QWidget)
 
 from app.poker.read_trainer import (generate_read_drill, score_read,
-                                    generate_inference_drill, score_inference)
+                                    generate_inference_drill, score_inference,
+                                    generate_read_count_drill, score_read_count)
 
 
 class ReadTrainerScreen(QWidget):
@@ -53,7 +54,8 @@ class ReadTrainerScreen(QWidget):
         mode_row.setSpacing(8)
         self._mode_btns = {}
         for key, label in (("type", "🎭 Tip Tahmini"),
-                           ("inference", "🎴 Çıkarım Zinciri")):
+                           ("inference", "🎴 Çıkarım Zinciri"),
+                           ("rcount", "🎰 R Say (SAYIM)")):
             b = QPushButton(label)
             b.setCheckable(True)
             b.clicked.connect(lambda _=False, k=key: self._set_mode(k))
@@ -125,6 +127,11 @@ class ReadTrainerScreen(QWidget):
                 "Villain'in DAVRANIŞINDAN tipini oku — 'doğru oyun rakibe ve okumana "
                 "göre değişir'. Tahminden sonra gerçek stat açılır.")
             self.q_lbl.setText("Bu villain hangi tip? (davranışa göre seç)")
+        elif mode == "rcount":
+            self.sub_lbl.setText(
+                "SAYIM-MVP: masada villain başına TEK sayı R taşı. El-başı prior (tipten ±1) + "
+                "gözlenen dizi (flat −2, cbet-checkledi −1, barrel +1, check-raise +2). R'yi hesapla.")
+            self.q_lbl.setText("Bu el sonunda R kaç? (prior + dizi)")
         else:
             self.sub_lbl.setText(
                 "Bridge negatif-çıkarımı: rakibin NE YAPMADIĞINDAN range'ini daralt "
@@ -135,6 +142,8 @@ class ReadTrainerScreen(QWidget):
     def _new_drill(self):
         if self._mode == "inference":
             return self._new_inference_drill()
+        if self._mode == "rcount":
+            return self._new_rcount_drill()
         self._drill = generate_read_drill(self._rng)
         self._answered = False
         d = self._drill
@@ -177,6 +186,49 @@ class ReadTrainerScreen(QWidget):
             b.clicked.connect(lambda _=False, c=choice: self._guess(c))
             self.choice_row.addWidget(b)
             self._choice_btns.append(b)
+
+    def _new_rcount_drill(self):
+        self._drill = generate_read_count_drill(self._rng)
+        self._answered = False
+        d = self._drill
+        self.villain_lbl.setText(f"🎰 {d.villain_pos} · okuma-sayacı")
+        self.tells_lbl.setText("Villain + gözlenen dizi:\n  " + d.headline.replace("\n", "\n  "))
+        self.result_lbl.setText("")
+        self.next_btn.setVisible(False)
+        for b in self._choice_btns:
+            b.setParent(None)
+            b.deleteLater()
+        self._choice_btns = []
+        for c in d.choices:
+            lbl = f"{c:+d}"
+            b = QPushButton(lbl)
+            b.setStyleSheet("QPushButton{background:#1a1e16;color:#e8ecd8;border:"
+                            "1px solid #2a3322;border-radius:6px;padding:8px 14px;}"
+                            "QPushButton:hover{border-color:#5ad17a;}")
+            b.clicked.connect(lambda _=False, c=c: self._guess_rcount(c))
+            self.choice_row.addWidget(b)
+            self._choice_btns.append(b)
+
+    def _guess_rcount(self, choice: int):
+        if self._answered or not self._drill:
+            return
+        self._answered = True
+        self._total += 1
+        d = self._drill
+        r = score_read_count(choice, d)
+        if r["correct"]:
+            self._correct += 1
+        color = "#5ad17a" if r["correct"] else "#e87474"
+        head = ("✓ Doğru!" if r["correct"] else f"✗ Yanlış. Doğru R = {r['correct_R']:+d}.")
+        tally = "\n".join(f"   {s}" for s in r["steps"])
+        self.result_lbl.setStyleSheet(f"font-size:13px;padding:6px 0;color:{color};")
+        self.result_lbl.setText(f"{head}\n\n🧮 Tally (prior + dizi):\n{tally}\n\n{r['read']}")
+        acc = 100 * self._correct / max(self._total, 1)
+        self.acc_lbl.setText(f"Okuma doğruluğu: %{acc:.0f} ({self._correct}/{self._total})")
+        for b in self._choice_btns:
+            b.setEnabled(False)
+        self.next_btn.setVisible(True)
+        self.coach_message.emit(f"SAYIM: R = {r['correct_R']:+d}. {r['read']}")
 
     def _guess(self, choice: str):
         if self._answered or not self._drill:
