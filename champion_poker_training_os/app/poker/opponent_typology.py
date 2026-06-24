@@ -23,6 +23,19 @@ HELLMUTH_ANIMALS = {
     "eagle": ("🦅", "Eagle", "Elit: minimum çatışma, hatasız oyna."),
 }
 
+# SAYIM-MVP (D312): el-başı OKUMA-SAYACI R prior'u — TEK-KAYNAK başlangıç tablosu.
+# Yorum: R>0 = "saygı, value-eğilimli" (blöfleme, marjinali bırak); R<0 = "capped/blöfçü, saldır".
+# ±1 ile SINIRLI: prior TEK BAŞINA asla |R|≥2 sapma eşiğini AÇMAZ — sapma daima GÖZLENEN
+# el-içi dizi gerektirir (denetim şartı). HELLMUTH_ANIMALS 3-tuple çözümlemesini kırmamak için
+# AYRI tablo. 🐘 station/🐭 nit/🦅 elit = bahsi value (saygı, +1); 🐺 LAG blöfçü (saldır, −1);
+# 🦁 TAG dengeli (exploit yok, 0). Veri yok → 0 (NÖTR, GTO-baz; uydurma popülasyon-edge yok).
+HELLMUTH_PRIOR = {"elephant": 1, "mouse": 1, "eagle": 1, "lion": 0, "jackal": -1}
+
+
+def type_prior(key: str) -> int:
+    """Tip anahtarından el-başı R prior'u (±1 cap). Bilinmeyen/yok → 0."""
+    return max(-1, min(1, HELLMUTH_PRIOR.get((key or "").lower(), 0)))
+
 
 def classify_hellmuth(vpip: float, pfr: float, aggression: float,
                       river_bluff: float = 0.0) -> Tuple[str, str, str]:
