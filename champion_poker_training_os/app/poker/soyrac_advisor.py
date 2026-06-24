@@ -843,10 +843,17 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
                         _ch, _da, _dn = read_deviation(_rcount.R, pf["tier"],
                                                        facing_bet=(_tc > 0),
                                                        eq=pf.get("eq", 0.0) or 0.0)
+                        # D319 (SNG kanıtı: SAYIM cash-aracı, turnuvaya transfer OLMUYOR —
+                        # tam overlay soft ROI −18, survival-only −5.6). TURNUVADA sapma ÖNERME:
+                        # R yalnız bilgi (survival-ipucu), baz GTO/ICM (Böl 28) korunur.
+                        if tourney and _ch:
+                            _ch = False
+                            _dn = "🏆 Turnuva: R bilgi-amaçlı (SAYIM cash-aracı; baz GTO/ICM korunur)"
                         _rc = {"R": _rcount.R, "prior": _rcount.prior, "shape": _rcount.shape,
                                "confidence": _rcount.confidence, "read": _rcount.read,
                                "steps": _rcount.steps, "deviation_changed": _ch,
-                               "deviation_action": _da, "deviation_note": _dn}
+                               "deviation_action": _da, "deviation_note": _dn,
+                               "context": "tournament" if tourney else "cash"}
                     except Exception:
                         _rc = None
                 return {

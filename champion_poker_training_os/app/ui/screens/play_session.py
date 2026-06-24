@@ -1391,10 +1391,17 @@ class PlaySessionScreen(QWidget):
                 _vp = _rp or ""
             except Exception:
                 pass
+            # D319: SAYIM cash-aracı → villain_stats GEÇ (read_count ateşlensin). Eksikti:
+            # cash ekranı villain_stats vermiyordu → R hiç görünmüyordu.
+            _rc_vstats = None
+            try:
+                _rc_vstats = self._aggressor_stats(hand, merged_profiles)
+            except Exception:
+                _rc_vstats = None
             _exp = soyrac_explain(hk, pos, scenario=_scn, vs_position=_vp,
                                   stack_bb=stack_bb, icm=_icm, n_active=max(2, n_active),
                                   tourney=tourney, stage=stage, avg_stack_bb=avg_bb,
-                                  hand=hand, hero_idx=hero_idx)
+                                  hand=hand, hero_idx=hero_idx, villain_stats=_rc_vstats)
             panel.on_decision_point(_exp)
             self._last_soyrac_explain = _exp
         except Exception:

@@ -90,6 +90,57 @@ def test_dizi_kilit_floor_optin():
     assert floor.R >= 2, f"floor value-lock: {floor.R}"
 
 
+def _build_deviating_hand():
+    """Villain flop check-raise (preflop flat YOK) → R≥2 → cash'te sapma (FOLD) tetikler."""
+    from app.engine.game_loop import PokerGame
+    from app.engine.hand_state import Street, Card, ActionType, Action
+    import random as _r
+    _r.seed(5)
+    gl = PokerGame(num_players=2, starting_stack=100, small_blind=0.5, big_blind=1.0,
+                   ante=0, hero_seat=0, bot_archetypes=["Reg"], player_names=["v"])
+    gl.start_hand()
+    h = gl.current_hand; hi = h.hero_idx; vi = 1 - hi
+    h.community = [Card("Q", "d"), Card("7", "c"), Card("2", "h")]
+    h.street = Street.FLOP
+    h.actions = [Action(player_idx=hi, action_type=ActionType.RAISE, amount=3, street=Street.PREFLOP),
+                 Action(player_idx=vi, action_type=ActionType.RAISE, amount=9, street=Street.FLOP)]
+    h.current_bet = 9.0
+    for p in h.players:
+        p.current_bet = 0.0
+    return h, hi
+
+
+# Station (Elephant, prior +1) → check-raise(+2) ile R=3
+_VSTATS = {"vpip": 44, "pfr": 7, "aggression": 0.8, "three_bet": 2, "obs_hands": 80}
+
+
+def test_d319_read_count_fires_with_villain_stats():
+    """read_count alanı villain_stats verilince dolar (cash wiring); yoksa None (identity)."""
+    from app.poker.soyrac_advisor import soyrac_explain
+    h, hi = _build_deviating_hand()
+    out = soyrac_explain("8h6c", "BB", scenario="Postflop", hand=h, hero_idx=hi,
+                         villain_stats=_VSTATS, tourney=False)
+    assert out.get("read_count") and out["read_count"]["context"] == "cash"
+    h2, hi2 = _build_deviating_hand()
+    out2 = soyrac_explain("8h6c", "BB", scenario="Postflop", hand=h2, hero_idx=hi2)
+    assert out2.get("read_count") is None     # villain_stats yok → None (bot identity)
+
+
+def test_d319_tourney_suppresses_deviation():
+    """D319 (SNG kanıtı: SAYIM cash-aracı): AYNI sapan elde cash → deviation_changed True
+    (FOLD), tourney → False (R bilgi-amaçlı). Non-vacuous: cash gerçekten sapar."""
+    from app.poker.soyrac_advisor import soyrac_explain
+    hc, hic = _build_deviating_hand()
+    cash = soyrac_explain("8h6c", "BB", scenario="Postflop", hand=hc, hero_idx=hic,
+                          villain_stats=_VSTATS, tourney=False)["read_count"]
+    ht, hit = _build_deviating_hand()
+    trny = soyrac_explain("8h6c", "BB", scenario="Postflop", hand=ht, hero_idx=hit,
+                          villain_stats=_VSTATS, tourney=True)["read_count"]
+    assert cash["R"] >= 2 and cash["deviation_changed"] is True and cash["context"] == "cash"
+    assert trny["deviation_changed"] is False and trny["context"] == "tournament", \
+        "turnuvada sapma ÖNERİLMEMELİ (SAYIM cash-aracı)"
+
+
 def test_read_count_drill():
     """'R tahmin et' drill: doğru R seçeneklerde + skorlama + reveal tally."""
     import random as _r
