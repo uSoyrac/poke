@@ -92,6 +92,17 @@ def test_non_vs3bet_scenario_untouched():
     assert fa == "CALL" and note is None, "vs-RFI set-mine'a dokunulmamalı"
 
 
+def test_d310_small_pair_deep_setmine_allowed():
+    """D310 (kullanıcı haklı çıktı — 44 @206bb call'ı +EV): 33-66 vs 3-bet NORMAL/sığ-stack FOLD
+    (D236 disiplin), AMA DERİN'de (≥150bb) set-mine CALL'a izin (GTO 44 vs 3-bet %95 call;
+    derin SPR implied-odds'u haklı kılar). 88+ etkilenmez (zaten call)."""
+    for hk in ("33", "44", "55", "66"):
+        a100 = soyrac_advice(hk, "HJ", "vs 3-bet", vs_position="CO", stack_bb=100, n_active=6)["action"]
+        a200 = soyrac_advice(hk, "HJ", "vs 3-bet", vs_position="CO", stack_bb=200, n_active=6)["action"]
+        assert a100 == "FOLD", f"{hk} @100bb FOLD olmalı (D236 disiplin): {a100}"
+        assert a200 == "CALL", f"{hk} @200bb derin set-mine CALL olmalı (D310): {a200}"
+
+
 def test_lower_pairs_already_folded_by_base():
     """33-66 zaten base'de (D236) FOLD → exploit'e CALL gelmez (gelirse de B2 kapsamı 77+)."""
     # 33-66 idx<=4 → B2 koşulu (5<=pi<=7) dışında; CALL gelse bile B2 dokunmaz.
