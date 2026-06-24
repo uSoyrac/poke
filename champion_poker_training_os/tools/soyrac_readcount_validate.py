@@ -52,6 +52,10 @@ def _overlay(at, amt, R, hand, hero_idx, pf):
     changed, action, _ = read_deviation(R, tier, facing_bet=(to_call > 0), eq=eq)
     if not changed:
         return at, amt
+    # SURVIVAL modu (turnuva hipotezi): yalnız R≥+2 hayatta-kalma sapması (FOLD/CHECK);
+    # R≤−2 saldırı (BET/CALL = varyans) ATLA.
+    if os.environ.get("SURVIVAL") == "1" and action in ("BET", "CALL"):
+        return at, amt
     if action == "FOLD" and at == ActionType.CALL:
         return ActionType.FOLD, 0.0
     if action == "CHECK" and at in (ActionType.BET, ActionType.RAISE):
@@ -100,13 +104,86 @@ def run_cash(opponents, hands_n, seed, overlay):
     return round(100 * net / hands_n, 2)
 
 
+_SNG_LEVELS = [(10, 20), (15, 30), (25, 50), (40, 80), (60, 120), (100, 200),
+               (150, 300), (250, 500), (400, 800), (600, 1200)]
+_SNG_PAYOUT = {1: 0.50, 2: 0.30, 3: 0.20}    # 9-max SNG top-3 (prize pool = 9 buyin)
+
+
+def run_sng(opponents, seed, overlay):
+    """9-max SNG → hero'nun yeri (1=birinci). overlay: postflop |R|≥2 R-sapması."""
+    import random as _rnd; _rnd.seed(seed)
+    names = ["Soyrac"] + list(opponents); n = len(names)
+    gl = PokerGame(num_players=n, starting_stack=1500, small_blind=10, big_blind=20,
+                   ante=0, hero_seat=0, bot_archetypes=names[1:],
+                   player_names=[f"a{i}" for i in range(1, n)], paced_bots=True)
+    soy = SoyracBrain()
+    for b in gl.bots.values():
+        b.tournament_mode = True
+    finish, hands = [], 0
+    while sum(1 for p in gl.players if p.stack > 0) > 1:
+        sb, bb = _SNG_LEVELS[min(hands // 10, len(_SNG_LEVELS) - 1)]
+        gl.small_blind, gl.big_blind = sb, bb
+        for p in gl.players:
+            if p.stack <= 0:
+                p.is_eliminated = True
+        gl.start_hand()
+        guard = 0
+        while guard < 800:
+            guard += 1
+            hh = gl.current_hand
+            if hh and hh.is_complete:
+                break
+            prog = gl.step_action()
+            if gl.is_waiting_for_hero:
+                h = gl.current_hand; hi = h.hero_idx
+                at, amt = soy.decide(h, hi)
+                if overlay and h.street != Street.PREFLOP:
+                    R, _ = _compute_R(h, hi, gl)
+                    if abs(R) >= 2:
+                        from app.poker.soyrac_advisor import soyrac_postflop_advice
+                        pf = soyrac_postflop_advice(h, hi)
+                        at, amt = _overlay(at, amt, R, h, hi, pf)
+                gl.hero_act(at, amt)
+            elif not prog:
+                break
+        for i, p in enumerate(gl.players):
+            if p.stack <= 0 and i not in finish:
+                finish.append(i)
+        hands += 1
+        if hands > 600:
+            break
+    survivor = [i for i, p in enumerate(gl.players) if p.stack > 0]
+    order = survivor + finish[::-1]
+    place = {idx: rank + 1 for rank, idx in enumerate(order)}
+    return place.get(0, n)        # hero'nun yeri
+
+
 FIELDS = {
     "soft":  ["Calling Station", "Fish", "Calling Station", "Nit", "TAG"],
     "orta":  ["TAG", "Reg", "Nit", "LAG", "Fish"],
     "tough": ["Reg", "TAG", "Shark", "Reg", "LAG"],
 }
 
+def _sng_stats(places, n=9):
+    itm = 100 * sum(1 for p in places if p <= 3) / len(places)
+    avg = sum(places) / len(places)
+    roi = 100 * (sum(_SNG_PAYOUT.get(p, 0.0) * n for p in places) / len(places) - 1)
+    return itm, avg, roi
+
+
 if __name__ == "__main__":
+    if os.environ.get("MODE") == "sng":
+        N = int(os.environ.get("SNGS", "60"))
+        print(f"=== SAYIM-MVP TURNUVA (9-max SNG, {N} adet/alan) ===")
+        print(f"{'alan':6} {'OFF ITM/ROI':>18} {'ON ITM/ROI':>18} {'Δ ROI':>8}")
+        for fld_name, opps in {"soft": ["Calling Station", "Fish", "Nit", "TAG", "Calling Station", "Fish", "Nit", "Reg"],
+                               "orta": ["TAG", "Reg", "Nit", "LAG", "Fish", "TAG", "Reg", "Nit"]}.items():
+            off = [run_sng(opps, 2000 + s, False) for s in range(N)]
+            on = [run_sng(opps, 2000 + s, True) for s in range(N)]
+            io, ao, ro = _sng_stats(off)
+            ino, ano, rno = _sng_stats(on)
+            print(f"{fld_name:6}  ITM%{io:4.1f} ROI{ro:+6.1f}   ITM%{ino:4.1f} ROI{rno:+6.1f}   {rno - ro:>+7.1f}")
+        raise SystemExit(0)
     SEEDS = list(range(int(os.environ.get("SEEDS", "6"))))
     HANDS = int(os.environ.get("HANDS", "4000"))
     print(f"=== SAYIM-MVP +EV DOĞRULAMA (cash 6-max, {HANDS} el × {len(SEEDS)} seed) ===")
