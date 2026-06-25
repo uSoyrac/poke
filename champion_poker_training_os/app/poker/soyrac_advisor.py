@@ -349,10 +349,14 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         return {"score": score, "action": "JAM" if jam else "FOLD",
                 "scenario": "Push/Fold", "threshold": jam_thr,
                 "size": _preflop_size("JAM" if jam else "FOLD", pos, stack_bb, bool(tourney), hu),
-                "line": (f"🃏 Nash jam-range %{jam_thr} ({pos}) → {'JAM' if jam else 'FOLD'}"
-                         if not hu else f"🧮 SHCP {score} ≥ jam-eşik {jam_thr} (HU) → {'JAM' if jam else 'FOLD'}")
-                        if jam else
-                        f"🧮 SHCP {score} < jam-eşik {jam_thr} ({pos}) → FOLD"}
+                # D324: FOLD-line de hu-dalına ayrıldı. MTT (not hu) jam_thr bir Nash-YÜZDESİ
+                # (membership kararı, _fill_top_pct) → '< eşik' SAÇMA ('SHCP 16 < jam-eşik 13').
+                # MTT'de range-DIŞINDA dili; yalnız HU'da gerçek score≥jam_thr karşılaştırması.
+                "line": ((f"🃏 Nash jam-range %{jam_thr} ({pos}) → JAM"
+                          if not hu else f"🧮 SHCP {score} ≥ jam-eşik {jam_thr} (HU) → JAM")
+                         if jam else
+                         (f"🃏 Nash jam-range %{jam_thr} ({pos}) — bu el range DIŞINDA → FOLD"
+                          if not hu else f"🧮 SHCP {score} < jam-eşik {jam_thr} (HU) → FOLD"))}
 
     if "3-bet" in sc or "3bet" in sc or "vs 3" in sc:   # blocker + üç-kademe eksen
         b4 = _b4_blocker(hand_key)
@@ -927,16 +931,29 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
     h = hand_key
 
     if "Push" in str(sc):                          # PUSH/FOLD
-        out["scenario_label"] = f"Push/Fold · {pos}"
-        out["why"] = (f"Kısa stack ({stack_bb:.0f}bb) → equity ekseni. Puan {score} "
-                      f"{'≥ jam eşiği → JAM' if action == 'JAM' else '< eşik → FOLD'}")
+        # D324: HU'da jam_thr = SHCP eşiği (numerik score≥thr DOĞRU); MTT'de jam_thr = Nash-YÜZDESİ
+        # (membership kararı, _fill_top_pct) → 'Puan 16 < 13' SAÇMA olur. Dile göre dallandır.
         _jthr = base.get("threshold", 16)
+        _hu_pf = (n_active or 9) <= 2
+        out["scenario_label"] = f"Push/Fold · {pos}"
         out["threshold"] = _jthr
+        if _hu_pf:
+            out["why"] = (f"Kısa stack ({stack_bb:.0f}bb) → equity ekseni. "
+                          f"Puan {score} {'≥' if action == 'JAM' else '<'} jam-eşik {_jthr} → {action}")
+            _thr_step = f"📍 {pos} jam-eşiği {_jthr} (SHCP eşiği, HU)"
+            _dec_step = f"Puan {score} {'≥' if action == 'JAM' else '<'} {_jthr} → {action}"
+        else:
+            out["why"] = (f"Kısa stack ({stack_bb:.0f}bb) → equity ekseni. {h} "
+                          + ("Nash jam-range İÇİNDE → JAM" if action == "JAM"
+                             else "Nash jam-range DIŞINDA → FOLD"))
+            _thr_step = f"📍 {pos} Nash jam-range %{_jthr} (geç poz → geniş jam); membership kararı"
+            _dec_step = (f"✅ {h} jam-range %{_jthr} İÇİNDE → JAM" if action == "JAM"
+                         else f"⛔ {h} jam-range %{_jthr} DIŞINDA → FOLD")
         out["chain_steps"] = [
             f"🃏 {h}: {out['card_breakdown']}",
             f"♟ Stack {stack_bb:.0f}bb → push/fold modu (Nash, pozisyon-duyarlı)",
-            f"📍 {pos} jam-eşiği {_jthr} (geç poz → düşük eşik = geniş jam)",
-            f"{'≥' if action == 'JAM' else '<'} Puan {score} {'≥' if action == 'JAM' else '<'} {_jthr} → {action}",
+            _thr_step,
+            _dec_step,
         ]
         out["terms"] = ["SHCP", "push/fold", "Nash", "ICM"]
     elif "Jam" in str(sc):                         # D243: RE-JAM (açışa) / CALL-vs-JAM (jam'e)

@@ -72,3 +72,16 @@ def test_sayim_prior_sync():
 def test_value_up_cash_only_documented():
     assert "_vup = not tourney" in _SRC, "value-up cash-gate advisor wiring değişmiş"
     assert "CASH" in _BOOK and "TURNUVADA" in _BOOK, "cash-only value uyarısı kitapta yok"
+
+
+def test_pushfold_membership_language_no_nonsense():
+    """D324 (denetim-bug): MTT push/fold jam_thr = Nash-YÜZDESİ (membership), SHCP-eşiği DEĞİL.
+    FOLD açıklaması 'Puan 16 < jam-eşik 13' gibi SAÇMA eşitsizlik göstermemeli → membership-dili."""
+    import re
+    from app.poker.soyrac_advisor import soyrac_explain
+    e = soyrac_explain("K5o", "MP", scenario="Push/Fold", stack_bb=12, n_active=9, tourney=True)
+    blob = " ".join([e.get("why", ""), e.get("line", "") or "", " ".join(e.get("chain_steps", []))])
+    assert "DIŞINDA" in blob, "MTT push/fold membership-dili ('range DIŞINDA') kullanmalı"
+    # Hiçbir 'Puan X < Y' satırı X>=Y olmamalı (saçma eşitsizlik)
+    for a, b in re.findall(r"Puan (-?\d+) < .*?(\d+)", blob):
+        assert int(a) < int(b), f"saçma eşitsizlik: Puan {a} < {b}"
