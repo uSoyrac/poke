@@ -821,8 +821,12 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
                     _vr = _villain_continuing_range(2, bet_frac=(_tc / _pt if _pt > 0 else 0.0))
             except Exception:
                 _vr = None
+            # D321: value-up (büyük value-bet) yalnız CASH (validated +EV her alan +6.8…+42.3).
+            # MTT'de KAPALI — field-bağımlı (soft +10.8 / tough −9.6) + ekran field'ı güvenilir
+            # geçmiyor → güvenli taraf: turnuvada baz korunur (zaten güçlü). Cash inelastic → büyük value.
+            _vup = not tourney
             pf = soyrac_postflop_advice(hand, hero_idx, advice, villain_stats=villain_stats,
-                                        villain_range=_vr)
+                                        villain_range=_vr, value_up=_vup)
             if pf:
                 stn = {1: "Flop", 2: "Turn", 3: "River"}.get(len(comm) - 2, "Postflop")
                 # SAYIM-MVP (D314): rakip OKUMA-SAYACI R + el-gücü-gate'li sapma (ADVICE-ONLY,
@@ -1237,7 +1241,7 @@ def _draw_equity(hole, board) -> "tuple[float, list]":
 
 
 def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None,
-                           villain_range=None) -> "dict | None":
+                           villain_range=None, value_up=False) -> "dict | None":
     """Postflop ÖĞRETİCİ — board-aware _hand_strength → 7-kademe + 3 altın kural
     + sizing. Saf (Qt'siz); postflop_gto/bot kararı DEĞİŞMEZ.
 
@@ -1403,6 +1407,12 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None,
         _vuln_bet = (to_call <= 0.01 and threat >= 0.22 and not _real_nut)
         wet = tex.wetness
         size = 0.33 if wet < 0.35 else (0.55 if wet < 0.6 else 0.75)
+        # D321 (VALIDATED ters-hipotez: saha öder → daha ÇOK value çıkar): YALNIZ made-value elle
+        # (NUT/GÜÇLÜ/ORTA) büyük bas; blöf/çekme/range-cbet AYNI (riskli büyük-blöf yok). value_up
+        # CASH (+6.8…+42.3 bb/100 her alan) + SOFT-MTT (ROI +10.8) — TOUGH-MTT'de KAPALI (−9.6).
+        # Advice-only param (bot/sim default False → fidelity korunur); inelastic-saha exploit'i.
+        if value_up and tier in ("NUT", "GÜÇLÜ", "ORTA"):
+            size = 0.45 if wet < 0.35 else (0.7 if wet < 0.6 else 0.9)
         # BLUFF-CATCH OKUMA-MARJI (D211) — gr VE action ORTAK kullansın (çelişki önle).
         # "gereken-blöf eşiği (alpha=be) + rakip-tipi kaydırması" (blackjack Illustrious-18:
         # temel=MDF, sapma=rakip-tipi, yetersiz-sayım<25→temelde kal). GATED: villain_stats
