@@ -1460,6 +1460,7 @@ class TournamentSimulatorScreen(QWidget):
                             tourney=True,        # TURNUVA: ICM-sıkı eşik + <15bb push/fold
                             stage=_stage, avg_stack_bb=_avg_bb,
                             villain_stats=_vstats,   # D217: exploit-sentez (GTO-baz→okuma→karar, ŞEFFAF)
+                            players_to_money=max(0, _rem - _paid),   # D327: para'ya kaç ELENME (proximity ICM)
                             hand=hand, hero_idx=hand.hero_idx)
                         if hero_hk:
                             self.soyrac_panel.on_decision_point(_exp)

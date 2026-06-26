@@ -97,8 +97,22 @@ def chip_ev_vs_dollar_ev(
     }
 
 
-def risk_premium(hero_stack_bb: float, avg_stack_bb: float, stage: str) -> float:
-    """Calculate risk premium based on stack and tournament stage."""
+def proximity_mult(players_to_money: "int | None") -> float:
+    """D327 (kullanıcı: 'sistem aşamaya göre düşünmüyor — 25/24 tam-bubble ≠ 40-kala').
+    Para'ya kaç ELENME kaldığına göre ICM baskısını ölçekler — İNSAN-SAYILABİLİR (ekranda
+    'X kala' yazar). Baskı tam-bubble'da (ptm=1) MAKS, uzaklaştıkça söner.
+    ptm None → 1.0 (geriye-uyumlu, davranış değişmez)."""
+    if players_to_money is None or players_to_money <= 0:
+        return 1.0
+    ptm = int(players_to_money)
+    if ptm <= 5:
+        return round(1.0 + (5 - ptm) * 0.10, 3)        # ptm1→1.4, ptm2→1.3, ptm5→1.0
+    return round(max(0.6, 1.0 - (ptm - 5) * 0.04), 3)  # ptm10→0.8, ptm15→0.6
+
+
+def risk_premium(hero_stack_bb: float, avg_stack_bb: float, stage: str,
+                 players_to_money: "int | None" = None) -> float:
+    """Calculate risk premium based on stack, tournament stage + para'ya yakınlık (D327)."""
     stage_bonus = {
         "chipEV": 0.00,
         "bubble": 0.09,
@@ -106,12 +120,16 @@ def risk_premium(hero_stack_bb: float, avg_stack_bb: float, stage: str) -> float
         "satellite": 0.18,
         "PKO": 0.05,
     }.get(stage, 0.06)
+    # Proximity yalnız ICM-evrelerinde stage_bonus'u ölçekler (stack_pressure'a dokunmaz).
+    if stage in ("bubble", "final table", "satellite") and players_to_money is not None:
+        stage_bonus *= proximity_mult(players_to_money)
     stack_pressure = max(0.0, (avg_stack_bb - hero_stack_bb) / max(avg_stack_bb, 1.0)) * 0.05
     return round(stage_bonus + stack_pressure, 3)
 
 
 def cube_pressure_factor(stage: str = "bubble", hero_stack_bb: float = 15.0,
-                         avg_stack_bb: float = 0.0) -> float:
+                         avg_stack_bb: float = 0.0,
+                         players_to_money: "int | None" = None) -> float:
     """Tavla doubling-cube take-point ↔ ICM (D191). Tavlada cube'u kabul etmek için
     gereken kazanma-şansı (take-point ~%25) gammon/elenme riskiyle YÜKSELİR; ICM'de
     de jam'e call/jam için gereken equity bubble/FT/satellite'te yükselir → range
@@ -122,18 +140,19 @@ def cube_pressure_factor(stage: str = "bubble", hero_stack_bb: float = 15.0,
     final table → ~0.74, satellite → ~0.64 (daha çok daralma — A11'in kaçırdığı
     43 JAM→FOLD flip). Kısa-stack (avg altı) ek baskı (risk_premium stack-pressure)."""
     avg = avg_stack_bb if avg_stack_bb and avg_stack_bb > 0 else hero_stack_bb
-    rp = risk_premium(hero_stack_bb, avg, stage)
+    rp = risk_premium(hero_stack_bb, avg, stage, players_to_money)
     factor = 1.0 - min(0.45, rp * 2.0)        # take-point yükseldikçe range çarpanı düşer
     return round(max(0.50, factor), 3)
 
 
 def cube_take_point(stage: str = "bubble", hero_stack_bb: float = 15.0,
-                    avg_stack_bb: float = 0.0) -> float:
+                    avg_stack_bb: float = 0.0,
+                    players_to_money: "int | None" = None) -> float:
     """Cube analojisi — bir jam'e call için gereken MİNİMUM equity (take-point).
     chipEV'de pot-odds break-even (~%33 tipik 1:2); ICM baskısı take-point'i yükseltir.
-    Öğretim/koç için: 'bubble'da %33 değil ~%40 equity gerekir' der."""
+    Öğretim/koç için: 'bubble'da %33 değil ~%40 equity gerekir' der. D327: para'ya yakınlıkla ölçeklenir."""
     avg = avg_stack_bb if avg_stack_bb and avg_stack_bb > 0 else hero_stack_bb
-    rp = risk_premium(hero_stack_bb, avg, stage)
+    rp = risk_premium(hero_stack_bb, avg, stage, players_to_money)
     base_tp = 0.33                              # chipEV ~1:2 pot-odds break-even
     return round(min(0.60, base_tp + rp * 1.1), 3)
 

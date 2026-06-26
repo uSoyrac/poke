@@ -223,7 +223,8 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                   icm: bool = False, n_active: int = 9, tourney: bool = False,
                   bot_mode: bool = False, stage: str = "",
                   avg_stack_bb: float = 0.0, n_committed: int = 0,
-                  n_limpers: int = 0, n_squeeze: int = 0) -> dict:
+                  n_limpers: int = 0, n_squeeze: int = 0,
+                  players_to_money: "int | None" = None) -> dict:
     """SENİN elin için masada-yapılabilir değerlendirme → {score, action, line, ...}.
 
     n_active<=2 → HEADS-UP modu: range'ler çok genişler (HU'da BTN/SB ~%85 açar,
@@ -282,7 +283,7 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                     cp = call_vs_jam_pct(stack_bb) * 0.83
                     if icm:
                         from app.poker.icm import cube_pressure_factor
-                        cp *= cube_pressure_factor(stage or "bubble", stack_bb, avg_stack_bb)
+                        cp *= cube_pressure_factor(stage or "bubble", stack_bb, avg_stack_bb, players_to_money)
                     rs_thr = max(8, _jam_threshold_for_pct(cp) - 4)
                 except Exception:
                     rs_thr = 14
@@ -308,7 +309,7 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                 cp *= _jm
                 if icm:
                     from app.poker.icm import cube_pressure_factor
-                    cp *= cube_pressure_factor(stage or "bubble", stack_bb, avg_stack_bb)  # tavla-cube ICM
+                    cp *= cube_pressure_factor(stage or "bubble", stack_bb, avg_stack_bb, players_to_money)  # tavla-cube ICM
                 cj_thr = round(cp)
                 callit = hand_key in _fill_top_pct(cp)
             except Exception:
@@ -340,7 +341,7 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                 pct = mtt_jam_pct(pos, stack_bb)
                 if icm:
                     from app.poker.icm import cube_pressure_factor
-                    pct *= cube_pressure_factor(stage or "bubble", stack_bb, avg_stack_bb)
+                    pct *= cube_pressure_factor(stage or "bubble", stack_bb, avg_stack_bb, players_to_money)
                 jam_thr = round(pct)                     # gösterim: jam% (Nash)
                 jam = hand_key in _fill_top_pct(pct)     # doğrudan Nash-range membership
             except Exception:
@@ -784,7 +785,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
                    stage: str = "", avg_stack_bb: float = 0.0,
                    stacks=None, payouts=None, villain_stats=None,
                    hand=None, hero_idx=None, advice=None,
-                   field: str = "soft") -> dict:
+                   field: str = "soft", players_to_money: "int | None" = None) -> dict:
     """ÖĞRETİCİ çıktı — soyrac_advice'i sarar, üstüne 'nasıl düşün' katmanı serer.
     Panel bunu okur; soyrac_advice/grading AYNEN korunur (fidelity 0-sapma)."""
     # ICM/FT REHBERİ (D210) — bubble/FT'de conversion-katmanı (chip değil $). Sadece
@@ -896,7 +897,8 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
     base = soyrac_advice(hand_key, position, scenario=scenario, vs_position=vs_position,
                          stack_bb=stack_bb, icm=icm, n_active=n_active, tourney=tourney,
                          n_committed=_ncom, n_limpers=_nlimp, n_squeeze=_nsq,
-                         stage=stage, avg_stack_bb=avg_stack_bb)
+                         stage=stage, avg_stack_bb=avg_stack_bb,
+                         players_to_money=players_to_money)
     action = base.get("action", "FOLD")
     score = base.get("score")
     pos = (position or "BTN").upper()
