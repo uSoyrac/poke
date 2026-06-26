@@ -1337,9 +1337,9 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 
 <div class="example">El 1 — <code>AJs</code> (puan 22), BTN, önünde CO açtı (vs-RFI). BTN eşikleri: call 10, 3-bet 17. 22 ≥ 17 → <b>3-BET (value)</b>. AJs burada üst uçtadır; pozisyondasın, blocker'ı (As) var, rahatça value 3-bet.</div>
 
-<div class="example">El 2 — <code>T9s</code> (puan 14), BTN vs CO açışı. Eşikler call 9, 3-bet 16. 9 ≤ 14 &lt; 16 → <b>CALL</b>. İşte lineer şeridin tam ortası: 3-bet'lemek için fazla zayıf (sadece seni döven eller call eder), fold etmek için fazla iyi (suited-connector, pozisyonda, set/flush/straight potansiyeli). Call edip ucuz flop görürsün.</div>
+<div class="example">El 2 — <code>T9s</code> (puan 14), BTN vs CO açışı. Eşikler call 10, 3-bet 17. 10 ≤ 14 &lt; 17 → <b>CALL</b>. İşte lineer şeridin tam ortası: 3-bet'lemek için fazla zayıf (sadece seni döven eller call eder), fold etmek için fazla iyi (suited-connector, pozisyonda, set/flush/straight potansiyeli). Call edip ucuz flop görürsün.</div>
 
-<div class="example">El 3 — <code>22</code> (puan 16), CO, önünde MP açtı. CO eşikleri call 10, 3-bet 16. 16 ≥ 16 → eşiğe değiyor. Burada dikkat: küçük çiftlerin asıl kârı <span class="term"><b>set-mining</b> (ucuza flop görüp set/üçlü yapma umudu)</span> — value 3-bet edip 4-bet yerseniz set yapma şansını kaybedersiniz. Pratikte 22'yi çoğu spotta CALL şeridinde tutarsın; sınır eli olduğu için derin stack'te call, sığ stack'te (set-mining odds bozulunca) fold daha doğru. Sistem ham puanla 3-bet eşiğine taşısa da, set-mining sezgisi bu sınır elini call'a çeker.</div>
+<div class="example">El 3 — <code>22</code> (puan 16), CO, önünde MP açtı. CO eşikleri call 10, 3-bet 18. 16 &lt; 18 → CALL şeridinde (3-bet eşiğinin az altında, sınır eli). Burada dikkat: küçük çiftlerin asıl kârı <span class="term"><b>set-mining</b> (ucuza flop görüp set/üçlü yapma umudu)</span> — value 3-bet edip 4-bet yerseniz set yapma şansını kaybedersiniz. Pratikte 22'yi çoğu spotta CALL şeridinde tutarsın; sınır eli olduğu için derin stack'te call, sığ stack'te (set-mining odds bozulunca) fold daha doğru. Sistem ham puanla zaten CALL der (16 &lt; 18 = 3-bet eşiğinin az altında); set-mining sezgisi de bu sınır elini call'da pekiştirir.</div>
 
 <div class="example">El 4 — <code>87s</code> (puan 10), UTG, önünde UTG+1 açtı. UTG eşikleri call 13, 3-bet 18. 10 &lt; 13 → <b>FOLD</b>. Aynı 87s BB'de (call eşiği 6) call edilirdi — 10 ≥ 6. AYNI EL, en erken pozisyonda çöp, BB'de savunulabilir. Puan sabit (10), eşik pozisyonla uçuyor.</div>
 
@@ -2881,9 +2881,9 @@ El gücü aynı; SPR commitment eşiğini kaydırdı.</div>
 </tbody>
 </table>
 
-<div class="example">Örnek: KTo puanı — K=8, T=4 (toplam 12); aynı renk değil (suited primi yok); K ve T arasında 2 boşluk (Q, J), yani 2-gap +1 → ~13. CALL eşiği 6, 3-bet eşiği 16. Puan ~13: 6 ≤ 13 &lt; 16, yani <b>CALL</b> (3-bet için yeterince güçlü değil, fold için fazla iyi).</div>
+<div class="example">Örnek: KTo puanı — K=8, T=4 (toplam 12); aynı renk değil (suited primi yok); K ve T arasında 2 boşluk (Q, J), yani 2-gap +1 → ~13. CALL eşiği 8, 3-bet eşiği 17. Puan 13: 8 ≤ 13 &lt; 17, yani <b>CALL</b> (3-bet için yeterince güçlü değil, fold için fazla iyi).</div>
 
-<div class="why">Neden CALL, neden 3-bet değil? KTo iyi bir el ama bir 3-bet potta CO'nun call/4-bet menzilinde sık domine edilir (AK, AQ, KQ). 3-bet eşiği 16; puanımız 13 bunun altında. Üstelik BB'de zaten en geniş aralıkla savunduğumuz için KTo'yu call menzilinde tutmak, 3-bet menzilini gerçekten polarize (premium + blöf) eli için saklamak daha kârlı. BB'de pot-odds da iyidir: körü zaten yatırdık, ucuza flop görürüz.</div>
+<div class="why">Neden CALL, neden 3-bet değil? KTo iyi bir el ama bir 3-bet potta CO'nun call/4-bet menzilinde sık domine edilir (AK, AQ, KQ). 3-bet eşiği 17; puanımız 13 bunun altında. Üstelik BB'de zaten en geniş aralıkla savunduğumuz için KTo'yu call menzilinde tutmak, 3-bet menzilini gerçekten polarize (premium + blöf) eli için saklamak daha kârlı. BB'de pot-odds da iyidir: körü zaten yatırdık, ucuza flop görürüz.</div>
 
 <h4>Flop ve turn</h4>
 
