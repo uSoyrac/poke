@@ -38,11 +38,16 @@ def type_prior(key: str) -> int:
 
 
 def classify_hellmuth(vpip: float, pfr: float, aggression: float,
-                      river_bluff: float = 0.0) -> Tuple[str, str, str]:
-    """(emoji, ad, ipucu) döndür. VPIP + agresyon(+blöf) → hayvan tipi.
+                      river_bluff: float = 0.0, *,
+                      fold_to_cbet: "float | None" = None,
+                      call_down: "float | None" = None) -> Tuple[str, str, str]:
+    """(emoji, ad, ipucu) döndür. VPIP + VPIP−PFR GAP + agresyon(+blöf+F-cbet+call↓) → hayvan tipi.
 
-    'Aggressive' sinyali AF tek başına yanıltır (Maniac'ın AF'si yapısal düşük);
-    bu yüzden river_bluff de hesaba katılır → Maniac doğru şekilde Jackal olur.
+    D330 (kullanıcı yakaladı: 24/7/AF1.5/F-cbet0/Call56 = STATION ama 'Lion solid' etiketleniyordu):
+    VPIP−PFR GAP eklendi — büyük gap (çok-call az-raise) = pasif-preflop/station; eski kod yalnız
+    AF/river-bluff'a bakıp pasif-loose'u 'Lion TAG' sanıyordu (yanlış exploit: 'station'ı exploit etme').
+    F-cbet (düşük=öder) + call↓ (yüksek=öder) opsiyonel teyit. 'Aggressive' AF tek başına yanıltır →
+    river_bluff de katılır (Maniac→Jackal).
     """
     v = float(vpip or 0)
     p = float(pfr or 0)
@@ -50,19 +55,31 @@ def classify_hellmuth(vpip: float, pfr: float, aggression: float,
     rb = float(river_bluff or 0)
     if rb > 1:           # bazı kaynaklar yüzde olarak verir (12 vs 0.12)
         rb /= 100.0
-    aggressive = (a >= 2.0) or (rb >= 0.28)
-    passive = not aggressive
-    loose = v >= 27
-    if loose and passive:
+    gap = v - p          # büyük gap = çok-call az-raise = pasif-preflop (limper/caller)
+    fcb = float(fold_to_cbet) if fold_to_cbet is not None else None
+    cdn = float(call_down) if call_down is not None else None
+    # STATION tespiti (D330): pasif (AF<2) + (büyük preflop-gap ile çok-call) VEYA postflop-öder
+    # sinyali (F-cbet düşük / call↓ yüksek). Bunlar 'Lion'dan ÖNCE yakalanır → yanlış-TAG biter.
+    station = (a < 2.0) and (
+        (gap >= 12 and p <= 12) or
+        (fcb is not None and fcb <= 25) or
+        (cdn is not None and cdn >= 50))
+    if station:
         key = "elephant"
-    elif loose:
-        key = "jackal"
-    elif passive:
-        key = "mouse"
     else:
-        # tight-aggressive → Lion; üst seviye (çok yüksek PFR/VPIP + agresyon) → Eagle
-        ratio = p / v if v > 0 else 0
-        key = "eagle" if (v <= 24 and a >= 2.9 and ratio >= 0.85) else "lion"
+        aggressive = (a >= 2.0) or (rb >= 0.28)
+        passive = not aggressive
+        loose = v >= 27
+        if loose and passive:
+            key = "elephant"
+        elif loose:
+            key = "jackal"
+        elif passive:
+            key = "mouse"
+        else:
+            # tight-aggressive → Lion; üst seviye (çok yüksek PFR/VPIP + agresyon) → Eagle
+            ratio = p / v if v > 0 else 0
+            key = "eagle" if (v <= 24 and a >= 2.9 and ratio >= 0.85) else "lion"
     emoji, name, tip = HELLMUTH_ANIMALS[key]
     return emoji, name, tip
 

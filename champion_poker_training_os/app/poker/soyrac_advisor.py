@@ -844,8 +844,12 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
                                                           villain_sequence)
                         from app.poker.opponent_typology import classify_hellmuth
                         _vp = villain_stats
-                        _vt = classify_hellmuth(_vp.get("vpip", 0), _vp.get("pfr", 0),
-                                                _vp.get("aggression", 0))[1].lower()
+                        # D330: F-cbet + call↓ varsa station tespitini güçlendir (gap-rule + bunlar)
+                        _vt = classify_hellmuth(
+                            _vp.get("vpip", 0), _vp.get("pfr", 0), _vp.get("aggression", 0),
+                            _vp.get("river_bluff", 0) or 0,
+                            fold_to_cbet=_vp.get("fold_to_cbet"),
+                            call_down=_vp.get("call_down"))[1].lower()
                         _vidx, _fa, _evs = villain_sequence(hand, hero_idx)
                         _rcount = read_count(_vt, _evs, first_action=_fa)
                         _tc = hand.to_call(hero_idx)
