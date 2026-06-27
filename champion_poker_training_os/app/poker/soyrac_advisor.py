@@ -237,6 +237,21 @@ def _hero_pre_called_flag(hand, hero_idx) -> bool:
         return False
 
 
+def _villain_multistreet_aggro(hand, hero_idx) -> bool:
+    """D333: bir rakip ≥2 FARKLI POSTFLOP sokakta (flop/turn/river) bet/raise yaptı mı
+    (çok-sokak barrel = value-ağır işaret)? Preflop SAYILMAZ (preflop-raise+tek-turn-bet barrel değil)."""
+    try:
+        from app.engine.hand_state import ActionType, Street
+        streets = set()
+        for a in getattr(hand, "actions", None) or []:
+            if (a.player_idx != hero_idx and getattr(a, "street", None) != Street.PREFLOP
+                    and a.action_type in (ActionType.BET, ActionType.RAISE, ActionType.ALL_IN)):
+                streets.add(getattr(a, "street", None))
+        return len([s for s in streets if s is not None]) >= 2
+    except Exception:
+        return False
+
+
 def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                   vs_position: str = "", stack_bb: float = 100,
                   icm: bool = False, n_active: int = 9, tourney: bool = False,
@@ -902,13 +917,38 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
                                "context": "tournament" if tourney else "cash"}
                     except Exception:
                         _rc = None
+                # D333 (kullanıcı: AJ-tipi DERİN top-pair'i çok-sokak yatırıp 68bb yedi): DERİN-STACK
+                # ÇOK-SOKAK STACK-OFF DİSİPLİNİ — ADVICE-ONLY (yalnız koç; bot pf'i doğrudan kullanır →
+                # fidelity 0). Sim doğrulayamaz (derin barrel'ı bluff-modelliyor) → TEORİ-temelli
+                # (gerçek-oyunda derin çok-sokak büyük-barrel value-ağır). Koşullar: derin + turn+ +
+                # büyük-bete-karşı + non-nut made-hand (güçlü çekme YOK) + ıslak board + çok-sokak barrel
+                # + base CALL → pot-kontrol/FOLD (tüm yığını koyma, Böl 22.8).
+                _act_f, _why_f, _pc = pf["action"], None, False
+                try:
+                    _stkbb = float(getattr(hand.players[hero_idx], "stack", 0) or 0) / max(
+                        getattr(hand, "big_blind", 1) or 1, 1)
+                    _tc = hand.to_call(hero_idx); _pt = getattr(hand, "pot", 0) or 0
+                    if (pf["action"] == "CALL" and _stkbb >= 35 and len(comm) >= 4
+                            and _tc > 0 and _pt > 0 and _tc / _pt >= 0.45
+                            and pf.get("tier") in ("GÜÇLÜ", "ORTA", "BLUFF-CATCH")
+                            and (pf.get("draws", 0) or 0) < 0.25
+                            and (pf.get("wetness", 0) or 0) >= 0.45
+                            and _villain_multistreet_aggro(hand, hero_idx)):
+                        _act_f, _pc = "FOLD", True
+                        _why_f = ("🛑 DERİN + ıslak board + ÇOK-SOKAK büyük-barrel + sadece made-hand "
+                                  "(nut/güçlü-çekme YOK): bu STACK-OFF eli DEĞİL. Derin çok-sokak barrel "
+                                  "range'i düz/set/2-çift ağırlıklı → gerçek eq düşük. Pot-kontrol/FOLD — "
+                                  "tüm yığını koyma (Böl 22.8).")
+                except Exception:
+                    _act_f, _why_f, _pc = pf["action"], None, False
                 return {
                     "phase": "postflop", "scenario": "Postflop",
                     "scenario_label": f"{stn} · {pf['board_label']}",
-                    "action": pf["action"], "tone": _tone_for_action(pf["action"]),
+                    "action": _act_f, "tone": _tone_for_action(_act_f),
                     "line": pf["line"], "score": None, "threshold": None,
                     "call_t": None, "raise_t": None, "b4": None, "scale_max": 40,
-                    "why": pf["golden_rule"] or f"El gücün {pf['tier']} → {pf['action']}",
+                    "deep_stackoff_guard": _pc,
+                    "why": _why_f or pf["golden_rule"] or f"El gücün {pf['tier']} → {pf['action']}",
                     "chain_steps": pf["chain_steps"], "format_note": "",
                     "card_breakdown": "", "tier": pf["tier"],
                     "board_label": pf["board_label"], "wetness": pf["wetness"],
