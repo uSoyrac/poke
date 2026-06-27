@@ -218,13 +218,33 @@ def _limpers_before_raiser(hand, hero_idx) -> int:
         return 0
 
 
+def _hero_pre_called_flag(hand, hero_idx) -> bool:
+    """D331: hero preflop GÖNÜLLÜ call etti, SONRA arkadan RAISE/3bet geldi mi (SQUEEZE bana)?
+    Hero'nun call'ından sonra bir raise varsa True → range capped + ölü-para odds (set-mine haklı)."""
+    try:
+        from app.engine.hand_state import ActionType, Street
+        acts = [a for a in (getattr(hand, "actions", None) or [])
+                if getattr(a, "street", None) == Street.PREFLOP]
+        last_call = None
+        for i, a in enumerate(acts):
+            if a.player_idx == hero_idx and a.action_type == ActionType.CALL:
+                last_call = i
+        if last_call is None:
+            return False
+        return any(a.action_type in (ActionType.RAISE, ActionType.ALL_IN)
+                   for a in acts[last_call + 1:])
+    except Exception:
+        return False
+
+
 def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
                   vs_position: str = "", stack_bb: float = 100,
                   icm: bool = False, n_active: int = 9, tourney: bool = False,
                   bot_mode: bool = False, stage: str = "",
                   avg_stack_bb: float = 0.0, n_committed: int = 0,
                   n_limpers: int = 0, n_squeeze: int = 0,
-                  players_to_money: "int | None" = None) -> dict:
+                  players_to_money: "int | None" = None,
+                  hero_pre_called: bool = False) -> dict:
     """SENİN elin için masada-yapılabilir değerlendirme → {score, action, line, ...}.
 
     n_active<=2 → HEADS-UP modu: range'ler çok genişler (HU'da BTN/SB ~%85 açar,
@@ -405,6 +425,18 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
             v4_t = 27 + icm_adj
             value4 = (b4 >= 2)
         bluff4 = (b4 >= 2 and stack_bb >= 46)   # D209 Fix13: 46-59bb ölü-bölge kapat (AKo/wheel)
+        # D331 (kullanıcı: çok-yollu/sıralı 3bet node'ları farklı değerlendirilmeli):
+        # (a) MULTIWAY 3bet pot (3bet'e caller var, n_committed≥1) → iki kişi güç gösterdi →
+        #     blöf-4bet YOK (FE çöker) + call SIKI (equity-realize düşer, domine risk artar).
+        # (b) HERO ÖNCE call etti, sonra arkadan 3bet (SQUEEZE bana) → range CAPPED (3bet'lemedim)
+        #     → blöf-4bet YOK (face-up); AMA ölü-para + odds → set-mine call HAKLI (D310 gate gevşer).
+        _mw3 = (n_committed >= 1 and not hero_pre_called)
+        if _mw3 or hero_pre_called:
+            bluff4 = False
+            # blöf-blocker-4bet (zayıf-puan + b4) YOK — FE çöker; gerçek premium (puan≥18) kalır.
+            value4 = (score >= v4_t) or (b4 >= 2 and score >= 18)
+        if _mw3:
+            flat_t += 2
         if value4 or bluff4:
             act = "4-BET"
         elif score >= flat_t:
@@ -418,7 +450,8 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
         # bile %95 CALL, 200bb'de net set-mine → derinde fold YANLIŞ. ≥150bb: CALL (set-mine) kalır.
         # 88+ her zaman CALL. ADVICE-only (bot_mode geniş — D184).
         if not bot_mode and act == "CALL" and len(hand_key) == 2 and hand_key[0] == hand_key[1] \
-                and "23456789TJQKA".index(hand_key[0]) <= 4 and stack_bb < 150:
+                and "23456789TJQKA".index(hand_key[0]) <= 4 and stack_bb < 150 \
+                and not hero_pre_called:   # D331: squeeze-bana = ölü-para odds → set-mine HAKLI
             act = "FOLD"
         return {"score": score, "b4": b4, "action": act, "scenario": "vs 3-bet",
                 "size": _preflop_size(act, pos, stack_bb, bool(tourney), hu),
@@ -893,6 +926,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
     _ncom = _committed_opponents(hand, hero_idx) if _hashand else 0
     _nlimp = _limpers_before_hero(hand, hero_idx) if _hashand else 0
     _nsq = _limpers_before_raiser(hand, hero_idx) if _hashand else 0
+    _hpc = _hero_pre_called_flag(hand, hero_idx) if _hashand else False   # D331 squeeze-bana
     # D285 (eval-army yakaladı): soyrac_explain stage/avg_stack_bb'yi guidance'a veriyordu
     # ama base KARAR'a GEÇMİYORDU → push/fold & jam dalları cube_pressure'ı stage=''→'bubble'
     # ile hesaplıyor → FT/satellite'te panel "take-point yükseldi" der ama eşik bubble-seviyesi
@@ -902,7 +936,7 @@ def soyrac_explain(hand_key: str, position: str, scenario: str = "RFI",
                          stack_bb=stack_bb, icm=icm, n_active=n_active, tourney=tourney,
                          n_committed=_ncom, n_limpers=_nlimp, n_squeeze=_nsq,
                          stage=stage, avg_stack_bb=avg_stack_bb,
-                         players_to_money=players_to_money)
+                         players_to_money=players_to_money, hero_pre_called=_hpc)
     action = base.get("action", "FOLD")
     score = base.get("score")
     pos = (position or "BTN").upper()
