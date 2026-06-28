@@ -1279,7 +1279,11 @@ class TournamentSimulatorScreen(QWidget):
         # kullanır, satır ~1676). config.starting_chips (UI default 2000) bu ölçekle
         # ÇELİŞİYOR → avg'ı saha-modeli yerine 2000-bazlı 13bb gösteriyordu. Tek otoriter
         # kaynak = mtt_field.avg_stack_chips (blind yapısı + dağıtılan yığınlarla tutarlı).
-        if self.mtt_field and self.mtt_field.field_size > 9:
+        # D338 (kullanıcı yakaladı: avg 83bb ama gerçek-masa ort 52bb): koşul field_size>9'du
+        # (başlangıç alanı=200) → FİNAL MASADA bile (1 masa) arka-plan-modelini kullanıyordu.
+        # remaining>9 olmalı: ÇOK-MASA → mtt_field modeli (hero masası ≠ tüm alan); FİNAL MASA
+        # (remaining≤9, 1 masa) → gerçek stack'ler ZATEN tüm alan → onları kullan (tutarlı).
+        if self.mtt_field and remaining > 9:
             avg = int(self.mtt_field.avg_stack_chips)
         else:
             avg = int(sum(p.stack for p in game.players if not p.is_eliminated)
