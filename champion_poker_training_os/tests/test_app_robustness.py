@@ -24,7 +24,8 @@ def test_icm_ft_guidance_large_field_no_hang():
 def test_malmuth_small_field_still_exact():
     """Küçük alan (≤10) hâlâ exact ICM hesaplar (toplam $ = pot)."""
     eq = malmuth_harville([100.0, 100.0, 100.0], [50.0, 30.0, 20.0])
-    assert abs(sum(eq) - 100.0) < 1e-6     # tüm equity = toplam payout
+    assert abs(sum(eq) - 100.0) < 0.01     # tüm equity = toplam payout (4-ondalık yuvarlama toleransı)
+    assert all(abs(x - 100.0 / 3) < 0.01 for x in eq)   # simetrik stack → eşit pay
 
 
 def test_soyrac_advice_invalid_stack_safe():
