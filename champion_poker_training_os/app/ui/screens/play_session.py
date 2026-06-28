@@ -1637,7 +1637,9 @@ class PlaySessionScreen(QWidget):
                 **hero_stat_fields(r),
             })
         except Exception:
-            pass
+            # D336 (app-QA: sessiz-kayıt yutma → leak-tracking veri-kaybı görünmez): logla.
+            import logging
+            logging.getLogger(__name__).exception("save_played_hand başarısız (el kaydedilmedi)")
 
         color = "#5ad17a" if r.hero_won else "#e87474" if r.hero_invested > 0 else "#898d80"
         outcome = "✓  WON" if r.hero_won else ("✗  LOST" if r.hero_invested > 0 else "—  FOLDED")
