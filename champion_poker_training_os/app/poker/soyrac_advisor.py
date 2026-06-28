@@ -277,6 +277,11 @@ def soyrac_advice(hand_key: str, position: str, scenario: str = "RFI",
     # +1; 25bb +2 — get_action stack-aware doğrulamasıyla kalibre). Eski binary
     # (≤40→+1) 25 ile 40'ı eşitliyordu; kademeli daha iyi eşleşir. <15bb → push/fold
     # (ayrı dal, D177 Nash). İNSAN-DENKLEMİ: derin=baz, sığlaştıkça +1/+2.
+    # D334 (app-QA denetimi: negatif/NaN/inf stack → saçma öneri 'JAM -50bb'/sessiz-deep): stack_bb'yi
+    # güvenli-sonlu-pozitife sabitle. Geçersiz → 100bb (deep varsayılan). n_active de en az 2.
+    if not (stack_bb == stack_bb) or stack_bb in (float("inf"), float("-inf")) or stack_bb <= 0:
+        stack_bb = 100.0
+    n_active = max(2, int(n_active) if n_active == n_active else 2)
     deep_adj = 2 if stack_bb <= 25 else (1 if stack_bb <= 40 else 0)
     hu = n_active <= 2
     # ÇOK-YOLLU POT-ŞİŞİRME (D278, kullanıcı içgörüsü): açan + ≥1 call (n_committed≥2)

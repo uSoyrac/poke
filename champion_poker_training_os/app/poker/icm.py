@@ -163,9 +163,16 @@ def bounty_ev(bounty_chips: float, win_probability: float, call_cost: float) -> 
 
 
 def bubble_factor(stacks: List[float], payouts: List[float], hero_idx: int) -> float:
-    """Calculate bubble factor — how much more each chip lost costs vs each chip won."""
+    """Calculate bubble factor — how much more each chip lost costs vs each chip won.
+
+    D334 (app-QA denetimi: malmuth_harville O(n!) → büyük alanda DONAR, n=10→3s, n=12→~5dk):
+    DEFENSIVE CAP — >10 oyuncu/paid-yer'de exact Malmuth-Harville YERİNE öğretici-yaklaşık döndür
+    (donmayı imkânsız kılar; bubble-factor zaten salt-öğretici sayı). icm_trainer'daki <=6 guard'ın
+    motor-içi karşılığı → hiçbir çağıran asılamaz."""
     if hero_idx >= len(stacks) or not payouts:
         return 1.0
+    if len(stacks) > 10 or len(payouts) > 10:
+        return 1.5          # tipik bubble değeri (yaklaşık); exact O(n!) çalıştırma → DONMA önle
     base_equity = icm_equity_single(stacks, payouts, hero_idx)
     small_win = list(stacks)
     small_win[hero_idx] += stacks[hero_idx] * 0.1
@@ -266,7 +273,8 @@ def icm_ft_guidance(stage: str, hero_stack_bb: float, avg_stack_bb: float = 0.0,
         role_line,
     ]
     bf = None
-    if stacks and payouts:
+    # D334: bubble_factor zaten >10'da yaklaşık döner (donma yok); yine de net tutalım.
+    if stacks and payouts and len(stacks) <= 10:
         try:
             bf = bubble_factor(stacks, payouts, hero_idx)
             lines.append(f"💸 Bubble-factor {bf}× — kaybettiğin her chip kazandığından "
