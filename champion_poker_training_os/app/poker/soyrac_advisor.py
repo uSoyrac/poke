@@ -1366,6 +1366,7 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None,
         # (set/dolu değil) → over/under-pair olarak yeniden değerle (üst-pair değer kalır).
         _hc = hero.hole_cards
         _paired_note = None
+        _thin_made = False     # D339: eşli-board GÜÇLÜ-made → ince-value (küçük boyut)
         if (label in ("two pair", "top two pair") and len(_hc) >= 2
                 and _hc[0].value == _hc[1].value):
             _bv = [c.value for c in board]
@@ -1441,10 +1442,15 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None,
                 _paired_note = ("🪤 Board'da trips/quads → düz'ün DOLU/quads'a kaybeder. "
                                 "NUT sanma → pot-kontrol/bluff-catch.")
             elif _mx == 2:
-                strength = min(strength, 0.60)
-                label = "düz (eşli board — dolu mümkün)"
-                _paired_note = ("🪤 Board EŞLİ → düz NUT DEĞİL (dolu mümkün). Ölçülü "
-                                "value; büyük raise'e/3-barrel'a dikkat.")
+                # D339 (kullanıcı: Broadway düz EŞLİ-board'da "ORTA→CHECK"di, ama "ölçülü value"
+                # notuyla çelişiyordu): 0.60(ORTA→CHECK) → 0.62(GÜÇLÜ→ince-VALUE bet). Eşli-board
+                # düz NUT değil ama trips/2-çift'i yener → ince value bas (KÜÇÜK boyut, _thin_made),
+                # CHECK değil; nut değil → facing-bet'te raise değil bluff-catch (boat'a saygı).
+                strength = min(strength, 0.62)
+                _thin_made = True
+                label = "düz (eşli board — ince value, dolu-riski)"
+                _paired_note = ("🪤 Board EŞLİ → düz NUT DEĞİL (dolu mümkün) AMA trips/2-çift'i "
+                                "yener → KÜÇÜK ince-value bas (CHECK değil); büyük raise'e/3-barrel'a saygı.")
         # ÇEKME (D201): _hand_strength draw'ı river-hayalet + combo-kör + street-eşit.
         # _draw_equity DOĞRU sayar (river=0, flop ×4/turn ×2, FD+düz additive).
         draws, draw_notes = _draw_equity(hero.hole_cards, board)
@@ -1509,6 +1515,8 @@ def soyrac_postflop_advice(hand, hero_idx, advice=None, villain_stats=None,
         _vuln_bet = (to_call <= 0.01 and threat >= 0.22 and not _real_nut)
         wet = tex.wetness
         size = 0.33 if wet < 0.35 else (0.55 if wet < 0.6 else 0.75)
+        if _thin_made:
+            size = min(size, 0.40)      # D339: eşli-board ince-value → küçük boyut (boat-riski)
         # D321 (VALIDATED ters-hipotez: saha öder → daha ÇOK value çıkar): YALNIZ made-value elle
         # (NUT/GÜÇLÜ/ORTA) büyük bas; blöf/çekme/range-cbet AYNI (riskli büyük-blöf yok). value_up
         # CASH (+6.8…+42.3 bb/100 her alan) + SOFT-MTT (ROI +10.8) — TOUGH-MTT'de KAPALI (−9.6).
