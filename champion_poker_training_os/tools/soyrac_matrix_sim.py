@@ -5,7 +5,7 @@ Kullanıcı kuralı: SİMÜLASYON = GERÇEK OYNATMA (varsayma). Bu tool gerçek 
 Çalıştır: PYTHONPATH=. .venv/bin/python tools/soyrac_matrix_sim.py [hizli]
 """
 from __future__ import annotations
-import json, random, sys, time
+import json, os, random, sys, time
 from collections import defaultdict
 
 from app.engine.game_loop import PokerGame
@@ -74,7 +74,7 @@ def cash_table(opponents, hands_n, seed, stack_bb):
 def main():
     t0 = time.time()
     hands = 250 if FAST else 800
-    seeds = 3 if FAST else 8
+    seeds = int(os.environ.get("MATRIX_SEEDS", "0")) or (3 if FAST else 8)  # doğrulama: MATRIX_SEEDS ile artır
     sng_n = 10 if FAST else 40
     table_sizes = {"HU(2)": 1, "6-max(6)": 5, "9-max(9)": 8}
     stacks = [40, 100, 200]
