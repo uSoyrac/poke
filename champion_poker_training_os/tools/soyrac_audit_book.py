@@ -94,6 +94,16 @@ def audit():
             seen.add(key)
             errors.append(("TIER", f"{tier} ↔ {dec} (motor: {_tier_from(dec, 0)})", c))
 
+    # ---- 4) KAVRAMSAL: 3.altın-kural numaralı-listede 'kademe aşağı say' = HATA ----
+    # Motorun 3.altın-kuralı POT-ODDS/BOARD-TEHDİT'tir; "sonraki sokak bir kademe aşağı
+    # say" o kuralın İÇİNDEKİ haircut yöntemidir, ayrı kural DEĞİL. Numaralı bir liste
+    # #3'e bunu yazıyorsa = kavramsal hata (D348-D349 bu hatayı 2 yerde yakaladı).
+    for m in re.finditer(r"(?:<td>\s*3\s*</td>\s*<td><b>|<b>\s*3\)\s*)([^<]{0,45})", src):
+        nxt = m.group(1).lower()
+        if "kademe aşağı" in nxt or "sonraki sokak" in nxt:
+            errors.append(("KAVRAM", "3.altın-kural 'kademe aşağı say' yazılmış — POT-ODDS/board-tehdit olmalı",
+                           _ctx(src, m.start())))
+
     return errors
 
 
