@@ -161,7 +161,7 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 <div class="keyrule">Üç altın postflop kuralı:<br>
 <b>1) COMMIT-GATE (%70):</b> yığınının %70'ini riske atan bir bahis/raise'e SADECE strength ≥ 0.60 VEYA draws ≥ 0.30 ile gir. Yoksa check/call. Bu, çöp ellerle stack-off (yığın dökme) spew'unu (sızıntısını) yapısal olarak keser — en çok kazandıran kural.<br>
 <b>2) FLOP RANGE-CBET:</b> preflop yükselten BENSEM + board KURU ise → range-cbet (elin ne olursa olsun 1/3-pot küçük bas). Islak board → polarize (sadece güçlü el/çekme 3/4-pot bas).<br>
-<b>3) SONRAKİ SOKAK BİR KADEME AŞAĞI SAY:</b> turn/river geldikçe el değerini bir tier düşür (haircut'un kafa-formu).</div>
+<b>3) POT-ODDS / BOARD-TEHDİT (sana bahis var):</b> gerçek eq (ham − board-tehdit) ≥ gereken % → CALL, değilse FOLD. "Board-tehdit" = <b>bir kademe aşağı say</b> (flush/düz/eşli geldiyse el değerini düşür — sonraki sokakta da); pot-boyu bahse ~%33 gerek.</div>
 <h4>Bunu MASADA nasıl uygularım? — strength'i ÖLÇME, TANI</h4>
 <p>Yukarıdaki 0–1 arası <b>strength sayısı motorun iç-ölçeğidir; sen masada ondalık hesaplamazsın.</b> Bunun yerine elini bir <b>kademeye TANIRSIN</b>. "Tipik el" sütunu senin köprün — tek soru: <i>"Elimde ne var?"</i></p>
 <table class="tbl"><thead><tr><th>Elinde NE VAR? (tanı)</th><th>= Kademe</th><th>(kodun sayısı)</th></tr></thead><tbody>
