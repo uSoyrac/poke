@@ -137,7 +137,7 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 
 <div class="keyrule">Altın kural: 3-bet pot'ta (3BP) saf equity sıralaması ÇÖKER. Eksen <b>blocker</b> (engelleme kartı) olur. B4 blocker skoru ≥ 2 → <b>4-BET</b> (value+bluff); değilse score ≥ call eşiği → <b>CALL</b>; altında FOLD.</div>
 
-<div class="example">Örnek — sistemin en şaşırtıcı sonucu: <b>A5s, AJs'i döver.</b> Koddan doğrulandı: A5s blocker B4=2 → 4-BET; AJs blocker B4=0 → CALL. Neden? A5s rakibin AA/AK'sını blokluyor (As'i sizde) + tekerlek (wheel) yedek-equity'si var. AJs hiçbir şeyi bloklamaz, üstelik AK/AQ tarafından dominated (baskılanmış). Saf equity "AJs > A5s" der; vs-3bet'te bu <b>tersine döner.</b> Bridge'in "As her zaman 4'tür ama bağlam eşiği kaydırır" mantığının postflop-öncesi en keskin örneğidir.</div>
+<div class="example">Örnek — sistemin en şaşırtıcı sonucu: <b>A5s, AJs'i döver.</b> Koddan doğrulandı: A5s blocker B4=2 → 4-BET; AJs blocker B4=0 → CALL. Neden? A5s rakibin AA/AK'sını blokluyor (As'i sizde) + tekerlek (wheel) yedek-equity'si var. AJs hiçbir şeyi bloklamaz, üstelik AK/AQ tarafından dominated (baskılanmış). Saf equity "AJs > A5s" der; vs-3bet'te bu <b>tersine döner.</b> Bridge'in "As her zaman 4'tür ama bağlam eşiği kaydırır" mantığının postflop-öncesi en keskin örneğidir. <b>Peki AJs de ası bloklar — neden o bluff değil?</b> Fark blocker değil, <b>kicker</b>: A5s'in düşük kicker'ı call değeri taşımaz (dominated, OOP equity'yi kötü realize eder) → blocker-blöfe 'harcanabilir'; AJs'in yüksek kicker'ı villain'in 3-bet BLÖFLERİNİ (KQ/KJ/QJ/AT) dominate eder + üst-pair/floş potansiyeli taşır → CALL etmek bluff'tan daha +EV. <b>Düşük-kicker as = blöf; yüksek-kicker as = call.</b> (B4 bluff puanı bu yüzden yalnız tekerlek aslarına A5s-A2s verilir, AJs'e değil.)</div>
 
 
 
@@ -1810,13 +1810,13 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 <table class="tbl">
 <thead><tr><th>Kademe</th><th>Eller (örnek)</th><th>Gerçek strength</th><th>Plan</th></tr></thead>
 <tbody>
-<tr><td><b>1. NUT</b></td><td>Quads 0.98, full house 0.96, flush 0.92, straight 0.85, <b>set 0.88</b>, top two pair 0.78</td><td>0.78–0.98</td><td>Her zaman değer. Yığını ortaya koymaktan çekinme (stack-off OK).</td></tr>
-<tr><td><b>2. GÜÇLÜ</b></td><td>Trips 0.74, two pair 0.66, <b>overpair 0.62</b></td><td>0.62–0.74</td><td>Değer için bet/raise; iki-üç sokak para kazandır.</td></tr>
-<tr><td><b>3. ORTA</b></td><td>Top-pair iyi kicker — <b>AK on K72 = 0.686</b></td><td>~0.62–0.69</td><td>1–2 sokak ince değer; overbet'e (pot-üstü bahis) fold.</td></tr>
-<tr><td><b>4. ZAYIF-MADE</b></td><td>Top-pair zayıf kicker — <b>A2 on A72 = 0.612</b>; orta-cift (middle pair ~0.41–0.48)</td><td>~0.41–0.61</td><td>1 ince değer veya check-call; üçüncü barrel'a (üst üste bahis) fold.</td></tr>
-<tr><td><b>5. BLUFF-CATCH</b></td><td>Under-pair: <b>22 = 0.30</b>, KK on A-high ≈ 0.58; ace-high</td><td>~0.30–0.58</td><td>Tek küçük bahse call; polarize büyük bahse fold.</td></tr>
-<tr><td><b>6. DRAW (çekme)</b></td><td>Flush draw (9 out), OESD (8 out), gutshot (4 out)</td><td>strength düşük ama draws yüksek</td><td>Semi-bluff (yarı-blöf) veya pot-odds varsa call.</td></tr>
-<tr><td><b>7. HAVA (air)</b></td><td>Hiçbiri — high card 0.12</td><td>0.12</td><td>Give-up veya tek-sokak blöf.</td></tr>
+<tr><td><b>1. NUT</b></td><td>Quads 0.98, full house 0.96, flush 0.92, <b>set 0.88</b>, straight 0.85</td><td>0.85–0.98</td><td>Her zaman değer. Yığını ortaya koymaktan çekinme (stack-off OK).</td></tr>
+<tr><td><b>2. GÜÇLÜ</b></td><td>Top two pair 0.78, trips 0.74, two pair 0.66, top-pair iyi kicker 0.66, <b>overpair 0.62</b></td><td>0.62–0.85</td><td>Değer için bet/raise; 2–3 sokak para kazandır (alt-band top-pair iyi kicker: 1–2 sokak değer, sonra pot kontrol; overbet'e fold).</td></tr>
+<tr><td><b>3. ORTA</b></td><td>Top-pair zayıf kicker — <b>K5 on K72 ≈ 0.60</b></td><td>0.55–0.62</td><td>1–2 sokak ince değer / check-call; overbet'e (pot-üstü bahis) fold.</td></tr>
+<tr><td><b>4. ZAYIF-MADE</b></td><td>Under-pair (KK on A-high ≈ 0.53), orta-çift (middle pair ~0.45)</td><td>0.40–0.55</td><td>1 ince değer veya check-call; üçüncü barrel'a (üst üste bahis) fold.</td></tr>
+<tr><td><b>5. BLUFF-CATCH</b></td><td>Küçük under-pair (77 ≈ 0.38, <b>22 = 0.30</b>), zayıf ace-high</td><td>0.28–0.40</td><td>Tek küçük bahse call; polarize büyük bahse fold.</td></tr>
+<tr><td><b>6. DRAW (çekme)</b></td><td>Flush draw (9 out), OESD (8 out), gutshot (4 out)</td><td>strength&lt;0.55 ama draws≥0.30</td><td>Semi-bluff (yarı-blöf) veya pot-odds varsa call.</td></tr>
+<tr><td><b>7. HAVA (air)</b></td><td>Hiçbiri — high card 0.12</td><td>&lt;0.28</td><td>Give-up veya tek-sokak blöf.</td></tr>
 </tbody>
 </table>
 
@@ -1829,8 +1829,8 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 <p>Sistem bunu tam olarak yakalar. Top-pair formülü şudur:</p>
 
 <div class="example">strength = 0.50 + (eşli_rank / 13) × 0.10 + (kicker / 13) × 0.08<br>
-<b>AK on K72:</b> 0.50 + (top board) 0.10 + (14/13)×0.08 = <b>0.686</b> → ORTA kademe<br>
-<b>A2 on A72:</b> 0.50 + (top board) 0.10 + (2/13)×0.08 = <b>0.612</b> → ZAYIF-MADE kademe</div>
+<b>AK on K72:</b> 0.50 + (top board) 0.10 + (14/13)×0.08 = <b>0.686</b> → GÜÇLÜ kademe (alt-band)<br>
+<b>A2 on A72:</b> 0.50 + (top board) 0.10 + (2/13)×0.08 = <b>0.612</b> → ORTA kademe</div>
 
 <div class="why">Neden bu fark hayat kurtarır? Çünkü rakip de top-pair ile devam ediyorsa, kicker savaşı kazanır. A2 ile büyük pot şişirirsen, seni call eden ya da raise eden her el seni döver — AK, AQ, AJ, AT hepsi kicker'da önde. AK ile ise rahat değer basarsın; seni call eden zayıf As'leri soyarsın. Aynı "top-pair" etiketi, biri 1–2 sokak ince değer (A2: zayıf-made), diğeri 2–3 sokak rahat değer (AK: orta-üst). Kicker, hangi kademede oturduğunu belirleyen ayraçtır.</div>
 
@@ -1893,13 +1893,13 @@ figure.figwrap figcaption { font-size: 9.5pt; color: #5F5E5A; margin-top: 5px; f
 <p>Aynı eli farklı board'larda görelim ve hem dokuyu hem kademeyi hem de planı iki saniyede çıkaralım.</p>
 
 <div class="example">Örnek 1 — K♠Q♠, board K♦7♥2♣ (kuru, wetness ≈ 0.06).<br>
-Top-pair iyi kicker → strength 0.686 → <b>ORTA kademe</b>. Plan: agresör bensem range-cbet/değer; iki sokak ince değer bas. Overbet'e fold; üçüncü büyük barrel kicker'ımı geçer. Kuru board olduğu için bu el zaman içinde güçlü kalır.</div>
+Top-pair iyi kicker → strength 0.686 → <b>GÜÇLÜ kademe</b>. Plan: agresör bensem range-cbet/değer; iki sokak ince değer bas. Overbet'e fold; üçüncü büyük barrel kicker'ımı geçer. Kuru board olduğu için bu el zaman içinde güçlü kalır.</div>
 
 <div class="example">Örnek 2 — A♥2♥, board A♣7♠2♦ (kuru, ama elim iki cift!).<br>
 Burada A2 artık top-pair zayıf-kicker değil — board'la <b>two pair</b> yaptım, strength 0.66 → <b>GÜÇLÜ kademe</b>. Aynı A2'nin A72'de neden değiştiğine dikkat: 7-2 yerine A-2-7 board'unda eşim ikiye çıktı. Plan: rahat değer bas, commit-gate (0.66 ≥ 0.60) açık → büyük pota da girebilirim.</div>
 
 <div class="example">Örnek 3 — 8♠8♣, board K♥9♦4♣ (kuru-ish).<br>
-Under-pair (board'da K var, çiftim altında) → strength ≈ 0.41–0.44 → <b>BLUFF-CATCH</b>. Plan: tek küçük bahse call, polarize büyük bahse fold. Commit-gate kapalı (0.44 &lt; 0.60, draw yok) → yığını asla buna riske atma. 88 ile K-yüksek board'da kahraman olma.</div>
+Under-pair (board'da K var, çiftim altında) → strength ≈ 0.41–0.44 → <b>ZAYIF-MADE</b>. Plan: tek küçük bahse call, polarize büyük bahse fold. Commit-gate kapalı (0.44 &lt; 0.60, draw yok) → yığını asla buna riske atma. 88 ile K-yüksek board'da kahraman olma.</div>
 
 <div class="example">Örnek 4 — J♠T♠, board 9♠8♦2♥ (yarı-ıslak, OESD).<br>
 Made bir şey yok ama OESD (Q veya 7 düz yapar = 8 out) + backdoor flush. strength ≈ 0.12, draws = 0.32. eq = 0.12 + 0.45 × 0.32 = <b>0.26</b> ama draws ≥ 0.30'a yakın → semi-bluff'a uygun. Commit-gate: draws 0.32 ≥ 0.30 → büyük semi-bluff bahsine izinli! Plan: çekmemle agresif bas; hem fold-equity hem out'larım var.</div>
@@ -2465,7 +2465,7 @@ Made: sadece ace-high. Ama nut flush draw (9 out) → draws = 0.35. eq = 0.12 + 
 
 <div class="why">Neden zayıf sahada blöf kısılır, value artar: <span class="term"><b>Calling station</b> (her şeye call eden pasif oyuncu)</span>'a karşı blöf para yakar — fold etmez ki. Ama aynı oyuncu zayıf ellerle de call eder, yani senin orta-iyi ellerin daha çok ödenir. Bu yüzden Mikro'da "ince value" (orta el bile değerine basılır) açılır, blöf frekansı düşer. Bu doğrudan sistemin <span class="term"><b>Exploit Expert</b> (sömürü uzmanı bot arketipi)</span> mantığıdır: rakip leak'ini ölçer, çarpanı ona göre kaydırır.</div>
 
-<div class="example">Örnek: Flop'ta top-pair zayıf kicker'ın var (sistemde ZAYIF-MADE kademe, gücü ~0.612). Yüksek stake'te bu el "1 ince value veya check-call, 3-barrel'a fold" der. Aynı eli Mikro'da bir calling station'a karşı oynuyorsan — iki, hatta üç sokak değer basabilirsin, çünkü o senin top-pair'inden zayıf ellerle call etmeye devam edecek. El-gücü ekseni değişmedi (hâlâ 0.612); <i>karar eşiği</i> zayıf sahada value lehine kaydı.</div>
+<div class="example">Örnek: Flop'ta top-pair zayıf kicker'ın var (sistemde ORTA kademe, gücü ~0.612). Yüksek stake'te bu el "1 ince value veya check-call, 3-barrel'a fold" der. Aynı eli Mikro'da bir calling station'a karşı oynuyorsan — iki, hatta üç sokak değer basabilirsin, çünkü o senin top-pair'inden zayıf ellerle call etmeye devam edecek. El-gücü ekseni değişmedi (hâlâ 0.612); <i>karar eşiği</i> zayıf sahada value lehine kaydı.</div>
 
 <div class="note">Not: Sistem zayıf sahayı sömürme yeteneğini bot simülasyonlarında kanıtladı. Eşit masada elitlerle: Cash'te sistem +46 ila +80 bb/100 kazandı; aynı masadaki <b>Fish -34</b>, <b>Calling Station -94</b> bb/100 kaybetti. Zayıf oyuncuların yapısal hataları, disiplinli bir sistemin kâr kaynağıdır.</div>
 
@@ -2499,7 +2499,7 @@ Made: sadece ace-high. Ama nut flush draw (9 out) → draws = 0.35. eq = 0.12 + 
 
 <div class="keyrule">Altın kural — COMMIT-GATE (_COMMIT_FRAC=0.70): Yığınının %70'ini riske atan bir bahse/raise'e SADECE el-gücü ≥ 0.60 (top-2/iyi overpair+) VEYA çekiş ≥ 0.30 (flush/OESD) ile gir. Düşük SPR'de bu eşik daha kolay tetiklenir (pot zaten büyük); yüksek SPR'de aynı kural seni çöple stack-off etmekten korur. Bu kural sistemin en çok kazandıran tek kuralıdır.</div>
 
-<div class="example">Örnek — aynı el, iki SPR: Top-pair iyi kicker (ORTA kademe, ~0.686) tutuyorsun.
+<div class="example">Örnek — aynı el, iki SPR: Top-pair iyi kicker (GÜÇLÜ kademe, ~0.686) tutuyorsun.
 <ul>
 <li><b>Düşük SPR (turnuva, SPR=2):</b> Pot zaten stack'in büyük kısmına yakın; commit-gate kolayca aşılır, bu el yığınla bağlanmaya değer — basıp commit ol.</li>
 <li><b>Yüksek SPR (derin cash, SPR=10):</b> Aynı top-pair ile tüm yığını ortaya koymak tehlikeli — rakip set/two-pair ile dolu. 1-2 sokak value bas, overbet'e fold. Commit-gate seni durdurur (0.686 &gt; 0.60 ama 100bb derinde "iyi el" göreceli; bir kademe aşağı oynarsın).</li>
@@ -2889,7 +2889,7 @@ El gücü aynı; SPR commitment eşiğini kaydırdı.</div>
 
 <h4>Flop ve turn</h4>
 
-<p>Flop: K♦ 8♠ 4♣ (kuru). Top-pair iyi kicker yaptık (K-T, board K-yüksek). El-gücü merdiveninde bu <b>ORTA</b> kademe (top-pair iyi kicker, gücü ~0.686). Plan: 1–2 sokak değer / check-call, ama overbet'e fold.</p>
+<p>Flop: K♦ 8♠ 4♣ (kuru). Top-pair iyi kicker yaptık (K-T, board K-yüksek). El-gücü merdiveninde bu <b>GÜÇLÜ</b> kademe (top-pair iyi kicker, gücü ~0.686). Plan: 1–2 sokak değer / check-call, ama overbet'e fold.</p>
 
 <div class="why">Neden check-call, neden lead (önden bahis) değil? CO preflop yükseltici; kuru K-yüksek board onun range-cbet bölgesi. BB olarak burada check edip onun cbet'ine karşı <b>top-pair'imizle call</b> ederiz. Lead etmek (donk-bet) menzilimizi okutur ve onun blöflerini kovalar; oysa check-call onun blöf-cbet'lerinden değer toplar. ORTA kademe el "1–2 sokak değer" der; üçüncü büyük mermiye (3-barrel) fold disiplinini hatırla.</div>
 
@@ -2899,7 +2899,7 @@ El gücü aynı; SPR commitment eşiğini kaydırdı.</div>
 <thead><tr><th>Sokak</th><th>Durum</th><th>El kademesi</th><th>Karar / Neden</th></tr></thead>
 <tbody>
 <tr><td>Preflop</td><td>BB vs CO açış, puan ~13</td><td>—</td><td>CALL — 6 ≤ 13 &lt; 16; 3-bet için zayıf, fold için iyi</td></tr>
-<tr><td>Flop K84r</td><td>Top-pair iyi kicker</td><td>ORTA (~0.686)</td><td>Check-call — CO'nun cbet blöflerinden değer; donk-lead etme</td></tr>
+<tr><td>Flop K84r</td><td>Top-pair iyi kicker</td><td>GÜÇLÜ (~0.686)</td><td>Check-call — CO'nun cbet blöflerinden değer; donk-lead etme</td></tr>
 <tr><td>Turn 2 (blank)</td><td>Top-pair, bir kademe düştü</td><td>ORTA→ZAYIF-MADE</td><td>1/2 pota call; overbet/polarize bahse fold (bluff-catch)</td></tr>
 </tbody>
 </table>
@@ -2979,7 +2979,7 @@ El gücü aynı; SPR commitment eşiğini kaydırdı.</div>
 
 <div class="gto">GTO karşılığı: SB preflop doğruluğu %91.3. AQs gibi premium-suited-broadway eller GTO squeeze menzilinin değer çekirdeğidir; sistem bunları 3-bet eşiği (17) üzerinden yakalar. Squeeze, "geniş açış + zayıf call" zincirini cezalandıran teorik olarak sağlam bir hattır.</div>
 
-<div class="icm">ICM karşılığı: Turnuvada eşik +1 (17→18) sıkılaşır; AQs = 22 hâlâ üstünde, yani squeeze kararı korunur ama marjinal eller (puanı 17–18 bandındakiler) ICM altında call'a/fold'a kayar. ICM doğruluğu %90.9. SB'den short stack squeeze'leri, bubble'da fold-equity yüksek olduğundan değerli kalır ama riske duyarlı boyutlanır.</div>
+<div class="icm">ICM karşılığı: Turnuvada eşik +1 (17→18) sıkılaşır; AQs = 24 hâlâ üstünde, yani squeeze kararı korunur ama marjinal eller (puanı 17–18 bandındakiler) ICM altında call'a/fold'a kayar. ICM doğruluğu %90.9. SB'den short stack squeeze'leri, bubble'da fold-equity yüksek olduğundan değerli kalır ama riske duyarlı boyutlanır.</div>
 
 <table class="tbl">
 <thead><tr><th>Sokak</th><th>Durum</th><th>Karar</th><th>Boyut / Neden</th></tr></thead>
@@ -3031,11 +3031,11 @@ El gücü aynı; SPR commitment eşiğini kaydırdı.</div>
 <tbody>
 <tr><td>NUT (en güçlü)</td><td>set/trips+, iki çift</td><td>0.88 / 0.78</td><td>Her zaman değer; yığınını ortaya koy (<span class="term"><b>stack-off</b> (tüm yığını riske atma)</span> sorun değil)</td></tr>
 <tr><td>GÜÇLÜ</td><td>overpair, top-two</td><td>0.62</td><td>Değer bas / yükselt</td></tr>
-<tr><td>ORTA</td><td>top-pair iyi kicker (AK→K72)</td><td>0.686</td><td>1-2 sokak değer; <span class="term"><b>overbet</b> (pot üstü bahis)</span>'e at</td></tr>
+<tr><td>GÜÇLÜ</td><td>top-pair iyi kicker (AK→K72)</td><td>0.686</td><td>1-2 sokak değer; <span class="term"><b>overbet</b> (pot üstü bahis)</span>'e at</td></tr>
 <tr><td>ZAYIF-MADE</td><td>top-pair zayıf kicker (A2→A72), orta çift</td><td>0.612</td><td>1 ince değer veya check-call; 3-barrel'a at</td></tr>
 <tr><td>BLUFF-CATCH</td><td>under-pair, ace-high</td><td>0.30 / üst kart board'da 0.58</td><td>Tek küçük bahse call; büyük polarize bahse FOLD</td></tr>
 <tr><td>DRAW (çekiş)</td><td>OESD=8 out, flush=9 out, gutshot=4 out</td><td>eq = strength + 0.45·draws</td><td>Semi-bluff veya pot-odds varsa call</td></tr>
-<tr><td>HAVA (air)</td><td>hiçbiri</td><td>≈0.30 ve altı</td><td>Give-up veya tek-sokak blöf</td></tr>
+<tr><td>HAVA (air)</td><td>hiçbiri</td><td>&lt;0.28</td><td>Give-up veya tek-sokak blöf</td></tr>
 </tbody>
 </table>
 
@@ -3160,7 +3160,7 @@ El gücü aynı; SPR commitment eşiğini kaydırdı.</div>
 <p><b>Durum:</b> 100bb cash, 6-max. UTG limp/call, MP açtı (3bb), sen BTN'de KhQh ile call, BB de call. <b>Dört oyuncu</b> flop gördü (multiway). Pot ≈ 13bb. <b>Flop: Kc 8d 3s.</b> Top-pair (K) iyi-orta kicker (Q). MP 1/2-pot (6.5bb) c-bet bastı, BB fold etti, sıra sende. Hâlâ MP + sen + (BB attı) = iki oyuncu kaldı ama flop dört kişiyle görüldü.</p>
 
 <h4>Sokak: Flop — multiway disiplin</h4>
-<p><b>Kademe atama (heads-up gözüyle):</b> KQ top-pair iyi kicker, kuru board (Kc 8d 3s, gökkuşağı, bağsız) → bu ORTA kademe (top-pair iyi kicker ≈0.686), normalde 1-2 sokak değer eli.</p>
+<p><b>Kademe atama (heads-up gözüyle):</b> KQ top-pair iyi kicker, kuru board (Kc 8d 3s, gökkuşağı, bağsız) → bu GÜÇLÜ kademe (top-pair iyi kicker ≈0.686), normalde 1-2 sokak değer eli.</p>
 
 <div class="keyrule">Altın kural (multiway haircut): Board'da ne kadar çok oyuncu varsa, elini o kadar <b>aşağı say</b>. Kodun multiway çarpanı bunu gösterir: <code>mw_mult = 1.0 (heads-up) / 0.70 (3 oyuncu) / 0.50 (4+ oyuncu)</code>. Yani 4-yollu bir pot'ta agresyon değerin yarıya iner; çünkü birinin seni geçme ihtimali katlanır.</p></div>
 
@@ -3171,7 +3171,7 @@ El gücü aynı; SPR commitment eşiğini kaydırdı.</div>
 <table class="tbl">
 <thead><tr><th>Soru</th><th>Cevap</th></tr></thead>
 <tbody>
-<tr><td>Kademe (ham)</td><td>ORTA — top-pair iyi kicker (0.686)</td></tr>
+<tr><td>Kademe (ham)</td><td>GÜÇLÜ — top-pair iyi kicker (0.686)</td></tr>
 <tr><td>Multiway haircut</td><td>×0.70-0.50: bir kademe aşağı → ZAYIF-MADE gibi oyna</td></tr>
 <tr><td>Savunma haircut</td><td>eq − 0.16 (MP'nin c-bet aralığı güçlü)</td></tr>
 <tr><td>Commit-gate (0.70)</td><td>Raise yığının %70'ini gerektirirse: strength<0.60 (haircut sonrası) → gate <b>KAPALI</b>, yığınını koyma</td></tr>
@@ -3328,7 +3328,7 @@ El gücü aynı; SPR commitment eşiğini kaydırdı.</div>
 <tbody>
 <tr><td><b>NUT</b></td><td>set/trips+ (0.88), iki çift (0.78)</td><td>Her zaman value; yığını ortaya koy (stack-off OK)</td></tr>
 <tr><td><b>GÜÇLÜ</b></td><td>overpair (0.62), top-two</td><td>Value bet / raise</td></tr>
-<tr><td><b>ORTA</b></td><td>top-pair iyi kicker (AK board K72 = 0.686)</td><td>1-2 sokak value; overbet'e fold</td></tr>
+<tr><td><b>GÜÇLÜ</b></td><td>top-pair iyi kicker (AK board K72 = 0.686)</td><td>1-2 sokak value; overbet'e fold</td></tr>
 <tr><td><b>ZAYIF-MADE</b></td><td>top-pair zayıf kicker (A2 board A72 = 0.612), orta çift</td><td>1 ince value veya check-call; 3-barrel'a fold</td></tr>
 <tr><td><b>BLUFF-CATCH</b></td><td>under-pair (22 = 0.30; üst kart board'daysa 0.58), ace-high</td><td>Tek küçük bahse call; polarize büyük bahse FOLD</td></tr>
 <tr><td><b>DRAW</b></td><td>OESD = 8 out, flush = 9 out, gutshot = 4 out</td><td>Semi-bluff veya pot-odds varsa call</td></tr>
@@ -3495,7 +3495,33 @@ El gücü aynı; SPR commitment eşiğini kaydırdı.</div>
 
 <p>Eğer bu kitaptan tek bir şey hatırlayacaksan, şu olsun: <b>Elinin gücü tek eksendir.</b> İki kartını bir Bridge eli gibi puanla (SHCP), elini bir Blackjack sayımı gibi bir kademeye yerleştir (7 kademe), ve sonra — pozisyonun, board'un, stack'in ya da turnuva baskının o puanı değiştirmesine asla izin verme; sadece o puanı hangi <b>eşikle</b> karşılaştıracağını seç. Preflop'ta puan ≥ eşik ise saldır, değilse bırak; vurduğunda boyut mutlak değil göreli olsun (bahsin katı, potun kesri). Postflop'ta yığınının çoğunu sadece gerçek güç veya gerçek çekmeyle ortaya koy (commit-gate), kuru board'da ucuz ve geniş bas, ıslak board'da kutuplaş, ve her sokakta güvenini bir kademe ölç. Bu, solver'ın mükemmelliğini taklit etmez — onun yerine, mükemmelin ~%93'ünü senin <b>kafan</b> ile, gerçek bir masada, saniyeler içinde, tutarlı bir şekilde verir. Disiplin, sezgiyi yener; uygulanabilir bir sistem, kâğıt üstünde mükemmel ama masada uygulanamayan bir sistemi her zaman yener. Şimdi tabloyu yazdır, otur ve oyna.</p>
 
-<div class="keyrule">Altın kural (kitabın tamamının özü): Puanı sabit tut, eşiği kaydır; büyük potu sadece güçle besle; boyutu göreli düşün. Gerisi disiplindir.</div></div><div class="chapter"><h2>Bölüm 19. Üç Oyun, Tek Masa: Bridge, Tavla, Blackjack Köprüleri ve Bu Sürümün Yenilikleri</h2>
+<div class="keyrule">Altın kural (kitabın tamamının özü): Puanı sabit tut, eşiği kaydır; büyük potu sadece güçle besle; boyutu göreli düşün. Gerisi disiplindir.</div><h3>18.8 50bb / 1000-Kişi MTT'de Sistemi Nasıl Kullanmalı (sim-doğrulanmış)</h3>
+<p>Büyük alan, derince stack (50bb), zayıf/agresif-eğilimli saha. Aşağıdaki ayarlar <b>33.470 Soyrac-eli GERÇEKTEN oynatılarak</b> ölçüldü (varsayım değil).</p>
+<table class="tbl"><thead><tr><th>El sınıfı</th><th>Net (bb/el)</th><th>Yorum</th></tr></thead><tbody>
+<tr><td>Premium çift (QQ+) + AK</td><td>+9.93</td><td>Ekmek kapın — değeri al, ince oyun yok</td></tr>
+<tr><td>TT–JJ</td><td>+4.42</td><td>Güçlü, standart oyna</td></tr>
+<tr><td>Orta çift (77–99)</td><td>+2.79</td><td>Kârlı; set-mine + seçici agresyon</td></tr>
+<tr><td><b>Küçük çift (22–66)</b></td><td><b>−0.33</b></td><td>Hafif sızıntı — özellikle 44/55/66</td></tr>
+<tr><td>Ax (suited/offsuit)</td><td>+0.54</td><td>Pozisyon + blocker</td></tr>
+</tbody></table>
+<div class="keyrule">Altın kural (bu format): Küçük çiftleri (22–66) <b>SET-MINE et — 3-bet/squeeze ETME.</b> Sızıntı elde değil <b>HAT</b>'ta: küçük çift 3-bet <b>−3.46/el</b>, squeeze <b>−3.89/el</b> (para yakar); ama vs-RFI <b>call</b> (set-mine) <b>+1.10/el</b> (kâr). Ucuza flop gör, set yapmazsan bırak.</div>
+<p><b>"77'ye daha az puan vereyim mi?"</b> — Hayır. İki sebep: (1) 77 zaten +1.12/el (sızıntı değil); asıl bleeder <b>44/55/66</b> (örn. 55 −1.01, 66 −0.90; AA +11.68, KK +12.46 ile kıyasla). (2) SHCP'yi düşürmek <i>kârlı set-mine call'ını da</i> öldürür ve cash/diğer formatları bozar. Bu bir <b>hat seçimi</b> sorunu, puan sorunu değil: aynı 55'i <b>call</b> edince +, <b>3-bet</b> edince −. Puanı sabit tut, <b>hattı</b> değiştir.</p>
+<table class="tbl"><thead><tr><th>Küçük çift (22–66) durumu</th><th>Net (bb/el)</th><th></th></tr></thead><tbody>
+<tr><td>vs-RFI call (set-mine)</td><td>+1.10</td><td>✅ doğru hat</td></tr>
+<tr><td>over-call</td><td>+0.19</td><td>OK</td></tr>
+<tr><td>RFI-aç (erken/orta poz)</td><td>−0.70</td><td>zayıf</td></tr>
+<tr><td>iso-raise</td><td>−0.68</td><td>zayıf</td></tr>
+<tr><td>3-bet</td><td><b>−3.46</b></td><td>❌ yapma</td></tr>
+<tr><td>squeeze</td><td><b>−3.89</b></td><td>❌ yapma</td></tr>
+</tbody></table>
+<p>Diğer format-ayarları (maniac-saha mantığı, ayrıca ölçüldü):</p>
+<ul>
+<li><b>Erken aşama sıkı oyna</b> — coinflip'ten kaç, premium-ağırlıklı; saha kendini busts eder.</li>
+<li><b>Blöf yapma, value bas</b> — call-happy sahaya blöf akmaz; made-elle büyük bas (premium +~10/el buradan gelir).</li>
+<li><b>Tehlikeli board'da stack koyma</b> — advisor CHECK/FOLD derken JAM/RAISE = en ölümcül leak (MTT'de reload yok). Bkz Böl 22.8.</li>
+<li><b>Küçük overpair'le derin stack-off'a dikkat</b> — 66 board-altı gibi elle maniac'ın set/iki-çiftine yığın koyma; pot-kontrol.</li>
+</ul>
+<div class="why">Neden küçük çift 3-bet/squeeze sızdırır? 50bb'de 3-bet'lersen ya fold-equity'ye oynarsın (ama call-happy saha fold etmez) ya da çağrılınca dominated range'e ters-implied-odds'la oynarsın — set yapma şansın (~%12) potu kazanmaya yetmez. Call edip ucuza set ararsan implied-odds derin stack'te bol: set yaparsan maniac'ın üst-eli öder. Aynı el, hat onu kârlıdan zararlıya çeviriyor.</div></div><div class="chapter"><h2>Bölüm 19. Üç Oyun, Tek Masa: Bridge, Tavla, Blackjack Köprüleri ve Bu Sürümün Yenilikleri</h2>
 
 <p>Bu son bölüm, sistemin en yeni ve belki de en kişisel katmanını anlatıyor. Sen poker'e bridge ve blackjack zanaatıyla geldin; bu bir dezavantaj değil, <b>gizli bir kaldıraç</b>. Çünkü bu oyunların ustalık becerileri — çıkarım, olasılık disiplini, risk matematiği — poker'in okuma katmanının tam karşılığı ve sende zaten refleks. Bu bölüm o refleksleri masaya nasıl taşıyacağını üç somut araçla gösteriyor.</p>
 
@@ -3626,7 +3652,7 @@ El gücü aynı; SPR commitment eşiğini kaydırdı.</div>
 ③ EFEKTİF = baz + düzeltmeler.  SHCP PUAN ≥ EFEKTİF → AÇ, değilse FOLD
 SHCP: A=10 K=8 Q=6 J=5 T=4 9=3 8=2 (topla) · suited +4 (+2 Ax) · çift=16+2·sıra
       bitişik +3 / 1-gap +2 / 2-gap +1 / uzak(≥4) −2</div>
-<div class="example"><b>Örnek:</b> LJ · 35bb · turnuva · A♣J♣ → baz 13 + sığ(≤40) 1 = <b>14</b>. AJs = 10+5+4+2(Ax)−2(uzak) = <b>19</b> ≥ 14 → <b>AÇ.</b></div>
+<div class="example"><b>Örnek:</b> LJ · 35bb · turnuva · A♣J♣ → baz 13 + sığ(≤40) 1 = <b>14</b>. AJs = 10+5+4+2(Ax)+1(2-gap) = <b>22</b> ≥ 14 → <b>AÇ.</b></div>
 <p class="gto"><b>Tek cümle:</b> "Taban 8, arkandaki her kişi +1 puan. Buton/SB ezbere geniş. Turnuvada erken-pozda +2 (survival). Sığsam +1/+2, bubble/FT'de CALL'larımı sık, geç-poz turnuvada geniş çal." — Bu denklem mevcut Soyrac eşiklerini birebir verir (cash %94,8 GTO-doğru); artık app olmadan kafadan uygulayabilirsin.</p>
 </section>
 
