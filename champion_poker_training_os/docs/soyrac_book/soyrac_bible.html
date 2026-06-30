@@ -3385,7 +3385,7 @@ El gücü aynı; SPR commitment eşiğini kaydırdı.</div>
 <tbody>
 <tr><td>1</td><td><b>Commit-gate</b> (_COMMIT_FRAC = 0.70)</td><td>Yığınının %70'ini riske atan bahis/raise'e SADECE strength ≥ 0.60 (top-2 / iyi overpair+) VEYA draws ≥ 0.30 (flush / OESD) ile gir. Yoksa check/call. Çöple stack-off'u yapısal keser — en çok kazandıran kural.</td></tr>
 <tr><td>2</td><td><b>Flop range-cbet</b></td><td>Preflop yükselten BENSEM + board KURU (wetness &lt; 0.30) → range-cbet: elin ne olursa olsun 1/3-pot küçük bas. Islak board → polarize: sadece güçlü el/çekme 3/4-pot, gerisi check.</td></tr>
-<tr><td>3</td><td><b>Sonraki sokak bir kademe aşağı say</b></td><td>Turn/river geldikçe el değerini bir tier düşür. Haircut'un kafa-formu.</td></tr>
+<tr><td>3</td><td><b>Pot-odds / board-tehdit (sana bahis var)</b></td><td>Gerçek eq (ham − board-tehdit) ≥ gereken % → CALL, değilse FOLD. "Bir kademe aşağı say" (board-tehdit haircut: flush/düz/eşli geldiyse el değerini düşür) bunun İÇİNDEdir.</td></tr>
 </tbody>
 </table>
 
