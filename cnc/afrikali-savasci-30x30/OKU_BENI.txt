@@ -1,0 +1,40 @@
+AFRIKALI SAVAŞÇI DUVAR PANOSU - CNC / LAZER KESİM DOSYALARI
+===========================================================
+
+ÖLÇÜ      : 300 x 300 mm (dış ölçü), çerçeve kalınlığı 8 mm
+BİRİM     : milimetre (mm), ölçek 1:1
+PARÇA     : Tek parça - kesimden sonra düşen/kopan parça yok
+KONTUR    : 32 kapalı kontur (1 dış kontur + 31 iç boşluk/delik)
+
+DOSYALAR
+--------
+savasci_30x30.dxf              -> CNC için ana dosya (DXF R2010, LWPOLYLINE)
+savasci_30x30_R12.dxf          -> Eski programlar için aynı dosya (DXF R12)
+                                  (R12'de birim bilgisi yazılmaz: içeri alırken birimi "mm" seçin)
+savasci_30x30_kesim_hatti.svg  -> Lazer için kesim hattı (kırmızı, 0.01 mm)
+savasci_30x30_dolu.svg         -> Dolu siyah görünüm (kontrol/baskı)
+onizleme.png                   -> Kesilmiş hâlinin görünümü
+
+KATMANLAR (DXF)
+---------------
+DIS_KONTUR   (kırmızı) -> Dış çevre: DIŞTAN kesilecek (outside offset)
+IC_DELIKLER  (mavi)    -> Tüm iç boşluklar: İÇTEN kesilecek (inside offset)
+KESİM SIRASI: Önce IC_DELIKLER, en son DIS_KONTUR.
+
+MALZEME ÖNERİSİ
+---------------
+6 mm MDF veya kontrplak (siyah boya / siyah MDF).
+3 mm malzemede tüy uçları ve mızrak ucu kırılgan olur.
+
+FREZE / TAKIM
+-------------
+- İç boşlukların hepsi 2 mm freze ile kesilebilir (önerilen: 2 mm veya daha ince).
+- 3 mm freze kullanılırsa tüy aralarındaki birkaç ince çentik ve iç köşeler
+  biraz yuvarlanır; parça yine sorunsuz çıkar.
+- Kalkan yuvaları yaklaşık 3.2 mm genişliğinde, kafa bandı delikleri 3 x 3 mm.
+- Dış konturda 3-4 adet tutucu köprü (tab) bırakın.
+- Lazer kesimde herhangi bir kısıt yoktur.
+
+KONTROL
+-------
+İçeri aldıktan sonra toplam ölçünün 300 x 300 mm olduğunu doğrulayın.
