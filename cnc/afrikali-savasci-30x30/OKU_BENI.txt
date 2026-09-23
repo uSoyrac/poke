@@ -1,10 +1,10 @@
 AFRIKALI SAVAŞÇI DUVAR PANOSU - CNC / LAZER KESİM DOSYALARI
 ===========================================================
 
-ÖLÇÜ      : 300 x 300 mm (dış ölçü), çerçeve kalınlığı 8 mm
+ÖLÇÜ      : 300 x 300 mm (dış ölçü), çerçeve kalınlığı 7.5 mm
 BİRİM     : milimetre (mm), ölçek 1:1
 PARÇA     : Tek parça - kesimden sonra düşen/kopan parça yok
-KONTUR    : 32 kapalı kontur (1 dış kontur + 31 iç boşluk/delik)
+KONTUR    : 30 kapalı kontur (1 dış kontur + 29 iç boşluk/delik), pürüzsüz eğriler
 
 DOSYALAR
 --------
@@ -13,6 +13,8 @@ savasci_30x30_R12.dxf          -> Eski programlar için aynı dosya (DXF R12)
                                   (R12'de birim bilgisi yazılmaz: içeri alırken birimi "mm" seçin)
 savasci_30x30_kesim_hatti.svg  -> Lazer için kesim hattı (kırmızı, 0.01 mm)
 savasci_30x30_dolu.svg         -> Dolu siyah görünüm (kontrol/baskı)
+savasci_30x30_300dpi.png       -> 300 DPI siyah-beyaz PNG (gerçek boyut 30x30 cm)
+savasci_30x30_300dpi_seffaf.png -> 300 DPI şeffaf arka planlı PNG
 onizleme.png                   -> Kesilmiş hâlinin görünümü
 
 KATMANLAR (DXF)
@@ -26,14 +28,16 @@ MALZEME ÖNERİSİ
 6 mm MDF veya kontrplak (siyah boya / siyah MDF).
 3 mm malzemede tüy uçları ve mızrak ucu kırılgan olur.
 
-FREZE / TAKIM
--------------
-- İç boşlukların hepsi 2 mm freze ile kesilebilir (önerilen: 2 mm veya daha ince).
-- 3 mm freze kullanılırsa tüy aralarındaki birkaç ince çentik ve iç köşeler
-  biraz yuvarlanır; parça yine sorunsuz çıkar.
-- Kalkan yuvaları yaklaşık 3.2 mm genişliğinde, kafa bandı delikleri 3 x 3 mm.
-- Dış konturda 3-4 adet tutucu köprü (tab) bırakın.
-- Lazer kesimde herhangi bir kısıt yoktur.
+KESİM YÖNTEMİ / TAKIM
+---------------------
+- Orijinal ürün lazer kesim detayında: EN İYİ SONUÇ LAZER KESİMDİR.
+- CNC freze kullanılacaksa 1 mm (en fazla 1.5 mm) freze önerilir.
+  * 1 mm freze: tüm detaylar çıkar.
+  * 1.5 mm freze: tüy araları, hilal uçları, bel yarığı uçları hafif yuvarlanır.
+  * 2-3 mm freze: tüyler arasındaki ince boşluklar tam açılmaz - ÖNERİLMEZ.
+- Kalkan yuvaları: üstte 15 x 4.4 mm, altta 12.7 x 4.5 mm (yuvarlak uçlu).
+- Kafa bandı delikleri: 4 x 4 mm. Mızrak sapı: 4.2 mm.
+- Dış konturda 3-4 adet tutucu köprü (tab) bırakın (frezede).
 
 KONTROL
 -------
