@@ -1,44 +1,58 @@
-AFRIKALI SAVAŞÇI DUVAR PANOSU - CNC / LAZER KESİM DOSYALARI
-===========================================================
+AFRIKALI SAVAŞÇI DUVAR PANOSU - 30 x 30 cm - ÜRETİM PAKETİ
+==========================================================
 
-ÖLÇÜ      : 300 x 300 mm (dış ölçü), çerçeve kalınlığı 7.5 mm
-BİRİM     : milimetre (mm), ölçek 1:1
-PARÇA     : Tek parça - kesimden sonra düşen/kopan parça yok
-KONTUR    : 30 kapalı kontur (1 dış kontur + 29 iç boşluk/delik), pürüzsüz eğriler
+ÖLÇÜ    : 300 x 300 mm (dış ölçü), ölçek 1:1, birim mm
+ÇERÇEVE : 7.5 mm
+PARÇA   : Tek parça - kesimden sonra düşen/kopan parça yok
+KONTUR  : 30 kapalı kontur (1 dış + 29 iç), hepsi geçerli, hiçbiri kesişmiyor
+ÇİZİM   : %100 vektör. Kenarlar pürüzsüz eğri; delikler (kalkan yuvaları,
+          hilaller, kafa bandı kareleri) tam geometrik; çerçeve kenarları
+          cetvel düzlüğünde; mızrak sapı düz ve sabit 4.2 mm.
 
-DOSYALAR
---------
-savasci_30x30.dxf              -> CNC için ana dosya (DXF R2010, LWPOLYLINE)
-savasci_30x30_R12.dxf          -> Eski programlar için aynı dosya (DXF R12)
-                                  (R12'de birim bilgisi yazılmaz: içeri alırken birimi "mm" seçin)
-savasci_30x30_kesim_hatti.svg  -> Lazer için kesim hattı (kırmızı, 0.01 mm)
-savasci_30x30_dolu.svg         -> Dolu siyah görünüm (kontrol/baskı)
-savasci_30x30_300dpi.png       -> 300 DPI siyah-beyaz PNG (gerçek boyut 30x30 cm)
-savasci_30x30_300dpi_seffaf.png -> 300 DPI şeffaf arka planlı PNG
-onizleme.png                   -> Kesilmiş hâlinin görünümü
+KLASÖRLER
+---------
+1_CNC_KESIM/
+  savasci_30x30.dxf        -> CNC/lazer ana dosyası (DXF R2010, mm)
+  savasci_30x30_R12.dxf    -> Eski programlar için (R12: içeri alırken birimi "mm" seçin)
+  savasci_30x30_kesim.svg  -> Lazer kesim hattı (kırmızı = dış, mavi = iç, 0.01 mm çizgi)
+  savasci_30x30_kesim.pdf  -> Aynı kesim hattı, vektör PDF, 300x300 mm sayfa
 
-KATMANLAR (DXF)
----------------
-DIS_KONTUR   (kırmızı) -> Dış çevre: DIŞTAN kesilecek (outside offset)
-IC_DELIKLER  (mavi)    -> Tüm iç boşluklar: İÇTEN kesilecek (inside offset)
-KESİM SIRASI: Önce IC_DELIKLER, en son DIS_KONTUR.
+2_TASARIM/
+  savasci_30x30.svg              -> Dolu siyah vektör tasarım
+  savasci_30x30_1-1.pdf          -> Dolu siyah vektör PDF, 300x300 mm sayfa (1:1)
+  savasci_30x30_300dpi.png/.jpg  -> 300 DPI baskı görseli (3543 x 3543 px = 30 x 30 cm)
+  savasci_30x30_300dpi_seffaf.png-> 300 DPI şeffaf arka planlı
 
-MALZEME ÖNERİSİ
----------------
-6 mm MDF veya kontrplak (siyah boya / siyah MDF).
-3 mm malzemede tüy uçları ve mızrak ucu kırılgan olur.
+3_URUN_GORSELLERI/
+  urun_krem_duvar.jpg, urun_terrakota_duvar.jpg, urun_yesil_duvar.jpg
+                                 -> Ürün tanıtım görselleri (bu dosyadan üretildi)
+  referans_*.jpg                 -> Örnek alınan orijinal ürün fotoğrafları
+
+DXF KATMANLARI
+--------------
+DIS_KONTUR  (kırmızı) -> Dış çevre: DIŞTAN kesilir
+IC_DELIKLER (mavi)    -> İç boşluklar: İÇTEN kesilir
+KESİM SIRASI: önce IC_DELIKLER, en son DIS_KONTUR.
+
+MALZEME
+-------
+6 mm MDF veya kontrplak, mat siyah boya (ya da siyah MDF).
 
 KESİM YÖNTEMİ / TAKIM
 ---------------------
-- Orijinal ürün lazer kesim detayında: EN İYİ SONUÇ LAZER KESİMDİR.
-- CNC freze kullanılacaksa 1 mm (en fazla 1.5 mm) freze önerilir.
-  * 1 mm freze: tüm detaylar çıkar.
-  * 1.5 mm freze: tüy araları, hilal uçları, bel yarığı uçları hafif yuvarlanır.
-  * 2-3 mm freze: tüyler arasındaki ince boşluklar tam açılmaz - ÖNERİLMEZ.
-- Kalkan yuvaları: üstte 15 x 4.4 mm, altta 12.7 x 4.5 mm (yuvarlak uçlu).
-- Kafa bandı delikleri: 4 x 4 mm. Mızrak sapı: 4.2 mm.
-- Dış konturda 3-4 adet tutucu köprü (tab) bırakın (frezede).
+- En iyi sonuç: LAZER KESİM (orijinal ürün lazer detayındadır).
+- CNC freze: 1 mm freze önerilir (en fazla 1.5 mm).
+  1 mm   -> tüm detaylar çıkar
+  1.5 mm -> tüy araları, hilal uçları, bel yarığı uçları hafif yuvarlanır
+  2-3 mm -> tüyler arasındaki ince boşluklar tam açılmaz: ÖNERİLMEZ
+- Frezede dış konturda 3-4 tutucu köprü (tab) bırakın.
+
+ÖLÇÜLER
+-------
+Kalkan yuvaları: üstte 6 adet 15.0 x 4.4 mm, altta 8 adet 12.7 x 4.5 mm (yuvarlak uçlu)
+Kafa bandı delikleri: 4 adet 4 x 4 mm
+Mızrak sapı: 4.2 mm
 
 KONTROL
 -------
-İçeri aldıktan sonra toplam ölçünün 300 x 300 mm olduğunu doğrulayın.
+Dosyayı açınca toplam ölçünün 300 x 300 mm olduğunu doğrulayın.
